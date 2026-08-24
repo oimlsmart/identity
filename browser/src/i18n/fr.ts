@@ -25,6 +25,7 @@ export const fr: Record<MessageKey, string> = {
   "account.activity.action.account.session_revoked": "Une session a été révoquée",
   "account.activity.action.account.sessions_revoked": "{count} autre(s) session(s) déconnectée(s)",
   "account.activity.action.account.sign_in": "Connexion avec le mot de passe",
+  "account.activity.action.account.sign_in_failed": "Une tentative de connexion a échoué",
   "account.activity.action.upstream_link": "{provider} lié",
   "account.activity.action.upstream_sign_in": "Connexion avec {provider}",
   "account.activity.action.upstream_unlink": "{provider} dissocié",

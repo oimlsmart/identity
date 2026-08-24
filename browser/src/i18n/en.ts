@@ -23,6 +23,7 @@ export const en = {
   "account.activity.action.account.session_revoked": "A session was revoked",
   "account.activity.action.account.sessions_revoked": "{count} other session(s) signed out",
   "account.activity.action.account.sign_in": "Signed in with the password",
+  "account.activity.action.account.sign_in_failed": "A sign-in attempt failed",
   "account.activity.action.upstream_link": "Linked {provider}",
   "account.activity.action.upstream_sign_in": "Signed in with {provider}",
   "account.activity.action.upstream_unlink": "Unlinked {provider}",

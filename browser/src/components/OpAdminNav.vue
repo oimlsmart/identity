@@ -5,13 +5,16 @@
 // pages, and the provider registry. Rendered at the top of each surface;
 // the current one is marked and not clickable.
 // ─────────────────────────────────────────────────────────────────────
-defineProps<{ current: 'registry' | 'clients' | 'activity' | 'providers' | 'users' }>()
+defineProps<{ current: 'overview' | 'registry' | 'sessions' | 'clients' | 'activity' | 'providers' | 'security' | 'users' }>()
 
 const entries = [
+  { key: 'overview', to: '/op/admin/overview', label: 'Overview' },
   { key: 'registry', to: '/op/admin/registry', label: 'Identity registry' },
+  { key: 'sessions', to: '/op/admin/sessions', label: 'Live sessions' },
   { key: 'clients', to: '/op/admin/clients', label: 'Relying parties' },
   { key: 'activity', to: '/op/admin/activity', label: 'Activity' },
   { key: 'providers', to: '/op/admin/providers', label: 'Sign-in providers' },
+  { key: 'security', to: '/op/admin/security', label: 'Security' },
   { key: 'users', to: '/op/admin/users', label: 'Organization administration' },
 ] as const
 </script>

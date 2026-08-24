@@ -36,10 +36,13 @@ const ROUTE_PATHS: Array<{ path: string; name: string }> = [
   { path: '/op/setup', name: 'op-setup' },
   { path: '/op/email-change', name: 'op-email-change' },
   { path: '/op/admin', name: 'op-admin' },
+  { path: '/op/admin/overview', name: 'op-admin-overview' },
+  { path: '/op/admin/sessions', name: 'op-admin-sessions' },
   { path: '/op/admin/clients', name: 'op-admin-clients' },
   { path: '/op/admin/providers', name: 'op-admin-providers' },
   { path: '/op/admin/users', name: 'op-admin-users' },
   { path: '/op/admin/activity', name: 'op-admin-activity' },
+  { path: '/op/admin/security', name: 'op-admin-security' },
   { path: '/op/admin/registry', name: 'op-admin-registry' },
   { path: '/op/admin/registry/users/:id', name: 'op-admin-registry-user' },
 ]
