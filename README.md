@@ -14,8 +14,7 @@ https://id-preview.oimlsmart.org (the deploy gate's first stop).
 This repository carries the OP half of the identity contract only:
 
 - the OP domain modules (`browser/server/auth/op/`, `auth/upstream/`,
-  `auth/passwords.ts`, `auth/org-registry.ts`),
-- `auth/passwords.ts`, `auth/org-registry.ts`) — including the
+  `auth/passwords.ts`, `auth/org-registry.ts`) — including the
   strong-authentication half (TODO.identity-sso/02+03: `auth/op/totp.ts`,
   `auth/op/webauthn.ts`, `auth/op/recovery.ts`, `auth/op/factors.ts`),
 - the OP routers (`browser/server/routes/op*.ts` — the protocol, the accounts, the upstream providers, the join intake, the memberships, the registry) plus the factor registry's console API

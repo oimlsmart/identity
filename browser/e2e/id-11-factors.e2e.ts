@@ -828,4 +828,52 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       flog(page, 'leg7: the spare signs in — the account survived the loss')
     })
   })
+
+  it('leg 8 — the admin’s per-user page: the factors slot lists + revokes (the registry’s acts audit)', { timeout: 900_000 }, async () => {
+    // Casey at this point holds: the TOTP app (leg 1), the recovery codes
+    // (leg 1), and the passkey from the clone leg (leg 6). The admin view
+    // rides the demo admin's session (the cast is enabled; the registry
+    // gate is the role).
+    const adminCookie = await (async () => {
+      const res = await fetch(`${stack.base}/api/auth/demo`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+      })
+      expect(res.ok).toBe(true)
+      return res.headers.get('set-cookie')!.split(';')[0]!.split('=')[1]!
+    })()
+
+    await withPage(async (page) => {
+      await page.setCookie({ name: 'oiml-session', value: adminCookie, url: stack.base })
+      await page.goto(`${stack.base}/op/admin/registry/users/${encodeURIComponent(caseyId)}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-reg-factors"]', { timeout: APP_COLD, polling: 500 })
+      await page.waitForSelector('[data-testid="op-reg-factors-list"]', { timeout: 60_000, polling: 500 })
+      // The slot lists the TOTP app + the passkey + the recovery state.
+      await page.waitForSelector('[data-testid^="op-reg-factor-totp-"]', { timeout: 60_000, polling: 500 })
+      await page.waitForSelector('[data-testid^="op-reg-factor-passkey-"]', { timeout: 60_000, polling: 500 })
+      await page.waitForSelector('[data-testid="op-reg-factors-recovery"]', { timeout: 60_000, polling: 500 })
+      flog(page, 'leg8: the slot lists Casey’s factors')
+
+      // The admin revokes the authenticator app; the account's chain
+      // carries the event (the account's own feed shows it).
+      await page.evaluate(() => (document.querySelector('[data-testid^="op-reg-factor-totp-"][data-testid$="-revoke"]') as HTMLElement).click())
+      await page.waitForFunction(
+        () => !document.querySelector('[data-testid^="op-reg-factor-totp-"][data-testid$="-revoke"]'),
+        { timeout: 60_000, polling: 500 },
+      )
+      flog(page, 'leg8: the admin revoked the TOTP app')
+    })
+
+    // The account's audit chain carries the revocation (by the
+    // administrator) — read through the registry's per-account activity
+    // (Casey's own TOTP is gone by now, so the admin's read stands in).
+    const activity = await fetch(`${stack.base}/api/op/registry/users/${encodeURIComponent(caseyId)}/activity`, {
+      headers: { cookie: `oiml-session=${adminCookie}` },
+    })
+    expect(activity.ok).toBe(true)
+    const actions = ((await activity.json()) as { events: Array<{ action: string }> }).events.map(e => e.action)
+    expect(actions).toContain('factor.totp_revoked')
+    flog(null, 'leg8: the revocation audited on the account’s chain')
+  })
 })
