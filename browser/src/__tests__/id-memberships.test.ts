@@ -5,8 +5,8 @@
 // with the seeded participants register (the entity store).
 //
 // Covered:
-//   THE BACKFILL's verification — migration 0011 applied onto a
-//     pre-0011 database creates every org-bound account's PRIMARY
+//   THE BACKFILL's verification — migration 0012 applied onto a
+//     pre-0012 database creates every org-bound account's PRIMARY
 //     membership from the legacy columns (and the dual-read fallback:
 //     an account with NO membership row reads exactly as before);
 //   THE LIFECYCLE — invite (an existing account) → the holder's accept
@@ -205,16 +205,16 @@ afterAll(() => {
 
 // ── the backfill + the dual-read honesty ─────────────────────────────
 
-describe('the migration backfill (0011)', () => {
+describe('the migration backfill (0012)', () => {
   it('creates every org-bound account\'s PRIMARY membership from the legacy columns', () => {
-    // The pre-0011 state on a scratch database, then the real files.
+    // The pre-0012 state on a scratch database, then the real files.
     const scratch = new Database(':memory:')
     const files = readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort()
-    for (const f of files.filter(f => !f.startsWith('0011'))) scratch.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf-8'))
+    for (const f of files.filter(f => !f.startsWith('0012'))) scratch.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf-8'))
     scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-ia', 'ia@x.example.org', 'IA', 'password', 'ia_officer', '[\"ia_officer\"]', 'EX1')").run()
     scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-legacy', 'legacy@x.example.org', 'Legacy', 'password', 'viewer', NULL, 'ut-nmi-nl')").run()
     scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-free', 'free@x.example.org', 'Free', 'password', 'admin', '[\"admin\"]', NULL)").run()
-    scratch.exec(readFileSync(join(MIGRATIONS_DIR, '0011_org_memberships.sql'), 'utf-8'))
+    scratch.exec(readFileSync(join(MIGRATIONS_DIR, '0012_org_memberships.sql'), 'utf-8'))
     const rows = scratch.prepare('SELECT user_id, org_id, roles, state, is_primary FROM org_memberships ORDER BY user_id').all() as Array<Record<string, unknown>>
     expect(rows).toEqual([
       { user_id: 'u-ia', org_id: 'EX1', roles: '["ia_officer"]', state: 'active', is_primary: 1 },
