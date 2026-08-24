@@ -24,7 +24,14 @@
 //          carrying the user agent, and sign-out-everywhere-else;
 //   leg 5  the activity feed: the account's own events, newest first;
 //          the guide screenshots are captured here (the documentation
-//          rule: real 1440x900 captures from the running app).
+//          rule: real 1440x900 captures from the running app);
+//   leg 6  the avatar: the upload (capped + type-allowlisted), the
+//          renders, the removal;
+//   leg 7  the PUBLIC avatar route + the OIDC picture claim: the
+//          session-less serve (bytes / generated initials / the honest
+//          404), and the claim appearing only with the client's policy
+//          family AND an uploaded avatar (fetch-level, the RP's load
+//          path through the issuer origin).
 //
 // SELF-CONTAINED: own ports (API 9493 / astro 9393; clear of id-01's
 // 8693/8393, id-02's 8793/8593, id-08's 8993/8893 and id-10's
@@ -37,6 +44,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import puppeteer, { type Browser, type Page } from 'puppeteer'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync, writeFileSync } from 'node:fs'
@@ -736,5 +744,128 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
       expect(gone).toBe(404)
       flog(page, 'leg6: removed — the initials stand in again')
     })
+  })
+
+  it('leg 7 — the public avatar route + the OIDC picture claim (the RP’s load path)', { timeout: 900_000 }, async () => {
+    // Fetch-level (the op-surface-contract posture, no browser): the RP
+    // loads the claim's URL from a plain <img> — no session rides it.
+    const caseyCookie = `oiml-session=${await passwordCookie(stack.base, CASEY_EMAIL_2, CASEY_PASSWORD_3)}`
+    const rootCookie = `oiml-session=${await passwordCookie(stack.base, ROOT.email, ROOT.password)}`
+
+    const meRes = await fetch(`${stack.base}/api/op/account`, { headers: { cookie: caseyCookie } })
+    expect(meRes.status).toBe(200)
+    const me = (await meRes.json() as { account: { id: string; name: string } }).account
+    // The console's initials rule (what the fallback must render).
+    const nameParts = me.name.trim().split(/\s+/).filter(Boolean)
+    const expectedInitials = ((nameParts[0]?.[0] ?? '') + (nameParts[nameParts.length - 1]?.[0] ?? '')).toUpperCase() || '?'
+
+    const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+    const put = await fetch(`${stack.base}/api/op/account/avatar`, {
+      method: 'PUT', headers: { cookie: caseyCookie, 'content-type': 'image/png' }, body: PNG_1PX,
+    })
+    expect(put.status).toBe(200)
+    flog(null, 'leg7: the avatar is up')
+
+    // The public serve: NO session, through the API directly AND through
+    // the issuer origin (the astro proxy — the URL the claim names).
+    for (const origin of [stack.apiBase, stack.base]) {
+      const res = await fetch(`${origin}/op/avatar/${me.id}`)
+      expect(res.status, `the public serve at ${origin}`).toBe(200)
+      expect(res.headers.get('content-type')).toBe('image/png')
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(res.headers.get('cache-control')).toBe('public, max-age=300')
+      expect(Buffer.from(await res.arrayBuffer()).equals(PNG_1PX)).toBe(true)
+    }
+    // An unknown account: the plain 404 (JSON, never an error page).
+    const unknown = await fetch(`${stack.base}/op/avatar/${crypto.randomUUID()}`)
+    expect(unknown.status).toBe(404)
+    expect(unknown.headers.get('content-type')).toContain('application/json')
+    flog(null, 'leg7: the public route serves the bytes, the 404 is honest')
+
+    // The registry acts (the admin's posture): one client with the
+    // picture family, one without.
+    for (const [clientId, claims] of [['e2e-picture-rp', ['picture']], ['e2e-plain-rp', null]] as const) {
+      const res = await fetch(`${stack.base}/api/op/clients`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: rootCookie },
+        body: JSON.stringify({
+          client_id: clientId,
+          name: `The e2e ${clientId}`,
+          redirect_uris: ['http://127.0.0.1:9499/callback'],
+          ...(claims ? { claims_policy: { claims } } : {}),
+        }),
+      })
+      expect(res.status, `register ${clientId}`).toBe(201)
+    }
+
+    /** authorize → consent → decide → token → userinfo, fetch-level. */
+    async function roundTrip(clientId: string): Promise<{ idToken: Record<string, unknown>; userinfo: Record<string, unknown>; policyClaims: string[] }> {
+      const verifier = `e2e-verifier-${crypto.randomUUID()}`
+      const challenge = createHash('sha256').update(verifier).digest('base64url')
+      const redirectUri = 'http://127.0.0.1:9499/callback'
+      const authorize = await fetch(`${stack.base}/op/authorize?${new URLSearchParams({
+        response_type: 'code', client_id: clientId, redirect_uri: redirectUri,
+        scope: 'openid profile email', state: 'e2e', nonce: 'e2e-nonce',
+        code_challenge: challenge, code_challenge_method: 'S256',
+      })}`, { headers: { cookie: caseyCookie }, redirect: 'manual' })
+      expect(authorize.status, 'authorize redirects to the consent page').toBe(302)
+      const authId = new URL(authorize.headers.get('location')!, stack.base).searchParams.get('auth')!
+      const consentRes = await fetch(`${stack.base}/api/op/consent/${authId}`, { headers: { cookie: caseyCookie } })
+      expect(consentRes.status).toBe(200)
+      const consent = await consentRes.json() as { policyClaims: string[] }
+      const decide = await fetch(`${stack.base}/api/op/consent/${authId}/decide`, {
+        method: 'POST', headers: { 'content-type': 'application/json', cookie: caseyCookie },
+        body: JSON.stringify({ decision: 'allow' }),
+      })
+      expect(decide.status).toBe(200)
+      const code = new URL((await decide.json() as { redirect: string }).redirect).searchParams.get('code')!
+      const exchange = await fetch(`${stack.base}/op/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code', code, redirect_uri: redirectUri,
+          client_id: clientId, code_verifier: verifier,
+        }),
+      })
+      expect(exchange.status, 'the code exchange').toBe(200)
+      const tokens = await exchange.json() as { id_token: string; access_token: string }
+      const idToken = JSON.parse(Buffer.from(tokens.id_token.split('.')[1]!, 'base64url').toString()) as Record<string, unknown>
+      const userinfoRes = await fetch(`${stack.base}/op/userinfo`, { headers: { authorization: `Bearer ${tokens.access_token}` } })
+      expect(userinfoRes.status).toBe(200)
+      return { idToken, userinfo: await userinfoRes.json() as Record<string, unknown>, policyClaims: consent.policyClaims }
+    }
+
+    // The picture client + the uploaded avatar: the claim names the
+    // public route's absolute URL under the issuer, and that URL really
+    // loads without a session (the RP's <img> path).
+    const withPicture = await roundTrip('e2e-picture-rp')
+    expect(withPicture.policyClaims).toContain('picture')
+    expect(withPicture.idToken.iss).toBe(stack.base)
+    expect(withPicture.idToken.picture).toBe(`${stack.base}/op/avatar/${me.id}`)
+    expect(withPicture.userinfo.picture).toBe(`${stack.base}/op/avatar/${me.id}`)
+    const viaClaim = await fetch(withPicture.idToken.picture as string)
+    expect(viaClaim.status).toBe(200)
+    expect(viaClaim.headers.get('content-type')).toBe('image/png')
+    flog(null, 'leg7: the picture claim carries the loadable public URL')
+
+    // The plain client: no picture claim even with the avatar present
+    // (the per-client privilege).
+    const plain = await roundTrip('e2e-plain-rp')
+    expect(plain.idToken.picture).toBeUndefined()
+    expect(plain.userinfo.picture).toBeUndefined()
+
+    // The avatar removed: the claim disappears (never a stale URL), and
+    // the public route falls back to the generated initials.
+    const del = await fetch(`${stack.base}/api/op/account/avatar`, { method: 'DELETE', headers: { cookie: caseyCookie } })
+    expect(del.status).toBe(200)
+    const noAvatar = await roundTrip('e2e-picture-rp')
+    expect(noAvatar.idToken.picture).toBeUndefined()
+    expect(noAvatar.userinfo.picture).toBeUndefined()
+    const fallback = await fetch(`${stack.base}/op/avatar/${me.id}`)
+    expect(fallback.status).toBe(200)
+    expect(fallback.headers.get('content-type')).toBe('image/svg+xml')
+    expect(fallback.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(await fallback.text()).toContain(`>${expectedInitials}</text>`)
+    flog(null, 'leg7: removal drops the claim; the initials fallback serves')
   })
 })
