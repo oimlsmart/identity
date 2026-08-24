@@ -38,6 +38,16 @@ JWKS serves every active row, so a rotation never strands an in-flight
 ID token, and old keys retire by an admin act after the token lifetime
 has passed, never automatically mid-flight.
 
+- Availability invariant: the JWKS answer is the registered table, never
+  gated on the secret's availability. Signing needs the secret; serving
+  public keys does not. A secret mid-propagation (a fresh isolate that
+  cannot resolve `OP_SIGNING_KEY` while a `wrangler secret put` rollout
+  settles) serves the table as it stands, and a genuinely empty table
+  answers an honest empty JWKS, never an unhandled 500. (The 2026-08-24
+  flicker: the read path resolved the secret unguarded, so a
+  propagation window 500'd the endpoint; oimlsmart/identity#5,
+  oimlsmart/smart#181.)
+
 - The rotation ceremony is a script, not a hand-edit: generate the
   successor pair, declare the secret, JWKS advertises both, retire the
   old row after the longest token lifetime plus margin. Cadence:
