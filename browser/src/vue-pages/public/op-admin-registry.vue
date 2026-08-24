@@ -311,7 +311,15 @@ onMounted(async () => {
                     {{ row.name }}
                     <span v-if="!row.active" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold">deactivated</span>
                   </p>
-                  <p class="text-[11px] text-slate-400 dark:text-slate-500">{{ row.email }} · {{ row.provider }}</p>
+                  <p class="text-[11px] text-slate-400 dark:text-slate-500">
+                    {{ row.email }} · {{ row.provider }}
+                    <router-link
+                      v-if="row.orgId"
+                      :to="`/op/admin/registry/orgs/${row.orgId}`"
+                      class="ml-1 text-brand-600 dark:text-brand-300 hover:underline"
+                      :data-testid="`op-reg-org-link-${row.id}`"
+                    >· {{ row.orgId }}</router-link>
+                  </p>
                 </td>
                 <td class="py-2 pr-3 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-reg-roles-${row.id}`">{{ row.roles.join(', ') }}</td>
                 <td class="py-2 pr-3 text-xs text-slate-600 dark:text-slate-300">

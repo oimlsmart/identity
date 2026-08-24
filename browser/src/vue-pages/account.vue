@@ -13,6 +13,12 @@
 //                   provider's; initials otherwise — served publicly by
 //                   convention at /op/avatar/<id>, the OIDC `picture`
 //                   claim's target, and the section says so plainly);
+//   ORGANIZATIONS   (TODO.identity/11 — the multi-org model) the
+//                   account's memberships with their per-org role sets and
+//                   states, the ACTIVE-ORG switch (the account acts as one
+//                   org at a time; tokens carry the active org's roles),
+//                   the invitations (accept/decline), and the request to
+//                   join another registered organization;
 //   SIGN-IN METHODS the password and the linked upstream identities
 //                   (TODO.identity/08's registry surface) with icons,
 //                   the linked account's id and date, link/unlink and
@@ -59,9 +65,56 @@ interface AccountContext {
     current: boolean
   }>
   pendingEmailChange: { newEmail: string; expiresAt: string; delivery: string } | null
+  /** TODO.identity/11: the organizations block (the multi-org model). */
+  organizations?: {
+    /** The session's stamped context (null = the primary binding). */
+    activeOrg: string | null
+    /** The org the claims carry right now (the context rule's answer). */
+    effectiveOrg: string | null
+    memberships: MembershipRow[]
+    requests: OrgRequestRow[]
+  }
   /** The avatar feature's honest availability + its byte cap (the
    *  server names both; the console never hides a limit in prose). */
   features?: { avatarUploads: boolean; avatarMaxBytes: number }
+}
+
+/** A membership row (TODO.identity/11): the account × org × per-org role
+ *  set with the lifecycle state. */
+interface MembershipRow {
+  orgId: string
+  orgName: string
+  orgKind: string | null
+  roles: string[]
+  state: 'invited' | 'active' | 'disabled'
+  isPrimary: boolean
+  invitedBy: string | null
+  createdAt: string
+  disabledAt: string | null
+  disabledBy: string | null
+}
+
+/** The account's own join-request row (the membership-request path). */
+interface OrgRequestRow {
+  id: string
+  orgId: string | null
+  orgName: string | null
+  orgNameText: string | null
+  requestedRole: string
+  status: 'pending' | 'approved' | 'refused'
+  refusalReason: string | null
+  createdAt: string
+  decidedAt: string | null
+}
+
+/** The public selector feed's org (GET /api/op/organizations). */
+interface SelectableOrg {
+  id: string
+  name: string
+  shortName: string
+  kind: string
+  country: string
+  roles: string[]
 }
 
 /** TODO.identity/08's links API row. */
@@ -118,6 +171,131 @@ const passwordBusy = ref(false)
 const sessionBusy = ref<string | null>(null)
 const revokeOthersBusy = ref(false)
 const acting = ref<string | null>(null) // a provider id, or 'password'
+
+// ── the organizations (TODO.identity/11 — the multi-org model) ───────
+/** An org id while its act runs ('request' while the join ask flies). */
+const orgBusy = ref<string | null>(null)
+const selectableOrgs = ref<SelectableOrg[]>([])
+const joinOrgId = ref('')
+const joinRole = ref('')
+const joinNote = ref('')
+
+/** The organizations block (null until the context loads). */
+const orgBlock = computed(() => context.value?.organizations ?? null)
+
+/** The display name for an org id (the memberships' resolved names,
+ *  then the register feed's — a not-yet-member asking to join still
+ *  sees the name). */
+function orgName(orgId: string | null): string {
+  if (!orgId) return ''
+  return orgBlock.value?.memberships.find(m => m.orgId === orgId)?.orgName
+    ?? selectableOrgs.value.find(o => o.id === orgId)?.name
+    ?? orgId
+}
+
+/** The org currently acted as (the effective context's display name). */
+const actingAsName = computed(() => orgName(orgBlock.value?.effectiveOrg ?? null))
+
+/** The orgs the account may still ask to join: registered, not already
+ *  a membership, not already waiting on a pending ask. */
+const joinableOrgs = computed(() => {
+  const taken = new Set((orgBlock.value?.memberships ?? []).map(m => m.orgId))
+  const asked = new Set((orgBlock.value?.requests ?? []).filter(r => r.status === 'pending' && r.orgId).map(r => r.orgId!))
+  return selectableOrgs.value.filter(o => !taken.has(o.id) && !asked.has(o.id))
+})
+
+/** The role options follow the selected org's kind (the feed carries
+ *  the bounded set). */
+const joinRoles = computed(() => selectableOrgs.value.find(o => o.id === joinOrgId.value)?.roles ?? [])
+
+/** The context switch (the GitHub pattern): the session acts AS the
+ *  chosen org from the next request on. The page reloads so every
+ *  surface (the header, the role line, the admin entry points)
+ *  re-resolves under the new context. */
+async function switchOrg(orgId: string | null) {
+  if (orgBusy.value) return
+  orgBusy.value = orgId ?? 'primary'
+  error.value = null
+  notice.value = null
+  try {
+    const res = await fetch('/api/op/account/active-org', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ org_id: orgId }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { error?: string } | null
+      error.value = body?.error ?? t('account.networkError')
+      orgBusy.value = null
+      return
+    }
+    window.location.reload()
+  } catch {
+    error.value = t('account.networkError')
+    orgBusy.value = null
+  }
+}
+
+async function answerInvitation(orgId: string, accept: boolean) {
+  if (orgBusy.value) return
+  orgBusy.value = orgId
+  error.value = null
+  notice.value = null
+  try {
+    const res = await fetch(`/api/op/account/memberships/${encodeURIComponent(orgId)}/${accept ? 'accept' : 'decline'}`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { error?: string } | null
+      error.value = body?.error ?? t('account.networkError')
+      orgBusy.value = null
+      return
+    }
+    notice.value = accept
+      ? t('account.organizations.accepted', { org: orgName(orgId) })
+      : t('account.organizations.declined', { org: orgName(orgId) })
+    await load()
+    orgBusy.value = null
+  } catch {
+    error.value = t('account.networkError')
+    orgBusy.value = null
+  }
+}
+
+/** Ask to join another registered organization (the org's administrator
+ *  decides — the ask lands in its queue). */
+async function requestMembership() {
+  if (orgBusy.value) return
+  error.value = null
+  notice.value = null
+  if (!joinOrgId.value || !joinRole.value) return
+  orgBusy.value = 'request'
+  try {
+    const res = await fetch('/api/op/account/membership-requests', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ org_id: joinOrgId.value, requested_role: joinRole.value, note: joinNote.value.trim() || null }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { error?: string } | null
+      error.value = body?.error ?? t('account.networkError')
+      orgBusy.value = null
+      return
+    }
+    notice.value = t('account.organizations.requested', { org: orgName(joinOrgId.value) || joinOrgId.value })
+    joinOrgId.value = ''
+    joinRole.value = ''
+    joinNote.value = ''
+    await load()
+    orgBusy.value = null
+  } catch {
+    error.value = t('account.networkError')
+    orgBusy.value = null
+  }
+}
 
 /** The enabled providers the account has NOT yet linked. */
 const linkable = computed(() => providers.value.filter(p => !links.value.some(l => l.provider === p.id)))
@@ -273,6 +451,9 @@ function activityLabel(event: ActivityEvent): string {
   if (typeof event.metadata.to === 'string') params.to = event.metadata.to
   if (typeof event.metadata.provider === 'string') params.provider = event.metadata.provider
   if (typeof event.metadata.count === 'number') params.count = event.metadata.count
+  // TODO.identity/11: the org acts resolve the org's name from the
+  // memberships (the audit metadata carries the org id).
+  if (typeof event.metadata.org_id === 'string') params.org = orgName(event.metadata.org_id) || event.metadata.org_id
   const resolved = t(key, params)
   return resolved === key ? event.action : resolved
 }
@@ -308,14 +489,17 @@ async function load() {
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     context.value = await res.json() as AccountContext
-    const [linksRes, providersRes, activityRes] = await Promise.all([
+    const [linksRes, providersRes, activityRes, orgsRes] = await Promise.all([
       fetch('/api/op/account/links', { credentials: 'include' }),
       fetch('/api/op/providers/public'),
       fetch('/api/op/account/activity', { credentials: 'include' }),
+      // The registered-orgs feed (public) — the join form's selector.
+      fetch('/api/op/organizations'),
     ])
     if (linksRes.ok) links.value = await linksRes.json() as LinkRow[]
     providers.value = providersRes.ok ? await providersRes.json() as PublicProvider[] : []
     activity.value = activityRes.ok ? await activityRes.json() as ActivityEvent[] : []
+    selectableOrgs.value = orgsRes.ok ? await orgsRes.json() as SelectableOrg[] : []
     loading.value = false
   } catch {
     error.value = t('account.loadError')
@@ -760,7 +944,162 @@ async function revokeOthers() {
           </div>
         </section>
 
-        <!-- 2 · The sign-in methods (the password + TODO.identity/08's links). -->
+        <!-- 2 · The organizations (TODO.identity/11 — the multi-org model). -->
+        <section id="organizations" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-organizations">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ t('account.organizations.title') }}</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">{{ t('account.organizations.description') }}</p>
+
+          <!-- The current context, honestly named. -->
+          <p class="mb-4 text-xs text-slate-600 dark:text-slate-300" data-testid="account-active-context">
+            <template v-if="actingAsName">{{ t('account.organizations.actingAs', { org: actingAsName }) }}</template>
+            <template v-else>{{ t('account.organizations.actingAsNone') }}</template>
+          </p>
+
+          <p v-if="orgBlock && !orgBlock.memberships.length" class="text-sm text-slate-500 dark:text-slate-400 mb-4" data-testid="account-orgs-empty">
+            {{ t('account.organizations.empty') }}
+          </p>
+
+          <ul v-if="orgBlock?.memberships.length" class="space-y-2 mb-4" data-testid="account-orgs-list">
+            <li
+              v-for="m in orgBlock.memberships"
+              :key="m.orgId"
+              class="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-3"
+              :data-testid="`account-org-${m.orgId}`"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-slate-900 dark:text-white">
+                    {{ m.orgName }}
+                    <span v-if="m.isPrimary" class="ml-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500" :data-testid="`account-org-primary-${m.orgId}`">{{ t('account.organizations.primaryBadge') }}</span>
+                    <span
+                      v-if="m.state === 'active' && (orgBlock.effectiveOrg === m.orgId)"
+                      class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-200"
+                      :data-testid="`account-org-acting-${m.orgId}`"
+                    >{{ t('account.organizations.actingBadge') }}</span>
+                  </p>
+                  <p class="text-xs text-slate-400 dark:text-slate-500" :data-testid="`account-org-roles-${m.orgId}`">
+                    {{ m.roles.length ? m.roles.join(', ') : t('account.organizations.noRoles') }}
+                  </p>
+                </div>
+                <div class="shrink-0 flex items-center gap-2">
+                  <!-- The state badge. -->
+                  <span
+                    v-if="m.state === 'invited'"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                    :data-testid="`account-org-invited-${m.orgId}`"
+                  >{{ t('account.organizations.stateInvited') }}</span>
+                  <span
+                    v-else-if="m.state === 'disabled'"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                    :data-testid="`account-org-disabled-${m.orgId}`"
+                  >{{ t('account.organizations.stateDisabled') }}</span>
+                  <!-- The context switch. -->
+                  <button
+                    v-if="m.state === 'active' && orgBlock.activeOrg !== m.orgId && !(orgBlock.activeOrg === null && m.isPrimary)"
+                    type="button"
+                    :disabled="orgBusy === m.orgId"
+                    :data-testid="`account-org-switch-${m.orgId}`"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    @click="switchOrg(m.orgId)"
+                  >{{ orgBusy === m.orgId ? t('account.organizations.switchBusy') : t('account.organizations.switch', { org: m.orgName }) }}</button>
+                  <button
+                    v-if="m.state === 'active' && orgBlock.activeOrg === m.orgId && !m.isPrimary"
+                    type="button"
+                    :disabled="orgBusy === 'primary'"
+                    :data-testid="`account-org-return-${m.orgId}`"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    @click="switchOrg(null)"
+                  >{{ orgBusy === 'primary' ? t('account.organizations.switchBusy') : t('account.organizations.returnPrimary') }}</button>
+                </div>
+              </div>
+              <!-- The invitation's answer. -->
+              <div v-if="m.state === 'invited'" class="mt-2 flex items-center gap-2" :data-testid="`account-org-invitation-${m.orgId}`">
+                <p class="text-xs text-amber-700 dark:text-amber-300 mr-2">
+                  {{ t('account.organizations.invitedNote', { by: m.invitedBy ?? '—' }) }}
+                </p>
+                <button
+                  type="button"
+                  :disabled="orgBusy === m.orgId"
+                  :data-testid="`account-org-accept-${m.orgId}`"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                  @click="answerInvitation(m.orgId, true)"
+                >{{ t('account.organizations.accept') }}</button>
+                <button
+                  type="button"
+                  :disabled="orgBusy === m.orgId"
+                  :data-testid="`account-org-decline-${m.orgId}`"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  @click="answerInvitation(m.orgId, false)"
+                >{{ t('account.organizations.decline') }}</button>
+              </div>
+              <p v-if="m.state === 'disabled'" class="mt-2 text-xs text-red-600 dark:text-red-400" :data-testid="`account-org-disabled-note-${m.orgId}`">
+                {{ t('account.organizations.disabledNote', { date: m.disabledAt ? fmtDate(m.disabledAt) : '—', by: m.disabledBy ?? '—' }) }}
+              </p>
+            </li>
+          </ul>
+
+          <!-- The account's own asks (the state is honest: pending /
+               refused with the reason / approved → the membership above). -->
+          <ul v-if="orgBlock?.requests.length" class="space-y-1 mb-4" data-testid="account-org-requests">
+            <li
+              v-for="r in orgBlock.requests"
+              :key="r.id"
+              class="flex items-center justify-between rounded-lg border border-slate-100 dark:border-slate-700/60 px-3 py-2"
+              :data-testid="`account-org-request-${r.id}`"
+            >
+              <p class="text-xs text-slate-600 dark:text-slate-300">
+                {{ r.orgName ?? r.orgNameText ?? r.orgId }} · {{ r.requestedRole }}
+              </p>
+              <p class="shrink-0 pl-3 text-xs" :data-testid="`account-org-request-status-${r.id}`">
+                <span v-if="r.status === 'pending'" class="text-amber-600 dark:text-amber-400">{{ t('account.organizations.requestPending', { date: fmtDate(r.createdAt) }) }}</span>
+                <span v-else-if="r.status === 'refused'" class="text-red-600 dark:text-red-400">{{ t('account.organizations.requestRefused', { reason: r.refusalReason ?? '' }) }}</span>
+                <span v-else class="text-emerald-600 dark:text-emerald-400">{{ t('account.organizations.requestApproved') }}</span>
+              </p>
+            </li>
+          </ul>
+
+          <!-- The join ask: another registered organization. -->
+          <div v-if="joinableOrgs.length" class="border-t border-slate-100 dark:border-slate-700/60 pt-4" data-testid="account-org-join">
+            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2">{{ t('account.organizations.requestTitle') }}</h3>
+            <div class="grid sm:grid-cols-2 gap-2 max-w-lg">
+              <select
+                v-model="joinOrgId"
+                data-testid="account-org-join-org"
+                class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                @change="joinRole = ''"
+              >
+                <option value="" disabled>{{ t('account.organizations.orgLabel') }}</option>
+                <option v-for="o in joinableOrgs" :key="o.id" :value="o.id" :data-testid="`account-org-join-option-${o.id}`">{{ o.name }}</option>
+              </select>
+              <select
+                v-model="joinRole"
+                :disabled="!joinOrgId"
+                data-testid="account-org-join-role"
+                class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+              >
+                <option value="" disabled>{{ t('account.organizations.roleLabel') }}</option>
+                <option v-for="r in joinRoles" :key="r" :value="r">{{ r }}</option>
+              </select>
+            </div>
+            <input
+              v-model="joinNote"
+              type="text"
+              maxlength="500"
+              data-testid="account-org-join-note"
+              class="mt-2 w-full max-w-lg px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              :placeholder="t('account.organizations.noteLabel')"
+            />
+            <button
+              type="button"
+              :disabled="orgBusy === 'request' || !joinOrgId || !joinRole"
+              data-testid="account-org-join-submit"
+              class="mt-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+              @click="requestMembership"
+            >{{ orgBusy === 'request' ? t('account.organizations.requestBusy') : t('account.organizations.requestSubmit') }}</button>
+          </div>
+        </section>
+
+        <!-- 3 · The sign-in methods (the password + TODO.identity/08's links). -->
         <section id="methods" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-links">
           <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ t('account.methods.title') }}</h2>
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">{{ t('account.methods.description') }}</p>
@@ -841,7 +1180,7 @@ async function revokeOthers() {
           </div>
         </section>
 
-        <!-- 3 · The password. -->
+        <!-- 4 · The password. -->
         <section id="password" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-password">
           <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ t('account.password.title') }}</h2>
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-1" data-testid="account-password-state">
@@ -911,7 +1250,7 @@ async function revokeOthers() {
           </form>
         </section>
 
-        <!-- 4 · The active sessions. -->
+        <!-- 5 · The active sessions. -->
         <section id="sessions" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-sessions">
           <div class="flex items-start justify-between gap-4 mb-1">
             <h2 class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('account.sessions.title') }}</h2>
@@ -957,7 +1296,7 @@ async function revokeOthers() {
           </ul>
         </section>
 
-        <!-- 5 · The activity feed. -->
+        <!-- 6 · The activity feed. -->
         <section id="activity" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6" data-testid="account-activity">
           <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ t('account.activity.title') }}</h2>
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">{{ t('account.activity.description') }}</p>
