@@ -27,3 +27,11 @@ browser/.cache/
 
 # Astro generated types
 .astro/
+
+# The local blob store (the avatar uploads in dev): uploaded bytes are
+# seed-reproducible scratch, never committed.
+browser/data/blobs/
+
+# The node dev stack's local SQLite (the kernel's default path:
+# <cwd>/../data/oiml-smart.db — scratch, gitignored by name).
+/data/oiml-smart.db*

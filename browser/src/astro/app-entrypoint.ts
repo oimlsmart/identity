@@ -22,7 +22,7 @@
 // createWebHistory() runs inside setup() only, never at module scope.
 // ═══════════════════════════════════════════════════════════════════
 import type { App } from 'vue'
-import { createRouter, createWebHistory, type RouteLocationRaw } from 'vue-router'
+import { createRouter, createMemoryHistory, createWebHistory, type RouteLocationRaw } from 'vue-router'
 
 const IslandPage = { template: '<div />' }
 
@@ -47,7 +47,11 @@ const ROUTE_PATHS: Array<{ path: string; name: string }> = [
 
 export default function setup(app: App): void {
   const router = createRouter({
-    history: createWebHistory(),
+    // SSR (the prerender + the Cloudflare worker's page renders) runs
+    // setup() for the shell's chrome islands: no window there, so the
+    // router rides a memory history. On the client the web history makes
+    // useRoute() match the real browser URL.
+    history: import.meta.env.SSR ? createMemoryHistory() : createWebHistory(),
     routes: [
       ...ROUTE_PATHS.map(p => ({ path: p.path, name: p.name, component: IslandPage })),
       // Fallback for URLs outside the route table — keeps useRoute()
