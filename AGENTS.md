@@ -40,11 +40,12 @@ before it can reach a relying party.
 ## Rules
 
 - **The account registry never moves.** The live D1
-  (`oiml-smart-platform-identity`) is shared with the monorepo-built
-  deployment until the wave-03 cutover. `browser/server/db/migrations/`
-  is byte-identical with the monorepo's set and wrangler keys the
-  bookkeeping on filenames: future files append expand-only, never
-  renumber.
+  (`oiml-smart-platform-identity`) is owned by THIS repo's deployment
+  since the wave-03 cutover (2026-08-24, tag `id-v2026.08.24-1`); the
+  monorepo's OP code is inert pending the wave-04 retirement.
+  `browser/server/db/migrations/` is byte-identical with the
+  monorepo's set and wrangler keys the bookkeeping on filenames: future
+  files append expand-only, never renumber.
 - **The issuer is load-bearing.** `OP_ISSUER=https://id.oimlsmart.org`
   in production: every RP's `OIDC_ISSUER` and every token's `iss` name
   it. Never repoint it outside the cutover plan.

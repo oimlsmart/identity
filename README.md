@@ -4,6 +4,13 @@ The OIML SMART identity service: the OpenID Connect Provider (OP) at
 https://id.oimlsmart.org, extracted from the `oimlsmart/smart` monorepo
 (the extraction map: smart's `PROGRESS/41-identity-extraction-map.md`).
 
+**Deployment state (2026-08-24): this repository's build serves
+production.** The wave-03 cutover deployed tag `id-v2026.08.24-1` to
+the `oiml-smart-platform-identity` Worker over the unchanged account
+registry (the D1 never moved); the monorepo's OP code is inert pending
+the wave-04 retirement. The preview posture lives at
+https://id-preview.oimlsmart.org (the deploy gate's first stop).
+
 This repository carries the OP half of the identity contract only:
 
 - the OP domain modules (`browser/server/auth/op/`, `auth/upstream/`,

@@ -13,9 +13,10 @@
 # config, so one source config serves both.
 #
 # MIGRATION DISCIPLINE (the extraction's risk 1): the D1 below IS the
-# live account registry — it never moves and is shared with the
-# monorepo-built deployment until the wave-03 cutover. The
-# server/db/migrations set is byte-identical with the monorepo's
+# live account registry — it never moves. Since the wave-03 cutover
+# (2026-08-24, tag id-v2026.08.24-1) it is owned by THIS repo's
+# deployment alone (the monorepo's OP code is inert pending wave 04).
+# The server/db/migrations set is byte-identical with the monorepo's
 # (wrangler keys the bookkeeping on FILENAMES); future files append
 # expand-only, never renumber.
 # ─────────────────────────────────────────────────────────────────────
