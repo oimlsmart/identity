@@ -1,0 +1,12 @@
+/* The identity service's app styles: tailwind first, then the house
+   tokens + blueprint (the @oimlsmart/site-shell consumer contract),
+   then the @source so the shell package's utilities compile. */
+@import "tailwindcss";
+@import "@oimlsmart/site-shell/tokens.css";
+@import "@oimlsmart/site-shell/blueprint.css";
+@source "../../node_modules/@oimlsmart/site-shell/src/**/*.{astro,vue}";
+
+/* The identity pages were authored against the smart monorepo's utility
+   palette (bg-cream, the brand-* scale, dark: variants on slate); the
+   tokens above provide the same custom properties and the tailwind
+   theme mapping, so the pages render unchanged. */
