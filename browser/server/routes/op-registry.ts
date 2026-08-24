@@ -20,11 +20,23 @@
 //                                                      row)
 //   GET    /api/op/registry/users/:id                — the detail
 //                                                      aggregate:
-//                                                      profile, sign-in
-//                                                      methods, links,
-//                                                      sessions, the
-//                                                      account's audit
-//                                                      trail
+//                                                      profile (avatar,
+//                                                      email verification,
+//                                                      lifecycle state),
+//                                                      sign-in methods,
+//                                                      links, sessions,
+//                                                      the APP-ACCESS view
+//                                                      (per-client, the
+//                                                      claims rule's
+//                                                      admin-side read),
+//                                                      the first page of
+//                                                      the account's audit
+//                                                      trail + its total
+//   GET    /api/op/registry/users/:id/activity?offset=&limit=
+//                                                    — the account's audit
+//                                                      trail, paged (newest
+//                                                      first, the total in
+//                                                      every answer)
 //   POST   /api/op/registry/users/:id/links          — the admin's
 //                                                      "link on behalf"
 //                                                      (justification
@@ -37,6 +49,12 @@
 //                                                    — the admin ends one
 //                                                      of the account's
 //                                                      sessions
+//   POST   /api/op/registry/users/:id/sessions/revoke-all
+//                                                    — the admin ends
+//                                                      EVERY live session
+//                                                      of the account (the
+//                                                      light act, short of
+//                                                      deactivation)
 //   GET    /api/op/registry/activity?limit=&q=       — the registry's
 //                                                      activity feed
 //                                                      (the auditEvents
@@ -60,6 +78,7 @@ import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getStore, type AuthUserPayload, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { resolveRegistryOrg } from '../auth/org-registry'
+import { accountRoleSet, rolesForClient } from '../auth/op/claims'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
 /** The audit actions the registry's activity feed surfaces: the identity
@@ -68,6 +87,10 @@ import { sessionUser } from '@oimlsmart/platform-server/session'
  *  write auditEvents too; the feed keeps the identity slice. */
 const REGISTRY_ENTITY_TYPES = new Set(['account', 'users', 'auth', 'client', 'provider'])
 const REGISTRY_ACTION_PREFIXES = ['org_invite.', 'org_join.']
+
+/** The account trail's page size (the detail aggregate's embedded first
+ *  page + the paged endpoint's default). */
+const ACTIVITY_PAGE = 25
 
 /** The audit journal's parsed row (the shape every writer above
  *  serializes into the entity's data). */
@@ -169,6 +192,71 @@ export function createOpRegistryRouter(): Hono {
     }
   }
 
+  /** The account's own audit slice (the detail page's trail): the
+   *  registry events naming this account, newest first. Shared by the
+   *  detail aggregate (its first page + total) and the paged endpoint. */
+  async function accountTrail(store: ReturnType<typeof getStore>, userId: string): Promise<AuditEvent[]> {
+    return (await store.listEntities('auditEvents'))
+      .map(row => parseAuditEvent(row.data))
+      .filter((e): e is AuditEvent => !!e && e.entity_id === userId && isRegistryEvent(e))
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+  }
+
+  /** The account's lifecycle state, derived honestly from the row + the
+   *  sign-in posture: 'erased' (the anonymized tombstone — provider
+   *  'erased'), 'deactivated' (active flipped off, the history kept),
+   *  'invited' (created, never set a password, never signed in — the
+   *  setup link's window), else 'active'. */
+  function lifecycleState(user: UserAdminRow, passwordSet: boolean): 'invited' | 'active' | 'deactivated' | 'erased' {
+    if (user.provider === 'erased') return 'erased'
+    if (!user.active) return 'deactivated'
+    if (!passwordSet && !user.lastLogin) return 'invited'
+    return 'active'
+  }
+
+  /** THE APP-ACCESS VIEW (the admin-side half of the launcher's
+   *  visibility rule): for every registered relying party, CAN the
+   *  account enter WITH ROLES, and WHY NOT when not. The computation is
+   *  the ONE rule the token endpoint itself runs (auth/op/claims.ts's
+   *  rolesForClient) — never a copy: the per-client assignment (null =
+   *  the account-wide default, [] = the explicit none) through the
+   *  client's claims policy (the claim gate + the optional role
+   *  allowlist). `reason` is a stable code the page renders in words. */
+  async function appAccessFor(store: ReturnType<typeof getStore>, user: UserAdminRow) {
+    const accountRoles = accountRoleSet(user)
+    const clients = (await store.listOidcClients()).sort((a, b) => a.name.localeCompare(b.name))
+    const rows = []
+    for (const client of clients) {
+      const assigned = await store.getOpClientRoles(user.id, client.clientId)
+      const held = assigned ?? accountRoles
+      const carriesRoleClaims = !!client.claimsPolicy
+        && (client.claimsPolicy.claims.includes('roles') || client.claimsPolicy.claims.includes('groups'))
+      const allowlist = client.claimsPolicy?.roles ?? null
+      const roles = rolesForClient(assigned, accountRoles, client.claimsPolicy)
+      let reason: 'ok' | 'client_disabled' | 'no_role_claims' | 'explicit_none' | 'outside_allowlist' = 'ok'
+      if (client.status !== 'active') reason = 'client_disabled'
+      else if (!carriesRoleClaims) reason = 'no_role_claims'
+      else if (assigned !== null && assigned.length === 0) reason = 'explicit_none'
+      else if (roles.length === 0) reason = 'outside_allowlist'
+      rows.push({
+        clientId: client.clientId,
+        name: client.name,
+        status: client.status,
+        carriesRoleClaims,
+        /** The roles the account holds on this client PRE-allowlist (the
+         *  assignment, or the account-wide set when no row exists). */
+        held,
+        /** The policy's role allowlist (null = unbounded). */
+        allowlist,
+        /** The roles the client's ID tokens actually carry (post-rule). */
+        roles,
+        canEnter: reason === 'ok',
+        reason,
+      })
+    }
+    return rows
+  }
+
   // GET /api/op/registry/users — the enriched account list. The search
   // matches name, email, or a linked provider account id (the handle);
   // the filters keep the rows the question is about.
@@ -200,9 +288,12 @@ export function createOpRegistryRouter(): Hono {
   })
 
   // GET /api/op/registry/users/:id — the detail aggregate the account
-  // page renders: the profile, the sign-in methods, the linked
-  // identities, the live sessions, and the account's own audit trail
-  // (newest first, capped).
+  // page renders: the profile WITH its lifecycle state (the avatar, the
+  // email's verification state, the on-the-record + last-sign-in stamps),
+  // the sign-in methods, the linked identities, the live sessions, the
+  // APP-ACCESS view (per-client, the claims rule's admin-side read), and
+  // the first page of the account's own audit trail with its honest total
+  // (the paged endpoint below serves the rest).
   registry.get('/api/op/registry/users/:id', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
@@ -211,18 +302,18 @@ export function createOpRegistryRouter(): Hono {
     // lastLogin, which the session payload does not.
     const user = (await store.listUsers()).find(u => u.id === c.req.param('id'))
     if (!user) return c.json({ error: 'not found' }, 404)
-    const [methods, links, sessions, org, clientRoles] = await Promise.all([
+    const [methods, links, sessions, org, clientRoles, profile, trail, appAccess] = await Promise.all([
       store.countSignInMethods(user.id),
       store.listIdentityLinks(user.id),
       store.listUserSessions(user.id),
       user.orgId ? resolveRegistryOrg(store, user.orgId) : Promise.resolve(null),
       store.listOpClientRoles(user.id),
+      // The session payload's half: the avatar + the provider (the row
+      // projection the admin row does not carry).
+      store.getUserById(user.id),
+      accountTrail(store, user.id),
+      appAccessFor(store, user),
     ])
-    const activity = (await store.listEntities('auditEvents'))
-      .map(row => parseAuditEvent(row.data))
-      .filter((e): e is AuditEvent => !!e && e.entity_id === user.id && isRegistryEvent(e))
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-      .slice(0, 50)
     return c.json({
       account: {
         id: user.id,
@@ -233,15 +324,45 @@ export function createOpRegistryRouter(): Hono {
         orgId: user.orgId,
         orgName: org?.name ?? null,
         active: user.active,
+        provider: user.provider,
+        avatarUrl: profile?.avatarUrl ?? null,
+        emailVerifiedAt: user.emailVerifiedAt ?? null,
+        lastLogin: user.lastLogin,
+        // The record's own stamps: the FIRST event the journal holds for
+        // the account (the invite row for an invited account; null when
+        // nothing is on the record — an account seeded by declaration),
+        // and the erasure's stamp for a tombstone.
+        firstSeenAt: trail.at(-1)?.timestamp ?? null,
+        erasedAt: trail.find(e => e.action === 'account.deleted')?.timestamp ?? null,
+        state: lifecycleState(user, methods.password),
       },
       passwordSet: methods.password,
       links,
       sessions,
       // The per-client role assignments (TODO.identity/03's rows; the
-      // editor lives on the user-registry console, this page reads them).
+      // grant/revoke acts ride routes/op-accounts.ts).
       clientRoles: clientRoles.map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt })),
-      activity,
+      appAccess,
+      activity: trail.slice(0, ACTIVITY_PAGE),
+      activityTotal: trail.length,
     })
+  })
+
+  // GET /api/op/registry/users/:id/activity — the account's audit trail,
+  // paged honestly: `offset` + `limit` (default 0/25, at most 100), the
+  // newest first, the TOTAL in every answer so the pager never lies.
+  registry.get('/api/op/registry/users/:id/activity', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error) return gate.error
+    const store = getStore()
+    const user = (await store.listUsers()).find(u => u.id === c.req.param('id'))
+    if (!user) return c.json({ error: 'not found' }, 404)
+    const offsetRaw = Number(c.req.query('offset') ?? '0')
+    const limitRaw = Number(c.req.query('limit') ?? String(ACTIVITY_PAGE))
+    const offset = Number.isFinite(offsetRaw) ? Math.max(Math.trunc(offsetRaw), 0) : 0
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 100) : ACTIVITY_PAGE
+    const trail = await accountTrail(store, user.id)
+    return c.json({ events: trail.slice(offset, offset + limit), total: trail.length, offset, limit })
   })
 
   // POST /api/op/registry/users/:id/links — the admin's "link on behalf":
@@ -324,6 +445,32 @@ export function createOpRegistryRouter(): Hono {
       by: 'administrator',
     })
     return c.json({ ok: true })
+  })
+
+  // POST /api/op/registry/users/:id/sessions/revoke-all — the admin ends
+  // EVERY live session of the account at once (the light act, short of
+  // deactivation: the account itself is untouched and signs in again the
+  // next time; issued OIDC access tokens expire on their own short clock).
+  // The count rides the audit event. On your OWN account this is the
+  // sign-out-everywhere the account console already offers — allowed, and
+  // it ends this console's session too (the page re-authenticates).
+  registry.post('/api/op/registry/users/:id/sessions/revoke-all', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const user = await store.getUserById(c.req.param('id'))
+    if (!user) return c.json({ error: 'not found' }, 404)
+    const sessions = await store.listUserSessions(user.id)
+    let count = 0
+    for (const session of sessions) {
+      if (await store.deleteSessionById(user.id, session.id)) count += 1
+    }
+    await audit('account.sessions_revoked', user.id, { userId: gate.user!.id, userName: gate.user!.name }, {
+      email: user.email,
+      count,
+      by: 'administrator',
+    })
+    return c.json({ ok: true, revoked: count })
   })
 
   // GET /api/op/registry/activity — the registry's activity feed: the
