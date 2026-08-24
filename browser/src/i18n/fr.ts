@@ -158,6 +158,7 @@ export const fr: Record<MessageKey, string> = {
   "admin.user.activity.action.account.link_removed_reason": "a retiré le lien {provider} : {reason}",
   "admin.user.activity.action.account.password": "a changé le mot de passe",
   "admin.user.activity.action.account.password_reset": "a demandé un e-mail de réinitialisation du mot de passe",
+  "admin.user.activity.action.account.reactivated": "a réactivé le compte",
   "admin.user.activity.action.account.session_revoked": "a mis fin à une session",
   "admin.user.activity.action.account.session_revoked_admin": "a mis fin à une session (administrateur)",
   "admin.user.activity.action.account.sessions_revoked": "a mis fin à {count} session(s)",
