@@ -28,6 +28,10 @@
 //                                            client's secret → the signed
 //                                            ES256 ID token + access token;
 //   GET  /op/userinfo                      — the access token's claims;
+//   GET  /op/avatar/<account id>           — the PUBLIC avatar serve (no
+//                                            session — the `picture`
+//                                            claim's target, the
+//                                            GitHub-avatars convention);
 //   GET/POST /api/op/clients[…]            — the client registry's admin
 //                                            surface (admin/cs_admin).
 //
@@ -47,7 +51,9 @@ import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/conf
 import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, type OpSigningKey } from '../auth/op/keys'
 import { hashClientSecret, verifyClientSecret } from '../auth/op/secrets'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
-import { roleClaimsForClient } from '../auth/op/claims'
+import { roleClaimsForClient, pictureClaimForClient } from '../auth/op/claims'
+import { avatarKeys, AVATAR_PUBLIC_CACHE, initialsAvatarSvg } from '../auth/op/avatars'
+import { getBlobStore } from '../blobs'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
@@ -141,7 +147,7 @@ export function createOpRouter(): Hono {
       scopes_supported: ['openid', 'profile', 'email'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       code_challenge_methods_supported: ['S256'],
-      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'nonce', 'name', 'email', 'email_verified', 'roles', 'groups', 'org'],
+      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org'],
     })
   })
 
@@ -460,11 +466,12 @@ export function createOpRouter(): Hono {
 
     // The claims the client is allowed: profile+email per the scopes;
     // roles/groups/org ONLY per the client's claims policy (a client
-    // with no policy never receives role claims). TODO.identity/03: the
-    // role VALUES are the account's per-client assignment (no row = the
-    // account's OP-side default set), bounded by the policy's optional
-    // role allowlist — the OP never emits a role the client is not
-    // configured to receive (auth/op/claims.ts).
+    // with no policy never receives role claims); the picture claim
+    // follows the same per-client privilege (below). TODO.identity/03:
+    // the role VALUES are the account's per-client assignment (no row =
+    // the account's OP-side default set), bounded by the policy's
+    // optional role allowlist — the OP never emits a role the client is
+    // not configured to receive (auth/op/claims.ts).
     const scopes = code.scope.split(/\s+/).filter(Boolean)
     const nowSec = Math.floor(Date.now() / 1000)
     const claims: Record<string, unknown> = {
@@ -485,6 +492,11 @@ export function createOpRouter(): Hono {
     }
     const assigned = await store.getOpClientRoles(user.id, client!.clientId)
     Object.assign(claims, roleClaimsForClient(assigned, user, client!.claimsPolicy))
+    // The picture family (auth/op/claims.ts): the public avatar route's
+    // absolute URL, ONLY when the policy names the family AND the account
+    // has an uploaded avatar — absent otherwise, never a broken URL.
+    const picture = pictureClaimForClient(user, client!.claimsPolicy, config.issuer)
+    if (picture) claims.picture = picture
 
     const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
     // The first-use registration rides the SAME gate as the JWKS route
@@ -543,7 +555,53 @@ export function createOpRouter(): Hono {
     // per-client assignment through the client's policy allowlist.
     const assigned = await store.getOpClientRoles(user.id, access.clientId)
     Object.assign(claims, roleClaimsForClient(assigned, user, client?.claimsPolicy ?? null))
+    const picture = pictureClaimForClient(user, client?.claimsPolicy ?? null, configFor(c).issuer)
+    if (picture) claims.picture = picture
     return c.json(claims)
+  })
+
+  // ── the public avatar serve ────────────────────────────────────────
+
+  // GET /op/avatar/:id — the PUBLIC read side of the account's avatar
+  // (the GitHub-avatars pattern: an avatar is semi-public by convention,
+  // so the RP's cross-origin <img> needs no session). This is the URL
+  // the `picture` claim names. The doctrine (auth/op/avatars.ts):
+  //
+  //   - the account resolves FIRST: an unknown or ERASED account answers
+  //     the plain 404 (the erasure's promise is stronger than a stray
+  //     surviving blob — the account is gone, nothing serves);
+  //   - the stored upload serves with its real content type, nosniff,
+  //     and a short PUBLIC cache;
+  //   - a KNOWN account without an upload (or a deployment with no blob
+  //     store bound) answers the GENERATED-INITIALS fallback — the
+  //     console's own fallback, served — so the <img> never breaks;
+  //   - NEVER an error page: every answer is an image or a small JSON.
+  op.get('/op/avatar/:id', async (c) => {
+    const userId = c.req.param('id')
+    const user = await getStore().getUserById(userId)
+    if (!user || user.provider === 'erased') {
+      return c.json({ error: 'not found' }, 404)
+    }
+    const blobs = getBlobStore()
+    if (blobs) {
+      for (const key of avatarKeys(userId)) {
+        const obj = await blobs.get(key)
+        if (!obj) continue
+        c.header('content-type', obj.contentType ?? 'application/octet-stream')
+        c.header('content-length', String(obj.size))
+        c.header('x-content-type-options', 'nosniff')
+        c.header('cache-control', AVATAR_PUBLIC_CACHE)
+        return c.body(obj.data)
+      }
+    }
+    c.header('content-type', 'image/svg+xml')
+    // The served SVG is server-generated and inert; the deny-all CSP is
+    // the belt-and-suspenders for direct navigation (an image channel
+    // never becomes a script channel — the avatar doctrine's rule).
+    c.header('content-security-policy', "default-src 'none'")
+    c.header('x-content-type-options', 'nosniff')
+    c.header('cache-control', AVATAR_PUBLIC_CACHE)
+    return c.body(initialsAvatarSvg(user.name))
   })
 
   // ── the client registry's admin surface ────────────────────────────
@@ -641,7 +699,7 @@ export function createOpRouter(): Hono {
       try { new URL(uri) } catch { return c.json({ error: `redirect_uris entry ${JSON.stringify(uri)} is not an absolute URI` }, 400) }
     }
     if (body.claims_policy != null && (!Array.isArray(body.claims_policy?.claims) || body.claims_policy.claims.some(x => typeof x !== 'string'))) {
-      return c.json({ error: 'claims_policy.claims must be a list of claim names (roles, groups, org)' }, 400)
+      return c.json({ error: 'claims_policy.claims must be a list of claim names (roles, groups, org, picture)' }, 400)
     }
     // TODO.identity/03 — the optional role allowlist: the closed set of
     // roles the ID token may carry for this client. A role outside the

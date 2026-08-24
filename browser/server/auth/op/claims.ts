@@ -9,7 +9,9 @@
 //
 //   1. THE CLAIM GATE (TODO.identity/01): a client whose claims policy
 //      does not list 'roles'/'groups' receives NO role claim at all —
-//      role claims are a per-client privilege.
+//      role claims are a per-client privilege. The same gate covers the
+//      'picture' family (below): a client the policy does not name it
+//      for never receives the claim.
 //   2. THE ASSIGNMENT (03): the roles the account holds ON THIS CLIENT
 //      come from the registry's per-client assignment (op_client_roles).
 //      NO ROW = the account's OP-side role set is the federation-wide
@@ -81,4 +83,33 @@ export function roleClaimsForClient(
   }
   if (gate.has('org') && user.orgId) out.org = user.orgId
   return out
+}
+
+/**
+ * The picture claim for this client (the 'picture' claim family): the
+ * PUBLIC avatar route's absolute URL (`<issuer>/op/avatar/<account id>`)
+ * — an RP renders it from a plain cross-origin <img>, so the claim names
+ * the session-less serve (routes/op.ts's GET /op/avatar/:id, the
+ * GitHub-avatars convention), never the session-bound own-account route.
+ *
+ * Answers NULL (the claim is ABSENT — a token never carries a broken
+ * URL) unless BOTH hold:
+ *
+ *   1. the client's claims policy carries the 'picture' family (the
+ *      same per-client privilege gate as the role claims), AND
+ *   2. the account HAS an uploaded avatar (avatar_url set — the upload
+ *      plants the marker, the removal + the erasure clear it). With no
+ *      upload the RP renders its own initials fallback, exactly like the
+ *      account console.
+ *
+ * Pure: the caller knows the issuer (the request's effective OP config).
+ */
+export function pictureClaimForClient(
+  user: { id: string; avatarUrl?: string | null },
+  policy: OidcClientClaimsPolicy | null,
+  issuer: string,
+): string | null {
+  if (!policy?.claims?.includes('picture')) return null
+  if (!user.avatarUrl) return null
+  return `${issuer}/op/avatar/${user.id}`
 }
