@@ -185,6 +185,59 @@ do — service accounts as confidential clients with no redirect URIs,
 audience-bound tokens, and scoped claims. Sized as a feature, not an
 architecture change.
 
+## The SSO home (the post-login launcher)
+
+After sign-in at `/` the account lands on `/op/home`: one card per
+service the account can enter, the account-console entry, and the admin
+area entry for administrators. The cards come from the client
+registry's launch metadata (migration 0011, the `launch_url`,
+`launch_icon`, `launch_description`, `launch_visibility` columns on
+`oidc_clients`; a client with no launch row never appears).
+
+The visibility is computed per account: the role claims the OP would
+emit for that account on that client (the per-client assignment through
+the claims policy's allowlist, the same rule the token endpoint and the
+consent page share). A non-empty set launches; an empty set never
+renders a working launch. The `launch_visibility` column picks the
+not-admitted posture: `roles` hides the card, `request` shows it with a
+plain request-access state (the intake records `account.access_request`
+on the audit chain; the registry's activity feed carries it), `open`
+never gates (the service admits every signed-in account).
+
+Manage the metadata on the client editor (`/op/admin/clients`) or the
+registry API (`POST /api/op/clients` with the `launch` object; omit the
+key to keep the stored card, pass `launch: null` to take the client off
+the launcher). The bootstrap seed carries the same `launch` field per
+entry. The icon names ride a small named set (`grid`, `monitor`,
+`scale`, `flask`, `chat`, `external`); the write path refuses unknown
+names.
+
+The estate's cards (the recommended starting posture; the admin's act
+on the live registry, one console session):
+
+| Service | Registry client id | Launch URL | Icon | Visibility |
+|---|---|---|---|---|
+| The platform hub | `oiml-smart-platform` | `https://platform.oimlsmart.org/api/auth/signin/oidc` | `grid` | `roles` |
+| The demo hub | `oiml-smart-demo` | `https://demo.oimlsmart.org/api/auth/signin/oidc` | `monitor` | `roles` |
+| The NMI instance | `oiml-smart-nmi` | `https://nmi.oimlsmart.org/api/auth/signin/oidc` | `scale` | `roles` |
+| The test laboratory | `oiml-smart-tl` | `https://tl.oimlsmart.org/api/auth/signin/oidc` | `flask` | `request` |
+| The Publications Assistant | `oiml-rag` | `https://ai.oimlsmart.org/auth/login` | `chat` | `open` |
+
+The launch URL is the service's own sign-in start (the platform
+instances' RP start is `/api/auth/signin/oidc`; the assistant's is
+`/auth/login`), so the live OP session lets the user straight in. The
+client ids name the documented registry rows; if the live registry's
+naming resolution (the wave-03 finding) lands differently, the same
+metadata applies to the resolved rows.
+
+The migration applies like every registry change: the deploy's
+zero-pending guard aborts while 0011 is unapplied, so the operator
+applies it first (`npx wrangler d1 migrations apply
+oiml-smart-platform-identity --remote --config wrangler.toml --env
+identity`), then the tag deploy proceeds (the wave-03 catch-up
+pattern). Until the columns exist the launcher simply shows no cards;
+the reads degrade honestly.
+
 ## Deployment portability (not tied to one edge provider)
 
 The identity service is not single-vendor by construction:
