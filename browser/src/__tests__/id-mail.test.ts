@@ -40,7 +40,7 @@ import {
   MAIL_RATE_LIMIT_DEFAULTS,
   type SendEmailBinding,
 } from '@oimlsmart/platform-server/mailer'
-import { renderOpMail, resolveMailLocale, sendOpMail } from '../../server/auth/op/mail'
+import { renderOpMail, resolveMailLocale, sendOpMail, OP_MAIL_LOGO_URL } from '../../server/auth/op/mail'
 import { startStubMailer, type StubMailer } from '../../e2e/fixtures/stub-mailer'
 
 let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
@@ -320,6 +320,65 @@ describe('renderOpMail — the EN/FR templates', () => {
     const signin = renderOpMail('signin', 'en', { name: 'Willa', product: 'P', issuer: 'i', when: '2026-08-17 03:08', method: 'GitHub' })
     expect(signin.subject).toBe('New sign-in to your P account')
     expect(signin.text).toContain('at 2026-08-17 03:08 UTC by GitHub')
+  })
+
+  // ── the redesigned shell (the 2026-08 rebrand) ──────────────────────
+
+  it('the redesigned shell: the hidden preheader, the self-hosted logo, the brand-600 button', () => {
+    const mail = renderOpMail('invite', 'en', params)
+    // The preheader (the inbox preview line) is present but hidden.
+    expect(mail.html).toContain('display:none')
+    expect(mail.html).toContain('Your OIML SMART Identity account is ready. Set your password to activate it.')
+    // The branded header carries the self-hosted logo at its ABSOLUTE
+    // production URL (email clients need it; the OP serves its own copy).
+    expect(mail.html).toContain(`<img src="${OP_MAIL_LOGO_URL}"`)
+    expect(OP_MAIL_LOGO_URL).toBe('https://id.oimlsmart.org/brand/oiml-smart-globe-light.png')
+    // The primary action is a real button on the brand-600 background
+    // (the bgcolor'd cell for Outlook + the styled anchor).
+    expect(mail.html).toContain('bgcolor="#004996"')
+    expect(mail.html).toContain('background-color:#004996')
+    // The 600px table layout, every style inline (no <style> block).
+    expect(mail.html).toContain('width="600"')
+    expect(mail.html).not.toContain('<style')
+    // The serif display line + the service-name wordmark.
+    expect(mail.html).toContain('Set up your account')
+  })
+
+  it('the honest footer: why-you-got-this, the service identity, the support pointer', () => {
+    const mail = renderOpMail('invite', 'en', params)
+    expect(mail.html).toContain('You are receiving this because an administrator created an account for you on OIML SMART Identity.')
+    expect(mail.html).toContain('Sent by OIML SMART Identity (https://id.oimlsmart.org)')
+    expect(mail.html).toContain('Need help? Contact the administrator of your OIML SMART Identity account.')
+    // The one-time/expiry caption rides the link.
+    expect(mail.html).toContain('This link works once and stays valid for 24 hours.')
+  })
+
+  it('the plain-text part mirrors the HTML honestly (the footer block + the expiry note)', () => {
+    const mail = renderOpMail('invite', 'en', params)
+    expect(mail.text).toContain('This link works once and stays valid for 24 hours.')
+    expect(mail.text).toContain('You are receiving this because an administrator created an account for you')
+    expect(mail.text).toContain('Sent by OIML SMART Identity (https://id.oimlsmart.org)')
+    expect(mail.text).toContain('Need help? Contact the administrator')
+    expect(mail.text).not.toContain('<') // no markup leaks into the text part
+  })
+
+  it('markup in a param stays escaped across the whole shell (the header wordmark, the footer)', () => {
+    const mail = renderOpMail('invite', 'en', { ...params, product: 'OIML <img src=x onerror=alert(1)> SMART', name: 'Willa <b>bold</b>' })
+    // The escaped form is present; the live tag is not.
+    expect(mail.html).toContain('OIML &lt;img src=x onerror=alert(1)&gt; SMART')
+    expect(mail.html).toContain('Willa &lt;b&gt;bold&lt;/b&gt;')
+    expect(mail.html).not.toContain('<img src=x onerror')
+    expect(mail.html).not.toContain('<b>bold</b>')
+    // The only <img> in the shell is the self-hosted brand logo.
+    expect(mail.html).not.toContain('onerror=alert(1)"')
+  })
+
+  it('the sign-in notification carries no button and no expiry (the pure notification)', () => {
+    const mail = renderOpMail('signin', 'en', { name: 'Willa', product: 'P', issuer: 'i', when: '2026-08-17 03:08', method: 'GitHub' })
+    expect(mail.html).toContain('New sign-in detected') // the heading
+    expect(mail.html).not.toContain('bgcolor="#004996"') // no button
+    expect(mail.html).not.toContain('works once') // no expiry caption
+    expect(mail.html).toContain('You are receiving this because your P account was used to sign in.')
   })
 
   it('resolveMailLocale: MAIL_LOCALE honored, unknown values fall back honestly', () => {
