@@ -195,6 +195,14 @@ async function auditRowsFor(accountId: string): Promise<Array<{ action: string; 
 }
 
 beforeAll(async () => {
+  // The simulated deployment declares its signing key (identity#7's
+  // registration gate: a declared-issuer instance never registers a
+  // GENERATED development key into oidc_keys — exchangeAndValidate
+  // below validates against the JWKS, so the served key must be the
+  // declared one, exactly the production posture).
+  const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
+  process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
+
   const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
   store = installSqliteStore()
   const profileMod = await import('@oimlsmart/platform-server/profile')
@@ -243,6 +251,7 @@ afterAll(async () => {
   profileMod.resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
+  delete process.env.OP_SIGNING_KEY
   delete process.env.OP_CLIENT_SEED
   delete process.env.DATABASE_PATH
 })

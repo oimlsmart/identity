@@ -33,6 +33,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
+import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 import { startStubMailer, type StubMailer } from './fixtures/stub-mailer'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -145,6 +146,9 @@ async function bootIdentityStack(mailer: StubMailer): Promise<Stack> {
       OIDC_CLIENT_ID: '',
       DEMO_ACCOUNTS_ENABLED: 'true',
       OP_ISSUER: ISSUER,
+      // identity#7: a declared-issuer stack declares its signing key too
+      // (the generated dev key never registers off the dev posture).
+      OP_SIGNING_KEY: await fixtureOpSigningKey(),
       // The first administrator arrives by DECLARATION (invite-only means
       // nobody else can mint the first link) — the setup link lands in
       // the boot log.

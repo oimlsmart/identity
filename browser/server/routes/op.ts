@@ -44,7 +44,7 @@ import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type AuthUserPayload, type OidcClient } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/config'
-import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken } from '../auth/op/keys'
+import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, type OpSigningKey } from '../auth/op/keys'
 import { hashClientSecret, verifyClientSecret } from '../auth/op/secrets'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
 import { roleClaimsForClient } from '../auth/op/claims'
@@ -56,6 +56,30 @@ type EnvLike = Record<string, string | undefined>
 /** The OAuth/OIDC error body (RFC 6749 §5.2), never a stack trace. */
 function oidcError(c: Context, status: 400 | 401, error: string, description: string): Response {
   return c.json({ error, error_description: description }, status)
+}
+
+/** The oidc_keys self-registration gate (oimlsmart/identity#7): the
+ *  DECLARED secret's key always registers (the fresh-deployment answer
+ *  and the rotation ceremony's overlap poll ride it); a GENERATED
+ *  development key registers ONLY in the dev posture — the issuer
+ *  derived from the request origin (OP_ISSUER unset, config.ts's
+ *  documented dev fallback; a deployment declares it, wrangler.toml).
+ *  On the production identity service a mid-propagation secret read
+ *  that falls to the dev generation must never mint + register an
+ *  ephemeral per-isolate key into the keyset the RPs validate against:
+ *  the table stays exactly as the declared deployments left it. */
+function maySelfRegisterOpKey(key: OpSigningKey, config: OpConfig): boolean {
+  return key.declared || config.issuerFromRequest
+}
+
+/** The gate's loud skip: the registration refused, the reason named. */
+function warnDevKeyRegistrationSkipped(path: string, key: OpSigningKey): void {
+  console.warn(
+    `[op] ${path}: the resolved signing key is a GENERATED development key (kid ${key.kid}), but this deployment `
+    + 'declares OP_ISSUER (the production posture) — refusing to register the ephemeral key into oidc_keys. '
+    + 'The OP_SIGNING_KEY secret is undeclared or unreadable on this isolate (a secret put mid-propagation?); '
+    + 'the registered table is served as it stands.',
+  )
 }
 
 export function createOpRouter(): Hono {
@@ -129,14 +153,20 @@ export function createOpRouter(): Hono {
   // secret matters for SIGNING, not for serving public keys. The active
   // key's self-registration stays (a fresh deployment answers its own
   // key before the first token issuance, and the rotation ceremony's
-  // overlap poll rides it) but is best-effort: a failed resolve serves
-  // the table as it stands, and a genuinely empty table answers an
-  // honest empty JWKS.
+  // overlap poll rides it) but is best-effort AND GATED
+  // (maySelfRegisterOpKey, identity#7): a failed resolve serves the
+  // table as it stands, a genuinely empty table answers an honest empty
+  // JWKS, and a generated development key registers only in the dev
+  // posture — never into the production keyset.
   op.get('/jwks.json', async (c) => {
     const store = getStore()
     try {
       const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
-      await ensureOpKeyRegistered(store, key)
+      if (maySelfRegisterOpKey(key, configFor(c))) {
+        await ensureOpKeyRegistered(store, key)
+      } else {
+        warnDevKeyRegistrationSkipped('/jwks.json', key)
+      }
     } catch (err) {
       console.warn('[op] jwks.json: the signing key is unavailable on this isolate; serving the registered table:', (err as Error).message)
     }
@@ -457,7 +487,15 @@ export function createOpRouter(): Hono {
     Object.assign(claims, roleClaimsForClient(assigned, user, client!.claimsPolicy))
 
     const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
-    await ensureOpKeyRegistered(store, key)
+    // The first-use registration rides the SAME gate as the JWKS route
+    // (identity#7): a generated development key never enters the keyset
+    // on a declared-issuer deployment. Signing itself still proceeds
+    // (the documented dev posture — the loud warning fired at resolve).
+    if (maySelfRegisterOpKey(key, config)) {
+      await ensureOpKeyRegistered(store, key)
+    } else {
+      warnDevKeyRegistrationSkipped('/op/token', key)
+    }
     const idToken = await signOpIdToken(key, claims)
 
     const accessToken = opRandomToken()

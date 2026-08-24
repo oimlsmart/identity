@@ -31,6 +31,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
+import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 import { startStubIdp, type StubIdp } from './fixtures/stub-idp'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -141,6 +142,9 @@ async function bootIdentityStack(): Promise<Stack> {
       OIDC_CLIENT_ID: '',
       DEMO_ACCOUNTS_ENABLED: 'true',
       OP_ISSUER: `http://localhost:${ID_WEB}`,
+      // identity#7: a declared-issuer stack declares its signing key too
+      // (the generated dev key never registers off the dev posture).
+      OP_SIGNING_KEY: await fixtureOpSigningKey(),
       // The upstream provider's client secret rides the env (the row
       // references it — the registry never stores secrets).
       IDP_E2E_SECRET: IDP_SECRET,

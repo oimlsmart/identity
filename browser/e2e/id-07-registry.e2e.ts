@@ -44,6 +44,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
+import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 import { generatePkce } from '@oimlsmart/platform-server/oidc'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -157,6 +158,9 @@ async function bootIdentityStack(): Promise<Stack> {
       OIDC_CLIENT_ID: '',
       DEMO_ACCOUNTS_ENABLED: 'true',
       OP_ISSUER: ISSUER,
+      // identity#7: a declared-issuer stack declares its signing key too
+      // (the generated dev key never registers off the dev posture).
+      OP_SIGNING_KEY: await fixtureOpSigningKey(),
       // The first administrator arrives by DECLARATION — the setup link
       // lands in the boot log.
       OP_ACCOUNT_SEED: JSON.stringify([{ email: ROOT.email, name: ROOT.name, role: 'admin' }]),

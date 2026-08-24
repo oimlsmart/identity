@@ -78,6 +78,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
+import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 import { startStubGitHub, type StubGitHub } from './fixtures/stub-github'
 import { startStubRp, type StubRp } from './fixtures/stub-rp'
 
@@ -198,6 +199,9 @@ async function bootOpStack(github: StubGitHub): Promise<Stack> {
       OIDC_CLAIM_MAPPING: '',
       DEMO_ACCOUNTS_ENABLED: 'true',
       OP_ISSUER: ISSUER,
+      // identity#7: a declared-issuer stack declares its signing key too
+      // (the generated dev key never registers off the dev posture).
+      OP_SIGNING_KEY: await fixtureOpSigningKey(),
       OP_CLIENT_SEED: JSON.stringify([{
         client_id: CLIENT_ID,
         name: 'The id-05 fixture RP',

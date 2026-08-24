@@ -16,6 +16,16 @@
 // DIFFERENT keys (each isolate generates its own), so a deployment that
 // serves real RPs declares the secret.
 //
+// THE REGISTRATION GATE (oimlsmart/identity#7): the first-use
+// registration above is the DECLARED secret's privilege. A generated
+// development key (declared: false) registers only in the dev posture —
+// the issuer derived from the request origin, OP_ISSUER unset
+// (routes/op.ts's maySelfRegisterOpKey reads the two). On a
+// declared-issuer deployment (the production identity service) a
+// mid-propagation secret read that falls to the dev generation never
+// pollutes the keyset the RPs validate against: the JWKS serves the
+// registered table as it stands, and the loud warning stays.
+//
 // WORKER-SAFE: WebCrypto only.
 // ═══════════════════════════════════════════════════════════════════
 
@@ -29,6 +39,12 @@ type OpJwk = JsonWebKey & { kid?: string; alg?: string; use?: string }
 
 export interface OpSigningKey {
   kid: string
+  /** TRUE when the key came from the DECLARED OP_SIGNING_KEY secret;
+   *  FALSE for the generated development pair. The registration gate
+   *  (routes/op.ts's maySelfRegisterOpKey) reads it: oidc_keys never
+   *  accepts a generated key on a declared-issuer deployment
+   *  (identity#7). */
+  declared: boolean
   /** The WebCrypto private key (sign usage). */
   privateKey: CryptoKey
   /** The public half as a JWK (kid/alg/use stamped). */
@@ -103,7 +119,7 @@ export async function resolveOpSigningKey(env: EnvLike): Promise<OpSigningKey> {
     const publicJwk: OpJwk = { kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y }
     const declaredKid = (jwk as OpJwk).kid
     const kid = typeof declaredKid === 'string' && declaredKid ? declaredKid : await kidFor(publicJwk)
-    key = { kid, privateKey, publicJwk: { ...publicJwk, kid, alg: 'ES256', use: 'sig' }, secretMaterial: raw }
+    key = { kid, declared: true, privateKey, publicJwk: { ...publicJwk, kid, alg: 'ES256', use: 'sig' }, secretMaterial: raw }
   } else {
     const pair = await crypto.subtle.generateKey(
       { name: 'ECDSA', namedCurve: 'P-256' },
@@ -116,6 +132,7 @@ export async function resolveOpSigningKey(env: EnvLike): Promise<OpSigningKey> {
     const exportedPrivate = await crypto.subtle.exportKey('jwk', pair.privateKey)
     key = {
       kid,
+      declared: false,
       privateKey: pair.privateKey,
       publicJwk: { ...publicJwk, kid, alg: 'ES256', use: 'sig' },
       secretMaterial: `dev:${exportedPrivate.d ?? kid}`,
