@@ -1,0 +1,181 @@
+{
+  "claims": {
+    "consent": {
+      "account": {
+        "avatarUrl": null,
+        "email": "ia@oiml.org",
+        "name": "IA Officer"
+      },
+      "client": {
+        "id": "fixture-rp",
+        "name": "The e2e fixture RP"
+      },
+      "issuerName": "OIML SMART Identity",
+      "orgClaim": "EX1",
+      "policyClaims": [
+        "roles",
+        "groups",
+        "org"
+      ],
+      "roleClaims": [
+        "ia_officer"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email"
+      ]
+    },
+    "idToken": {
+      "aud": "fixture-rp",
+      "email": "ia@oiml.org",
+      "email_verified": true,
+      "exp": "{ts}",
+      "groups": [
+        "ia_officer"
+      ],
+      "iat": "{ts}",
+      "iss": "{issuer}",
+      "name": "IA Officer",
+      "nonce": "contract-nonce-7f2a1c",
+      "org": "EX1",
+      "roles": [
+        "ia_officer"
+      ],
+      "sub": "{sub}"
+    },
+    "tokenResponse": {
+      "expires_in": 3600,
+      "token_type": "Bearer"
+    },
+    "userinfo": {
+      "email": "ia@oiml.org",
+      "email_verified": true,
+      "groups": [
+        "ia_officer"
+      ],
+      "name": "IA Officer",
+      "org": "EX1",
+      "roles": [
+        "ia_officer"
+      ],
+      "sub": "{sub}"
+    }
+  },
+  "discovery": {
+    "authorization_endpoint": "{issuer}/op/authorize",
+    "claims_supported": [
+      "iss",
+      "sub",
+      "aud",
+      "exp",
+      "iat",
+      "nonce",
+      "name",
+      "email",
+      "email_verified",
+      "roles",
+      "groups",
+      "org"
+    ],
+    "code_challenge_methods_supported": [
+      "S256"
+    ],
+    "grant_types_supported": [
+      "authorization_code"
+    ],
+    "id_token_signing_alg_values_supported": [
+      "ES256"
+    ],
+    "issuer": "{issuer}",
+    "jwks_uri": "{issuer}/jwks.json",
+    "response_types_supported": [
+      "code"
+    ],
+    "scopes_supported": [
+      "openid",
+      "profile",
+      "email"
+    ],
+    "subject_types_supported": [
+      "public"
+    ],
+    "token_endpoint": "{issuer}/op/token",
+    "token_endpoint_auth_methods_supported": [
+      "client_secret_basic",
+      "client_secret_post",
+      "none"
+    ],
+    "userinfo_endpoint": "{issuer}/op/userinfo"
+  },
+  "errors": {
+    "authorize_missing_openid_scope": {
+      "error": "invalid_scope",
+      "redirected": true,
+      "status": 302
+    },
+    "authorize_missing_pkce": {
+      "error": "invalid_request",
+      "redirected": true,
+      "status": 302
+    },
+    "authorize_response_type_token": {
+      "error": "unsupported_response_type",
+      "redirected": true,
+      "status": 302
+    },
+    "authorize_unknown_client": {
+      "marker": true,
+      "redirected": false,
+      "status": 400
+    },
+    "authorize_unregistered_redirect": {
+      "marker": true,
+      "redirected": false,
+      "status": 400
+    },
+    "consent_unknown_id": {
+      "error": "invalid_request",
+      "status": 400
+    },
+    "token_json_body": {
+      "error": "invalid_request",
+      "status": 400
+    },
+    "token_no_client_auth": {
+      "error": "invalid_client",
+      "status": 401
+    },
+    "token_unknown_client": {
+      "error": "invalid_client",
+      "status": 401
+    },
+    "token_wrong_grant": {
+      "error": "unsupported_grant_type",
+      "status": 400
+    },
+    "userinfo_bogus_token": {
+      "error": "invalid_token",
+      "status": 401
+    },
+    "userinfo_no_token": {
+      "error": "invalid_token",
+      "status": 401
+    }
+  },
+  "jwks": {
+    "allKeysShareShape": true,
+    "coordsWellFormed": true,
+    "keyCount": 1,
+    "keyShape": {
+      "alg": "ES256",
+      "crv": "P-256",
+      "kid": "{kid}",
+      "kty": "EC",
+      "use": "sig",
+      "x": "{coord}",
+      "y": "{coord}"
+    },
+    "kidsDistinct": true
+  }
+}

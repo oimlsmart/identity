@@ -1,0 +1,19 @@
+# TODO.identity/01 — the OIDC Provider's instance profile (the e2e
+# fixture; the live id.oimlsmart.org declares the same shape in
+# wrangler.toml's [env.identity] INSTANCE_PROFILE_YAML).
+#
+# roles: [identity] → ONLY the identity module (the OP endpoints); the
+# profile's own identity IS the provider's public identity (the consent
+# page's issuer name).
+#
+# demo_personas: true — the e2e keeps the demo cast for the admin legs
+# (the invited password accounts of TODO.identity/02 are the fixture's
+# subjects; the production identity service runs demo_personas: false).
+identity:
+  org_id: oimlsmart-id
+  org_name: OIML SMART Identity
+  role_codes: [identity]
+roles: [identity]
+branding:
+  name: OIML SMART Identity
+demo_personas: true
