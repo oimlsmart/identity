@@ -1,4 +1,4 @@
--- Migration 0012 — the multi-organization membership model
+-- Migration 0011 — the multi-organization membership model
 -- (TODO.identity/11). An account can belong to SEVERAL organizations and
 -- acts AS one at a time (the GitHub context-switch pattern): the
 -- org_memberships table carries the account × org × per-org role set with
@@ -7,6 +7,13 @@
 -- code + access token carry the context the consent was given under (the
 -- token endpoint re-judges it against the live membership, so a
 -- membership disabled mid-flow never emits a dead org's claims).
+--
+-- (The 0011 prefix is shared with 0011_op_launch.sql (the SSO home's
+-- launch metadata); the D1 migrations journal keys on the FILE NAME —
+-- the double-0003 and double-0009 precedents — and the two touch
+-- disjoint tables/columns. The name must stay exactly this: a SHARED D1
+-- applied it under this name (the preview registry), and a rename
+-- re-runs the ALTERs there into duplicate-column errors.)
 --
 -- THE DUAL-READ DOCTRINE: the users row's org_id/roles columns stay the
 -- BACKWARD-COMPATIBLE read — the PRIMARY membership's mirror — until
