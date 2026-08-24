@@ -94,6 +94,42 @@ has passed, never automatically mid-flight.
   clearly-marked development posture.
 - The stated SLO: 99.9% monthly, measured by the heartbeat.
 
+## The admin dashboard
+
+The OP's admin console (`/op/admin`, admin/cs_admin gated) is the
+operations surface: the overview (accounts by lifecycle state, the
+14-day sign-in series, today's anomaly counts, the SLO panel read from
+the heartbeat workflow's own run history), the aggregate live-session
+view with the act ladder (end one session; end all of an account's
+sessions, the light act; deactivate the account, the heavy act, which
+also revokes issued tokens and blocks issuance), the account registry,
+the relying-party registry with per-client issuance activity, and the
+security + audit page (the signals, the queryable and CSV-exportable
+audit log, the quarterly access review's live version).
+
+The rules the surface keeps, stated once:
+
+- Every administrative act writes an audit event naming the actor; the
+  dashboard is a read surface over the audit journal, the store, and
+  the heartbeat's history, never a separate data pipeline.
+- Session views never expose token values; the revocation acts ride the
+  store's own session-deletion halves.
+- Retention: the audit journal is retained for the life of the registry
+  (no automated purge); the heartbeat history is retained by GitHub
+  Actions under its own policy; the dashboard computes its counters at
+  request time and stores nothing. The panels carry this statement.
+- The security signals and their thresholds are stated on the page: the
+  failed-login burst rule (one account or address with 5+ failures
+  inside 24 hours), the token-endpoint refusals by error class, the
+  rate-limit trips by caller and path, the week's new upstream links
+  and client registrations.
+- The heartbeat read is unauthenticated against the public GitHub API
+  (this repository is public), cached per isolate for five minutes, and
+  degrades to the workflow link when the read fails; the
+  `OP_HEARTBEAT_API_BASE` / `OP_HEARTBEAT_REPO` /
+  `OP_HEARTBEAT_WORKFLOW` envs override the source for tests and
+  forks.
+
 ## Security practice
 
 - The identity e2e legs are the named pre-deploy gate.
