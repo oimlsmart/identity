@@ -83,7 +83,27 @@ function describe(event: AuditEvent): string {
     case 'account.avatar': return 'updated the profile picture'
     case 'account.avatar_removed': return 'removed the profile picture'
     case 'account.deleted': return `erased the account ${String(meta.email ?? event.entity_id)} — the row is an anonymized tombstone`
+    case 'account.updated': {
+      const before = (meta.before ?? {}) as Record<string, unknown>
+      const after = (meta.after ?? {}) as Record<string, unknown>
+      const fields = Object.keys(after).filter(k => JSON.stringify(before[k]) !== JSON.stringify(after[k])).join(', ')
+      return `edited the account ${String((after.email ?? before.email) ?? event.entity_id)} (${fields})`
+    }
+    case 'account.deactivated': {
+      const revoked = (meta.revoked ?? {}) as Record<string, unknown>
+      return `deactivated the account (revoked: ${Number(revoked.sessions ?? 0)} session(s), ${Number(revoked.accessTokens ?? 0)} token(s))`
+    }
+    case 'account.reactivated': return 'reactivated the account'
     case 'account.session_revoked': return meta.by === 'administrator' ? 'ended an account session (administrator)' : 'ended a session'
+    case 'account.sessions_revoked': return meta.by === 'administrator'
+      ? `ended every session of ${String(meta.email ?? event.entity_id)} (${Number(meta.count ?? 0)}, administrator)`
+      : `signed out ${Number(meta.count ?? 0)} other session(s)`
+    case 'account.sign_in': return `signed in with the password`
+    case 'account.client_roles': {
+      const roles = (meta.roles as string[] ?? [])
+      return `granted roles on ${String(meta.client_id ?? '')}: ${roles.length ? roles.join(', ') : 'none (the explicit no-claim posture)'}`
+    }
+    case 'account.client_roles_cleared': return `cleared the role grant on ${String(meta.client_id ?? '')} (the account-wide set is the default again)`
     case 'account.link_on_behalf': return `linked ${String(meta.provider ?? '')} account ${String(meta.provider_account_id ?? '')} on behalf of ${String(meta.email ?? event.entity_id)} — ${String(meta.justification ?? '')}`
     case 'account.link_removed': return `removed the ${String(meta.provider ?? '')} link of ${String(meta.email ?? event.entity_id)}${meta.reason ? ` — ${String(meta.reason)}` : ''}`
     case 'user.create': return `created the account ${String(meta.email ?? '')} (${(meta.roles as string[] ?? []).join(', ')})`
