@@ -25,7 +25,6 @@
 // EN/FR catalogs (home.* namespace).
 // ═══════════════════════════════════════════════════════════════════
 import { onMounted, ref } from 'vue'
-import PageHeader from '../components/PageHeader.vue'
 import LaunchIcon from '../components/LaunchIcon.vue'
 import { t } from '../i18n'
 
@@ -105,7 +104,15 @@ async function requestAccess(service: HomeService) {
     </div>
 
     <template v-else-if="feed">
-      <PageHeader :title="t('home.title')" :description="t('home.description')" />
+      <!-- The page header carries the house idiom's classes inline
+           (the serif brand title + the slate description) WITH the
+           dark: pairs the site-shell's class-based dark mode needs —
+           the shared PageHeader gains them in the sibling UX wave; this
+           page never waits on shared chrome. -->
+      <header class="mb-8">
+        <h1 class="text-2xl lg:text-3xl font-serif font-bold text-brand-900 dark:text-brand-100 tracking-tight">{{ t('home.title') }}</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">{{ t('home.description') }}</p>
+      </header>
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="home-error">{{ error }}</p>
