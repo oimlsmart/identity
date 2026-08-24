@@ -102,6 +102,18 @@ families:
   same). The URL stays fetchable for a known account even without an
   upload: the OP answers a generated-initials image there, and a plain
   404 for an unknown account.
+- `amr` - the authentication methods provenance (RFC 8176): how the user
+  authenticated AT the OP for this authorization. The values this OP
+  emits: `pwd` (the password), `otp` (a TOTP authenticator app),
+  `webauthn` (a passkey), `hwk` (the passkey's registration declared a
+  roaming hardware transport; attestation is `none`, so read it as the
+  declared hint, never a proof), and `recovery` (a recovery code; the
+  OP-private value, documented here). A present `amr` is the consenting
+  session's truth at the moment of consent; the claim is ABSENT when the
+  sign-in came through a linked upstream IdP (this OP verified no
+  credential itself in that case). `userinfo` answers the same value.
+  A sensitive-act policy reads it: password+factor sign-ins carry two
+  entries; a passkey-only (passwordless) sign-in carries `webauthn`.
 
 The multi-organization model: an account can belong to several
 organizations and acts as ONE at a time (the account console's
@@ -114,7 +126,38 @@ the next sign-in round trip.
 
 Claims beyond profile+email arrive ONLY when your client's policy
 allows them. The same user signing into two services can therefore
-carry different claim sets — by design.
+carry different claim sets - by design. (`amr` is the exception that
+proves the rule's honesty: it is authentication provenance, not a
+client privilege, so it rides every ID token that has one.)
+
+## 4a. Strong authentication at the OP (passkeys, authenticator apps, recovery codes)
+
+The OP holds a per-account factor registry (TODO.identity-sso/02+03;
+the reference: `docs/integration/identity-strong-auth.md`). The shape
+your users see at the OP:
+
+- **Passkeys** (WebAuthn): a primary sign-in (the passwordless button
+  plus conditional-UI autofill on the identifier field) AND a second
+  factor after the password, the account's choice. Registered at
+  attestation `none`; the RP ID is the OP's exact domain and the origin
+  check is exact. The signature counter's regression is the clone signal
+  (the assertion fails and audits).
+- **Authenticator apps** (TOTP, RFC 6238): the classic second factor.
+  Enrollment activates only after a first valid code verifies.
+- **Recovery codes**: generated at the first factor's enrollment, shown
+  once, stored hashed, one-time each. Behind everything stands the email
+  reset, so there is never a lockout.
+
+Deliberately absent: SMS/voice OTP. SIM-swap and interception make them
+a documented refusal, not an oversight. Verification endpoints are
+rate-limited hard (per-caller buckets plus a per-account backoff ladder
+on the pending sign-in row); a burned burst emails the account and
+audits.
+
+For your service this composes naturally: a fresh or phishing-resistant
+authentication demand (`prompt=login`, `max_age` - wave A) re-runs the
+OP's chain, and the `amr` claim (§4) tells your sensitive-act policy
+what actually happened.
 
 ## 5. The sign-in flow (authorization code + PKCE)
 

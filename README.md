@@ -15,7 +15,12 @@ This repository carries the OP half of the identity contract only:
 
 - the OP domain modules (`browser/server/auth/op/`, `auth/upstream/`,
   `auth/passwords.ts`, `auth/org-registry.ts`),
-- the OP routers (`browser/server/routes/op*.ts` — the protocol, the accounts, the upstream providers, the join intake, the memberships, the registry),
+- `auth/passwords.ts`, `auth/org-registry.ts`) — including the
+  strong-authentication half (TODO.identity-sso/02+03: `auth/op/totp.ts`,
+  `auth/op/webauthn.ts`, `auth/op/recovery.ts`, `auth/op/factors.ts`),
+- the OP routers (`browser/server/routes/op*.ts` — the protocol, the accounts, the upstream providers, the join intake, the memberships, the registry) plus the factor registry's console API
+  (`routes/op-factors.ts`) and the sign-in's second-factor + passwordless
+  half (`routes/op-mfa.ts`),
 - the D1 migrations (`browser/server/db/migrations/`), byte-identical
   with the monorepo's set: the live account registry
   (`oiml-smart-platform-identity`, D1) never moves, and wrangler keys
