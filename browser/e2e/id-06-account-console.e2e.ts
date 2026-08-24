@@ -763,18 +763,24 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
       expect(rightPixel[2]!, 'the opening frame: blue right of the midline').toBeGreaterThan(rightPixel[0]!)
       flog(page, 'leg6: the crop dialog stands, the frame is the centered cover')
 
-      // The drag: the image follows the pointer — dragging right moves
-      // the window left over the source, so the right sample turns red.
+      // The drag: the image follows the pointer — dragging right pulls
+      // the image right, so a window point that was blue (right of the
+      // midline) now reads the source further LEFT: it turns red.
       const cropBox = await (await page.$('[data-testid="account-avatar-crop-canvas"]'))!.boundingBox()
       await page.mouse.move(cropBox!.x + 140, cropBox!.y + 140)
       await page.mouse.down()
       await page.mouse.move(cropBox!.x + 200, cropBox!.y + 140, { steps: 5 })
       await page.mouse.up()
-      const draggedPixel = await cropPixel(220, 140)
-      expect(draggedPixel[0]!, 'the drag reframed (the window moved left, red shows right)').toBeGreaterThan(draggedPixel[2]!)
+      // The arithmetic: offsetX -140 → -80; the source midline (320) lands
+      // at window x ≈ 200 — the (180, 140) sample crossed into the red.
+      const draggedPixel = await cropPixel(180, 140)
+      expect(draggedPixel[0]!, 'the drag reframed (the image followed the pointer; the sample turned red)').toBeGreaterThan(draggedPixel[2]!)
       flog(page, 'leg6: the drag reframed the window')
 
-      // The zoom (the slider): the pixels move again.
+      // The zoom (the slider): the center-anchored zoom-in moves the
+      // pixels again — the right-hand sample, blue before the drag and
+      // red after it, stays red but the frame narrows (the unit suite
+      // proves the exact rect; here the window simply must redraw).
       await page.$eval('[data-testid="account-avatar-crop-zoom"]', (el) => {
         (el as HTMLInputElement).value = '50'
         el.dispatchEvent(new Event('input', { bubbles: true }))
@@ -783,7 +789,7 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
         async () => {
           const canvas = document.querySelector('[data-testid="account-avatar-crop-canvas"]') as HTMLCanvasElement
           const d = canvas.getContext('2d')!.getImageData(220, 140, 1, 1).data
-          return d[0]! > d[2]! // zoomed in on the red side
+          return d[0]! > d[2]! // the zoomed frame's right side reads the red half
         },
         { timeout: 30_000, polling: 250 },
       )
