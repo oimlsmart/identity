@@ -103,6 +103,15 @@ families:
   upload: the OP answers a generated-initials image there, and a plain
   404 for an unknown account.
 
+The multi-organization model: an account can belong to several
+organizations and acts as ONE at a time (the account console's
+Organizations section switches the context). The claims never change
+shape: `org` is the account's ACTIVE organization (its primary binding
+when it never switches), and `roles`/`groups` carry the active
+organization's role set. Your service never learns the account's other
+memberships from the token, and a mid-session switch takes effect on
+the next sign-in round trip.
+
 Claims beyond profile+email arrive ONLY when your client's policy
 allows them. The same user signing into two services can therefore
 carry different claim sets — by design.
