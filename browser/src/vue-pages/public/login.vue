@@ -193,6 +193,10 @@ async function submitOpLogin() {
       methods?: { totp: boolean; passkey: boolean; recovery: boolean }
     } | null
     if (body?.mfaRequired && body.mfaToken && body.methods) {
+      // The password branch won: the pending conditional-UI autofill must
+      // not answer over the factor step (the factor ceremony is now the
+      // active one).
+      abortConditionalUi()
       mfa.value = { token: body.mfaToken, methods: body.methods }
       mfaCode.value = ''
       recoveryCode.value = ''
