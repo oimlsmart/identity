@@ -85,7 +85,6 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   // notification like signin (no link, no expiry).
   mfa_locked: { subject: 'mail.mfaLocked.subject', preheader: 'mail.mfaLocked.preheader', heading: 'mail.mfaLocked.heading', body: 'mail.mfaLocked.body', why: 'mail.mfaLocked.why', link: false },
 }
-}
 
 export type MailLocale = 'en' | 'fr'
 
