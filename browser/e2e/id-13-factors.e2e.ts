@@ -177,13 +177,15 @@ async function addVirtualAuthenticator(page: Page): Promise<{ cdp: CDPSession; a
  *  the same ceremony; the leg races them and clicks the button when the
  *  form wins. */
 async function passkeyLanding(page: Page): Promise<void> {
+  // The launcher's convention: the login page's sign-ins land on the SSO
+  // home (/op/home) by default — its `home` testid is the landing marker.
   const outcome = await Promise.race([
-    page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 }).then(() => 'console' as const),
+    page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 }).then(() => 'landed' as const),
     page.waitForSelector('[data-testid="login-passkey"]', { timeout: SETTLE, polling: 500 }).then(() => 'form' as const),
   ])
   if (outcome === 'form') {
     await page.evaluate(() => (document.querySelector('[data-testid="login-passkey"]') as HTMLElement).click())
-    await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
+    await page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 })
   }
 }
 
@@ -235,7 +237,7 @@ async function passwordCookieWithTotp(base: string, email: string, password: str
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
-  expect(res.ok).toBe(true)
+  expect(res.ok, `password sign-in ${email} answered ${res.status}`).toBe(true)
   const body = await res.json() as { mfaRequired?: boolean; mfaToken?: string }
   if (!body.mfaRequired) {
     return res.headers.get('set-cookie')!.split(';')[0]!.split('=')[1]!
@@ -514,8 +516,8 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       // The right code lands on the console.
       await page.type('[data-testid="login-mfa-code"]', await totpAtStep(caseyTotpSecret, Math.floor(Date.now() / 1000 / 30)))
       await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-submit"]') as HTMLElement).click())
-      await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
-      flog(page, 'leg2: signed in with password + TOTP')
+      await page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 })
+      flog(page, 'leg2: signed in with password + TOTP (the SSO home)')
     })
 
     // The session's amr + the ID token's amr agree (['pwd','otp']).
@@ -631,7 +633,9 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       // The console's revoke: the row's button, then the passwordless
       // path refuses (the credential is gone — the server never sees a
       // registered credential again, whichever page path produces the
-      // assertion).
+      // assertion). The passwordless landing is the SSO home — the
+      // console is an explicit navigation.
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="factors-passkey-list"]', { timeout: 60_000, polling: 500 })
       await page.evaluate(() => (document.querySelector('[data-testid^="factor-passkey-"][data-testid$="-revoke"]') as HTMLElement).click())
       await page.waitForSelector('[data-testid="factors-passkey-empty"]', { timeout: 60_000, polling: 500 })
@@ -711,8 +715,8 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       await page.waitForSelector('[data-testid="login-mfa-recovery-code"]', { timeout: 30_000, polling: 500 })
       await page.type('[data-testid="login-mfa-recovery-code"]', code)
       await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-recovery-submit"]') as HTMLElement).click())
-      await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
-      flog(page, 'leg5: the recovery code signed Casey in')
+      await page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 })
+      flog(page, 'leg5: the recovery code signed Casey in (the SSO home)')
     })
     // One-time: the same code refuses now.
     const pending = await (await fetch(`${stack.base}/api/op/login`, {
