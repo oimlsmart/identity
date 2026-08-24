@@ -456,6 +456,11 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
       // the cast) the demo accounts.
       await page.waitForSelector('[data-testid="upstream-login-github"]', { timeout: SETTLE, polling: 500 })
       await opPasswordSignIn(page, WILLA.email, WILLA.password)
+      // The signed-in landing is the SSO home (the launcher); the
+      // account console is its entry.
+      await page.waitForSelector('[data-testid="home"]', { timeout: SETTLE, polling: 500 })
+      expect(new URL(page.url()).pathname).toBe('/op/home')
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="account-name"]', { timeout: SETTLE, polling: 500 })
       expect(new URL(page.url()).pathname).toBe('/op/account')
       expect(await page.$eval('[data-testid="account-password-state"]', el => el.textContent ?? '')).toContain('A password is set')
