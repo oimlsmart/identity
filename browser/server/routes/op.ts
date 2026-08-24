@@ -121,13 +121,25 @@ export function createOpRouter(): Hono {
     })
   })
 
-  // GET /jwks.json — the public halves of the key history (the active
-  // key is registered on first use, so a fresh deployment answers its
-  // own key immediately).
+  // GET /jwks.json — the public halves of the key history. The answer
+  // is the REGISTERED TABLE, never gated on the signing secret's
+  // availability: a Worker secret mid-propagation (a fresh isolate whose
+  // OP_SIGNING_KEY binding reads malformed or rejects the key material
+  // while the rollout settles) must never 500 the public key set. The
+  // secret matters for SIGNING, not for serving public keys. The active
+  // key's self-registration stays (a fresh deployment answers its own
+  // key before the first token issuance, and the rotation ceremony's
+  // overlap poll rides it) but is best-effort: a failed resolve serves
+  // the table as it stands, and a genuinely empty table answers an
+  // honest empty JWKS.
   op.get('/jwks.json', async (c) => {
     const store = getStore()
-    const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
-    await ensureOpKeyRegistered(store, key)
+    try {
+      const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+      await ensureOpKeyRegistered(store, key)
+    } catch (err) {
+      console.warn('[op] jwks.json: the signing key is unavailable on this isolate; serving the registered table:', (err as Error).message)
+    }
     return c.json(await opJwks(store))
   })
 
