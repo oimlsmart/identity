@@ -52,7 +52,7 @@ import { assertWith, attest, mintAuthenticator, userHandleFor } from '../src/__t
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
-const DB_DIR = join(BROWSER_DIR, '.cache', 'id-11')
+const DB_DIR = join(BROWSER_DIR, '.cache', 'id-13')
 
 const ID_API = 9893
 const ID_WEB = 9993

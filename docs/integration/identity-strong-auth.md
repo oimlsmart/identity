@@ -105,7 +105,7 @@ pinned against the RFC 7049 Appendix A canonical vectors; TOTP against
 the RFC 6238 Appendix B SHA-1 rows; Ed25519 against the RFC 8032 section
 7.1 known answer; and the full register-then-assert ceremonies against
 freshly minted key material per algorithm (the test kit builds exactly
-the bytes an authenticator emits). The interop leg: e2e/id-11 drives
+the bytes an authenticator emits). The interop leg: e2e/id-13 drives
 Chrome's real WebAuthn stack through the CDP virtual authenticator,
 never a mock. The QR renderer (src/qr.ts) is pinned matrix-for-matrix
 against the reference implementation (src/__tests__/qr-golden.ts, the
