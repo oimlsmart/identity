@@ -609,7 +609,7 @@ function activityLine(event: AuditEvent): string {
     }
     case 'account.client_roles_cleared': return t('admin.user.activity.action.account.client_roles_cleared', { client: String(meta.client_id ?? '') })
     case 'account.deactivated': return t('admin.user.activity.action.account.deactivated')
-    case 'account.reactivated': return t('admin.user.activity.action.user.reactivated')
+    case 'account.reactivated': return t('admin.user.activity.action.account.reactivated')
     case 'user.roles': return t('admin.user.activity.action.user.roles', { roles: (meta.roles as string[] ?? []).join(', ') })
     case 'user.deactivated': return t('admin.user.activity.action.user.deactivated')
     case 'user.reactivated': return t('admin.user.activity.action.user.reactivated')

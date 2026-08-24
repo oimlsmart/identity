@@ -506,6 +506,212 @@ describe('the registry activity feed', () => {
   })
 })
 
+// ── the detail aggregate's admin view (the heavy rebuild) ────────────
+
+describe('the detail aggregate’s admin view', () => {
+  it('carries the lifecycle state, the verification + record stamps, and the honest trail total', async () => {
+    const admin = await demoLogin('admin@oiml.org')
+
+    // The invited state: created, never enrolled (no password, never
+    // signed in), the invite stamp is the record's beginning.
+    const invite = await app.request('/api/op/accounts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ email: 'invited.registry@example.org', name: 'Invited Notyet' }),
+    })
+    expect(invite.status).toBe(201)
+    const invitedId = ((await invite.json()) as { account: { id: string } }).account.id
+    const invitedDetail = await (await app.request(`/api/op/registry/users/${invitedId}`, { headers: { cookie: admin } })).json() as {
+      account: { state: string; provider: string; lastLogin: string | null; firstSeenAt: string | null; emailVerifiedAt: string | null; avatarUrl: string | null }
+      activityTotal: number
+      activity: unknown[]
+    }
+    expect(invitedDetail.account.state).toBe('invited')
+    expect(invitedDetail.account.provider).toBe('password')
+    expect(invitedDetail.account.lastLogin).toBeNull()
+    expect(invitedDetail.account.emailVerifiedAt).toBeNull()
+    expect(invitedDetail.account.avatarUrl).toBeNull()
+    expect(invitedDetail.account.firstSeenAt).toBeTruthy()
+    expect(invitedDetail.activityTotal).toBe(1) // the invite row
+    expect(invitedDetail.activity).toHaveLength(1)
+
+    // The enrolled state: the invite ceremony verifies the address.
+    const id = await inviteAndEnroll('kepler.registry@example.org', 'Kepler Registry')
+    const detail = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as {
+      account: { state: string; emailVerifiedAt: string | null; lastLogin: string | null }
+    }
+    expect(detail.account.state).toBe('active')
+    expect(detail.account.emailVerifiedAt, 'the invite ceremony verifies the address').toBeTruthy()
+    expect(detail.account.lastLogin).toBeTruthy()
+
+    // The deactivated state.
+    const off = await app.request(`/api/op/accounts/${id}/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ active: false }),
+    })
+    expect(off.status).toBe(200)
+    expect(((await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as { account: { state: string } }).account.state)).toBe('deactivated')
+
+    // The erased tombstone: the row still resolves, the state names it,
+    // the erasure stamp stands, and no act applies.
+    const gone = await app.request(`/api/op/accounts/${id}`, { method: 'DELETE', headers: { cookie: admin } })
+    expect(gone.status).toBe(200)
+    const tombstone = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as {
+      account: { state: string; provider: string; erasedAt: string | null; email: string }
+      sessions: unknown[]
+    }
+    expect(tombstone.account.state).toBe('erased')
+    expect(tombstone.account.provider).toBe('erased')
+    expect(tombstone.account.erasedAt).toBeTruthy()
+    expect(tombstone.sessions).toHaveLength(0)
+  })
+
+  it('the app-access view names the reason per client (the claims rule, admin-side)', async () => {
+    const admin = await demoLogin('admin@oiml.org')
+    // The fixture clients: the plain role carrier, the allowlist-bound
+    // one, the no-claims one, the disabled one.
+    for (const [client_id, policy] of [
+      ['app-plain', { claims: ['roles', 'groups'] }],
+      ['app-allowlist', { claims: ['roles'], roles: ['ia_officer', 'tl_operator'] }],
+    ] as const) {
+      const res = await app.request('/api/op/clients', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: admin },
+        body: JSON.stringify({ client_id, name: `The ${client_id} fixture`, redirect_uris: ['https://app.test/callback'], claims_policy: policy }),
+      })
+      expect(res.status).toBe(201)
+    }
+    const noClaims = await app.request('/api/op/clients', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ client_id: 'app-noclaims', name: 'The app-noclaims fixture', redirect_uris: ['https://app.test/callback'] }),
+    })
+    expect(noClaims.status).toBe(201)
+    const disabled = await app.request('/api/op/clients', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ client_id: 'app-disabled', name: 'The app-disabled fixture', redirect_uris: ['https://app.test/callback'], claims_policy: { claims: ['roles'] } }),
+    })
+    expect(disabled.status).toBe(201)
+    await app.request('/api/op/clients/app-disabled/status', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ status: 'disabled' }),
+    })
+
+    // A viewer: the plain client carries its role, the allowlist client
+    // cannot (viewer is outside it), the no-claims client never carries
+    // roles, the disabled one is off.
+    const id = await inviteAndEnroll('appview.registry@example.org', 'Appview Registry') // the OP default role: viewer
+    let detail = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as {
+      appAccess: Array<{ clientId: string; canEnter: boolean; reason: string; roles: string[]; held: string[] }>
+    }
+    const byClient = Object.fromEntries(detail.appAccess.map(r => [r.clientId, r]))
+    expect(byClient['app-plain']).toMatchObject({ canEnter: true, reason: 'ok', roles: ['viewer'] })
+    expect(byClient['app-allowlist']).toMatchObject({ canEnter: false, reason: 'outside_allowlist', roles: [], held: ['viewer'] })
+    expect(byClient['app-noclaims']).toMatchObject({ canEnter: false, reason: 'no_role_claims' })
+    expect(byClient['app-disabled']).toMatchObject({ canEnter: false, reason: 'client_disabled' })
+
+    // The explicit none: an empty grant on app-plain.
+    const none = await app.request(`/api/op/accounts/${id}/client-roles/app-plain`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ roles: [] }),
+    })
+    expect(none.status).toBe(200)
+    detail = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as never
+    expect(Object.fromEntries(detail.appAccess.map(r => [r.clientId, r]))['app-plain']).toMatchObject({ canEnter: false, reason: 'explicit_none', roles: [] })
+
+    // A grant INSIDE the allowlist: tl_operator on app-allowlist enters.
+    const grant = await app.request(`/api/op/accounts/${id}/client-roles/app-allowlist`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ roles: ['tl_operator'] }),
+    })
+    expect(grant.status).toBe(200)
+    detail = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as never
+    expect(Object.fromEntries(detail.appAccess.map(r => [r.clientId, r]))['app-allowlist']).toMatchObject({ canEnter: true, reason: 'ok', roles: ['tl_operator'] })
+  })
+
+  it('the account trail pages honestly (offset + limit, the total in every answer)', async () => {
+    const admin = await demoLogin('admin@oiml.org')
+    const id = await inviteAndEnroll('pager.registry@example.org', 'Pager Registry')
+    // More rows: a few audited acts (links on behalf land one apiece).
+    for (const handle of ['pager-gh-1', 'pager-gh-2']) {
+      await app.request(`/api/op/registry/users/${id}/links`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: admin },
+        body: JSON.stringify({ provider: 'github', provider_account_id: handle, justification: 'the paging fixture' }),
+      })
+      await app.request(`/api/op/registry/users/${id}/links/github`, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json', cookie: admin },
+        body: JSON.stringify({ reason: 'the paging fixture teardown' }),
+      })
+    }
+    const first = await (await app.request(`/api/op/registry/users/${id}/activity?limit=2`, { headers: { cookie: admin } })).json() as {
+      events: Array<{ id: string; timestamp: string }>; total: number; offset: number; limit: number
+    }
+    expect(first.events).toHaveLength(2)
+    expect(first.total).toBeGreaterThanOrEqual(6) // invite, enrolled, 2×(link + unlink), …
+    expect(first.offset).toBe(0)
+    const rest = await (await app.request(`/api/op/registry/users/${id}/activity?offset=2&limit=100`, { headers: { cookie: admin } })).json() as {
+      events: Array<{ id: string }>; total: number
+    }
+    expect(rest.total).toBe(first.total)
+    expect(rest.events.length).toBe(first.total - 2)
+    // The pages tile the trail without overlap, newest first throughout.
+    const all = [...first.events, ...rest.events]
+    expect(new Set(all.map(e => e.id)).size).toBe(all.length)
+    const stamps = all.map(e => e.timestamp)
+    expect([...stamps].sort().reverse()).toEqual(stamps)
+    // The gates stand.
+    expect((await app.request(`/api/op/registry/users/${id}/activity`)).status).toBe(401)
+    expect((await app.request('/api/op/registry/users/no-such-id/activity', { headers: { cookie: admin } })).status).toBe(404)
+  })
+})
+
+// ── the end-all-sessions act (the light act) ─────────────────────────
+
+describe('the administrator’s end-all-sessions', () => {
+  it('ends EVERY live session at once and journals the count', async () => {
+    const admin = await demoLogin('admin@oiml.org')
+    const id = await inviteAndEnroll('spray.registry@example.org', 'Spray Registry')
+    const cookieA = (await passwordLogin('spray.registry@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
+    const cookieB = (await passwordLogin('spray.registry@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
+
+    const before = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as { sessions: unknown[] }
+    expect(before.sessions.length).toBeGreaterThanOrEqual(3) // the enrollment session + the two logins
+
+    const res = await app.request(`/api/op/registry/users/${id}/sessions/revoke-all`, { method: 'POST', headers: { cookie: admin } })
+    expect(res.status).toBe(200)
+    const { revoked } = await res.json() as { revoked: number }
+    expect(revoked).toBe(before.sessions.length)
+
+    // Every session is gone; both cookies stop resolving at once.
+    const after = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as { sessions: unknown[] }
+    expect(after.sessions).toHaveLength(0)
+    for (const cookie of [cookieA, cookieB]) {
+      expect((await app.request('/api/auth/session', { headers: { cookie } })).status).toBe(401)
+    }
+
+    // The act is on the record, naming the administrator and the count.
+    const rows = (await journal()).filter(e => e.action === 'account.sessions_revoked' && e.entity_id === id)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.metadata).toMatchObject({ by: 'administrator', count: before.sessions.length })
+    expect(rows[0]!.user_name).toBe('OIML Admin')
+  })
+
+  it('holds the gates: anonymous 401, non-admin 403, unknown account 404', async () => {
+    expect((await app.request('/api/op/registry/users/whatever/sessions/revoke-all', { method: 'POST' })).status).toBe(401)
+    const viewer = await demoLogin('viewer@oiml.org')
+    expect((await app.request('/api/op/registry/users/whatever/sessions/revoke-all', { method: 'POST', headers: { cookie: viewer } })).status).toBe(403)
+    const admin = await demoLogin('admin@oiml.org')
+    expect((await app.request('/api/op/registry/users/no-such-id/sessions/revoke-all', { method: 'POST', headers: { cookie: admin } })).status).toBe(404)
+  })
+})
+
 // ── the module gate ──────────────────────────────────────────────────
 
 describe('the module gate', () => {
@@ -516,7 +722,9 @@ describe('the module gate', () => {
       for (const [method, path] of [
         ['GET', '/api/op/registry/users'],
         ['GET', '/api/op/registry/users/whatever'],
+        ['GET', '/api/op/registry/users/whatever/activity'],
         ['POST', '/api/op/registry/users/whatever/links'],
+        ['POST', '/api/op/registry/users/whatever/sessions/revoke-all'],
         ['GET', '/api/op/registry/activity'],
       ] as const) {
         const res = await app.request(`${ISSUER}${path}`, { method })

@@ -162,6 +162,7 @@ export const en = {
   "admin.user.activity.action.account.link_removed_reason": "removed the {provider} link: {reason}",
   "admin.user.activity.action.account.password": "changed the password",
   "admin.user.activity.action.account.password_reset": "requested a password reset email",
+  "admin.user.activity.action.account.reactivated": "reactivated the account",
   "admin.user.activity.action.account.session_revoked": "ended a session",
   "admin.user.activity.action.account.session_revoked_admin": "ended a session (administrator)",
   "admin.user.activity.action.account.sessions_revoked": "ended {count} session(s)",
