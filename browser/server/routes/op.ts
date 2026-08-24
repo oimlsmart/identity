@@ -45,7 +45,7 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload, type OidcClient } from '@oimlsmart/platform-server/store'
+import { getStore, type AuthUserPayload, type OidcClient, type OidcClientLaunch } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/config'
 import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, type OpSigningKey } from '../auth/op/keys'
@@ -54,6 +54,7 @@ import { seedOidcClientsFromEnv } from '../auth/op/registry'
 import { roleClaimsForClient, pictureClaimForClient } from '../auth/op/claims'
 import { avatarKeys, AVATAR_PUBLIC_CACHE, initialsAvatarSvg } from '../auth/op/avatars'
 import { getBlobStore } from '../blobs'
+import { validateLaunch, type LaunchInput } from '../auth/op/launch'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
@@ -672,6 +673,9 @@ export function createOpRouter(): Hono {
       name: client.name,
       redirectUris: client.redirectUris,
       claimsPolicy: client.claimsPolicy,
+      // The SSO home's launch card (null = the client is not on the
+      // launcher).
+      launch: client.launch,
       confidential: !!client.secretHash,
       status: client.status,
       createdAt: client.createdAt,
@@ -703,6 +707,7 @@ export function createOpRouter(): Hono {
       generate_secret?: boolean
       redirect_uris?: string[]
       claims_policy?: { claims?: unknown; roles?: unknown } | null
+      launch?: LaunchInput | null
     }>().catch(() => null)
     if (!body || typeof body.client_id !== 'string' || !body.client_id.trim()) {
       return c.json({ error: 'client_id is required' }, 400)
@@ -736,6 +741,17 @@ export function createOpRouter(): Hono {
     if (body.generate_secret === true && typeof body.secret === 'string' && body.secret) {
       return c.json({ error: 'pass either secret or generate_secret, never both' }, 400)
     }
+    // The SSO home's launch card (OPTIONAL): absent leaves the stored
+    // metadata untouched (the protocol fields edit never disturbs the
+    // launcher); null takes the client OFF the launcher; an object sets
+    // the card, validated like the seed (auth/op/launch.ts).
+    let launchWrite: OidcClientLaunch | null | undefined = undefined
+    if (body.launch === null) launchWrite = null
+    else if (body.launch !== undefined) {
+      const { launch, error } = validateLaunch(body.launch)
+      if (error) return c.json({ error }, 400)
+      launchWrite = launch
+    }
 
     const existing = await getStore().getOidcClient(body.client_id.trim())
     const generatedSecret = body.generate_secret === true ? opRandomToken() : null
@@ -759,6 +775,11 @@ export function createOpRouter(): Hono {
         : null,
       createdBy: gate.user.email,
     })
+    // The launch card rides its own write (the upsert never touches the
+    // launch columns — a protocol-fields edit keeps the stored card).
+    const settled = launchWrite === undefined
+      ? client
+      : (await getStore().setOidcClientLaunch(client.clientId, launchWrite))!
     await audit(existing ? 'client.updated' : 'client.registered', client.clientId, { userId: gate.user.id, userName: gate.user.name }, {
       name: client.name,
       confidential: !!client.secretHash,
@@ -766,9 +787,12 @@ export function createOpRouter(): Hono {
       made_public: body.secret === null,
       redirect_uris: client.redirectUris.length,
       claims: client.claimsPolicy?.claims ?? [],
+      // The launch write's record (undefined = untouched, null = off
+      // the launcher, object = the card as written).
+      ...(launchWrite !== undefined ? { launch: launchWrite } : {}),
     })
     return c.json(
-      generatedSecret ? { ...clientView(client), secret: generatedSecret } : clientView(client),
+      generatedSecret ? { ...clientView(settled), secret: generatedSecret } : clientView(settled),
       existing ? 200 : 201,
     )
   })

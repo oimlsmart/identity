@@ -24,6 +24,7 @@ import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpJoinRouter } from './routes/op-join'
 import { createOpRegistryRouter } from './routes/op-registry'
 import { createOpDashboardRouter } from './routes/op-dashboard'
+import { createOpHomeRouter } from './routes/op-home'
 import { createUsersRouter } from './routes/users'
 import { createAuthLeanRouter, opDemoAccountsEnabled } from './routes/auth-lean'
 import { createOpRateLimiter } from './rate-limit'
@@ -90,6 +91,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // store + the heartbeat's own history; the one write is the store's
   // own revocation half.
   app.route('/', createOpDashboardRouter())
+  // The SSO home: the post-login launcher's feed (the per-account
+  // visibility computed on the client registry's launch metadata) and
+  // the request-access intake.
+  app.route('/', createOpHomeRouter())
   // The users surface (TODO.identity/10's org-scoped grant): the
   // org-admin consoles' data source. The router is the monorepo's
   // routes/users.ts moved byte-identical — its instance-wide half

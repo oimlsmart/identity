@@ -23,6 +23,13 @@
 //                                           // allowlist bounding WHICH roles
 //                                           // those claims may carry (absent
 //                                           // = unbounded by the policy).
+//     "launch": { "url": "https://platform.oimlsmart.org/api/auth/signin/oidc",
+//                 "icon": "grid", "description": "The certification hub",
+//                 "visibility": "roles" }
+//                                           // OPTIONAL (the SSO home) — the
+//                                           // launcher's card; absent = the
+//                                           // stored card stays the admin's
+//                                           // (the upsert never touches it).
 //   }
 //
 // The plaintext seed secret is hashed (PBKDF2, secrets.ts) before it
@@ -35,6 +42,7 @@
 
 import type { ServerStore } from '@oimlsmart/platform-server/store'
 import { hashClientSecret } from './secrets'
+import { validateLaunch, type LaunchInput } from './launch'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -44,6 +52,10 @@ export interface OpClientSeedEntry {
   secret?: string
   redirect_uris: string[]
   claims_policy?: { claims: string[]; roles?: string[] }
+  /** The SSO home's launch card (OPTIONAL — absent leaves the stored
+   *  metadata to the admin's edits; the client may never join the
+   *  launcher). */
+  launch?: LaunchInput
 }
 
 /** Parse + validate the seed declaration. Throws honestly on a malformed
@@ -68,6 +80,12 @@ export function parseOpClientSeed(raw: string): OpClientSeedEntry[] {
     if (policy?.roles !== undefined && (!Array.isArray(policy.roles) || policy.roles.some(r => typeof r !== 'string'))) {
       throw new Error(`OP_CLIENT_SEED[${i}]: claims_policy.roles must be a list of role ids`)
     }
+    // The SSO home's launch card: validated at the seed like every other
+    // field — a misdeclared card fails the boot, never renders broken.
+    if (rec.launch !== undefined) {
+      const { error } = validateLaunch(rec.launch as LaunchInput)
+      if (error) throw new Error(`OP_CLIENT_SEED[${i}]: ${error}`)
+    }
     return rec as unknown as OpClientSeedEntry
   })
 }
@@ -88,6 +106,14 @@ export async function seedOidcClientsFromEnv(env: EnvLike, store: ServerStore): 
         : null,
       createdBy: 'op-client-seed',
     })
+    // The launch metadata rides a SEPARATE write (the upsert never
+    // touches the launch columns): a seed entry declares the card only
+    // when it carries one, so a re-seed of the protocol fields keeps the
+    // admin's launcher edits.
+    if (entry.launch !== undefined) {
+      const { launch } = validateLaunch(entry.launch)
+      await store.setOidcClientLaunch(entry.client_id, launch)
+    }
     seeded.push(entry.client_id)
   }
   return seeded
