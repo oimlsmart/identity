@@ -235,6 +235,7 @@ export const fr: Record<MessageKey, string> = {
   "admin.user.methods.linkSubmit": "Lier l’identité",
   "admin.user.methods.linkTitle": "Lier pour le titulaire du compte",
   "admin.user.methods.linked": "Compte {provider} {handle} lié : la justification est consignée dans l’activité.",
+  "admin.user.methods.linkedLine": "lié le {date} par {by}",
   "admin.user.methods.noLinks": "Aucune identité liée : le compte se connecte uniquement avec son mot de passe.",
   "admin.user.methods.passwordSet": "Un mot de passe est défini.",
   "admin.user.methods.passwordUnset": "Pas encore de mot de passe : le compte le définit depuis le lien de configuration à usage unique.",

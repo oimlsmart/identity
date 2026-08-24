@@ -233,6 +233,7 @@ export const en = {
   "admin.user.methods.linkSubmit": "Link the identity",
   "admin.user.methods.linkTitle": "Link on behalf of the account holder",
   "admin.user.methods.linked": "Linked {provider} account {handle}: the justification is on the activity record.",
+  "admin.user.methods.linkedLine": "linked {date} by {by}",
   "admin.user.methods.noLinks": "No linked identities: the account signs in with its password only.",
   "admin.user.methods.passwordSet": "A password is set.",
   "admin.user.methods.passwordUnset": "No password yet: the account sets it from the one-time setup link.",
