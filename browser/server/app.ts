@@ -23,6 +23,7 @@ import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpJoinRouter } from './routes/op-join'
 import { createOpRegistryRouter } from './routes/op-registry'
+import { createOpDashboardRouter } from './routes/op-dashboard'
 import { createUsersRouter } from './routes/users'
 import { createAuthLeanRouter, opDemoAccountsEnabled } from './routes/auth-lean'
 import { createOpRateLimiter } from './rate-limit'
@@ -82,6 +83,13 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // detail aggregate, link-on-behalf, session revocation, the activity
   // feed.
   app.route('/', createOpRegistryRouter())
+  // The administrator's dashboard (TODO.identity-sso/01): the overview
+  // metrics, the aggregate live sessions + the revoke-all act, the
+  // security signals, the queryable audit log, the live access review,
+  // the per-client activity. A READ surface over the journal + the
+  // store + the heartbeat's own history; the one write is the store's
+  // own revocation half.
+  app.route('/', createOpDashboardRouter())
   // The users surface (TODO.identity/10's org-scoped grant): the
   // org-admin consoles' data source. The router is the monorepo's
   // routes/users.ts moved byte-identical — its instance-wide half
