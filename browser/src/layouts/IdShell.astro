@@ -1,0 +1,34 @@
+---
+// ═══════════════════════════════════════════════════════════════════
+// IdShell — the identity service's one layout: the house shell
+// (@oimlsmart/site-shell's Base with the federation header + footer)
+// mounting the named vue-pages component as the page's only island.
+// Every page self-gates on the session (the 401 → /app/login redirect
+// lives in the page), so there is no app/public layout split here.
+// ═══════════════════════════════════════════════════════════════════
+import { Base } from '@oimlsmart/site-shell'
+import IdPage from '../astro/IdPage.vue'
+import AccountChip from '../components/AccountChip.vue'
+import '../styles/app.css'
+
+interface Props {
+  title?: string
+  /** Key under src/vue-pages (no extension), e.g. "public/op-consent". */
+  page: string
+}
+const { title = 'OIML SMART Identity', page } = Astro.props
+---
+
+<Base title={title} siteTitle="OIML SMART Identity" brandName="OIML SMART Identity">
+  <link slot="head" rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  {/* The OP's account context: the slim account bar under the federation
+      header when a session exists (the avatar chip the account console's
+      upload propagates to), nothing when signed out. */}
+  <AccountChip client:only="vue" />
+  {/* The single shell kind IS the app shell here — the data-layout
+      landmark the moved legs' settle waits read (the monorepo's App
+      layout's contract), wrapping the page island. */}
+  <div data-layout="app">
+    <IdPage page={page} client:only="vue" />
+  </div>
+</Base>
