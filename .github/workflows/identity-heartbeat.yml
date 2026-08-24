@@ -1,0 +1,104 @@
+name: identity-heartbeat
+
+# The identity service's independent availability probe
+# (TODO.identity-ops/04; the operating plan is docs/deployment/
+# identity-operations.md): every 15 minutes, probe
+# https://id.oimlsmart.org's public OIDC surface — the discovery
+# document, the JWKS shape, the synthetic RP-side claim shape, and the
+# honest error taxonomy (browser/scripts/op-heartbeat.ts). A red probe
+# opens or updates the standing issue (the demo-reset report-failure
+# pattern), so an OP outage or a surface drift is never silent.
+#
+# The probe reads the PUBLIC surface only: no secrets, no credentials,
+# no Cloudflare access. It is the SLO's measuring instrument (the plan's
+# 99.9% monthly) and the degraded-mode doctrine's tripwire.
+#
+# Transferred from oimlsmart/smart at the wave-02 extraction (the
+# standing issue re-homes here: this repo's issues, this repo's noise).
+# The monorepo's copy retires in wave 04.
+
+on:
+  schedule:
+    # Every 15 minutes, on an off-herd minute.
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  # A fresh probe replaces a hung one (read-only; nothing to strand).
+  group: identity-heartbeat
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The platform-server kernel checkout (the file: dependency
+      # target) — the ci.yml doctrine.
+      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies (the probe's tsx is a dev dep)
+        working-directory: browser
+        run: npm ci
+
+      - name: Probe the live OIDC surface
+        working-directory: browser
+        run: npx tsx scripts/op-heartbeat.ts https://id.oimlsmart.org
+
+  report-failure:
+    # One honest summary per failed run (the demo-reset pattern): the
+    # standing issue gets the run link appended; the first failure opens
+    # it. Never a silent red OP.
+    if: failure()
+    needs: [probe]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Post the failure summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Identity heartbeat failing — id.oimlsmart.org may be down or its OIDC surface drifting'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = `The identity-heartbeat run of ${new Date().toISOString()} failed: ${runUrl}\n\n`
+              + 'The probe (browser/scripts/op-heartbeat.ts) checks the discovery document, the JWKS shape, '
+              + 'the synthetic RP-side claim shape, and the error taxonomy against https://id.oimlsmart.org. '
+              + 'The failing leg is named in the run log; docs/deployment/identity-deploy.md carries the '
+              + 'rollback recipe and the degraded-mode doctrine is in the operating plan '
+              + '(docs/deployment/identity-operations.md).'
+            const { data: listed } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            })
+            const standing = listed.find(i => i.title === title && !i.pull_request)
+            if (standing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: standing.number, body,
+              })
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body })
+            }

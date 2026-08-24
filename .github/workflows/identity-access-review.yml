@@ -1,0 +1,76 @@
+name: identity-access-review
+
+# The quarterly access review's answer (TODO.identity-ops/05; the
+# operating plan is docs/deployment/identity-operations.md): "who holds
+# OP admin and privileged roles right now", from the identity service's
+# LIVE registry (the production D1), printed as the review artifact.
+#
+# Dispatch-only: Actions → identity-access-review → Run workflow, once
+# per quarter (the ceremony cadence), or any time a review needs the
+# current answer.
+#
+# THE OUTPUT DISCIPLINE, THE PUBLIC-REPO SHAPE: this repository is
+# PUBLIC, so a job log is a public surface — the CI run carries the
+# REDACTED report (identifiers masked; the counts, the role shapes, and
+# the findings' classes carry the drill). The full named report is the
+# operator-local command (`npx tsx scripts/op-access-review.ts --remote`
+# with the operator's Cloudflare credentials), never CI, never an
+# artifact, never a comment.
+#
+# Required GitHub configuration: the `cloudflare-identity-production`
+# environment (the same one the deploy gate uses) carries
+# CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID — the script drives
+# `wrangler d1 execute --remote` with them (read-only SQL only). The
+# environment's required reviewers gate this job too: reading the
+# production registry, even read-only, is a deliberate act with an
+# approver's name on it.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    environment: cloudflare-identity-production
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The platform-server kernel checkout (the file: dependency
+      # target) — the ci.yml doctrine.
+      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies (wrangler + the script's tsx are dev deps)
+        working-directory: browser
+        run: npm ci
+
+      - name: The access-review report (redacted — the job log is public)
+        working-directory: browser
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # --remote queries the live oiml-smart-platform-identity D1 with
+        # read-only SELECTs. --redact masks the account identifiers: this
+        # repo is public, so the job log is a public surface. The named
+        # report is the operator-local run. Never --upload-artifact this
+        # output.
+        run: npx tsx scripts/op-access-review.ts --remote --redact
