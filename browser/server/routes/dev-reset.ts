@@ -26,10 +26,14 @@ const app = new Hono()
 
 app.post('/', async (c) => {
   const db = getDb()
+  // TODO.identity/11: the org memberships wipe with the OP's mutable
+  // flow state (the join requests' sibling) — the seed below re-mirrors
+  // the demo cast's primary memberships (the store's mirror, idempotent).
   db.exec(`
     DELETE FROM entity_changes; DELETE FROM evidence_records; DELETE FROM entities;
     DELETE FROM identity_approvals;
     DELETE FROM org_join_requests;
+    DELETE FROM org_memberships;
     DELETE FROM enrollment_tokens;
   `)
   // The local blob store (the avatar uploads in dev) wipes with the
