@@ -150,7 +150,7 @@ export function createOpRouter(): Hono {
       scopes_supported: ['openid', 'profile', 'email'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       code_challenge_methods_supported: ['S256'],
-      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org'],
+      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'amr'],
     })
   })
 
@@ -401,6 +401,10 @@ export function createOpRouter(): Hono {
       codeChallenge: decided.codeChallenge,
       userId: user.id,
       contextOrg,
+      // TODO.identity-sso/02+03: the consenting session's authentication
+      // provenance rides the code into the ID token (the session's truth
+      // at the moment of consent — never recomputed later).
+      amr: user.amr ?? null,
       ttlMs: config.codeTtlMs,
     })
     back.searchParams.set('code', code)
@@ -533,6 +537,11 @@ export function createOpRouter(): Hono {
     // has an uploaded avatar — absent otherwise, never a broken URL.
     const picture = pictureClaimForClient(user, client!.claimsPolicy, config.issuer)
     if (picture) claims.picture = picture
+    // TODO.identity-sso/02+03: the authorizing authentication's amr
+    // provenance (the consenting session's, carried by the code) — the
+    // RP-visible claim matches the session's truth. Absent when no
+    // OP-side credential event was recorded (an upstream sign-in).
+    if (code.amr?.length) claims.amr = code.amr
 
     const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
     // The first-use registration rides the SAME gate as the JWKS route
@@ -553,6 +562,9 @@ export function createOpRouter(): Hono {
       clientId: client!.clientId,
       scope: code.scope,
       contextOrg: code.contextOrg ?? null,
+      // The same provenance rides the access token — userinfo answers
+      // the amr the ID token carried.
+      amr: code.amr,
       ttlMs: config.accessTokenTtlMs,
     })
 
@@ -601,6 +613,9 @@ export function createOpRouter(): Hono {
     Object.assign(claims, roleClaimsForContext(assigned, context, client?.claimsPolicy ?? null))
     const picture = pictureClaimForClient(user, client?.claimsPolicy ?? null, configFor(c).issuer)
     if (picture) claims.picture = picture
+    // TODO.identity-sso/02+03: userinfo answers the same amr the ID
+    // token carried (the authorizing authentication's provenance).
+    if (access.amr?.length) claims.amr = access.amr
     return c.json(claims)
   })
 
