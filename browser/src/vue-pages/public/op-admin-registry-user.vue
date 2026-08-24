@@ -31,7 +31,7 @@
 //
 // SLOT (the multi-org membership wave): the organizations/memberships
 // section lands between the sign-in methods and the sessions — the
-// marked placeholder in the template below. This wave never fills it.
+// marked placeholder in the template below. THIS wave fills it.
 //
 // Every rule is SERVER-ENFORCED (routes/op-registry.ts,
 // routes/op-accounts.ts, routes/users.ts); this page only renders what
@@ -122,6 +122,8 @@ interface Detail {
   sessions: SessionRow[]
   clientRoles: ClientRoleRow[]
   appAccess: AppAccessRow[]
+  /** TODO.identity/11: the account's org memberships, every state. */
+  memberships?: MembershipRow[]
   activity: AuditEvent[]
   activityTotal: number
 }
@@ -130,6 +132,30 @@ interface ProviderRow {
   id: string
   displayName: string
   enabled: boolean
+}
+
+/** A membership row (TODO.identity/11 — the detail aggregate's
+ *  organizations block): the per-org role set + the lifecycle state. */
+interface MembershipRow {
+  orgId: string
+  orgName: string
+  roles: string[]
+  state: 'invited' | 'active' | 'disabled'
+  isPrimary: boolean
+  invitedBy: string | null
+  createdAt: string
+  activatedAt: string | null
+  disabledAt: string | null
+  disabledBy: string | null
+}
+
+/** The public selector feed's org (GET /api/op/organizations) — the
+ *  add-to-org form's options with the kind-bounded role sets. */
+interface SelectableOrg {
+  id: string
+  name: string
+  kind: string
+  roles: string[]
 }
 
 const route = useRoute()
@@ -174,6 +200,131 @@ const revokeAllArmed = ref(false)
 const lastSetup = ref<{ setupUrl: string; expiresAt: string } | null>(null)
 
 const isSelf = ref(false)
+
+// ── TODO.identity/11 — the memberships section (this wave fills the
+//   slot): the per-org role edit, the lifecycle acts, and the
+//   add-to-org invite (the holder accepts from the account console) ──
+const registryOrgs = ref<SelectableOrg[]>([])
+/** The per-membership roles editor: orgId → the checked roles. */
+const memberRolesOpen = ref<string | null>(null)
+const memberRoleDrafts = ref<Record<string, string[]>>({})
+/** The add-to-org form. */
+const addOrgId = ref('')
+const addOrgRoles = ref<string[]>([])
+
+/** The memberships (the aggregate's block; absent on an older server). */
+const memberships = computed(() => detail.value?.memberships ?? [])
+
+/** The orgs the account may still join: registered, no membership yet. */
+const addableOrgs = computed(() => {
+  const taken = new Set(memberships.value.map(m => m.orgId))
+  return registryOrgs.value.filter(o => !taken.has(o.id))
+})
+
+/** The role options for the add form follow the chosen org's kind, plus
+ *  org_admin for the identity admin (the scheme operator's delegation —
+ *  the server enforces the registered-org eligibility). */
+const addOrgRoleOptions = computed(() => {
+  const org = registryOrgs.value.find(o => o.id === addOrgId.value)
+  return org ? [...org.roles, 'org_admin'] : []
+})
+
+/** The per-membership editor's options: the org's kind-bounded set, plus
+ *  org_admin (the wide grant's act — the membership API re-checks). */
+function memberRoleOptions(orgId: string): string[] {
+  const org = registryOrgs.value.find(o => o.id === orgId)
+  return org ? [...org.roles, 'org_admin'] : Object.keys(roleMap.value)
+}
+
+function openMemberRoles(m: MembershipRow) {
+  memberRolesOpen.value = memberRolesOpen.value === m.orgId ? null : m.orgId
+  memberRoleDrafts.value[m.orgId] = [...m.roles]
+}
+
+async function saveMemberRoles(m: MembershipRow) {
+  if (acting.value || !detail.value) return
+  acting.value = `roles-${m.orgId}`
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/org-memberships/${encodeURIComponent(userId.value)}/${encodeURIComponent(m.orgId)}/roles`, {
+      method: 'PUT',
+      body: JSON.stringify({ roles: memberRoleDrafts.value[m.orgId] ?? [] }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? t('admin.user.failed', { status: res.status })
+      return
+    }
+    notice.value = t('admin.user.memberships.rolesSaved', { org: m.orgName })
+    memberRolesOpen.value = null
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+async function setMemberState(m: MembershipRow, state: 'active' | 'disabled') {
+  if (acting.value || !detail.value) return
+  acting.value = `state-${m.orgId}`
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/org-memberships/${encodeURIComponent(userId.value)}/${encodeURIComponent(m.orgId)}/state`, {
+      method: 'POST',
+      body: JSON.stringify({ state }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? t('admin.user.failed', { status: res.status })
+      return
+    }
+    notice.value = state === 'disabled'
+      ? t('admin.user.memberships.disabled', { org: m.orgName })
+      : t('admin.user.memberships.reactivated', { org: m.orgName })
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+/** Add the account to another registered org (the invitation waits on
+ *  the account console; the join-request approval is the directly-active
+ *  path). */
+async function addMembership() {
+  if (acting.value || !detail.value) return
+  acting.value = 'membership-add'
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api('/api/op/org-memberships', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: detail.value.account.email,
+        org_id: addOrgId.value,
+        roles: addOrgRoles.value,
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? t('admin.user.failed', { status: res.status })
+      return
+    }
+    const name = registryOrgs.value.find(o => o.id === addOrgId.value)?.name ?? addOrgId.value
+    notice.value = t('admin.user.memberships.added', { name: detail.value.account.name, org: name })
+    addOrgId.value = ''
+    addOrgRoles.value = []
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
 
 // The per-client grant editor: the open state, the selected client, the
 // working role set, and the per-row revoke arm.
@@ -629,12 +780,16 @@ onMounted(async () => {
     }
     const me = await session.json() as { id: string }
     isSelf.value = me.id === userId.value
-    const [rolesRes, providersRes] = await Promise.all([
+    const [rolesRes, providersRes, orgsRes] = await Promise.all([
       api('/api/users/roles'),
       api('/api/op/providers'),
+      // TODO.identity/11: the registered orgs (the memberships section's
+      // add-to-org + role-editor options).
+      fetch('/api/op/organizations'),
     ])
     if (rolesRes.ok) roleMap.value = await rolesRes.json() as Record<string, string[]>
     if (providersRes.ok) providers.value = (await providersRes.json() as ProviderRow[]).filter(p => p.enabled)
+    if (orgsRes.ok) registryOrgs.value = await orgsRes.json() as SelectableOrg[]
     await load()
   } catch (e) {
     error.value = (e as Error).message || t('account.networkError')
@@ -1001,11 +1156,120 @@ onMounted(async () => {
       </section>
 
       <!-- ════════════════════════════════════════════════════════════
-           SLOT (the multi-org membership wave): the organizations /
-           memberships section lands HERE, between the sign-in methods
-           and the sessions. This wave never fills it; keep the slot
-           clean (its own section card, its own testids).
+           THE ORGANIZATIONS (TODO.identity/11 — the multi-org
+           membership model, this wave fills the slot): the account's
+           memberships with their per-org role sets + the lifecycle
+           states, the identity admin's acts (edit the per-org roles,
+           disable/re-activate, add to another registered org — the
+           invitation waits on the holder's console). Its own section
+           card, its own testids, per the slot's contract.
            ════════════════════════════════════════════════════════════ -->
+      <section v-if="!erased" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-memberships">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.user.memberships.title') }}</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">{{ t('admin.user.memberships.description') }}</p>
+        <p v-if="!memberships.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-memberships-empty">
+          {{ t('admin.user.memberships.empty') }}
+        </p>
+        <ul v-else class="space-y-2 mb-2" data-testid="op-reg-memberships-list">
+          <li
+            v-for="m in memberships"
+            :key="m.orgId"
+            class="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2"
+            :data-testid="`op-reg-membership-${m.orgId}`"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-slate-900 dark:text-white">
+                  <router-link
+                    :to="`/op/admin/registry/orgs/${m.orgId}`"
+                    class="hover:underline text-brand-700 dark:text-brand-300"
+                    :data-testid="`op-reg-membership-org-${m.orgId}`"
+                  >{{ m.orgName }}</router-link>
+                  <span v-if="m.isPrimary" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 font-semibold uppercase tracking-wider">{{ t('admin.user.memberships.primaryBadge') }}</span>
+                  <span v-if="m.state === 'invited'" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold uppercase tracking-wider" :data-testid="`op-reg-membership-invited-${m.orgId}`">{{ t('admin.user.memberships.stateInvited') }}</span>
+                  <span v-if="m.state === 'disabled'" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold uppercase tracking-wider" :data-testid="`op-reg-membership-disabled-${m.orgId}`">{{ t('admin.user.memberships.stateDisabled') }}</span>
+                </p>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`op-reg-membership-roles-${m.orgId}`">
+                  {{ m.roles.length ? m.roles.join(', ') : t('admin.user.memberships.noRoles') }}
+                  <template v-if="m.state === 'invited' && m.invitedBy"> · {{ t('admin.user.memberships.invitedBy', { by: m.invitedBy }) }}</template>
+                  <template v-if="m.state === 'disabled' && m.disabledBy"> · {{ t('admin.user.memberships.disabledBy', { by: m.disabledBy }) }}</template>
+                </p>
+              </div>
+              <div class="shrink-0 flex items-center gap-3 text-xs font-medium">
+                <button
+                  :data-testid="`op-reg-membership-roles-edit-${m.orgId}`"
+                  :disabled="acting === `roles-${m.orgId}`"
+                  class="text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
+                  @click="openMemberRoles(m)"
+                >{{ memberRolesOpen === m.orgId ? t('admin.user.memberships.rolesClose') : t('admin.user.memberships.rolesEdit') }}</button>
+                <button
+                  v-if="m.state !== 'invited' && !(isSelf && m.state === 'active')"
+                  :data-testid="`op-reg-membership-toggle-${m.orgId}`"
+                  :disabled="acting === `state-${m.orgId}`"
+                  class="hover:underline disabled:opacity-50"
+                  :class="m.state === 'active' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                  @click="setMemberState(m, m.state === 'active' ? 'disabled' : 'active')"
+                >{{ m.state === 'active' ? t('admin.user.memberships.disable') : t('admin.user.memberships.reactivate') }}</button>
+              </div>
+            </div>
+            <div v-if="memberRolesOpen === m.orgId" class="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2" :data-testid="`op-reg-membership-editor-${m.orgId}`">
+              <div class="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+                <label v-for="r in memberRoleOptions(m.orgId)" :key="r" class="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    :value="r"
+                    v-model="memberRoleDrafts[m.orgId]"
+                    :data-testid="`op-reg-membership-check-${m.orgId}-${r}`"
+                    class="rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500"
+                  />
+                  {{ r }}
+                </label>
+              </div>
+              <button
+                :disabled="acting === `roles-${m.orgId}`"
+                :data-testid="`op-reg-membership-save-${m.orgId}`"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                @click="saveMemberRoles(m)"
+              >{{ t('admin.user.memberships.rolesSave') }}</button>
+            </div>
+          </li>
+        </ul>
+
+        <!-- Add to another registered org (the membership invite). -->
+        <div v-if="addableOrgs.length" class="mt-3 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-membership-add">
+          <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.user.memberships.addTitle') }}</h3>
+          <div class="grid sm:grid-cols-2 gap-2">
+            <select
+              v-model="addOrgId"
+              data-testid="op-reg-membership-add-org"
+              class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              @change="addOrgRoles = []"
+            >
+              <option value="" disabled>{{ t('admin.user.memberships.addOrg') }}</option>
+              <option v-for="o in addableOrgs" :key="o.id" :value="o.id" :data-testid="`op-reg-membership-add-option-${o.id}`">{{ o.name }}</option>
+            </select>
+            <button
+              :disabled="acting === 'membership-add' || !addOrgId"
+              data-testid="op-reg-membership-add-submit"
+              class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+              @click="addMembership"
+            >{{ acting === 'membership-add' ? t('admin.user.memberships.addBusy') : t('admin.user.memberships.addSubmit') }}</button>
+          </div>
+          <div v-if="addOrgId" class="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <label v-for="r in addOrgRoleOptions" :key="r" class="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                :value="r"
+                v-model="addOrgRoles"
+                :data-testid="`op-reg-membership-add-role-${r}`"
+                class="rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500"
+              />
+              {{ r }}
+            </label>
+          </div>
+          <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500">{{ t('admin.user.memberships.addNote') }}</p>
+        </div>
+      </section>
 
       <!-- 4. THE LIVE SESSIONS: per-session revoke + END ALL (the light
            act) vs deactivation (the heavy act, the identity card). -->

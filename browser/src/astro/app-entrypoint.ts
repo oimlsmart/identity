@@ -46,6 +46,8 @@ const ROUTE_PATHS: Array<{ path: string; name: string }> = [
   { path: '/op/admin/security', name: 'op-admin-security' },
   { path: '/op/admin/registry', name: 'op-admin-registry' },
   { path: '/op/admin/registry/users/:id', name: 'op-admin-registry-user' },
+  // TODO.identity/11 — the per-org view (the multi-org model).
+  { path: '/op/admin/registry/orgs/:id', name: 'op-admin-registry-org' },
 ]
 
 export default function setup(app: App): void {

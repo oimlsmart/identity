@@ -63,6 +63,27 @@ interface SelectorOrg {
   roles: string[]
 }
 
+/** A member of the org (GET /api/op/org-memberships, TODO.identity/11):
+ *  the membership (per-org roles + lifecycle state) joined with the
+ *  account's display fields. The org grant's slice carries PRIMARY and
+ *  SECONDARY memberships alike (an account belonging to several orgs
+ *  shows here with THIS org's role set). */
+interface MemberRow {
+  userId: string
+  name: string
+  email: string | null
+  provider: string | null
+  accountActive: boolean
+  orgId: string
+  roles: string[]
+  state: 'invited' | 'active' | 'disabled'
+  isPrimary: boolean
+  invitedBy: string | null
+  createdAt: string
+  disabledAt: string | null
+  disabledBy: string | null
+}
+
 // ── TODO.identity/03 — the identity registry (the wide grant's surface) ──
 
 /** A registry account row (GET /api/op/accounts): the OP's own accounts
@@ -108,6 +129,17 @@ const unregistered = ref<JoinRequestRow[]>([])
 const users = ref<UserRow[]>([])
 const roleMap = ref<Record<string, string[]>>({})
 const registryOrgs = ref<SelectorOrg[]>([])
+
+// ── TODO.identity/11 — the org's MEMBERSHIPS (the people slice is
+//    membership-driven: per-org roles + the lifecycle states) ──
+const members = ref<MemberRow[]>([])
+/** The per-member roles editor: userId → the checked roles. */
+const memberRolesOpen = ref<string | null>(null)
+const memberRoleDrafts = ref<Record<string, string[]>>({})
+/** The "add an existing account" form (the membership invite — the
+ *  holder accepts from their account console). */
+const addEmail = ref('')
+const addRoleChecks = ref<string[]>([])
 
 const acting = ref<string | null>(null)
 /** Per-request refusal drafts + open state. */
@@ -210,6 +242,13 @@ async function load(): Promise<void> {
   if (rolesRes.ok) roleMap.value = await rolesRes.json() as Record<string, string[]>
   if (orgsRes.ok) registryOrgs.value = await orgsRes.json() as SelectorOrg[]
 
+  // TODO.identity/11 — the org grant's people slice is the org's
+  // MEMBERSHIPS (the server pins the slice to the caller's org).
+  if (grant.value === 'org') {
+    const membersRes = await api('/api/op/org-memberships')
+    if (membersRes.ok) members.value = ((await membersRes.json()) as { members: MemberRow[] }).members
+  }
+
   if (isWide.value) {
     const unreg = await api('/api/op/join-requests?scope=unregistered')
     if (unreg.ok) unregistered.value = ((await unreg.json()) as { requests: JoinRequestRow[] }).requests
@@ -249,13 +288,20 @@ async function approve(row: JoinRequestRow) {
       error.value = body.error ?? `The approval failed (${res.status}).`
       return
     }
-    const decided = await res.json() as JoinRequestRow & { invite?: { setupUrl?: string; expiresAt?: string; mail?: InviteMail | null } }
+    const decided = await res.json() as JoinRequestRow & {
+      invite?: { setupUrl?: string; expiresAt?: string; mail?: InviteMail | null }
+      /** TODO.identity/11: the EXISTING account's path — the membership
+       *  landed directly (no invite, no setup link). */
+      membership?: { userId: string; orgId: string; roles: string[]; state: string }
+    }
     if (decided.invite?.setupUrl) {
       lastInvite.value = { email: row.email, name: row.name, setupUrl: decided.invite.setupUrl, expiresAt: decided.invite.expiresAt ?? '', mail: decided.invite.mail ?? null }
     }
-    notice.value = decided.invite?.mail?.sent
-      ? `Invite issued: ${row.name}'s account is created and the setup email is on its way to ${row.email} (the link lives 24 h).`
-      : `Invite issued: ${row.name}'s account is created. Hand over the one-time setup link below (24 h); it is shown only now.`
+    notice.value = decided.membership
+      ? `${row.name} is now a member of ${row.orgName ?? row.orgId}: their existing account joined it as ${decided.membership.roles.join(', ') || 'a member'} — no new setup link was needed.`
+      : decided.invite?.mail?.sent
+        ? `Invite issued: ${row.name}'s account is created and the setup email is on its way to ${row.email} (the link lives 24 h).`
+        : `Invite issued: ${row.name}'s account is created. Hand over the one-time setup link below (24 h); it is shown only now.`
     await load()
   } catch {
     error.value = 'Network error. Is the server running?'
@@ -632,20 +678,39 @@ function lastSignInLabel(acc: RegistryAccount): string {
   return `last signed in ${acc.lastSignIn.slice(0, 16).replace('T', ' ')}UTC`
 }
 
-async function setActive(u: UserRow, active: boolean) {  if (acting.value) return
-  acting.value = u.id
+function orgNameOf(orgId: string | null): string {
+  if (!orgId) return '—'
+  return registryOrgs.value.find(o => o.id === orgId)?.name ?? orgId
+}
+
+// ── TODO.identity/11 — the membership acts (the org console's people
+//    slice): the per-org role edit, the lifecycle (disable/re-activate),
+//    and the existing-account invite. Every bound is SERVER-ENFORCED
+//    (routes/op-memberships.ts): the org grant never names org_admin,
+//    never touches an org_admin membership, never reaches another org.
+
+function openMemberRoles(m: MemberRow) {
+  memberRolesOpen.value = memberRolesOpen.value === m.userId ? null : m.userId
+  memberRoleDrafts.value[m.userId] = [...m.roles]
+}
+
+async function saveMemberRoles(m: MemberRow) {
+  if (acting.value) return
+  acting.value = m.userId
   error.value = null
+  notice.value = null
   try {
-    const res = await api(`/api/users/${encodeURIComponent(u.id)}/active`, {
+    const res = await api(`/api/op/org-memberships/${encodeURIComponent(m.userId)}/${encodeURIComponent(m.orgId)}/roles`, {
       method: 'PUT',
-      body: JSON.stringify({ active }),
+      body: JSON.stringify({ roles: memberRoleDrafts.value[m.userId] ?? [] }),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `(${res.status})`
+      error.value = body.error ?? `The role assignment failed (${res.status}).`
       return
     }
-    notice.value = active ? `${u.name} reactivated.` : `${u.name} deactivated.`
+    notice.value = `${m.name}'s roles in ${orgNameOf(m.orgId)} updated.`
+    memberRolesOpen.value = null
     await load()
   } catch {
     error.value = 'Network error. Is the server running?'
@@ -654,9 +719,59 @@ async function setActive(u: UserRow, active: boolean) {  if (acting.value) retur
   }
 }
 
-function orgNameOf(orgId: string | null): string {
-  if (!orgId) return '—'
-  return registryOrgs.value.find(o => o.id === orgId)?.name ?? orgId
+async function setMemberState(m: MemberRow, state: 'active' | 'disabled') {
+  if (acting.value) return
+  acting.value = m.userId
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/org-memberships/${encodeURIComponent(m.userId)}/${encodeURIComponent(m.orgId)}/state`, {
+      method: 'POST',
+      body: JSON.stringify({ state }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `(${res.status})`
+      return
+    }
+    notice.value = state === 'disabled'
+      ? `${m.name}'s membership in ${orgNameOf(m.orgId)} is disabled — their sessions stopped acting as this organization.`
+      : `${m.name}'s membership in ${orgNameOf(m.orgId)} is active again.`
+    await load()
+  } catch {
+    error.value = 'Network error. Is the server running?'
+  } finally {
+    acting.value = null
+  }
+}
+
+/** Add an EXISTING account to the org (the membership invite — the
+ *  holder accepts from their account console; the join-request approval
+ *  is the directly-active path). */
+async function inviteExistingMember() {
+  if (acting.value) return
+  acting.value = 'member-invite'
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api('/api/op/org-memberships', {
+      method: 'POST',
+      body: JSON.stringify({ email: addEmail.value.trim(), roles: addRoleChecks.value }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `The membership invite failed (${res.status}).`
+      return
+    }
+    notice.value = `${addEmail.value.trim()} is invited to join ${grantOrgName.value ?? 'your organization'} — the invitation shows on their account console until they accept or decline it.`
+    addEmail.value = ''
+    addRoleChecks.value = []
+    await load()
+  } catch {
+    error.value = 'Network error. Is the server running?'
+  } finally {
+    acting.value = null
+  }
 }
 
 /** Copy the issued invite's one-time setup link (the handover). */
@@ -836,33 +951,117 @@ onMounted(async () => {
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
             People — {{ grantOrgName ?? 'your organization' }}
           </h2>
+          <p v-if="!members.length" class="text-sm text-slate-500 dark:text-slate-400 mb-2" data-testid="org-users-empty">
+            No members yet — the queue's approvals and the forms below grow this list.
+          </p>
           <ul class="space-y-2" data-testid="org-users-list">
             <li
-              v-for="u in users"
-              :key="u.id"
-              class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2"
-              :data-testid="`org-user-${u.id}`"
+              v-for="m in members"
+              :key="m.userId"
+              class="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2"
+              :data-testid="`org-user-${m.userId}`"
             >
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-slate-900 dark:text-white">
-                  {{ u.name }}
-                  <span class="font-normal text-slate-500 dark:text-slate-400">&lt;{{ u.email }}&gt;</span>
-                  <span v-if="!u.active" class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold">deactivated</span>
-                </p>
-                <p class="text-[11px] text-slate-400 dark:text-slate-500">
-                  {{ u.roles.join(', ') }}<template v-if="u.orgId"> · {{ orgNameOf(u.orgId) }}</template> · {{ u.provider }}
-                </p>
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-slate-900 dark:text-white">
+                    {{ m.name }}
+                    <span class="font-normal text-slate-500 dark:text-slate-400">&lt;{{ m.email }}&gt;</span>
+                    <span v-if="!m.accountActive" class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold">account deactivated</span>
+                    <span v-if="!m.isPrimary" class="text-[10px] px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-200 font-semibold" :data-testid="`org-user-secondary-${m.userId}`">also a member elsewhere</span>
+                  </p>
+                  <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`org-user-roles-${m.userId}`">
+                    {{ m.roles.join(', ') || 'no organization roles' }}<template v-if="m.provider"> · {{ m.provider }}</template>
+                  </p>
+                </div>
+                <div class="shrink-0 flex items-center gap-3 text-xs font-medium">
+                  <span
+                    v-if="m.state === 'invited'"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                    :data-testid="`org-user-invited-${m.userId}`"
+                  >invited</span>
+                  <span
+                    v-else-if="m.state === 'disabled'"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                    :data-testid="`org-user-disabled-${m.userId}`"
+                  >disabled</span>
+                  <button
+                    :data-testid="`org-user-roles-edit-${m.userId}`"
+                    :disabled="acting === m.userId"
+                    class="text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
+                    @click="openMemberRoles(m)"
+                  >{{ memberRolesOpen === m.userId ? 'Close' : 'Roles' }}</button>
+                  <button
+                    v-if="m.state !== 'invited' && m.userId !== account?.id"
+                    :data-testid="`org-user-membership-toggle-${m.userId}`"
+                    :disabled="acting === m.userId"
+                    class="hover:underline disabled:opacity-50"
+                    :class="m.state === 'active' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                    @click="setMemberState(m, m.state === 'active' ? 'disabled' : 'active')"
+                  >{{ m.state === 'active' ? 'Disable membership' : 'Re-activate membership' }}</button>
+                </div>
               </div>
-              <button
-                v-if="u.id !== account?.id"
-                :data-testid="`org-user-toggle-${u.id}`"
-                :disabled="acting === u.id"
-                class="shrink-0 text-xs font-medium hover:underline disabled:opacity-50"
-                :class="u.active ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
-                @click="setActive(u, !u.active)"
-              >{{ u.active ? 'Deactivate' : 'Reactivate' }}</button>
+              <!-- The per-org roles editor (kind-bounded; the server
+                   re-checks). -->
+              <div v-if="memberRolesOpen === m.userId" class="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2" :data-testid="`org-user-roles-editor-${m.userId}`">
+                <div class="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+                  <label v-for="r in Object.keys(roleMap)" :key="r" class="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      :value="r"
+                      v-model="memberRoleDrafts[m.userId]"
+                      :data-testid="`org-user-role-check-${m.userId}-${r}`"
+                      class="rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500"
+                    />
+                    {{ r }}
+                  </label>
+                </div>
+                <button
+                  :disabled="acting === m.userId"
+                  :data-testid="`org-user-roles-save-${m.userId}`"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                  @click="saveMemberRoles(m)"
+                >Save the roles</button>
+              </div>
             </li>
           </ul>
+
+          <!-- Add an EXISTING account (the membership invite — the holder
+               accepts from their account console). -->
+          <div class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4" data-testid="org-member-add">
+            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Add an existing account</h3>
+            <div class="grid sm:grid-cols-2 gap-2">
+              <input
+                v-model="addEmail"
+                type="email"
+                data-testid="member-add-email"
+                class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="The account’s email"
+              />
+              <button
+                :disabled="acting === 'member-invite' || !addEmail.includes('@')"
+                data-testid="member-add-submit"
+                class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                @click="inviteExistingMember"
+              >{{ acting === 'member-invite' ? 'Inviting…' : 'Invite the membership' }}</button>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+              <label v-for="r in Object.keys(roleMap)" :key="r" class="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  :value="r"
+                  v-model="addRoleChecks"
+                  :data-testid="`member-add-role-${r}`"
+                  class="rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500"
+                />
+                {{ r }}
+              </label>
+            </div>
+            <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+              For a person who already holds an OIML SMART account (any organization’s). The invitation waits on
+              their account console until they accept or decline it; the roles are this organization’s own set,
+              bounded by its kind — the server enforces both.
+            </p>
+          </div>
 
           <!-- The invite form (org admin: kind-bounded roles; the server
                pins the account to the org) -->
