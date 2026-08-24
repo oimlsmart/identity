@@ -83,6 +83,7 @@ export const fr: Record<MessageKey, string> = {
   "account.profile.avatarChange": "Changer l’image",
   "account.profile.avatarNote": "L’avatar provient d’un fournisseur d’identité lié ; à défaut, vos initiales tiennent lieu d’avatar.",
   "account.profile.avatarNoteUpload": "Téléversez votre propre image ({max} Mo au plus — PNG, JPEG, WebP ou GIF), ou l’avatar provient d’un fournisseur d’identité lié ; sans l’un ni l’autre, vos initiales tiennent lieu d’avatar.",
+  "account.profile.avatarPublic": "Votre image est publique par convention (le modèle des avatars GitHub) : les services où vous vous connectez la chargent depuis une URL publique ; ne téléversez qu’une image que vous montreriez partout.",
   "account.profile.avatarRemove": "Supprimer l’image",
   "account.profile.avatarRemoved": "Votre image a été supprimée — vos initiales tiennent lieu d’avatar.",
   "account.profile.avatarSaved": "Votre image a été mise à jour.",

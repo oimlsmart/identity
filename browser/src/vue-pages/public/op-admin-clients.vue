@@ -28,7 +28,7 @@ interface ClientRow {
   createdBy: string | null
 }
 
-const CLAIM_OPTIONS = ['roles', 'groups', 'org']
+const CLAIM_OPTIONS = ['roles', 'groups', 'org', 'picture']
 
 const { branding } = useBranding()
 

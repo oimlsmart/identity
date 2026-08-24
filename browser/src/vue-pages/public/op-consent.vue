@@ -53,6 +53,7 @@ const POLICY_CLAIM_LABELS: Record<string, string> = {
   roles: 'Your platform roles',
   groups: 'Your platform roles (as groups)',
   org: 'Your organization binding',
+  picture: 'Your profile picture',
 }
 
 function scopeLabel(scope: string): string {
