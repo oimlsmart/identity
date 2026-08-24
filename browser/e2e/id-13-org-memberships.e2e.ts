@@ -28,7 +28,7 @@
 //          view shows the disabled state honestly.
 //
 // SELF-CONTAINED: the suite's shared stack (E2E_BASE_URL) is untouched —
-// the identity instance boots on its own ports (API 9893 / astro 9894)
+// the identity instance boots on its own ports (API 9993 / astro 9994)
 // with its own SQLite file.
 // ═══════════════════════════════════════════════════════════════════
 
@@ -43,12 +43,12 @@ import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
-const DB_DIR = join(BROWSER_DIR, '.cache', 'id-11')
+const DB_DIR = join(BROWSER_DIR, '.cache', 'id-13')
 
-// Port-isolated: clear of every declared e2e stack (8393..9793) and the
+// Port-isolated: clear of every declared e2e stack (8393..9894) and the
 // local dev loops (5190/3190, 6390/6290, 7390/7190).
-const ID_API = 9893
-const ID_WEB = 9894
+const ID_API = 9993
+const ID_WEB = 9994
 
 // The cast: the Utilizer's org admin (created in leg 2 — a real OP
 // password account, the 02 enrollment seam) and the IA officer (the demo
@@ -64,7 +64,7 @@ const OFFICER_EMAIL = 'ia@oiml.org'
 // confidential client carrying the role-claim policy).
 const RP_CLIENT_ID = 'fixture-rp'
 const RP_CLIENT_SECRET = 'fixture-rp-secret'
-const RP_REDIRECT_URI = 'http://127.0.0.1:9895/callback'
+const RP_REDIRECT_URI = 'http://127.0.0.1:9995/callback'
 
 interface Stack {
   api: ChildProcess
@@ -164,7 +164,7 @@ async function bootIdentityStack(): Promise<Stack> {
       // client carrying the role-claim policy — the claims proof's reader).
       OP_CLIENT_SEED: JSON.stringify([{
         client_id: RP_CLIENT_ID,
-        name: 'The id-11 fixture RP',
+        name: 'The id-13 fixture RP',
         secret: RP_CLIENT_SECRET,
         redirect_uris: [RP_REDIRECT_URI],
         claims_policy: { claims: ['roles', 'groups', 'org'] },
