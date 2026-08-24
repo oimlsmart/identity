@@ -29,6 +29,8 @@
 //                                                      (per-client, the
 //                                                      claims rule's
 //                                                      admin-side read),
+//                                                      the org memberships
+//                                                      (TODO.identity/11),
 //                                                      the first page of
 //                                                      the account's audit
 //                                                      trail + its total
@@ -37,6 +39,12 @@
 //                                                      trail, paged (newest
 //                                                      first, the total in
 //                                                      every answer)
+//   GET    /api/op/registry/orgs/:orgId              — the per-ORG view
+//                                                      (TODO.identity/11):
+//                                                      the org's members +
+//                                                      per-org roles + its
+//                                                      org_admins, and its
+//                                                      join-request queue
 //   POST   /api/op/registry/users/:id/links          — the admin's
 //                                                      "link on behalf"
 //                                                      (justification
@@ -77,7 +85,7 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getStore, type AuthUserPayload, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { resolveRegistryOrg } from '../auth/org-registry'
+import { listRegistryOrganizations, resolveRegistryOrg } from '../auth/org-registry'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
@@ -302,18 +310,23 @@ export function createOpRegistryRouter(): Hono {
     // lastLogin, which the session payload does not.
     const user = (await store.listUsers()).find(u => u.id === c.req.param('id'))
     if (!user) return c.json({ error: 'not found' }, 404)
-    const [methods, links, sessions, org, clientRoles, profile, trail, appAccess] = await Promise.all([
+    const [methods, links, sessions, org, clientRoles, memberships, registryOrgs, profile, trail, appAccess] = await Promise.all([
       store.countSignInMethods(user.id),
       store.listIdentityLinks(user.id),
       store.listUserSessions(user.id),
       user.orgId ? resolveRegistryOrg(store, user.orgId) : Promise.resolve(null),
       store.listOpClientRoles(user.id),
+      // TODO.identity/11: the account's memberships + the register's
+      // display names for them.
+      store.listOrgMemberships(user.id),
+      listRegistryOrganizations(store),
       // The session payload's half: the avatar + the provider (the row
       // projection the admin row does not carry).
       store.getUserById(user.id),
       accountTrail(store, user.id),
       appAccessFor(store, user),
     ])
+    const orgsById = new Map(registryOrgs.map(o => [o.id, o]))
     return c.json({
       account: {
         id: user.id,
@@ -345,6 +358,21 @@ export function createOpRegistryRouter(): Hono {
       // "granted" stamp then.
       clientRoles: clientRoles.map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt ?? a.createdAt })),
       appAccess,
+      // TODO.identity/11 — the account's org memberships (every state,
+      // the register's display names resolved): the per-user page's
+      // Memberships section.
+      memberships: memberships.map(m => ({
+        orgId: m.orgId,
+        orgName: orgsById.get(m.orgId)?.name ?? m.orgId,
+        roles: m.roles,
+        state: m.state,
+        isPrimary: m.isPrimary,
+        invitedBy: m.invitedBy,
+        createdAt: m.createdAt,
+        activatedAt: m.activatedAt,
+        disabledAt: m.disabledAt,
+        disabledBy: m.disabledBy,
+      })),
       activity: trail.slice(0, ACTIVITY_PAGE),
       activityTotal: trail.length,
     })
@@ -473,6 +501,52 @@ export function createOpRegistryRouter(): Hono {
       by: 'administrator',
     })
     return c.json({ ok: true, revoked: count })
+  })
+
+  // GET /api/op/registry/orgs/:orgId — the per-ORG view (TODO.identity/11,
+  // the multi-org model): the register's org, its MEMBERSHIPS (the members
+  // with their per-org role sets + lifecycle states — the org_admins among
+  // them marked by the role), and its join-request queue (every state,
+  // newest first). The mutations live in routes/op-memberships.ts (the
+  // grant-checked surface); this aggregate is the registry's read.
+  registry.get('/api/op/registry/orgs/:orgId', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error) return gate.error
+    const store = getStore()
+    const orgId = c.req.param('orgId')
+    const org = await resolveRegistryOrg(store, orgId)
+    if (!org) {
+      return c.json({ error: `organization '${orgId}' is not on the participants register` }, 404)
+    }
+    const [memberships, users, requests] = await Promise.all([
+      store.listOrgMembers(orgId),
+      store.listUsers(),
+      store.listOrgJoinRequests({ scope: 'org', orgId }),
+    ])
+    const byId = new Map(users.map(u => [u.id, u]))
+    return c.json({
+      org: { id: org.id, name: org.name, shortName: org.shortName, kind: org.kind, country: org.country, registered: org.registered, roles: org.roles },
+      members: memberships.map(m => {
+        const account = byId.get(m.userId) ?? null
+        return {
+          userId: m.userId,
+          name: account?.name ?? '(erased account)',
+          email: account?.email ?? null,
+          provider: account?.provider ?? null,
+          accountActive: account?.active ?? false,
+          orgId: m.orgId,
+          roles: m.roles,
+          state: m.state,
+          isPrimary: m.isPrimary,
+          invitedBy: m.invitedBy,
+          createdAt: m.createdAt,
+          activatedAt: m.activatedAt,
+          disabledAt: m.disabledAt,
+          disabledBy: m.disabledBy,
+        }
+      }),
+      requests: [...requests].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    })
   })
 
   // GET /api/op/registry/activity — the registry's activity feed: the

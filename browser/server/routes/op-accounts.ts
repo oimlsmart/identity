@@ -117,7 +117,7 @@ import {
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
-import { isRegisteredParticipant } from '../auth/org-registry'
+import { isRegisteredParticipant, listRegistryOrganizations, orgKindRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
 import { hashPassword, passwordPolicy, verifyPasswordLogin } from '../auth/passwords'
 import { avatarKey, avatarKeys, avatarMaxBytes, AVATAR_TYPES, sniffAvatar } from '../auth/op/avatars'
@@ -793,15 +793,30 @@ export function createOpAccountsRouter(): Hono {
   // email change when one exists. The linked identities ride
   // TODO.identity/08's /api/op/account/links. NEVER credential material,
   // never session tokens.
+  // TODO.identity/11: the ORGANIZATIONS block — the account's memberships
+  // (every state, with the register's display names), the session's
+  // active-org stamp + the effective org the claims carry, and the
+  // account's own join requests (the membership-request path's state).
   accounts.get('/api/op/account', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
     const store = getStore()
-    const [methods, sessions, pendingEmailChange] = await Promise.all([
+    const sessionToken = getCookie(c, SESSION_COOKIE) ?? ''
+    const [methods, sessions, pendingEmailChange, memberships, activeOrg] = await Promise.all([
       store.countSignInMethods(user.id),
-      store.listUserSessions(user.id, getCookie(c, SESSION_COOKIE)),
+      store.listUserSessions(user.id, sessionToken),
       store.getPendingEmailChange(user.id),
+      store.listOrgMemberships(user.id),
+      store.getSessionActiveOrg(sessionToken),
     ])
+    // The register resolves the display names; the account's own join
+    // requests (by email — the row names the requester) show the ask's
+    // state honestly.
+    const orgs = memberships.length ? await listRegistryOrganizations(store) : []
+    const byId = new Map(orgs.map(o => [o.id, o]))
+    const ownRequests = (await store.listOrgJoinRequests({ scope: 'all' }))
+      .filter(r => r.email === user.email)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     return c.json({
       account: {
         id: user.id,
@@ -816,6 +831,37 @@ export function createOpAccountsRouter(): Hono {
       pendingEmailChange: pendingEmailChange
         ? { newEmail: pendingEmailChange.newEmail, expiresAt: pendingEmailChange.expiresAt, delivery: pendingEmailChange.deliveredBy }
         : null,
+      organizations: {
+        // The session's stamp (null = the primary context) and the
+        // EFFECTIVE org the session's claims carry right now (the
+        // context rule's answer — a disabled membership's stamp never
+        // survives a read).
+        activeOrg,
+        effectiveOrg: user.orgId,
+        memberships: memberships.map(m => ({
+          orgId: m.orgId,
+          orgName: byId.get(m.orgId)?.name ?? m.orgId,
+          orgKind: byId.get(m.orgId)?.kind ?? null,
+          roles: m.roles,
+          state: m.state,
+          isPrimary: m.isPrimary,
+          invitedBy: m.invitedBy,
+          createdAt: m.createdAt,
+          disabledAt: m.disabledAt,
+          disabledBy: m.disabledBy,
+        })),
+        requests: ownRequests.map(r => ({
+          id: r.id,
+          orgId: r.orgId,
+          orgName: r.orgId ? byId.get(r.orgId)?.name ?? r.orgId : null,
+          orgNameText: r.orgNameText,
+          requestedRole: r.requestedRole,
+          status: r.status,
+          refusalReason: r.refusalReason,
+          createdAt: r.createdAt,
+          decidedAt: r.decidedAt,
+        })),
+      },
       // The avatar upload's availability + its limit, so the console can
       // render the feature HONESTLY: hidden where no blob store is bound
       // (a Worker without the R2 binding; BLOBS_DISABLED on node), the
@@ -1105,6 +1151,126 @@ export function createOpAccountsRouter(): Hono {
     if (!revoked) return c.json({ error: 'no such session' }, 404)
     await audit('account.session_revoked', user.id, { userId: user.id, userName: user.name }, { session: c.req.param('id') })
     return c.json({ ok: true })
+  })
+
+  // ── the organizations (TODO.identity/11 — the multi-org model) ───────
+  // The account acts AS one org at a time (the GitHub context-switch
+  // pattern): the session's active-org stamp decides which membership's
+  // per-org role set the claims carry. A relying party never learns the
+  // other memberships.
+
+  // POST /api/op/account/active-org — the context switch: { org_id } names
+  // an ACTIVE membership of the account (the console's switcher);
+  // { org_id: null } returns to the primary context. The switch rides the
+  // PRESENTING session only — the account's other sessions keep their own
+  // contexts.
+  accounts.post('/api/op/account/active-org', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const body = await c.req.json<{ org_id?: string | null }>().catch(() => null)
+    if (!body || body.org_id === undefined) {
+      return c.json({ error: 'org_id is required (null returns to the primary organization)' }, 400)
+    }
+    const orgId = typeof body.org_id === 'string' && body.org_id.trim() ? body.org_id.trim() : null
+    const store = getStore()
+    if (orgId) {
+      const membership = await store.getOrgMembership(user.id, orgId)
+      if (!membership) {
+        return c.json({ error: 'this account holds no membership in that organization' }, 404)
+      }
+      if (membership.state !== 'active') {
+        return c.json({
+          error: membership.state === 'invited'
+            ? 'the invitation is not accepted yet — accept it above first'
+            : 'this membership is disabled — the organization’s administrator can re-activate it',
+        }, 409)
+      }
+    }
+    const token = getCookie(c, SESSION_COOKIE) ?? ''
+    const stamped = await store.setSessionActiveOrg(token, orgId)
+    if (!stamped) return c.json({ error: 'the session is no longer valid — sign in again' }, 401)
+    await audit('account.active_org', user.id, { userId: user.id, userName: user.name }, { org_id: orgId })
+    return c.json({ ok: true, activeOrg: orgId })
+  })
+
+  // POST /api/op/account/memberships/:orgId/accept — the holder accepts an
+  // org's invitation (state invited → active). Only the account's OWN
+  // invited membership, never someone else's row.
+  accounts.post('/api/op/account/memberships/:orgId/accept', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const store = getStore()
+    const orgId = c.req.param('orgId')
+    const membership = await store.getOrgMembership(user.id, orgId)
+    if (!membership) return c.json({ error: 'no membership in that organization' }, 404)
+    if (membership.state !== 'invited') {
+      return c.json({ error: `this membership is ${membership.state} — only an invitation can be accepted` }, 409)
+    }
+    await store.setOrgMembershipState(user.id, orgId, 'active')
+    await audit('account.membership_accepted', user.id, { userId: user.id, userName: user.name }, { org_id: orgId, roles: membership.roles })
+    return c.json({ ok: true, orgId, state: 'active' })
+  })
+
+  // POST /api/op/account/memberships/:orgId/decline — the holder declines
+  // the invitation: the row goes away (the org's admin sees the invite
+  // vanish; the audit chain records the decline).
+  accounts.post('/api/op/account/memberships/:orgId/decline', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const store = getStore()
+    const orgId = c.req.param('orgId')
+    const membership = await store.getOrgMembership(user.id, orgId)
+    if (!membership) return c.json({ error: 'no membership in that organization' }, 404)
+    if (membership.state !== 'invited') {
+      return c.json({ error: `this membership is ${membership.state} — only an invitation can be declined` }, 409)
+    }
+    await store.deleteOrgMembership(user.id, orgId)
+    await audit('account.membership_declined', user.id, { userId: user.id, userName: user.name }, { org_id: orgId })
+    return c.json({ ok: true, orgId })
+  })
+
+  // POST /api/op/account/membership-requests — the signed-in holder asks
+  // to join ANOTHER registered organization (the account console's path;
+  // the public /op/join page stays the no-account intake). The request
+  // lands in the org's join-request queue (TODO.identity/10's machinery —
+  // the org's administrator decides); the row names the SESSION's account
+  // (name + email are never self-asserted).
+  accounts.post('/api/op/account/membership-requests', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const body = await c.req.json<{ org_id?: string; requested_role?: string; note?: string | null }>().catch(() => null)
+    const orgId = typeof body?.org_id === 'string' && body.org_id.trim() ? body.org_id.trim() : null
+    if (!body || !orgId) return c.json({ error: 'org_id is required' }, 400)
+    const store = getStore()
+    const org = await resolveRegistryOrg(store, orgId)
+    if (!org || !org.registered) {
+      return c.json({
+        error: 'that organization is not on the OIML-CS participants register — only registered participant orgs can be joined (PD-03 / B 18:2025 §10.2)',
+      }, 400)
+    }
+    const role = typeof body.requested_role === 'string' && body.requested_role.trim() ? body.requested_role.trim() : ''
+    if (!orgKindRoles(org.kind).includes(role)) {
+      return c.json({
+        error: `role '${role}' is not one a ${org.kind} organization's staff holds (assignable: ${orgKindRoles(org.kind).join(', ')})`,
+      }, 400)
+    }
+    if (await store.getOrgMembership(user.id, orgId)) {
+      return c.json({ error: 'this account already holds a membership in that organization' }, 409)
+    }
+    if (await store.findPendingOrgJoinRequestByEmail(user.email)) {
+      return c.json({ error: 'a request from this account is already waiting for a decision' }, 409)
+    }
+    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null
+    const request = await store.createOrgJoinRequest({
+      name: user.name,
+      email: user.email,
+      orgId,
+      orgNameText: null,
+      requestedRole: role,
+      note,
+    })
+    await audit('account.membership_requested', user.id, { userId: user.id, userName: user.name }, { org_id: orgId, role })
+    return c.json(request, 201)
   })
 
   // GET /api/op/account/activity — the account's OWN sign-in + security
