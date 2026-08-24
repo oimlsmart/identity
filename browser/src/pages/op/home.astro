@@ -1,0 +1,10 @@
+---
+// The SSO home (the post-login landing, the wave-02a spec's "post-login
+// landing"): the launcher of services the signed-in account can enter,
+// the account menu entry, and the admin area entry. The sign-in page at
+// / stays the unauthenticated posture; a live session there redirects
+// here.
+import IdShell from '../../layouts/IdShell.astro'
+export const prerender = true
+---
+<IdShell title="My applications" page="home" />

@@ -1,6 +1,6 @@
 ---
 // The kernel's roleHome() answers /app for a console-less role; on this
-// host the one account surface is the account console.
+// host the signed-in landing is the SSO home (the launcher).
 export const prerender = true
-return Astro.redirect('/op/account')
+return Astro.redirect('/op/home')
 ---
