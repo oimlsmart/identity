@@ -23,6 +23,8 @@ import { env as runtimeEnv } from 'hono/adapter'
 import { createOpRouter } from './routes/op'
 import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
+import { createOpFactorsRouter } from './routes/op-factors'
+import { createOpMfaRouter } from './routes/op-mfa'
 import { createOpJoinRouter } from './routes/op-join'
 import { createOpMembershipsRouter } from './routes/op-memberships'
 import { createOpRegistryRouter } from './routes/op-registry'
@@ -58,6 +60,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // map's risk-8 follow-through): a per-caller token bucket guards the
   // credential-bearing endpoints (authorize, token, the password
   // sign-in + reset) with honest 429s + an audit event on trips.
+  // TODO.identity-sso/02+03 extends the same guard over the second-factor
+  // + passkey ceremony endpoints (the six-digit window invites brute
+  // force; the per-ACCOUNT backoff ladder rides the rows themselves,
+  // routes/op-mfa.ts's throttleState).
   // Generous defaults (the legitimate flows are human-paced);
   // OP_RATE_LIMIT_CAPACITY=0 disables it honestly.
   const rateLimit = createOpRateLimiter()
@@ -65,6 +71,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   app.use('/op/token', rateLimit)
   app.use('/api/op/login', rateLimit)
   app.use('/api/op/login/reset', rateLimit)
+  app.use('/api/op/login/mfa/*', rateLimit)
+  app.use('/api/op/login/passkey', rateLimit)
+  app.use('/api/op/login/passkey/options', rateLimit)
+  app.use('/api/op/account/factors/totp/*/verify', rateLimit)
 
   // The session + demo sign-in seam (routes/auth-lean.ts): the four
   // /api/auth endpoints the OP's own pages consume. The platform's RP
@@ -80,6 +90,11 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // The OP's account model: the password sign-in, the invite-only
   // enrollment, and the account self-service.
   app.route('/', createOpAccountsRouter())
+  // The factor registry (TODO.identity-sso/02+03): the console's
+  // passkey/TOTP/recovery-code surface.
+  app.route('/', createOpFactorsRouter())
+  // The sign-in's second-factor + passwordless half (the same wave).
+  app.route('/', createOpMfaRouter())
   // Delegated organization administration: the public "Request an
   // account" intake and the two decision queues.
   app.route('/', createOpJoinRouter())

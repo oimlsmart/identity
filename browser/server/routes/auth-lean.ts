@@ -88,7 +88,10 @@ export function createAuthLeanRouter(options: AuthLeanRouterOptions): Hono {
     if (!user) {
       return c.json({ error: 'Invalid credentials' }, 401)
     }
-    const token = await getStore().createSession(user.id, clientInfo(c))
+    // TODO.identity-sso/02+03: the demo sign-in is a password
+    // authentication event — the session's amr says so honestly (the
+    // demo cast never carries factors).
+    const token = await getStore().createSession(user.id, { ...clientInfo(c), amr: ['pwd'] })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
     return c.json(user)
   })

@@ -114,6 +114,8 @@ import {
   OP_ENROLLMENT_TTL_MS,
   seedOpAccountsFromEnv,
 } from '../auth/op/accounts'
+import { opRandomToken } from '../auth/op/keys'
+import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
@@ -257,6 +259,10 @@ export function createOpAccountsRouter(): Hono {
   // lands on the audit chain: the success as account.sign_in, the
   // failures as account.sign_in_failed (the dashboard's burst signal +
   // the holder's own feed — TODO.identity-sso/01).
+  // TODO.identity-sso/03: when the account holds factors, the password
+  // alone does NOT open the session — the answer is the pending
+  // second-factor challenge (one-time, short-TTL, throttled), and the
+  // completion lives in routes/op-mfa.ts.
   accounts.post('/api/op/login', async (c) => {
     const body = await c.req.json<{ email?: string; password?: string }>().catch(() => null)
     if (!body || typeof body.email !== 'string' || typeof body.password !== 'string' || !body.email || !body.password) {
@@ -286,13 +292,33 @@ export function createOpAccountsRouter(): Hono {
       }, 'auth')
       return c.json({ error: 'This account is deactivated — contact your administrator.' }, 403)
     }
+    // The second-factor branch (the factor registry, TODO.identity-sso/02+03):
+    // a verified TOTP app or a registered passkey turns the password into
+    // the FIRST leg — the session waits on the factor. The pending row's
+    // amr carries the provenance so far; the completion appends the
+    // factor's own. The recovery remainder rides along so the page can
+    // offer the recovery floor honestly.
+    const counts = await factorCounts(store, cred.userId)
+    if (counts.passkeys + counts.totp > 0) {
+      const mfaToken = opRandomToken()
+      await store.createMfaPending({ token: mfaToken, userId: cred.userId, amr: ['pwd'], ttlMs: MFA_PENDING_TTL_MS })
+      return c.json({
+        mfaRequired: true,
+        mfaToken,
+        methods: {
+          totp: counts.totp > 0,
+          passkey: counts.passkeys > 0,
+          recovery: counts.recoveryRemaining > 0,
+        },
+      })
+    }
     await store.touchLastLogin(cred.userId)
-    const token = await store.createSession(cred.userId, clientInfo(c))
+    const token = await store.createSession(cred.userId, { ...clientInfo(c), amr: ['pwd'] })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
     // Every OP-side sign-in lands on the audit chain: TODO.identity/03's
     // registry reads it back for the last-sign-in column, and
     // TODO.identity/06's console shows it on the account's activity feed.
-    await audit('account.sign_in', cred.userId, { userId: cred.userId }, { method: 'password' })
+    await audit('account.sign_in', cred.userId, { userId: cred.userId }, { method: 'password', amr: ['pwd'] })
     const user = await store.getUserById(cred.userId)
     // TODO.identity/09 — the account holder learns of every entry. The
     // notification never blocks or fails the sign-in (sendOpMail's
@@ -1111,19 +1137,22 @@ export function createOpAccountsRouter(): Hono {
   })
 
   // DELETE /api/op/account/password — remove the password as a sign-in
-  // method. THE GUARD (the 06 rule): an account always keeps at least one
-  // way in — removing the password while no upstream identity is linked
+  // method. THE GUARD (the 06 rule, extended by TODO.identity-sso/02):
+  // an account always keeps at least one way in — removing the password
+  // while no upstream identity is linked AND no passkey is registered
   // would strand the account behind an administrator's fresh setup link,
-  // so the route refuses and explains.
+  // so the route refuses and explains. A passkey-only account is a
+  // legitimate posture (the passwordless sign-in; the email reset stands
+  // behind it — never a lockout).
   accounts.delete('/api/op/account/password', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
     const store = getStore()
     const methods = await store.countSignInMethods(user.id)
     if (!methods.password) return c.json({ error: 'No password is set on this account.' }, 404)
-    if (methods.links === 0) {
+    if (methods.links === 0 && methods.passkeys === 0) {
       return c.json({
-        error: 'The password is your only way to sign in. Link an upstream identity (GitHub, Google, …) first, or keep the password — an account always keeps at least one sign-in method.',
+        error: 'The password is your only way to sign in. Link an upstream identity (GitHub, Google, …) or register a passkey first, or keep the password — an account always keeps at least one sign-in method.',
       }, 409)
     }
     await store.deletePasswordHash(user.id)
