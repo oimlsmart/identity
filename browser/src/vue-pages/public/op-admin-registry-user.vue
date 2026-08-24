@@ -120,6 +120,14 @@ interface Detail {
   passwordSet: boolean
   links: LinkRow[]
   sessions: SessionRow[]
+  /** TODO.identity-sso/02+03 (the strong-auth wave fills the slot): the
+   *  account's factor registry — names + created/last-used, never any
+   *  credential material. */
+  factors: {
+    passkeys: FactorPasskeyRow[]
+    totp: FactorTotpRow[]
+    recoveryCodes: { total: number; remaining: number; createdAt: string | null }
+  }
   clientRoles: ClientRoleRow[]
   appAccess: AppAccessRow[]
   /** TODO.identity/11: the account's org memberships, every state. */
@@ -127,6 +135,14 @@ interface Detail {
   activity: AuditEvent[]
   activityTotal: number
 }
+
+interface FactorPasskeyRow {
+  credentialId: string
+  name: string
+  createdAt: string
+  lastUsedAt: string | null
+}
+interface FactorTotpRow { id: string; name: string; createdAt: string; lastUsedAt: string | null }
 
 interface ProviderRow {
   id: string
@@ -599,6 +615,29 @@ async function unlink(link: LinkRow) {
     }
     notice.value = t('admin.user.methods.unlinked', { provider: link.provider })
     unlinkOpen.value[link.provider] = false
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+/** The admin's factor revocation (the slot's acts): the registry's own
+ *  endpoints carry the act; the account's chain audits it. */
+async function revokeFactor(kind: 'passkey' | 'totp', id: string) {
+  if (acting.value) return
+  acting.value = `${kind}-${id}`
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/registry/users/${encodeURIComponent(userId.value)}/factors/${kind === 'passkey' ? 'passkeys' : 'totp'}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? t('admin.user.failed', { status: res.status })
+      return
+    }
+    notice.value = kind === 'passkey' ? t('admin.user.factors.revokedPasskey') : t('admin.user.factors.revokedTotp')
     await load()
   } catch {
     error.value = t('account.networkError')
@@ -1146,12 +1185,64 @@ onMounted(async () => {
           </p>
         </div>
 
-        <!-- The additional factors: the strong-auth wave (passkeys,
-             authenticator-app codes, recovery codes) fills this slot;
-             until then it answers empty honestly. -->
+        <!-- The additional factors (TODO.identity-sso/02+03 fills the
+             slot): the account's passkeys + authenticator apps with their
+             names + created/last-used, each revocable by the admin; the
+             recovery set's honest counts. The account's own last-method
+             guard does not bind the administrator (the email reset is the
+             recovery path behind a stranding). -->
         <div class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-factors">
           <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.user.factors.title') }}</h3>
-          <p class="text-[11px] text-slate-400 dark:text-slate-500" data-testid="op-reg-factors-empty">{{ t('admin.user.factors.empty') }}</p>
+          <template v-if="detail">
+            <ul v-if="detail.factors.passkeys.length + detail.factors.totp.length > 0" class="space-y-1.5 mb-2" data-testid="op-reg-factors-list">
+              <li
+                v-for="pk in detail.factors.passkeys"
+                :key="pk.credentialId"
+                class="flex items-center justify-between rounded-lg border border-slate-100 dark:border-slate-700 px-3 py-2"
+                :data-testid="`op-reg-factor-passkey-${pk.credentialId}`"
+              >
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-800 dark:text-slate-200">{{ pk.name }} <span class="text-slate-400 font-normal">· passkey</span></p>
+                  <p class="text-[11px] text-slate-400 dark:text-slate-500">
+                    {{ t('admin.user.factors.added', { date: fmtStamp(pk.createdAt) }) }} ·
+                    {{ pk.lastUsedAt ? t('admin.user.factors.lastUsed', { date: fmtStamp(pk.lastUsedAt) }) : t('admin.user.factors.neverUsed') }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  :disabled="acting === `passkey-${pk.credentialId}`"
+                  :data-testid="`op-reg-factor-passkey-${pk.credentialId}-revoke`"
+                  class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  @click="revokeFactor('passkey', pk.credentialId)"
+                >{{ acting === `passkey-${pk.credentialId}` ? t('admin.user.factors.revoking') : t('admin.user.factors.revoke') }}</button>
+              </li>
+              <li
+                v-for="app in detail.factors.totp"
+                :key="app.id"
+                class="flex items-center justify-between rounded-lg border border-slate-100 dark:border-slate-700 px-3 py-2"
+                :data-testid="`op-reg-factor-totp-${app.id}`"
+              >
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-800 dark:text-slate-200">{{ app.name }} <span class="text-slate-400 font-normal">· {{ t('admin.user.factors.totpKind') }}</span></p>
+                  <p class="text-[11px] text-slate-400 dark:text-slate-500">
+                    {{ t('admin.user.factors.added', { date: fmtStamp(app.createdAt) }) }} ·
+                    {{ app.lastUsedAt ? t('admin.user.factors.lastUsed', { date: fmtStamp(app.lastUsedAt) }) : t('admin.user.factors.neverUsed') }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  :disabled="acting === `totp-${app.id}`"
+                  :data-testid="`op-reg-factor-totp-${app.id}-revoke`"
+                  class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  @click="revokeFactor('totp', app.id)"
+                >{{ acting === `totp-${app.id}` ? t('admin.user.factors.revoking') : t('admin.user.factors.revoke') }}</button>
+              </li>
+            </ul>
+            <p v-else class="text-[11px] text-slate-400 dark:text-slate-500 mb-2" data-testid="op-reg-factors-empty">{{ t('admin.user.factors.empty') }}</p>
+            <p v-if="detail.factors.recoveryCodes.total > 0" class="text-[11px] text-slate-400 dark:text-slate-500" data-testid="op-reg-factors-recovery">
+              {{ t('admin.user.factors.recoveryState', { remaining: detail.factors.recoveryCodes.remaining, total: detail.factors.recoveryCodes.total, date: fmtStamp(detail.factors.recoveryCodes.createdAt!) }) }}
+            </p>
+          </template>
         </div>
       </section>
 

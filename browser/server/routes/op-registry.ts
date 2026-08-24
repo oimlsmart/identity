@@ -63,6 +63,13 @@
 //                                                      of the account (the
 //                                                      light act, short of
 //                                                      deactivation)
+//   DELETE /api/op/registry/users/:id/factors/passkeys/:cred
+//   DELETE /api/op/registry/users/:id/factors/totp/:tid
+//                                                    — the admin revokes
+//                                                      one of the account's
+//                                                      factors (TODO.identity-
+//                                                      sso/02+03's slot on the
+//                                                      per-user page)
 //   GET    /api/op/registry/activity?limit=&q=       — the registry's
 //                                                      activity feed
 //                                                      (the auditEvents
@@ -310,7 +317,7 @@ export function createOpRegistryRouter(): Hono {
     // lastLogin, which the session payload does not.
     const user = (await store.listUsers()).find(u => u.id === c.req.param('id'))
     if (!user) return c.json({ error: 'not found' }, 404)
-    const [methods, links, sessions, org, clientRoles, memberships, registryOrgs, profile, trail, appAccess] = await Promise.all([
+    const [methods, links, sessions, org, clientRoles, memberships, registryOrgs, profile, trail, appAccess, passkeys, totp, recovery] = await Promise.all([
       store.countSignInMethods(user.id),
       store.listIdentityLinks(user.id),
       store.listUserSessions(user.id),
@@ -325,8 +332,16 @@ export function createOpRegistryRouter(): Hono {
       store.getUserById(user.id),
       accountTrail(store, user.id),
       appAccessFor(store, user),
+      store.listWebauthnCredentials(user.id),
+      store.listTotpSecrets(user.id),
+      store.recoveryCodeState(user.id),
     ])
     const orgsById = new Map(registryOrgs.map(o => [o.id, o]))
+    const factors = {
+      passkeys: passkeys.map(p => ({ credentialId: p.credentialId, name: p.name, createdAt: p.createdAt, lastUsedAt: p.lastUsedAt })),
+      totp: totp.filter(t => t.verifiedAt !== null).map(t => ({ id: t.id, name: t.name, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt })),
+      recoveryCodes: recovery,
+    }
     return c.json({
       account: {
         id: user.id,
@@ -352,6 +367,11 @@ export function createOpRegistryRouter(): Hono {
       passwordSet: methods.password,
       links,
       sessions,
+      // The factor registry's admin read (TODO.identity-sso/02+03 — the
+      // per-user page's factors slot): names + created/last-used, never
+      // any credential material; the recovery set's honest counts.
+      factors,
+
       // The per-client role assignments (TODO.identity/03's rows; the
       // grant/revoke acts ride routes/op-accounts.ts). updatedAt is null
       // until the first re-grant — the row's createdAt is the honest
@@ -547,6 +567,47 @@ export function createOpRegistryRouter(): Hono {
       }),
       requests: [...requests].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     })
+  // DELETE /api/op/registry/users/:id/factors/passkeys/:cred — the admin
+  // revokes one of the account's passkeys (TODO.identity-sso/02's slot on
+  // the per-user page). The account's own console's last-method guard
+  // deliberately does NOT bind the admin (the administrator's duty is the
+  // recovery path: the email reset stands behind a stranding). The audit
+  // event lands on the account's chain either way.
+  registry.delete('/api/op/registry/users/:id/factors/passkeys/:cred', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const user = await store.getUserById(c.req.param('id'))
+    if (!user) return c.json({ error: 'not found' }, 404)
+    const cred = await store.getWebauthnCredential(c.req.param('cred'))
+    if (!cred || cred.userId !== user.id) return c.json({ error: 'no such passkey' }, 404)
+    await store.deleteWebauthnCredential(user.id, cred.credentialId)
+    await audit('factor.passkey_revoked', user.id, { userId: gate.user!.id, userName: gate.user!.name }, {
+      email: user.email,
+      name: cred.name,
+      credentialId: cred.credentialId,
+      by: 'administrator',
+    })
+    return c.json({ ok: true })
+  })
+
+  // DELETE /api/op/registry/users/:id/factors/totp/:tid — the admin
+  // revokes one of the account's authenticator apps (the same slot).
+  registry.delete('/api/op/registry/users/:id/factors/totp/:tid', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const user = await store.getUserById(c.req.param('id'))
+    if (!user) return c.json({ error: 'not found' }, 404)
+    const row = await store.getTotpSecret(c.req.param('tid'))
+    if (!row || row.userId !== user.id) return c.json({ error: 'no such authenticator' }, 404)
+    await store.deleteTotpSecret(user.id, row.id)
+    await audit('factor.totp_revoked', user.id, { userId: gate.user!.id, userName: gate.user!.name }, {
+      email: user.email,
+      name: row.name,
+      by: 'administrator',
+    })
+    return c.json({ ok: true })
   })
 
   // GET /api/op/registry/activity — the registry's activity feed: the

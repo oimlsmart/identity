@@ -110,6 +110,11 @@ demo_personas: true
   const { createOpAccountsRouter } = await import('../../server/routes/op-accounts')
   const { createOpUpstreamRouter } = await import('../../server/routes/op-upstream')
   const { createOpRegistryRouter } = await import('../../server/routes/op-registry')
+  // TODO.identity-sso/02+03: the factor registry's own routers (the slot
+  // leg below enrolls through the account's API and revokes through the
+  // registry's).
+  const { createOpFactorsRouter } = await import('../../server/routes/op-factors')
+  const { createOpMfaRouter } = await import('../../server/routes/op-mfa')
   const { createUsersRouter } = await import('../../server/routes/users')
   const root = new Hono()
   root.route('/api/auth', createAuthLeanRouter({ autoSeedDemo: true }))
@@ -117,6 +122,8 @@ demo_personas: true
   root.route('/', createOpRouter())
   root.route('/', createOpUpstreamRouter())
   root.route('/', createOpAccountsRouter())
+  root.route('/', createOpFactorsRouter())
+  root.route('/', createOpMfaRouter())
   root.route('/', createOpRegistryRouter())
   app = root
 
@@ -709,6 +716,78 @@ describe('the administrator’s end-all-sessions', () => {
     expect((await app.request('/api/op/registry/users/whatever/sessions/revoke-all', { method: 'POST', headers: { cookie: viewer } })).status).toBe(403)
     const admin = await demoLogin('admin@oiml.org')
     expect((await app.request('/api/op/registry/users/no-such-id/sessions/revoke-all', { method: 'POST', headers: { cookie: admin } })).status).toBe(404)
+  })
+})
+
+// ── the factor registry's admin surface (TODO.identity-sso/02+03 — the
+// per-user page's factors slot) ───────────────────────────────────────
+
+describe('the factors slot on the detail aggregate', () => {
+  it('lists the account’s factors and the admin’s revokes audit on the account’s chain', async () => {
+    const { mintAuthenticator, attest } = await import('./factor-testkit')
+    const { base64urlEncode } = await import('../../server/auth/op/webauthn')
+    const { totpAtStep } = await import('../../server/auth/op/totp')
+    const admin = await demoLogin('admin@oiml.org')
+    const id = await inviteAndEnroll('factor-slot.registry@example.org', 'Slot Registry')
+    const cookie = (await passwordLogin('factor-slot.registry@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
+
+    // Enroll a TOTP + a passkey through the account's own API (the real
+    // ceremonies).
+    const totpStart = await app.request('/api/op/account/factors/totp', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+    })
+    const enrollment = await totpStart.json() as { id: string; secret: string }
+    const totpVerify = await app.request(`/api/op/account/factors/totp/${enrollment.id}/verify`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ code: await totpAtStep(enrollment.secret, Math.floor(Date.now() / 1000 / 30)), name: 'Slot’s app' }),
+    })
+    expect(totpVerify.status).toBe(200)
+
+    const auth = await mintAuthenticator(-7)
+    const optRes = await app.request('/api/op/account/factors/passkeys/options', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+    })
+    const { publicKey } = await optRes.json() as { publicKey: { challenge: string } }
+    const answer = await attest(auth, publicKey.challenge, { rpId: 'op.test', origin: ISSUER })
+    const reg = await app.request('/api/op/account/factors/passkeys', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ name: 'Slot’s key', credential: { id: base64urlEncode(auth.credentialId), response: answer }, transports: ['internal'] }),
+    })
+    expect(reg.status).toBe(201)
+
+    // The aggregate carries the factors block: both factors with names +
+    // stamps, the recovery set's counts, never any credential material.
+    const detail = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as {
+      factors: {
+        passkeys: Array<{ credentialId: string; name: string; lastUsedAt: string | null }>
+        totp: Array<{ id: string; name: string }>
+        recoveryCodes: { total: number; remaining: number }
+      }
+    }
+    expect(detail.factors.passkeys.map(p => p.name)).toEqual(['Slot’s key'])
+    expect(detail.factors.totp.map(t => t.name)).toEqual(['Slot’s app'])
+    expect(detail.factors.recoveryCodes.total).toBe(10)
+    expect(JSON.stringify(detail.factors)).not.toContain(enrollment.secret)
+
+    // The admin revokes both; the account's chain audits them.
+    const revT = await app.request(`/api/op/registry/users/${id}/factors/totp/${enrollment.id}`, { method: 'DELETE', headers: { cookie: admin } })
+    expect(revT.status).toBe(200)
+    const revP = await app.request(`/api/op/registry/users/${id}/factors/passkeys/${encodeURIComponent(base64urlEncode(auth.credentialId))}`, { method: 'DELETE', headers: { cookie: admin } })
+    expect(revP.status).toBe(200)
+    const after = await (await app.request(`/api/op/registry/users/${id}`, { headers: { cookie: admin } })).json() as { factors: { passkeys: unknown[]; totp: unknown[] } }
+    expect(after.factors.passkeys).toEqual([])
+    expect(after.factors.totp).toEqual([])
+    const rows = (await journal()).filter(e => e.entity_id === id && (e.action === 'factor.totp_revoked' || e.action === 'factor.passkey_revoked'))
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.metadata).toMatchObject({ by: 'administrator' })
+
+    // The gates stand: anonymous 401, non-admin 403, unknown rows 404.
+    expect((await app.request(`/api/op/registry/users/${id}/factors/totp/nope`, { method: 'DELETE' })).status).toBe(401)
+    const viewer = await demoLogin('viewer@oiml.org')
+    expect((await app.request(`/api/op/registry/users/${id}/factors/totp/nope`, { method: 'DELETE', headers: { cookie: viewer } })).status).toBe(403)
+    expect((await app.request(`/api/op/registry/users/${id}/factors/totp/nope`, { method: 'DELETE', headers: { cookie: admin } })).status).toBe(404)
+    expect((await app.request(`/api/op/registry/users/no-such-id/factors/totp/nope`, { method: 'DELETE', headers: { cookie: admin } })).status).toBe(404)
   })
 })
 
