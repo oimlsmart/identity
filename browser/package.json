@@ -15,8 +15,7 @@
     "preview": "astro preview",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
-    "test:e2e": "tsx scripts/e2e-run.ts",
-    "orient": "vitest run --config vitest.e2e.config.ts e2e/orient.e2e.ts"
+    "test:e2e": "tsx scripts/e2e-run.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",

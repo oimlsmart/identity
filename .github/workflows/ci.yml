@@ -73,4 +73,121 @@ jobs:
 
       - name: vitest (the unit suites)
         working-directory: browser
-        run: npx vitest run --passWithNoTests
+        run: npx vitest run
+
+      - name: The OIDC-surface contract gate
+        working-directory: browser
+        run: npx vitest run --config vitest.e2e.config.ts e2e/op-surface-contract.e2e.ts
+
+  bundle:
+    # The deploy artifact's shape, proven without deploying: the Workers
+    # bundle builds and the deploy composer writes the per-env configs
+    # (the SAME composition the deploy-identity workflow consumes; the
+    # wrangler deploy itself is the deliberate act, never CI's).
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies
+        working-directory: browser
+        run: npm ci
+
+      - name: Build the Workers bundle
+        working-directory: browser
+        run: npm run build:cloudflare
+
+      - name: The bundle-shape dry legs (compose-only, nothing deploys)
+        working-directory: browser
+        run: |
+          npx tsx scripts/deploy-instance.ts identity --compose-only
+          npx tsx scripts/deploy-instance.ts identity-preview --compose-only
+
+  identity-e2e:
+    # The identity e2e legs: the shared dev stack for the runner's
+    # per-file reset; the legs themselves self-contained on their own
+    # ports (each boots its own API + astro + fixtures).
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      # The same reclaim as the smart repo's CI (the 2026-08-23 "Free
+      # space left: 1 MB" lesson): npm ci's + a Chrome + the dev stacks'
+      # caches ride the ever-growing ubuntu-latest image.
+      - name: Free disk space (unused runner-image toolchains)
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/local/share/powershell /opt/microsoft
+          sudo docker system prune -af --volumes || true
+          df -h /
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies
+        working-directory: browser
+        run: npm ci
+
+      - name: Install Chromium for puppeteer
+        working-directory: browser
+        run: npx puppeteer browsers install chrome
+
+      - name: Dev server
+        working-directory: browser
+        run: |
+          npm run dev &
+          npx wait-on http://localhost:5190/ http://localhost:5190/api/health --timeout 300000
+        env:
+          ENTITY_BACKEND: server
+          # The suite stack keeps the demo cast (the identity legs boot
+          # their own stacks and scrub the posture).
+          DEMO_ACCOUNTS_ENABLED: 'true'
+
+      - name: The identity e2e legs
+        working-directory: browser
+        run: |
+          npx tsx scripts/e2e-run.ts \
+            e2e/id-01-op.e2e.ts \
+            e2e/id-02-accounts.e2e.ts \
+            e2e/id-03-registry.e2e.ts \
+            e2e/id-04-op-side.e2e.ts \
+            e2e/id-05-full.e2e.ts \
+            e2e/id-06-account-console.e2e.ts \
+            e2e/id-07-registry.e2e.ts \
+            e2e/id-08-upstream.e2e.ts \
+            e2e/id-09-email.e2e.ts \
+            e2e/id-10-org-admin.e2e.ts \
+            e2e/op-surface-contract.e2e.ts \
+            e2e/op-key-rotate.e2e.ts
