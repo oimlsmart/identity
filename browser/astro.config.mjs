@@ -113,6 +113,10 @@ export default defineConfig({
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
           },
+          '/op/avatar': {
+            target: process.env.API_ORIGIN || 'http://localhost:3190',
+            headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
+          },
           '/op/upstream': {
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
