@@ -1,0 +1,377 @@
+name: deploy-identity
+
+# The identity service (the OIDC OP at id.oimlsmart.org, the
+# oiml-smart-platform-identity Worker) deploys ONLY on a deliberate act
+# (TODO.identity-ops/01; the operating plan is docs/deployment/
+# identity-operations.md): an `id-v*` tag push or a manual dispatch.
+# Nothing here runs on a branch push. The runbook with the exact
+# procedure + the one-time setup is docs/deployment/identity-deploy.md.
+#
+# The pipeline, staged:
+#   contract-gate    the OIDC-surface golden test (the pre-deploy
+#                    contract gate: a discovery/JWKS/claims/error-taxonomy
+#                    break fails here, before it can reach an RP);
+#   identity-e2e     the identity e2e legs (id-01…id-10 + the contract
+#                    leg) against the tagged tree — the named pre-deploy
+#                    gate of the operating plan;
+#   build            the Workers bundle;
+#   deploy-preview   the identity-PREVIEW posture ([env.identity-preview]
+#                    → id-preview.oimlsmart.org): D1 migrations, the
+#                    deploy, the surface probe against the deployed URL;
+#   deploy-production the production deploy, gated by the environment's
+#                    required reviewers (the manual approval), then the
+#                    surface probe against https://id.oimlsmart.org.
+#
+# Required GitHub configuration (one-time, docs/deployment/
+# identity-deploy.md → "One-time setup"):
+#   Secrets (on BOTH environments): CLOUDFLARE_API_TOKEN,
+#   CLOUDFLARE_ACCOUNT_ID (the same token posture as the monorepo's
+#   deploy-cloudflare). The kernel checkout rides the repo-level
+#   SMART_CHECKOUT_TOKEN (the ci.yml doctrine).
+#   Worker secrets (per env, `wrangler secret put --env identity[-preview]`):
+#   OP_SIGNING_KEY (the ES256 private JWK — never the repo, never the
+#   logs; the rotation ceremony is browser/scripts/op-key-rotate.ts).
+#   Variables: IDENTITY_PREVIEW_URL on cloudflare-identity-preview
+#   (https://id-preview.oimlsmart.org). When unset the preview stage
+#   skips HONESTLY and production still waits on its approval.
+#   Environments: cloudflare-identity-preview, cloudflare-identity-production
+#   (the latter with required reviewers — the manual approval IS the
+#   production gate).
+
+on:
+  push:
+    tags: [ 'id-v*' ]
+  workflow_dispatch:
+
+# Deploys serialize and NEVER cancel mid-flight (a cancelled wrangler
+# deploy can leave a half-uploaded version).
+concurrency:
+  group: deploy-identity
+  cancel-in-progress: false
+
+jobs:
+  contract-gate:
+    # The pre-deploy contract gate (TODO.identity-ops/01): the golden
+    # test of the OIDC surface boots the identity-profile API from the
+    # TAGGED tree and deep-compares the captured surface against the
+    # committed golden. Fast + self-contained (no browser, no shared
+    # stack) so a surface break fails the pipeline in minutes.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies
+        working-directory: browser
+        run: npm ci
+
+      - name: The OIDC-surface contract gate
+        working-directory: browser
+        run: npx vitest run --config vitest.e2e.config.ts e2e/op-surface-contract.e2e.ts
+
+  identity-e2e:
+    # The identity e2e legs against the tagged tree (the operating plan's
+    # named pre-deploy gate). The same job shape as ci.yml's
+    # identity-e2e job: the shared dev stack for the runner's per-file
+    # reset, the legs themselves self-contained on their own ports.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      # The same reclaim as ci.yml's e2e job (the 2026-08-23 "Free space
+      # left: 1 MB" lesson): npm ci's + a Chrome + the dev stacks'
+      # caches ride the ever-growing ubuntu-latest image.
+      - name: Free disk space (unused runner-image toolchains)
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/local/share/powershell /opt/microsoft
+          sudo docker system prune -af --volumes || true
+          df -h /
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies
+        working-directory: browser
+        run: npm ci
+
+      - name: Install Chromium for puppeteer
+        working-directory: browser
+        run: npx puppeteer browsers install chrome
+
+      - name: Dev server
+        working-directory: browser
+        run: |
+          npm run dev &
+          npx wait-on http://localhost:5190/ http://localhost:5190/api/health --timeout 300000
+        env:
+          ENTITY_BACKEND: server
+          # The suite stack keeps the demo cast (the identity legs boot
+          # their own stacks and scrub the posture).
+          DEMO_ACCOUNTS_ENABLED: 'true'
+
+      - name: The identity e2e legs
+        working-directory: browser
+        run: |
+          npx tsx scripts/e2e-run.ts \
+            e2e/id-01-op.e2e.ts \
+            e2e/id-02-accounts.e2e.ts \
+            e2e/id-03-registry.e2e.ts \
+            e2e/id-04-op-side.e2e.ts \
+            e2e/id-05-full.e2e.ts \
+            e2e/id-06-account-console.e2e.ts \
+            e2e/id-07-registry.e2e.ts \
+            e2e/id-08-upstream.e2e.ts \
+            e2e/id-09-email.e2e.ts \
+            e2e/id-10-org-admin.e2e.ts \
+            e2e/id-surface.e2e.ts \
+            e2e/op-surface-contract.e2e.ts \
+            e2e/op-key-rotate.e2e.ts
+
+  build:
+    needs: [contract-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies
+        working-directory: browser
+        run: npm ci
+
+      - name: Build the Workers bundle
+        working-directory: browser
+        run: npm run build:cloudflare
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: identity-dist
+          path: browser/dist
+
+  deploy-preview:
+    # The staged rollout's first stop: the identity preview. Skips
+    # honestly (a notice, never a silent pass) until the one-time setup
+    # declares IDENTITY_PREVIEW_URL + the preview D1 (docs/deployment/
+    # identity-deploy.md).
+    needs: [contract-gate, identity-e2e, build]
+    runs-on: ubuntu-latest
+    environment: cloudflare-identity-preview
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Checkout the smart monorepo (the platform-server kernel's home — npm ci needs the file: dependency target)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: identity-dist
+          path: browser/dist
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies (wrangler + the probe's tsx are dev deps)
+        working-directory: browser
+        run: npm ci
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Guard — the preview posture is declared
+        working-directory: browser
+        run: |
+          if [ -z "${{ vars.IDENTITY_PREVIEW_URL }}" ]; then
+            echo "::notice::IDENTITY_PREVIEW_URL is unset — the preview stage skips honestly (the one-time setup: docs/deployment/identity-deploy.md). Production still waits on its approval."
+            exit 0
+          fi
+          if grep -q '00000000-0000-0000-0000-000000000000' wrangler.toml; then
+            echo "::error::the [env.identity-preview] database_id is still the placeholder — run the one-time setup (docs/deployment/identity-deploy.md)"
+            exit 1
+          fi
+          echo "preview posture declared: ${{ vars.IDENTITY_PREVIEW_URL }}"
+
+      - name: Apply the D1 migrations (identity preview)
+        if: vars.IDENTITY_PREVIEW_URL != ''
+        working-directory: browser
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # The generated dist config drops the env blocks; the SOURCE toml
+        # carries the preview database id (the deploy-cloudflare lesson).
+        run: npx wrangler d1 migrations apply oiml-smart-platform-identity-preview --remote --config wrangler.toml --env identity-preview
+
+      - name: Deploy the identity preview worker
+        if: vars.IDENTITY_PREVIEW_URL != ''
+        working-directory: browser
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # The env composer: the generated config is the default env only.
+        run: npx tsx scripts/deploy-instance.ts identity-preview
+
+      - name: Attach the preview custom domain (idempotent)
+        if: vars.IDENTITY_PREVIEW_URL != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: browser
+        run: bash scripts/cloudflare-domains.sh
+
+      - name: Prove the deployed preview (the OIDC-surface probe)
+        if: vars.IDENTITY_PREVIEW_URL != ''
+        working-directory: browser
+        # The public legs always; the known-client refusal legs when the
+        # operator declares a registered preview client (the runbook).
+        env:
+          OP_CONTRACT_KNOWN_CLIENT_ID: ${{ vars.OP_CONTRACT_PREVIEW_CLIENT_ID }}
+          OP_CONTRACT_KNOWN_REDIRECT_URI: ${{ vars.OP_CONTRACT_PREVIEW_REDIRECT_URI }}
+        run: npx tsx scripts/op-surface-contract.ts probe "${{ vars.IDENTITY_PREVIEW_URL }}"
+
+  deploy-production:
+    # The deliberate act's second half: the environment's required
+    # reviewers ARE the manual approval. Runs only when the preview
+    # stage completed (its honest skip counts as completed — the
+    # approval is then the ONLY preview substitute, by design).
+    needs: [deploy-preview]
+    runs-on: ubuntu-latest
+    environment: cloudflare-identity-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: "Checkout the smart monorepo (the platform-server kernel's home — npm ci needs the file: dependency target)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: identity-dist
+          path: browser/dist
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies (wrangler)
+        working-directory: browser
+        run: npm ci
+
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      # The wave-03 cutover's tripwire (the extraction map's risk 1):
+      # the migration set is byte-identical with the monorepo-built
+      # deployment's, so the apply MUST be a no-op on the live registry.
+      # List first; any pending file means the copies drifted — ABORT
+      # (never let a drifted set touch the live tables). (No --json on
+      # `d1 migrations list`: the guard counts migration filenames in the
+      # output — zero is the only pass.)
+      - name: Guard — zero pending migrations on the live registry
+        working-directory: browser
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          LIST=$(npx wrangler d1 migrations list oiml-smart-platform-identity --remote --config wrangler.toml --env identity 2>&1) || { echo "::error::the migrations list failed: $LIST"; exit 1; }
+          echo "$LIST"
+          PENDING=$(echo "$LIST" | grep -cE '[0-9]{4}_.*\.sql' || true)
+          if [ "$PENDING" != "0" ]; then
+            echo "::error::the live registry shows $PENDING unapplied migration(s) — the byte-identical copies drifted. ABORT (the cutover plan's tripwire, docs/deployment/identity-deploy.md)."
+            exit 1
+          fi
+          echo "zero pending migrations — the apply below is a no-op"
+
+      - name: Apply the D1 migrations (identity production)
+        working-directory: browser
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply oiml-smart-platform-identity --remote --config wrangler.toml --env identity
+
+      - name: Deploy the identity worker (id.oimlsmart.org)
+        working-directory: browser
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx tsx scripts/deploy-instance.ts identity
+
+      - name: Attach the production custom domain (idempotent)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: browser
+        run: bash scripts/cloudflare-domains.sh
+
+      - name: Prove the deployed OP (the OIDC-surface probe)
+        working-directory: browser
+        # The public legs; the known-client refusal legs when the
+        # operator declares one registered production client (a client
+        # id + one of its exact redirect URIs — never a secret).
+        env:
+          OP_CONTRACT_KNOWN_CLIENT_ID: ${{ vars.OP_CONTRACT_KNOWN_CLIENT_ID }}
+          OP_CONTRACT_KNOWN_REDIRECT_URI: ${{ vars.OP_CONTRACT_KNOWN_REDIRECT_URI }}
+        run: npx tsx scripts/op-surface-contract.ts probe https://id.oimlsmart.org
