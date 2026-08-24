@@ -541,6 +541,10 @@ describe('TODO.identity/05: the full identity arc, OP-side (real OP, fixture RP,
     await withPage(async (page) => {
       await page.goto(`${op.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await opPasswordSignIn(page, VERA.email, VERA.password)
+      // The signed-in landing is the SSO home (the launcher); the
+      // account console is its entry.
+      await page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 })
+      await page.goto(`${op.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
 
       await page.waitForSelector('[data-testid="op-account-link-github-action"]', { timeout: SETTLE, polling: 500 })
