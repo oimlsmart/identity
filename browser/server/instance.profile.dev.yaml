@@ -1,0 +1,18 @@
+# The identity service's node dev profile (the zero-config boot):
+# server/serve.ts falls back to this file when INSTANCE_PROFILE is
+# undeclared, so `npm run dev` boots the OP contract out of the box
+# (the kernel's hub default would 404 every OP path). The e2e stacks
+# declare their own fixture (e2e/fixtures/instance.profile.identity.yaml)
+# and the Cloudflare postures carry INSTANCE_PROFILE_YAML in
+# wrangler.toml.
+#
+# demo_personas: true — the local stack signs in with the demo cast;
+# production runs demo_personas: false.
+identity:
+  org_id: oimlsmart-id
+  org_name: OIML SMART Identity
+  role_codes: [identity]
+roles: [identity]
+branding:
+  name: OIML SMART Identity
+demo_personas: true

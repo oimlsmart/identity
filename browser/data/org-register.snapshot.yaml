@@ -1,0 +1,123 @@
+# ═══════════════════════════════════════════════════════════════════
+# The demonstration participants register (the extraction map, smart's
+# PROGRESS/41 §3): the VENDORED snapshot the identity service's dev/e2e
+# posture seeds into the entity store, so the join selector
+# (/op/join), the org-admin queues, and the registry consoles have real
+# rows to work with.
+#
+# The register's production feed is the published OIML-CS content (the
+# monorepo's seed builds it from the data trees); without it the
+# service degrades honestly — the "organization not listed" path routes
+# to the scheme operator (docs/deployment/identity.md's
+# org-administration section). This snapshot is the demo world's
+# FICTIONAL set (Example orgs at example.org — never real member
+# bodies), extracted from the monorepo's demonstration data at the
+# wave-02 move.
+#
+# Shape: five collections, one per entity store the register resolver
+# (server/auth/org-registry.ts) reads. Each row is stored verbatim as
+# the entity's JSON data.
+#
+#   organizations             IAs + TLs (kind: issuing-authority |
+#                             test-laboratory)
+#   utilizers / associates    the acceptance participants
+#   participantDeclarations   a signed Declaration registers its
+#                             participant (IAs, Utilizers, Associates)
+#   participantApplications   a participation case at ACTIVE registers
+#                             the TL (its admission is the case, never
+#                             a Declaration of its own)
+# ═══════════════════════════════════════════════════════════════════
+
+organizations:
+  - id: EX1
+    kind: issuing-authority
+    name: "Example Issuing Authority"
+    short_name: "EIA"
+    oiml_code: EX1
+    country: "Example Member State"
+    address: { street: "1 Scheme Avenue", city: "Demoville", country: "Example Member State", postal_code: "DL-100" }
+    contact: { person: "Ms. Emily Irving", email: "office@eia.example.org", phone: "+100 555 0101" }
+    oiml_scope:
+      - { ref: "R 60:2021", scheme: A }
+      - { ref: "R 91:2025", scheme: A }
+      - { ref: "R 129:2020", scheme: A }
+      - { ref: "R 144:2013", scheme: A }
+    certificate_prefix: EX1
+  - id: "21"
+    kind: test-laboratory
+    name: "Example Test Laboratory"
+    short_name: "ETL"
+    lab_kind: independent
+    oiml_id: 21
+    parent_oiml_code: EX1
+    country: "Example Member State"
+    address: { street: "2 Metrology Way", city: "Demoville", country: "Example Member State", postal_code: "DL-102" }
+    contact: { person: "Mr. Martin Berger", email: "lab@etl.example.org", phone: "+100 555 0102" }
+    oiml_scope:
+      - { ref: "R 60:2021", scheme: A }
+      - { ref: "R 91:2025", scheme: A }
+      - { ref: "R 129:2020", scheme: A }
+      - { ref: "R 144:2013", scheme: A }
+    accreditation:
+      body: "Example Accreditation Body"
+      number: "E-PL-21000-01-00"
+      expiry_date: "2029-12-31"
+  # The mid-pipeline IA: its Declaration is still a DRAFT, so it is NOT
+  # a registered participant — the join selector never offers it and an
+  # org-admin assignment naming it is refused (the eligibility rule).
+  - id: XX1
+    kind: issuing-authority
+    name: "Demo Issuing Authority"
+    short_name: "DIA"
+    oiml_code: XX1
+    country: "Demo Member State"
+    address: { street: "1 Scheme Avenue", city: "Demoville", country: "Demo Member State", postal_code: "DL-100" }
+    contact: { person: "Mr. David Novak", email: "office@dia.example.org", phone: "+100 555 0100" }
+    oiml_scope:
+      - { ref: "R 60:2021", scheme: A }
+    certificate_prefix: XX1
+
+utilizers:
+  - id: ut-nmi-nl
+    name: "Example Metrology Authority (Netherlands)"
+    short_name: "EMA-NL"
+    country: "Netherlands"
+    contact: { person: "Sanne de Vries", email: "oiml-cs@nmi.example.org", phone: "+31 15 269 0100" }
+    declaration_id: decl-ut-nl
+
+associates: []
+
+participantDeclarations:
+  - id: decl-ia-ex1
+    kind: issuing_authority_declaration
+    participant_kind: issuing_authority
+    participant_id: EX1
+    status: signed
+    scope:
+      - { category: load-cells, schemes: [scheme_a] }
+    signed_at: "2023-01-15"
+  - id: decl-ia-xx1
+    kind: issuing_authority_declaration
+    participant_kind: issuing_authority
+    participant_id: XX1
+    status: draft
+    scope:
+      - { category: load-cells, schemes: [scheme_a] }
+  - id: decl-ut-nl
+    kind: utilizer_declaration
+    participant_kind: utilizer
+    participant_id: ut-nmi-nl
+    status: signed
+    scope:
+      - { category: load-cells, schemes: [scheme_a, scheme_b] }
+    signed_at: "2024-03-01"
+
+participantApplications:
+  # The TL's admission is the PD-04 participation case at ACTIVE (its
+  # terminal state) — never a Declaration of its own.
+  - id: app-tl-21
+    kind: tl_approval
+    applicant_organization_id: "21"
+    applicant_name: "Example TL Working Group 1.31"
+    member_state: "Example Member State"
+    status: ACTIVE
