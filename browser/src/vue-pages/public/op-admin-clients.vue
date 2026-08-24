@@ -22,6 +22,8 @@ interface ClientRow {
   name: string
   redirectUris: string[]
   claimsPolicy: { claims: string[]; roles?: string[] } | null
+  /** The SSO home's launch card (null = not on the launcher). */
+  launch: { url: string; icon: string | null; description: string | null; visibility: 'roles' | 'request' | 'open' } | null
   confidential: boolean
   status: 'active' | 'disabled'
   createdAt: string
@@ -43,6 +45,12 @@ interface ClientActivity {
 }
 
 const CLAIM_OPTIONS = ['roles', 'groups', 'org', 'picture']
+/** The launcher card's named icon set (server/auth/op/launch.ts
+ *  validates it at write; the launcher's LaunchIcon owns the glyphs). */
+const LAUNCH_ICON_OPTIONS = ['grid', 'monitor', 'scale', 'flask', 'chat', 'external']
+/** The not-admitted posture: 'roles' hides the card, 'request' shows
+ *  the request-access state, 'open' never gates. */
+const LAUNCH_VISIBILITY_OPTIONS = ['roles', 'request', 'open'] as const
 
 const { branding } = useBranding()
 
@@ -71,6 +79,13 @@ const form = ref({
    *  EMPTY = unbounded (the policy does not bound the role set). */
   roles: [] as string[],
   confidential: true,
+  /** The SSO home's launch card: off = the client never appears on the
+   *  launcher (launch: null on save when a card was stored). */
+  launchOn: false,
+  launch_url: '',
+  launch_description: '',
+  launch_icon: 'external',
+  launch_visibility: 'roles' as 'roles' | 'request' | 'open',
 })
 const editing = ref<string | null>(null)
 /** The re-key decision in edit mode: off keeps the stored secret hash. */
@@ -83,7 +98,10 @@ const lastSecret = ref<{ clientId: string; secret: string } | null>(null)
 function resetForm() {
   editing.value = null
   rekey.value = false
-  form.value = { client_id: '', name: '', redirect_uris: '', claims: [], roles: [], confidential: true }
+  form.value = {
+    client_id: '', name: '', redirect_uris: '', claims: [], roles: [], confidential: true,
+    launchOn: false, launch_url: '', launch_description: '', launch_icon: 'external', launch_visibility: 'roles',
+  }
 }
 
 function editRow(row: ClientRow) {
@@ -97,6 +115,11 @@ function editRow(row: ClientRow) {
     claims: [...(row.claimsPolicy?.claims ?? [])],
     roles: [...(row.claimsPolicy?.roles ?? [])],
     confidential: row.confidential,
+    launchOn: !!row.launch,
+    launch_url: row.launch?.url ?? '',
+    launch_description: row.launch?.description ?? '',
+    launch_icon: row.launch?.icon ?? 'external',
+    launch_visibility: row.launch?.visibility ?? 'roles',
   }
 }
 
@@ -155,12 +178,31 @@ function validateUris(): string[] {
   return problems
 }
 
+/** The launch card's inline validation (the server re-validates at
+ *  write; this keeps the honest refusal next to the field). */
+const launchProblems = ref<string[]>([])
+function validateLaunchForm(): string[] {
+  const problems: string[] = []
+  if (form.value.launchOn) {
+    const url = form.value.launch_url.trim()
+    if (!url) problems.push('The launch URL is required (the service’s sign-in start).')
+    else {
+      try {
+        const parsed = new URL(url)
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') problems.push('The launch URL must be an http(s) URL.')
+      } catch { problems.push(`Not an absolute URL: ${url}`) }
+    }
+  }
+  launchProblems.value = problems
+  return problems
+}
+
 async function save() {
   if (saving.value) return
   error.value = null
   notice.value = null
   lastSecret.value = null
-  if (validateUris().length) return
+  if (validateUris().length || validateLaunchForm().length) return
   saving.value = true
   try {
     const uris = form.value.redirect_uris.split('\n').map(u => u.trim()).filter(Boolean)
@@ -181,6 +223,20 @@ async function save() {
         claims: form.value.claims,
         ...(carriesRoles && form.value.roles.length ? { roles: form.value.roles } : {}),
       },
+    }
+    // The launch card: on = the card as declared; an edit with the card
+    // off takes the client OFF the launcher (null — idempotent); a fresh
+    // registration with the card off omits the field (the row defaults
+    // off the launcher).
+    if (form.value.launchOn) {
+      payload.launch = {
+        url: form.value.launch_url.trim(),
+        icon: form.value.launch_icon,
+        ...(form.value.launch_description.trim() ? { description: form.value.launch_description.trim() } : {}),
+        visibility: form.value.launch_visibility,
+      }
+    } else if (editing.value) {
+      payload.launch = null
     }
     if (wantsSecret) payload.generate_secret = true
     else if (!form.value.confidential) payload.secret = null
@@ -333,6 +389,10 @@ onMounted(async () => {
                   · claims: {{ row.claimsPolicy?.claims.join(', ') || 'profile + email only' }}<template v-if="row.claimsPolicy?.roles?.length"> (roles limited to: {{ row.claimsPolicy.roles.join(', ') }})</template>
                   <template v-if="row.createdBy"> · registered by {{ row.createdBy }}</template>
                 </p>
+                <p class="text-[11px]" :class="row.launch ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-500'" :data-testid="`op-client-launch-${row.clientId}`">
+                  <template v-if="row.launch">on the SSO home ({{ row.launch.visibility }}): {{ row.launch.url }}</template>
+                  <template v-else>not on the SSO home</template>
+                </p>
                 <ul class="mt-1" :data-testid="`op-client-uris-${row.clientId}`">
                   <li v-for="uri in row.redirectUris" :key="uri" class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">{{ uri }}</li>
                 </ul>
@@ -421,6 +481,55 @@ onMounted(async () => {
                   {{ r }}
                 </label>
               </div>
+            </div>
+          </fieldset>
+          <fieldset class="sm:col-span-2">
+            <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">SSO home (the launcher card a signed-in account meets after sign-in)</legend>
+            <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input v-model="form.launchOn" type="checkbox" data-testid="op-client-field-launch-on" class="rounded border-slate-300" />
+              On the SSO home (the post-login launcher)
+            </label>
+            <div v-if="form.launchOn" class="mt-2 space-y-2" data-testid="op-client-field-launch">
+              <div class="grid sm:grid-cols-2 gap-2">
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">launch URL (the service’s sign-in start — the live OP session lets the user straight in)</label>
+                  <input
+                    v-model="form.launch_url"
+                    data-testid="op-client-field-launch-url"
+                    placeholder="https://tl.example.org/api/auth/signin/oidc"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                    @blur="validateLaunchForm"
+                    @input="validateLaunchForm"
+                  />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">description (one line on the card; optional)</label>
+                  <input
+                    v-model="form.launch_description"
+                    data-testid="op-client-field-launch-description"
+                    placeholder="The certification hub: applications, cases, certificates."
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">icon</label>
+                  <select v-model="form.launch_icon" data-testid="op-client-field-launch-icon" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white">
+                    <option v-for="icon in LAUNCH_ICON_OPTIONS" :key="icon" :value="icon">{{ icon }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">visibility (when the account’s roles do not admit it)</label>
+                  <select v-model="form.launch_visibility" data-testid="op-client-field-launch-visibility" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white">
+                    <option v-for="v in LAUNCH_VISIBILITY_OPTIONS" :key="v" :value="v">{{ v }}</option>
+                  </select>
+                  <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                    roles: the card hides. request: the card shows a plain request-access state. open: no gate, every signed-in account launches.
+                  </p>
+                </div>
+              </div>
+              <ul v-if="launchProblems.length" class="list-disc list-inside text-xs text-red-600 dark:text-red-400" data-testid="op-client-launch-problems">
+                <li v-for="problem in launchProblems" :key="problem">{{ problem }}</li>
+              </ul>
             </div>
           </fieldset>
           <div class="sm:col-span-2 space-y-1">
