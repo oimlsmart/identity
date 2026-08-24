@@ -567,6 +567,8 @@ export function createOpRegistryRouter(): Hono {
       }),
       requests: [...requests].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     })
+  })
+
   // DELETE /api/op/registry/users/:id/factors/passkeys/:cred — the admin
   // revokes one of the account's passkeys (TODO.identity-sso/02's slot on
   // the per-user page). The account's own console's last-method guard
