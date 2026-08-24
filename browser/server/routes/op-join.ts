@@ -299,6 +299,51 @@ export function createOpJoinRouter(): Hono {
       }, 400)
     }
 
+    // TODO.identity/11 — the EXISTING account joins the org (the
+    // multi-org model): no second account, no enrollment link. The
+    // membership lands directly ACTIVE — the holder asked, the org's
+    // admin approved: both consents are on record. An existing
+    // membership decides honestly: the ACTIVE one is the conflict; the
+    // invited one settles (both consents now present); the disabled one
+    // is the org's deliberate re-admission (the role set follows the
+    // approval).
+    const existingAccount = await store.findUserByEmail(request.email)
+    if (existingAccount) {
+      const existingMembership = await store.getOrgMembership(existingAccount.id, orgId)
+      if (existingMembership?.state === 'active') {
+        return c.json({ error: `${request.email} already holds an active membership in this organization` }, 409)
+      }
+      if (existingMembership) {
+        await store.setOrgMembershipRoles(existingAccount.id, orgId, [role])
+        await store.setOrgMembershipState(existingAccount.id, orgId, 'active', user.email)
+      } else {
+        const created = await store.createOrgMembership({
+          userId: existingAccount.id, orgId, roles: [role], state: 'active', invitedBy: user.email,
+        })
+        if (!created) {
+          // A concurrent approval created it first — settle honestly.
+          await store.setOrgMembershipRoles(existingAccount.id, orgId, [role])
+          await store.setOrgMembershipState(existingAccount.id, orgId, 'active', user.email)
+        }
+      }
+      const decided = await store.decideOrgJoinRequest(request.id, {
+        status: 'approved',
+        decidedBy: user.email,
+        invitedUserId: existingAccount.id,
+      })
+      if (!decided) return c.json({ error: 'this request was already decided' }, 409)
+      await audit(user, request, 'org_join_request.approved', {
+        invited_user_id: existingAccount.id,
+        role,
+        org_id: orgId,
+        existing_account: true,
+      })
+      return c.json({
+        ...decided,
+        membership: { userId: existingAccount.id, orgId, roles: [role], state: 'active' },
+      })
+    }
+
     // The invite (the TODO.identity/02 enrollment seam, bound for real):
     // an OP password account with the role set + the org binding, and
     // the one-time 24 h setup link — EMAILED when a mail provider is

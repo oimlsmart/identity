@@ -1,6 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════
 // The API app factory, OP-ONLY (the extraction map, smart's
-// PROGRESS/41 §3): the five OP routers, the session/demo seam
+// PROGRESS/41 §3): the OP routers (routes/op*.ts — the protocol, the
+// accounts, the upstream providers, the join intake, the memberships,
+// the registry), the session/demo seam
 // (routes/auth-lean.ts — NOT the platform's RP router), /api/health, a
 // lean /api/config (the identity projection + branding + the profile
 // view), and the OP-surface rate limiter.
@@ -22,6 +24,7 @@ import { createOpRouter } from './routes/op'
 import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpJoinRouter } from './routes/op-join'
+import { createOpMembershipsRouter } from './routes/op-memberships'
 import { createOpRegistryRouter } from './routes/op-registry'
 import { createOpDashboardRouter } from './routes/op-dashboard'
 import { createOpHomeRouter } from './routes/op-home'
@@ -80,6 +83,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // Delegated organization administration: the public "Request an
   // account" intake and the two decision queues.
   app.route('/', createOpJoinRouter())
+  // The multi-org membership model (TODO.identity/11): the per-org
+  // membership management API (the org admin's people slice + the
+  // identity admin's per-org view).
+  app.route('/', createOpMembershipsRouter())
   // The administrator's identity registry: the account search and
   // detail aggregate, link-on-behalf, session revocation, the activity
   // feed.
