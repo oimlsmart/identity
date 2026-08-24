@@ -49,27 +49,36 @@ mid-flight).
 ## One-time setup
 
 Once per deployment programme (the workflow header carries the same
-checklist):
+checklist). State as of 2026-08-24 (the wave-03 deploy prep): items 1
+and 2 are DONE except the two Cloudflare secrets, which await a valid
+API token (the operator's act).
 
-1. **The preview database**: `cd browser && npx wrangler d1 create
-   oiml-smart-platform-identity-preview`, paste the issued
-   `database_id` into `browser/wrangler.toml`'s
+1. **The preview database** (DONE 2026-08-24, PR #8): `cd browser &&
+   npx wrangler d1 create oiml-smart-platform-identity-preview`, paste
+   the issued `database_id` into `browser/wrangler.toml`'s
    `[env.identity-preview]` block (replacing the zero-UUID placeholder)
    and commit. The preview deploy job refuses to run while the
    placeholder stands.
-2. **The GitHub environments**: create `cloudflare-identity-preview`
-   and `cloudflare-identity-production`. On **both**, add the secrets
-   `CLOUDFLARE_API_TOKEN` (Workers Scripts:Edit + D1:Edit on the
-   account) and `CLOUDFLARE_ACCOUNT_ID`. On
+2. **The GitHub environments** (PARTLY DONE 2026-08-24): create
+   `cloudflare-identity-preview` and `cloudflare-identity-production`
+   (both exist; production carries the required-reviewers rule). On
+   **both**, add the secrets `CLOUDFLARE_API_TOKEN` (Workers
+   Scripts:Edit + D1:Edit on the account) and `CLOUDFLARE_ACCOUNT_ID`
+   (PENDING: the operator declares a valid token; both tokens in the
+   operator's credentials file returned 401 at the wave-03 prep). On
    `cloudflare-identity-production`, add **required reviewers** (the
-   manual approval); on `cloudflare-identity-preview`, set the variable
-   `IDENTITY_PREVIEW_URL` to `https://id-preview.oimlsmart.org`.
+   manual approval; DONE); on `cloudflare-identity-preview`, set the
+   variable `IDENTITY_PREVIEW_URL` to `https://id-preview.oimlsmart.org`
+   (DONE).
 3. **The signing keys** (one ES256 pair per environment, never shared):
    run the rotation ceremony
    (`browser/scripts/op-key-rotate.ts`, below) with `--env identity`
    and `--env identity-preview` to generate and declare each
    environment's `OP_SIGNING_KEY` secret. The private material never
-   lands in the repo, the database, or a log.
+   lands in the repo, the database, or a log. (State 2026-08-24:
+   production's key is account-side Worker state from the monorepo
+   era and no code deploy disturbs it; the preview's first ceremony
+   runs with the first preview deploy.)
 4. **The preview domain** (first preview deploy only): the workflow's
    domain step attaches `id-preview.oimlsmart.org` via
    `browser/scripts/cloudflare-domains.sh`; the DNS record for the
@@ -86,8 +95,8 @@ checklist):
 ## The release act
 
 ```bash
-git fetch origin v2
-git tag id-v2026.08.23-1 origin/v2        # date + ordinal of the day
+git fetch origin main
+git tag id-v2026.08.23-1 origin/main        # date + ordinal of the day
 git push origin id-v2026.08.23-1
 ```
 
@@ -98,9 +107,9 @@ surface probe against `https://id.oimlsmart.org` as the deployment
 proof.
 
 What to tag: the identity service is a deployment profile of the one
-build, so any `v2` commit is deployable; tag a commit whose CI is green
-(the workflow re-proves the identity legs itself, so a red trunk does
-not block a deliberate identity release).
+build, so any `main` commit is deployable; tag a commit whose CI is
+green (the workflow re-proves the identity legs itself, so a red trunk
+does not block a deliberate identity release).
 
 ## Rollback
 
