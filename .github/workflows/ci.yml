@@ -1,0 +1,76 @@
+name: ci
+
+# The identity service's trunk gates. Every push to main and every PR
+# runs the AGENTS.md command gates. The deploy pipeline is
+# deploy-identity.yml (tag-gated, never on branch pushes).
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The platform-server kernel, the file: dependency target,
+      # DECLARED at the position browser/package.json's
+      # file:../x/oimlsmart/smart traversal resolves (the x/ doctrine —
+      # the same layout the smart repo's CI uses for the SST positions).
+      # Until the kernel's first npm publish lands, the identity repo
+      # develops against the sibling checkout; at publish this checkout
+      # retires and the dep flips to ^0.1.0. oimlsmart/smart is private:
+      # the checkout rides a read-capable token (a dedicated
+      # SMART_CHECKOUT_TOKEN when declared, the org PAT otherwise).
+      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
+        uses: actions/checkout@v4
+        with:
+          repository: oimlsmart/smart
+          ref: v2
+          path: x/oimlsmart/smart
+          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The kernel package's own node_modules — the file: link's
+      # realpath chain (x/oimlsmart/smart/packages/platform-server/**)
+      # never reaches browser/node_modules, so the package's imports
+      # resolve from here.
+      - name: Install the platform-server kernel package
+        working-directory: x/oimlsmart/smart/packages/platform-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies
+        working-directory: browser
+        run: npm ci
+
+      - name: Build (the astro production build)
+        working-directory: browser
+        run: npm run build
+
+      - name: vue-tsc
+        working-directory: browser
+        run: npx vue-tsc --noEmit
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: astro check
+        working-directory: browser
+        run: npx astro check
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: vitest (the unit suites)
+        working-directory: browser
+        run: npx vitest run --passWithNoTests
