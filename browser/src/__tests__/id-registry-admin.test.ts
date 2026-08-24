@@ -657,7 +657,7 @@ describe('the detail aggregate’s admin view', () => {
     expect(first.total).toBeGreaterThanOrEqual(6) // invite, enrolled, 2×(link + unlink), …
     expect(first.offset).toBe(0)
     const rest = await (await app.request(`/api/op/registry/users/${id}/activity?offset=2&limit=100`, { headers: { cookie: admin } })).json() as {
-      events: Array<{ id: string }>; total: number
+      events: Array<{ id: string; timestamp: string }>; total: number
     }
     expect(rest.total).toBe(first.total)
     expect(rest.events.length).toBe(first.total - 2)
