@@ -78,7 +78,7 @@ function editRow(row: ProviderRow) {
 async function load(): Promise<void> {
   const res = await fetch('/api/op/providers', { credentials: 'include' })
   if (res.status === 401) {
-    window.location.assign(`/app/login?redirect=${encodeURIComponent('/op/admin/providers')}`)
+    window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/providers')}`)
     return
   }
   if (res.status === 403) {

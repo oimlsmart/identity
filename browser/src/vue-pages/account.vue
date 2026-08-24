@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // ═══════════════════════════════════════════════════════════════════
 // The account-holder console (TODO.identity/06) — the identity
-// provider's self-service surface at /app/account, the
+// provider's self-service surface at /op/account, the
 // Keycloak-account-console standard grown on item 02's page:
 //
 //   PROFILE         the display name (edited inline), the primary email
@@ -276,7 +276,7 @@ async function load() {
       return
     }
     if (res.status === 401) {
-      router.replace(`/app/login?redirect=${encodeURIComponent('/app/account')}`)
+      router.replace(`/?redirect=${encodeURIComponent('/op/account')}`)
       return
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -502,7 +502,7 @@ async function revokeSession(id: string, current: boolean) {
     }
     if (current) {
       // Revoking the current session ends THIS sign-in — to the login page.
-      router.replace('/app/login')
+      router.replace('/')
       return
     }
     notice.value = t('account.sessions.revoked')

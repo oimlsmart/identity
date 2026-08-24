@@ -25,7 +25,7 @@
 // THE MATCH RULE (the program's invariant): an upstream sign-in resolves
 // by (provider, provider_account_id/sub) against identity_links — NEVER
 // by email alone. An unlinked identity gets the honest refusal
-// (/app/login?error=upstream_not_linked) — NO account, NO session.
+// (/?error=upstream_not_linked) — NO account, NO session.
 //
 // The flow state is STATELESS + signed (auth/upstream/state.ts — the
 // GitHub flow's lesson: nothing rides a per-process Map, so a sibling
@@ -142,16 +142,16 @@ export function createOpUpstreamRouter(): Hono {
 
   /** Login-mode failures land on the login page's error box. */
   function loginErrorRedirect(origin: string, reason: string, providerName?: string): string {
-    const url = new URL('/app/login', origin)
+    const url = new URL('/', origin)
     url.searchParams.set('error', `upstream_${reason}`)
     if (providerName) url.searchParams.set('provider', providerName)
     return url.toString()
   }
 
   /** Link-mode failures land on the account page's error box
-   *  (/app/account — TODO.identity/02's page; /op/account redirects). */
+   *  (/op/account — TODO.identity/02's page, native on this host). */
   function linkErrorRedirect(origin: string, reason: string, providerId?: string): string {
-    const url = new URL('/app/account', origin)
+    const url = new URL('/op/account', origin)
     url.searchParams.set('error', reason)
     if (providerId) url.searchParams.set('provider', providerId)
     return url.toString()
@@ -242,7 +242,7 @@ export function createOpUpstreamRouter(): Hono {
     if (!provider) return c.redirect(loginErrorRedirect(origin, 'unknown'))
     const user = await sessionUser(c)
     if (!user) {
-      return c.redirect(`${origin}/app/login?redirect=${encodeURIComponent(`/op/upstream/${provider.id}/link`)}`)
+      return c.redirect(`${origin}/?redirect=${encodeURIComponent(`/op/upstream/${provider.id}/link`)}`)
     }
     // Fail fast: the account already holds a link for this provider —
     // the honest refusal BEFORE the round trip (unlink first).
@@ -409,7 +409,7 @@ export function createOpUpstreamRouter(): Hono {
           provider: providerId, handle: identity.handle,
         })
       }
-      const done = new URL('/app/account', origin)
+      const done = new URL('/op/account', origin)
       done.searchParams.set('linked', providerId)
       return c.redirect(done.toString())
     }
@@ -531,7 +531,7 @@ export function createOpUpstreamRouter(): Hono {
   })
 
   // ── the account surface (the link list + unlink) ──────────────────
-  // The page these APIs serve is TODO.identity/02's /app/account; the
+  // The page these APIs serve is TODO.identity/02's /op/account; the
   // admin console is TODO.identity/06's.
 
   async function requireSession(c: Context): Promise<{ user: AuthUserPayload | null; error: Response | null }> {

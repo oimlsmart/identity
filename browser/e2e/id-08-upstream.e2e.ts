@@ -7,13 +7,13 @@
 //   leg 1  the admin API registers + enables the provider; the OP's
 //          login page renders its button (the registry drives the UI);
 //   leg 2  a signed-in account LINKS the provider from the account page
-//          (/app/account — TODO.identity/02's page; /op/account redirects) —
+//          (/op/account — TODO.identity/02's page, native on this host) —
 //          the flow rides the browser to the stub's consent and back;
 //   leg 3  sign out, then SIGN IN with the provider — the link resolves
 //          by (provider, sub), never by email, and the session starts;
 //   leg 4  an UNLINKED stub user is refused honestly ("not linked — ask
 //          your administrator") — no session, no account;
-//   leg 5  unlink from /app/account → the sign-in is refused again.
+//   leg 5  unlink from /op/account → the sign-in is refused again.
 //          TODO.identity/06's at-least-one-method guard applies: the
 //          demo-cast account has no password credential, so the leg
 //          watches the guard hold (the disabled unlink + its reason),
@@ -169,8 +169,9 @@ async function bootIdentityStack(): Promise<Stack> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes — the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes — the fed-01 stall class; /op/join is the table-bound one
+    // here: the root IS the sign-in page and answers early).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()
@@ -186,8 +187,8 @@ async function stopStack(stack: Stack | undefined): Promise<void> {
 }
 
 const SETTLE = 240_000
-// The account page is /app/account (TODO.identity/02 — the app shell;
-// /op/account redirects). The FIRST /app/* navigation of a run compiles
+// The account page is /op/account (TODO.identity/02 — native on this
+// host). The FIRST /app/* navigation of a run compiles
 // the app-shell island cold — on a contended host that outlives SETTLE.
 const APP_COLD = 840_000 // spawned astro compiles page chunks cold on first hit
 
@@ -279,20 +280,20 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
     expect(await created.json()).toMatchObject({ id: 'fixture-idp', enabled: true, issuer: idp.issuer })
 
     // The login page renders the button FROM THE REGISTRY.
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="upstream-login-fixture-idp"]', { timeout: SETTLE, polling: 500 })
     const label = await page.$eval('[data-testid="upstream-login-fixture-idp"]', el => el.textContent?.trim())
     expect(label).toBe('Sign in with Fixture IdP')
   })
 
   it('leg 2 — a signed-in account links the provider from the account page (the browser round trip)', { timeout: 900_000 }, async () => {
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, 'ia@oiml.org')
     // Signed in (the demo login lands on the role home).
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     expect(await sessionEmail(page)).toBe('ia@oiml.org')
 
-    await page.goto(`${stack.base}/app/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-account"]', { timeout: APP_COLD, polling: 500 })
     expect(await page.$('[data-testid="op-account-no-links"]')).toBeTruthy()
 
@@ -302,7 +303,7 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
 
     // Back on the account page: the link shows.
     await page.waitForSelector('[data-testid="op-account-link-fixture-idp"]', { timeout: SETTLE, polling: 500 })
-    expect(new URL(page.url()).pathname).toBe('/app/account')
+    expect(new URL(page.url()).pathname).toBe('/op/account')
     expect(new URL(page.url()).searchParams.get('linked')).toBe('fixture-idp')
     const notice = await page.$eval('[data-testid="op-account-notice"]', el => el.textContent ?? '')
     expect(notice).toContain('Fixture IdP')
@@ -314,14 +315,14 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
     await signOut(page)
     expect(await sessionEmail(page)).toBeNull()
 
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="upstream-login-fixture-idp"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="upstream-login-fixture-idp"]') as HTMLElement).click())
     await stubConsent(page, 'ada')
 
     // The session started as the linked account (ia@oiml.org) — the
     // redirect landed on a signed-in page (not the login page).
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await delay(1_000)
     expect(await sessionEmail(page)).toBe('ia@oiml.org')
   })
@@ -331,14 +332,14 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
     // bob@example.org is NOBODY's account email here — and to prove the
     // guard reads ONLY the link table, carol carries no link either; an
     // email lookalike would matter only if we matched on it (we don't).
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="upstream-login-fixture-idp"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="upstream-login-fixture-idp"]') as HTMLElement).click())
     await stubConsent(page, 'bob')
 
     // The honest refusal on the login page — no session.
     await page.waitForSelector('[data-testid="login-error"]', { timeout: SETTLE, polling: 500 })
-    expect(new URL(page.url()).pathname).toBe('/app/login')
+    expect(new URL(page.url()).pathname).toBe('/')
     expect(new URL(page.url()).searchParams.get('error')).toBe('upstream_not_linked')
     const message = await page.$eval('[data-testid="login-error"]', el => el.textContent ?? '')
     expect(message).toContain('Fixture IdP')
@@ -346,12 +347,12 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
     expect(await sessionEmail(page)).toBeNull()
   })
 
-  it('leg 5 — unlink from /app/account; the sign-in is then refused', { timeout: 900_000 }, async () => {
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+  it('leg 5 — unlink from /op/account; the sign-in is then refused', { timeout: 900_000 }, async () => {
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, 'ia@oiml.org')
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
 
-    await page.goto(`${stack.base}/app/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-account-unlink-fixture-idp"]', { timeout: APP_COLD, polling: 500 })
 
     // TODO.identity/06's guard: an account always keeps at least one way
@@ -374,7 +375,7 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
     await page.waitForSelector('[data-testid="op-account-no-links"]', { timeout: SETTLE, polling: 500 })
 
     await signOut(page)
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="upstream-login-fixture-idp"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="upstream-login-fixture-idp"]') as HTMLElement).click())
     await stubConsent(page, 'ada')

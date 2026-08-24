@@ -54,7 +54,7 @@ async function load(): Promise<void> {
   if (search.value.trim()) params.set('q', search.value.trim())
   const res = await fetch(`/api/op/registry/activity?${params}`, { credentials: 'include' })
   if (res.status === 401) {
-    window.location.assign(`/app/login?redirect=${encodeURIComponent('/op/admin/activity')}`)
+    window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/activity')}`)
     return
   }
   if (res.status === 403) {
@@ -119,7 +119,7 @@ onMounted(async () => {
   try {
     const session = await fetch('/api/auth/session', { credentials: 'include' })
     if (!session.ok) {
-      window.location.assign(`/app/login?redirect=${encodeURIComponent('/op/admin/activity')}`)
+      window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/activity')}`)
       return
     }
     await load()

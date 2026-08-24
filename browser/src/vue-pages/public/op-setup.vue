@@ -8,7 +8,7 @@
 //
 // The password field carries the honest strength meter (the policy's
 // only REFUSAL is length ≥ 12; the meter advises, never invents rules).
-// A successful setup signs the account in and lands on /app/account.
+// A successful setup signs the account in and lands on /op/account.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -106,7 +106,7 @@ async function submit() {
       return
     }
     // The setup signs the account in — straight to the account page.
-    router.replace('/app/account')
+    router.replace('/op/account')
   } catch {
     error.value = 'Network error. Is the server running?'
     submitting.value = false

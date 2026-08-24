@@ -343,7 +343,7 @@ onMounted(async () => {
         </form>
 
         <p class="mt-4 text-center text-[10px] text-slate-400 dark:text-slate-500">
-          Already have an account? <router-link to="/app/login" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-signin">Sign in</router-link>
+          Already have an account? <router-link to="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-signin">Sign in</router-link>
         </p>
       </template>
     </div>

@@ -74,7 +74,7 @@ async function load(): Promise<void> {
   if (role.value) params.set('role', role.value)
   const res = await api(`/api/op/registry/users${params.size ? `?${params}` : ''}`)
   if (res.status === 401) {
-    window.location.assign(`/app/login?redirect=${encodeURIComponent('/op/admin/registry')}`)
+    window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/registry')}`)
     return
   }
   if (res.status === 403) {
@@ -146,7 +146,7 @@ onMounted(async () => {
   try {
     const session = await fetch('/api/auth/session', { credentials: 'include' })
     if (!session.ok) {
-      window.location.assign(`/app/login?redirect=${encodeURIComponent('/op/admin/registry')}`)
+      window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/registry')}`)
       return
     }
     account.value = await session.json() as { id: string; name: string; email: string }

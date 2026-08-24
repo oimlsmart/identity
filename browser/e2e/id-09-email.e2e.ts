@@ -187,8 +187,9 @@ async function bootIdentityStack(mailer: StubMailer): Promise<Stack> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes — the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes — the fed-01 stall class; /op/join is the table-bound one
+    // here: the root IS the sign-in page and answers early).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()
@@ -301,7 +302,7 @@ describe('TODO.identity/09 — the transactional email (the stub provider)', () 
       await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
       flog(page, 'leg1: submitted; the first app-shell navigation compiles cold')
       await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
-      expect(new URL(page.url()).pathname).toBe('/app/account')
+      expect(new URL(page.url()).pathname).toBe('/op/account')
       expect(await page.$eval('[data-testid="account-name"]', el => el.textContent?.trim())).toBe(ROOT.name)
       flog(page, 'leg1: done')
     })
@@ -384,7 +385,7 @@ describe('TODO.identity/09 — the transactional email (the stub provider)', () 
       // Willa forgot her password. The identity-profile login page
       // carries the forgot-password affordance (the OP's own surface).
       flog(page, 'leg4: the login page')
-      await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="login-forgot"]', { timeout: SETTLE, polling: 500 })
       await page.evaluate(() => (document.querySelector('[data-testid="login-forgot"]') as HTMLElement).click())
       await page.waitForSelector('[data-testid="login-reset-email"]', { timeout: SETTLE, polling: 500 })
@@ -438,7 +439,7 @@ describe('TODO.identity/09 — the transactional email (the stub provider)', () 
       // browser in, and the login page bounces a signed-in visitor.)
       await page.deleteCookie({ name: 'oiml-session', url: stack.base })
       mailer.reset()
-      await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="login-forgot"]', { timeout: SETTLE, polling: 500 })
       await page.evaluate(() => (document.querySelector('[data-testid="login-forgot"]') as HTMLElement).click())
       await page.waitForSelector('[data-testid="login-reset-email"]', { timeout: SETTLE, polling: 500 })

@@ -175,8 +175,9 @@ async function bootIdentityStack(): Promise<Stack> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes — the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes — the fed-01 stall class; /op/join is the table-bound one
+    // here: the root IS the sign-in page and answers early).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()
@@ -259,7 +260,7 @@ describe('TODO.identity/01 — the OIDC Provider (the identity profile)', () => 
     // The OP's sign-in surface: the authorize endpoint bounced the
     // anonymous browser to the instance's own login page.
     await page.waitForFunction(
-      () => window.location.pathname === '/app/login',
+      () => window.location.pathname === '/',
       { timeout: SETTLE, polling: 500 },
     )
     await opSignIn(page, stack.base, 'ia@oiml.org')

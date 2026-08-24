@@ -113,7 +113,7 @@ async function confirm() {
           </h1>
           <p class="text-sm text-slate-600 dark:text-slate-300" :data-testid="`op-email-change-${failure.kind}`">{{ failure.message }}</p>
           <p class="mt-4 text-center text-xs">
-            <a href="/app/account" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-email-change-back">Back to your account</a>
+            <a href="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-email-change-back">Back to your account</a>
           </p>
         </template>
 
@@ -130,7 +130,7 @@ async function confirm() {
             This link was shown on screen (no mailer is configured), so the new address stays marked "not verified" until a mailed link can confirm it.
           </p>
           <p class="mt-4 text-center text-xs">
-            <a href="/app/account" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-email-change-back-done">Back to your account</a>
+            <a href="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-email-change-back-done">Back to your account</a>
           </p>
         </template>
 

@@ -214,8 +214,9 @@ async function bootIdentityStack(): Promise<Stack> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes — the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes — the fed-01 stall class; /op/join is the table-bound one
+    // here: the root IS the sign-in page and answers early).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()

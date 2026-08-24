@@ -105,7 +105,7 @@ onMounted(async () => {
   try {
     const res = await fetch('/api/auth/session', { credentials: 'include' })
     if (res.ok) {
-      const redirect = (route.query.redirect as string) || '/app/account'
+      const redirect = (route.query.redirect as string) || '/op/account'
       router.replace(redirect)
       return
     }
@@ -136,7 +136,7 @@ async function submitOpLogin() {
     body: JSON.stringify({ email: email.value, password: password.value }),
   })
   if (res.ok) {
-    const redirect = (route.query.redirect as string) || '/app/account'
+    const redirect = (route.query.redirect as string) || '/op/account'
     router.replace(redirect)
     return
   }
@@ -150,7 +150,7 @@ async function submitOpLogin() {
       body: JSON.stringify({ email: email.value, password: password.value }),
     })
     if (demoRes.ok) {
-      const redirect = (route.query.redirect as string) || '/app/account'
+      const redirect = (route.query.redirect as string) || '/op/account'
       router.replace(redirect)
       return
     }
@@ -208,7 +208,7 @@ async function submitReset() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-cream dark:bg-slate-900">
+  <div class="flex-1 flex items-center justify-center px-4 py-12">
     <!-- Loading state -->
     <div v-if="loading" class="flex flex-col items-center gap-4">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
