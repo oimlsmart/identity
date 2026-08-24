@@ -144,6 +144,29 @@ destructive waits for a two-release overlap, so a rollback never meets
 a schema it cannot read. The workflow applies migrations forward only;
 a rollback never migrates back.
 
+**Landing a NEW migration** (the zero-pending tripwire's other half):
+the production gate refuses a deploy while the live registry shows an
+unapplied file, so a change carrying a migration lands in two deliberate
+steps:
+
+1. Merge the change. The migration file rides the repo set (kept
+   byte-identical with the smart monorepo's set — wrangler keys the
+   bookkeeping on filenames, so the set appends expand-only and never
+   renumbers).
+2. Apply it to the live registry OUT OF BAND, before tagging:
+
+   ```bash
+   cd browser
+   npx wrangler d1 migrations apply oiml-smart-platform-identity --remote \
+     --config wrangler.toml --env identity
+   ```
+
+   Verify with `npx wrangler d1 migrations list oiml-smart-platform-identity
+   --remote --config wrangler.toml --env identity` (no file listed as
+   pending), then tag the `id-v*` release. The preview stage applies its
+   own database first, so the tag run exercises the file there before the
+   production gate's list proves it applied live.
+
 ## Key rotation (the ceremony)
 
 Cadence: quarterly, and immediately on suspicion of compromise. The

@@ -78,7 +78,12 @@ has passed, never automatically mid-flight.
   two: "end all sessions" signs the account out everywhere without
   touching its ability to sign in again.
   RP-side: existing sessions expire at their own lifetime;
-  sensitive acts re-check (the approval queues already do).
+  sensitive acts re-check (the approval queues already do). At the
+  ORGANIZATION level (the multi-org membership model), the org's
+  administrator disables one membership: the account stops acting as
+  that organization (its sessions' context and its tokens' claims fall
+  back to the primary binding at once) while the account and its other
+  memberships stand.
 - The admin audit log (every grant, rotation, offboarding) is retained
   and exportable — the scheme's peer-assessment habit makes the OP's
   own admin log audit evidence.
