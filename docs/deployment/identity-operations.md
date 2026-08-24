@@ -74,7 +74,10 @@ has passed, never automatically mid-flight.
   quarterly restore drill — an untested backup is a hope, not a backup.
 - Offboarding: disable revokes sessions and blocks issuance while
   preserving the audit trail; delete is the erasure path and
-  anonymizes. RP-side: existing sessions expire at their own lifetime;
+  anonymizes. On the account page the lighter act sits between the
+  two: "end all sessions" signs the account out everywhere without
+  touching its ability to sign in again.
+  RP-side: existing sessions expire at their own lifetime;
   sensitive acts re-check (the approval queues already do).
 - The admin audit log (every grant, rotation, offboarding) is retained
   and exportable — the scheme's peer-assessment habit makes the OP's

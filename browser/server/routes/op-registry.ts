@@ -340,8 +340,10 @@ export function createOpRegistryRouter(): Hono {
       links,
       sessions,
       // The per-client role assignments (TODO.identity/03's rows; the
-      // grant/revoke acts ride routes/op-accounts.ts).
-      clientRoles: clientRoles.map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt })),
+      // grant/revoke acts ride routes/op-accounts.ts). updatedAt is null
+      // until the first re-grant — the row's createdAt is the honest
+      // "granted" stamp then.
+      clientRoles: clientRoles.map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt ?? a.createdAt })),
       appAccess,
       activity: trail.slice(0, ACTIVITY_PAGE),
       activityTotal: trail.length,
