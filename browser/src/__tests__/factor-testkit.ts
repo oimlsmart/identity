@@ -7,7 +7,7 @@
 // signature over authData || SHA-256(clientDataJSON)). Nothing here is a
 // mock of the ceremony: the server under test parses and verifies the
 // real bytes; the live-browser interop leg is the e2e virtual
-// authenticator (e2e/id-11-factors.e2e.ts).
+// authenticator (e2e/id-13-factors.e2e.ts).
 //
 // Shared by id-webauthn-vectors.test.ts (the parse/verify vectors) and
 // id-factors.test.ts (the route-level ceremonies).
