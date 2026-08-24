@@ -8,7 +8,8 @@
 //                   with its verification state and the verify-new-email
 //                   ceremony (the link is SHOWN honestly while no mailer
 //                   is configured; TODO.identity/09 owns the send), the
-//                   avatar (the uploaded picture, or a linked
+//                   avatar (uploaded through the client-side CROP step —
+//                   components/AvatarCropDialog.vue — or from a linked
 //                   provider's; initials otherwise — served publicly by
 //                   convention at /op/avatar/<id>, the OIDC `picture`
 //                   claim's target, and the section says so plainly);
@@ -34,6 +35,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import UpstreamProviderIcon from '../components/UpstreamProviderIcon.vue'
+import AvatarCropDialog from '../components/AvatarCropDialog.vue'
+import { AVATAR_ACCEPT_TYPES } from '../lib/avatar-crop'
 import { t, type MessageKey } from '../i18n'
 
 interface AccountContext {
@@ -135,10 +138,15 @@ const initials = computed(() => {
 // ── the avatar upload ────────────────────────────────────────────────
 // The size cap + the raster-type allowlist are mirrored client-side for
 // the fast honest refusal; the server re-judges both (and sniffs the
-// bytes) — the page is never the only gate.
+// bytes) — the page is never the only gate. The picked file passes
+// through the CROP step (components/AvatarCropDialog.vue): the square
+// framing, then the final 256 px PNG rendered client-side (canvas →
+// blob) — the route is never trusted to fix the image.
 const avatarInput = ref<HTMLInputElement | null>(null)
 const avatarBusy = ref(false)
 const avatarError = ref<string | null>(null)
+/** The picked file waiting on its crop (the dialog is open while set). */
+const cropFile = ref<File | null>(null)
 /** Cache-buster for the serving URL after an upload/remove (the avatar
  *  route answers no-cache; the src must still change for the refetch). */
 const avatarBust = ref(0)
@@ -161,7 +169,10 @@ function pickAvatar() {
   avatarInput.value?.click()
 }
 
-async function uploadAvatar(e: Event) {
+/** The picked file: the fast honest refusals (the server's cap + type
+ *  allowlist, mirrored), then the CROP step opens — the upload only runs
+ *  on the dialog's confirm, with the blob the crop produced. */
+function onAvatarPicked(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   ;(e.target as HTMLInputElement).value = '' // the same file again must re-fire
   if (!file || avatarBusy.value) return
@@ -172,17 +183,30 @@ async function uploadAvatar(e: Event) {
     avatarError.value = t('account.profile.avatarTooLarge', { max: avatarMaxMb.value })
     return
   }
-  if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) {
+  if (!(AVATAR_ACCEPT_TYPES as readonly string[]).includes(file.type)) {
     avatarError.value = t('account.profile.avatarWrongType')
+    return
+  }
+  cropFile.value = file
+}
+
+async function onCropConfirm(blob: Blob) {
+  cropFile.value = null
+  // The defensive mirror of the server's cap: the crop output is a small
+  // square PNG, far under the cap in practice — the check stays because
+  // the console never hides a limit (and the server re-judges anyway).
+  const maxBytes = context.value?.features?.avatarMaxBytes ?? 2 * 1024 * 1024
+  if (blob.size > maxBytes) {
+    avatarError.value = t('account.profile.avatarTooLarge', { max: avatarMaxMb.value })
     return
   }
   avatarBusy.value = true
   try {
     const res = await fetch('/api/op/account/avatar', {
       method: 'PUT',
-      headers: { 'content-type': file.type },
+      headers: { 'content-type': blob.type },
       credentials: 'include',
-      body: file,
+      body: blob,
     })
     if (!res.ok) {
       const body = await res.json().catch(() => null) as { error?: string } | null
@@ -597,7 +621,7 @@ async function revokeOthers() {
                   accept="image/png,image/jpeg,image/webp,image/gif"
                   class="hidden"
                   data-testid="account-avatar-input"
-                  @change="uploadAvatar"
+                  @change="onAvatarPicked"
                 />
                 <button
                   type="button"
@@ -953,6 +977,18 @@ async function revokeOthers() {
           </ul>
         </section>
       </template>
+
+      <!-- The crop step of "Change the picture": the square framing runs
+           client-side; the confirm emits the final PNG blob and the
+           upload rides the route's own (unchanged) gates. -->
+      <AvatarCropDialog
+        v-if="cropFile"
+        :file="cropFile"
+        :max-bytes="context?.features?.avatarMaxBytes ?? 2 * 1024 * 1024"
+        :busy="avatarBusy"
+        @confirm="onCropConfirm"
+        @cancel="cropFile = null"
+      />
     </div>
   </div>
 </template>

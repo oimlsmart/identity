@@ -25,8 +25,13 @@
 //   leg 5  the activity feed: the account's own events, newest first;
 //          the guide screenshots are captured here (the documentation
 //          rule: real 1440x900 captures from the running app);
-//   leg 6  the avatar: the upload (capped + type-allowlisted), the
-//          renders, the removal;
+//   leg 6  the avatar: the client refusals (the type allowlist, the
+//          size cap) and the server's re-judgment (415/413), then the
+//          CROP step (the dialog opens on the pick; drag + zoom reframe
+//          the window; the cancel uploads nothing), the confirm's
+//          client-side 256 px PNG landing (the served bytes decode
+//          square, framed on the source's center), the header render,
+//          the removal;
 //   leg 7  the PUBLIC avatar route + the OIDC picture claim: the
 //          session-less serve (bytes / generated initials / the honest
 //          404), and the claim appearing only with the client's policy
@@ -656,15 +661,16 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
     })
   })
 
-  it('leg 6 — the avatar: the upload (capped + type-allowlisted), the renders, the removal', { timeout: 900_000 }, async () => {
+  it('leg 6 — the avatar: the crop step (drag + zoom + cancel), the upload, the renders, the removal', { timeout: 900_000 }, async () => {
     const cookie = await passwordCookie(stack.base, CASEY_EMAIL_2, CASEY_PASSWORD_3)
-    // The fixtures: a real 1x1 PNG, an SVG (never an avatar type), and a
-    // 2 MiB + 1 payload with a real PNG header (the oversize leg).
-    const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
-    const pngPath = join(DB_DIR, 'casey-avatar.png')
+    // The fixtures: an SVG (never an avatar type) and a 2 MiB + 1 payload
+    // with a real PNG header (the oversize leg). The PHOTO is a real
+    // 640x320 PNG painted in the page (red left, blue right) — the crop's
+    // square framing is provable from the served bytes.
     const svgPath = join(DB_DIR, 'not-an-avatar.svg')
     const bigPath = join(DB_DIR, 'too-big.png')
-    writeFileSync(pngPath, PNG_1PX)
+    const photoPath = join(DB_DIR, 'casey-photo.png')
+    const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
     writeFileSync(svgPath, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
     const big = Buffer.alloc(2 * 1024 * 1024 + 1)
     PNG_1PX.copy(big)
@@ -709,17 +715,127 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
       expect(refused).toEqual({ svg: 415, big: 413 })
       flog(page, 'leg6: the server gates held (415 + 413)')
 
-      // The upload: the real PNG through the console's own input.
-      await input!.uploadFile(pngPath)
-      await page.waitForSelector('[data-testid="account-avatar"]', { timeout: SETTLE, polling: 500 })
-      flog(page, 'leg6: uploaded — the picture renders on the console')
+      // The photo fixture: a real 640x320 PNG painted on a canvas in the
+      // page (red left half, blue right half), then to disk for the
+      // input's uploadFile.
+      const photoDataUrl = await page.evaluate(() => {
+        const c = document.createElement('canvas')
+        c.width = 640
+        c.height = 320
+        const ctx = c.getContext('2d')!
+        ctx.fillStyle = '#c0392b'
+        ctx.fillRect(0, 0, 320, 320)
+        ctx.fillStyle = '#2980b9'
+        ctx.fillRect(320, 0, 320, 320)
+        return c.toDataURL('image/png')
+      })
+      writeFileSync(photoPath, Buffer.from(photoDataUrl.split(',')[1]!, 'base64'))
 
-      // The serving route answers the bytes with the image type.
+      /** A pixel of the crop window's canvas (the live WYSIWYG view). */
+      const cropPixel = async (x: number, y: number): Promise<number[]> => page.evaluate(async (px, py) => {
+        const canvas = document.querySelector('[data-testid="account-avatar-crop-canvas"]') as HTMLCanvasElement
+        const ctx = canvas.getContext('2d')!
+        return Array.from(ctx.getImageData(px, py, 1, 1).data)
+      }, x, y)
+
+      // THE CROP STEP: the pick opens the dialog (the upload has NOT run
+      // yet); the canvas, the round preview, the zoom, the honest size
+      // note (the server's cap named) all stand.
+      await input!.uploadFile(photoPath)
+      await page.waitForSelector('[data-testid="account-avatar-crop"]', { timeout: 30_000, polling: 250 })
+      await page.waitForSelector('[data-testid="account-avatar-crop-preview"]', { timeout: 30_000, polling: 250 })
+      await page.waitForSelector('[data-testid="account-avatar-crop-zoom"]', { timeout: 30_000, polling: 250 })
+      const note = await page.$eval('[data-testid="account-avatar-crop-note"]', el => el.textContent ?? '')
+      expect(note).toContain('256')
+      expect(note).toContain('2 MB')
+      await page.waitForFunction(
+        () => {
+          const canvas = document.querySelector('[data-testid="account-avatar-crop-canvas"]') as HTMLCanvasElement | null
+          return !!canvas && canvas.width > 0
+        },
+        { timeout: 30_000, polling: 250 },
+      )
+      // The opening frame is the centered cover: the source's midline is
+      // the red/blue boundary — left of it red, right of it blue.
+      const leftPixel = await cropPixel(60, 140)
+      const rightPixel = await cropPixel(220, 140)
+      expect(leftPixel[0]!, 'the opening frame: red left of the midline').toBeGreaterThan(leftPixel[2]!)
+      expect(rightPixel[2]!, 'the opening frame: blue right of the midline').toBeGreaterThan(rightPixel[0]!)
+      flog(page, 'leg6: the crop dialog stands, the frame is the centered cover')
+
+      // The drag: the image follows the pointer — dragging right moves
+      // the window left over the source, so the right sample turns red.
+      const cropBox = await (await page.$('[data-testid="account-avatar-crop-canvas"]'))!.boundingBox()
+      await page.mouse.move(cropBox!.x + 140, cropBox!.y + 140)
+      await page.mouse.down()
+      await page.mouse.move(cropBox!.x + 200, cropBox!.y + 140, { steps: 5 })
+      await page.mouse.up()
+      const draggedPixel = await cropPixel(220, 140)
+      expect(draggedPixel[0]!, 'the drag reframed (the window moved left, red shows right)').toBeGreaterThan(draggedPixel[2]!)
+      flog(page, 'leg6: the drag reframed the window')
+
+      // The zoom (the slider): the pixels move again.
+      await page.$eval('[data-testid="account-avatar-crop-zoom"]', (el) => {
+        (el as HTMLInputElement).value = '50'
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await page.waitForFunction(
+        async () => {
+          const canvas = document.querySelector('[data-testid="account-avatar-crop-canvas"]') as HTMLCanvasElement
+          const d = canvas.getContext('2d')!.getImageData(220, 140, 1, 1).data
+          return d[0]! > d[2]! // zoomed in on the red side
+        },
+        { timeout: 30_000, polling: 250 },
+      )
+      flog(page, 'leg6: the zoom reframed the window')
+
+      // The cancel: no upload ran — the initials stand, the serve 404s.
+      await page.evaluate(() => (document.querySelector('[data-testid="account-avatar-crop-cancel"]') as HTMLElement).click())
+      await page.waitForFunction(
+        () => !document.querySelector('[data-testid="account-avatar-crop"]'),
+        { timeout: 30_000, polling: 250 },
+      )
+      await page.waitForSelector('[data-testid="account-avatar-initials"]', { timeout: 30_000, polling: 250 })
+      const stillNone = await page.evaluate(async () => (await fetch('/api/op/account/avatar', { credentials: 'include' })).status)
+      expect(stillNone).toBe(404)
+      flog(page, 'leg6: the cancel uploaded nothing')
+
+      // The upload: the photo again, the confirm (the default centered
+      // frame), and the cropped PNG lands.
+      await input!.uploadFile(photoPath)
+      await page.waitForSelector('[data-testid="account-avatar-crop"]', { timeout: 30_000, polling: 250 })
+      await page.waitForFunction(
+        () => {
+          const canvas = document.querySelector('[data-testid="account-avatar-crop-canvas"]') as HTMLCanvasElement | null
+          return !!canvas && canvas.width > 0
+        },
+        { timeout: 30_000, polling: 250 },
+      )
+      await page.evaluate(() => (document.querySelector('[data-testid="account-avatar-crop-confirm"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="account-avatar"]', { timeout: SETTLE, polling: 500 })
+      flog(page, 'leg6: crop confirmed — the picture renders on the console')
+
+      // The serving route answers the CROPPED bytes: a 256x256 PNG (the
+      // client-side crop is the final image — a 640x320 source could
+      // never serve square otherwise), framed on the center (red left,
+      // blue right).
       const served = await page.evaluate(async () => {
         const res = await fetch('/api/op/account/avatar', { credentials: 'include' })
-        return { status: res.status, type: res.headers.get('content-type'), bytes: (await res.arrayBuffer()).byteLength }
+        const buf = await res.arrayBuffer()
+        const bmp = await createImageBitmap(new Blob([buf]))
+        const c = document.createElement('canvas')
+        c.width = bmp.width
+        c.height = bmp.height
+        const ctx = c.getContext('2d')!
+        ctx.drawImage(bmp, 0, 0)
+        const left = Array.from(ctx.getImageData(10, Math.floor(bmp.height / 2), 1, 1).data)
+        const right = Array.from(ctx.getImageData(bmp.width - 10, Math.floor(bmp.height / 2), 1, 1).data)
+        return { status: res.status, type: res.headers.get('content-type'), w: bmp.width, h: bmp.height, left, right }
       })
-      expect(served).toMatchObject({ status: 200, type: 'image/png', bytes: PNG_1PX.byteLength })
+      expect(served).toMatchObject({ status: 200, type: 'image/png', w: 256, h: 256 })
+      expect(served.left[0]!, 'the served crop: red on the left').toBeGreaterThan(served.left[2]!)
+      expect(served.right[2]!, 'the served crop: blue on the right').toBeGreaterThan(served.right[0]!)
+      flog(page, 'leg6: the served bytes are the client-cropped 256px square')
 
       // The header's session payload loads at bootstrap, so the user
       // menu's picture shows from the next navigation — reload, then the
