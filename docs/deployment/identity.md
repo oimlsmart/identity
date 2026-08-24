@@ -544,7 +544,12 @@ routes, never the entity-gated `/api/blobs` surface. The limits live in
 overrides), the four raster types only (PNG, JPEG, WebP or GIF; SVG is
 excluded so an image channel can never become a script channel), and the
 stored bytes are sniffed against the declared Content-Type (a mislabeled
-payload is refused, never stored). The serving route
+payload is refused, never stored). The console's upload runs through a
+client-side crop step first: the picked file opens a dialog (square
+crop, drag + zoom, a live preview) and the confirm renders the framed
+square to a 256 px PNG in the browser (`src/lib/avatar-crop.ts` +
+`src/components/AvatarCropDialog.vue`), so the route always receives the
+final image and never has to fix one. The serving route
 (`GET /api/op/account/avatar`) answers the session account's own picture
 with `x-content-type-options: nosniff`; the account row's `avatar_url`
 points at it, so the console, the header's user menu and the consent
