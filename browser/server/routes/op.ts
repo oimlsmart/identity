@@ -432,37 +432,50 @@ export function createOpRouter(): Hono {
     const config = configFor(c)
     const store = getStore()
 
+    /** The token endpoint's refusals land on the audit chain
+     *  (TODO.identity-sso/01's token-anomaly signal): the OIDC error code
+     *  and the client id WHEN one authenticated (never the code, the
+     *  secret, or the verifier). The success is journaled as
+     *  client.token_issued below. */
+    async function refuseToken(status: 400 | 401, code: string, description: string, clientId?: string): Promise<Response> {
+      await audit('client.token_refused', clientId ?? 'unauthenticated', {}, { error: code })
+      return oidcError(c, status, code, description)
+    }
+
     const contentType = c.req.header('content-type') ?? ''
     if (!contentType.includes('application/x-www-form-urlencoded')) {
       return oidcError(c, 400, 'invalid_request', 'the token endpoint speaks application/x-www-form-urlencoded')
     }
     const form = new URLSearchParams(await c.req.raw.text())
     if (form.get('grant_type') !== 'authorization_code') {
-      return oidcError(c, 400, 'unsupported_grant_type', 'authorization_code only')
+      return refuseToken(400, 'unsupported_grant_type', 'authorization_code only', form.get('client_id') ?? undefined)
     }
 
     const { client, error } = await authenticateClient(c, form)
-    if (error) return error
+    if (error) {
+      await audit('client.token_refused', form.get('client_id')?.trim() || 'unauthenticated', {}, { error: 'invalid_client' })
+      return error
+    }
 
     // The one-time code — consumed ATOMICALLY here, so whatever fails
     // below never gives the code a second life, and a replay always
     // loses (invalid_grant).
     const codeValue = form.get('code') ?? ''
     const code = codeValue ? await store.consumeOidcCode(codeValue) : null
-    if (!code) return oidcError(c, 400, 'invalid_grant', 'the code is unknown, expired, or already used')
+    if (!code) return refuseToken(400, 'invalid_grant', 'the code is unknown, expired, or already used', client!.clientId)
     if (code.clientId !== client!.clientId) {
-      return oidcError(c, 400, 'invalid_grant', 'the code was not issued to this client')
+      return refuseToken(400, 'invalid_grant', 'the code was not issued to this client', client!.clientId)
     }
     if (code.redirectUri !== (form.get('redirect_uri') ?? '')) {
-      return oidcError(c, 400, 'invalid_grant', 'redirect_uri does not match the authorization request')
+      return refuseToken(400, 'invalid_grant', 'redirect_uri does not match the authorization request', client!.clientId)
     }
     const verifier = form.get('code_verifier') ?? ''
     if (!verifier || (await pkceS256(verifier)) !== code.codeChallenge) {
-      return oidcError(c, 400, 'invalid_grant', 'the PKCE verifier does not match the challenge')
+      return refuseToken(400, 'invalid_grant', 'the PKCE verifier does not match the challenge', client!.clientId)
     }
 
     const user = await store.getUserById(code.userId)
-    if (!user) return oidcError(c, 400, 'invalid_grant', 'the code’s account no longer exists')
+    if (!user) return refuseToken(400, 'invalid_grant', 'the code’s account no longer exists', client!.clientId)
 
     // The claims the client is allowed: profile+email per the scopes;
     // roles/groups/org ONLY per the client's claims policy (a client
@@ -518,6 +531,11 @@ export function createOpRouter(): Hono {
       scope: code.scope,
       ttlMs: config.accessTokenTtlMs,
     })
+
+    // The issuance lands on the audit chain (TODO.identity-sso/01's
+    // per-client activity + the anomaly baseline): the client, the
+    // account, the scope. NEVER the token values.
+    await audit('client.token_issued', client!.clientId, {}, { account: user.id, scope: code.scope })
 
     return c.json({
       access_token: accessToken,

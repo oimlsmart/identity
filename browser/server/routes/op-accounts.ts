@@ -177,12 +177,16 @@ export function createOpAccountsRouter(): Hono {
   })
 
   /** The account mutations' audit trail (the same discipline as
-   *  routes/auth.ts's SSO audit: the audit never blocks the path). */
+   *  routes/auth.ts's SSO audit: the audit never blocks the path).
+   *  entityType stays 'account' for the registry's acts; the sign-in
+   *  path's events ride 'auth' (the same journal family the upstream
+   *  sign-in writes, so the account holder's own feed sees them). */
   async function audit(
     action: string,
     entityId: string,
     actor: { userId?: string; userName?: string },
     metadata: Record<string, unknown>,
+    entityType: 'account' | 'auth' = 'account',
   ): Promise<void> {
     try {
       const id = crypto.randomUUID()
@@ -190,7 +194,7 @@ export function createOpAccountsRouter(): Hono {
         id,
         timestamp: new Date().toISOString(),
         standard_id: '',
-        entity_type: 'account',
+        entity_type: entityType,
         entity_id: entityId,
         action,
         user_id: actor.userId,
@@ -249,7 +253,10 @@ export function createOpAccountsRouter(): Hono {
   // deliberately indistinguishable (unknown account / no credential /
   // wrong password) AND timing-uniform (verifyPasswordLogin always runs
   // one full-cost verify — auth/passwords.ts). A deactivated account
-  // with the RIGHT password gets its own honest message.
+  // with the RIGHT password gets its own honest message. Every outcome
+  // lands on the audit chain: the success as account.sign_in, the
+  // failures as account.sign_in_failed (the dashboard's burst signal +
+  // the holder's own feed — TODO.identity-sso/01).
   accounts.post('/api/op/login', async (c) => {
     const body = await c.req.json<{ email?: string; password?: string }>().catch(() => null)
     if (!body || typeof body.email !== 'string' || typeof body.password !== 'string' || !body.email || !body.password) {
@@ -259,9 +266,24 @@ export function createOpAccountsRouter(): Hono {
     const cred = await store.getPasswordLogin(body.email)
     const ok = await verifyPasswordLogin(body.password, cred?.hash ?? null)
     if (!cred || !ok) {
+      // The failure lands on the audit chain too (TODO.identity-sso/01's
+      // failed-login signal + the holder's own security feed). The
+      // caller's answer stays uniform; the journal keys on the account
+      // id when the address names one (the holder then sees the attempt
+      // on their own feed), else on the normalized address itself.
+      await audit('account.sign_in_failed', cred?.userId ?? body.email.trim().toLowerCase(), {}, {
+        method: 'password',
+        email: body.email.trim().toLowerCase(),
+        reason: 'invalid_credentials',
+      }, 'auth')
       return c.json({ error: 'Invalid email or password' }, 401)
     }
     if (!cred.active) {
+      await audit('account.sign_in_failed', cred.userId, {}, {
+        method: 'password',
+        email: body.email.trim().toLowerCase(),
+        reason: 'deactivated',
+      }, 'auth')
       return c.json({ error: 'This account is deactivated — contact your administrator.' }, 403)
     }
     await store.touchLastLogin(cred.userId)
