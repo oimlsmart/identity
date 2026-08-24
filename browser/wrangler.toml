@@ -83,33 +83,32 @@ database_name = "oiml-smart-platform-identity"
 database_id = "6d24ab5f-f275-472f-82b1-fd0e3ca6ed96" # created 2026-08-16 via `wrangler d1 create`
 migrations_dir = "server/db/migrations"
 
-# TODO.identity/09 — transactional email. TWO provider postures, both
-# off until the operator completes the setup (docs/deployment/
-# identity.md → "Transactional email"):
-#   1. the Cloudflare Email Service (public beta) — uncomment the
-#      send_email binding below once the beta is enabled on the account
-#      and the oimlsmart.org domain authentication (SPF/DKIM/DMARC) is
-#      complete. Deploying with the binding uncommented BEFORE the beta
-#      is enabled would fail the deploy, hence the comment.
+# TODO.identity/09 — transactional email. TWO provider postures:
+#   1. the Cloudflare Email Service — the binding below, live once the
+#      account's email-sending access is on and the oimlsmart.org
+#      domain authentication (SPF/DKIM/DMARC) is complete
+#      (docs/deployment/identity.md → "Transactional email"). Deploying
+#      with the binding active BEFORE the account access exists would
+#      fail the deploy.
 #   2. the HTTPS provider fallback — MAIL_PROVIDER_URL below + the key
 #      as a secret (`wrangler secret put MAIL_PROVIDER_KEY --env
 #      identity`). Uncomment the URL when the key is set.
 # With neither configured the mailer is an honest no-op: messages are
 # logged and the invite/reset flows keep showing their setup links.
-# [[env.identity.send_email]]
-# name = "EMAIL"
+[[env.identity.send_email]]
+name = "EMAIL"
 
 # The account-avatar uploads (the account console's "Change the picture")
 # ride the blob-store seam (server/blobs.ts): R2 here, disk on node.
-# Uncomment the binding once the bucket exists (`wrangler r2 bucket
-# create oiml-smart-avatars-identity`). WITHOUT it the feature degrades
-# honestly: the upload routes answer 503 and the console shows the
-# linked-provider picture or the initials (the account page says so).
-# The 2 MiB cap + the PNG/JPEG/WebP/GIF allowlist hold either way
-# (server/auth/op/avatars.ts; AVATAR_MAX_BYTES overrides).
-# [[env.identity.r2_buckets]]
-# binding = "BLOBS"
-# bucket_name = "oiml-smart-avatars-identity"
+# The bucket exists (oiml-smart-avatars-identity). If the binding is
+# ever removed, the feature degrades honestly: the upload routes answer
+# 503 and the console shows the linked-provider picture or the initials
+# (the account page says so). The 2 MiB cap + the PNG/JPEG/WebP/GIF
+# allowlist hold either way (server/auth/op/avatars.ts;
+# AVATAR_MAX_BYTES overrides).
+[[env.identity.r2_buckets]]
+binding = "BLOBS"
+bucket_name = "oiml-smart-avatars-identity"
 
 [env.identity.vars]
 ENTITY_BACKEND = "server"
@@ -142,10 +141,11 @@ name = "oiml-smart-platform-identity-preview"
 [[env.identity-preview.d1_databases]]
 binding = "DB"
 database_name = "oiml-smart-platform-identity-preview"
-# PLACEHOLDER — the one-time setup (docs/deployment/identity-deploy.md):
-# `wrangler d1 create oiml-smart-platform-identity-preview`, paste the
-# issued database_id here, set the workflow's IDENTITY_PREVIEW_URL var.
-database_id = "00000000-0000-0000-0000-000000000000"
+# The one-time setup is DONE (2026-08-24, the wave-03 deploy prep):
+# the database below was created with `wrangler d1 create
+# oiml-smart-platform-identity-preview`; the workflow's
+# IDENTITY_PREVIEW_URL var completes the posture.
+database_id = "d88056fc-cff7-48c6-9a67-8f7c817ed248"
 migrations_dir = "server/db/migrations"
 
 [env.identity-preview.vars]
