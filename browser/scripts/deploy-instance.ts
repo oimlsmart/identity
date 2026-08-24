@@ -49,8 +49,12 @@ const composed = {
   d1_databases: block.d1_databases,
   // The env block's OWN bindings must carry too (2026-08-17: the
   // composer's first version dropped r2_buckets, so the instances
-  // silently bound the default bucket or none).
+  // silently bound the default bucket or none; 2026-08-24: the same
+  // gap for send_email — smart#182 activated the EMAIL binding in
+  // [env.identity] and the generated base config's `send_email: []`
+  // silently won, so the deploy would have shipped WITHOUT it).
   ...(block.r2_buckets ? { r2_buckets: block.r2_buckets } : {}),
+  ...(block.send_email ? { send_email: block.send_email } : {}),
   vars: { ...(base.vars ?? {}), ...(block.vars ?? {}) },
   routes: [],
   tail_consumers: [],
