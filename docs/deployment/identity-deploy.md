@@ -127,6 +127,16 @@ npx wrangler rollback <deployment-id> --config dist/server/wrangler.identity.jso
 Then re-prove: `npx tsx scripts/op-surface-contract.ts probe
 https://id.oimlsmart.org`.
 
+Post-cutover note (2026-08-24, the wave-03 cutover, tag
+`id-v2026.08.24-1`): the first rollback target in the deployment
+history is version `7d2d3a08-1a9c-432a-91d4-c267103c7c2d`, the last
+monorepo-built deployment (a secret change over the 2026-08-20 code
+version `7ef7b906-…`). Rolling back to it restores the monorepo build
+exactly; the registry is untouched either way and live sessions survive
+(the `oiml-session` cookie name and the sessions table semantics are
+unchanged, and `OP_SIGNING_KEY` is account-side Worker state no deploy
+disturbs).
+
 **The migration contract**: migrations under
 `browser/server/db/migrations/` are expand-only (new tables, new
 columns with defaults, never a drop or a narrowing rename) and anything
