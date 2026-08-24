@@ -113,3 +113,27 @@ export function pictureClaimForClient(
   if (!user.avatarUrl) return null
   return `${issuer}/op/avatar/${user.id}`
 }
+
+/** The claims to attach for a RESOLVED org context (TODO.identity/11 —
+ *  the multi-org membership model): the same rule as
+ *  roleClaimsForClient, keyed on the context (the active org + its
+ *  per-org role set, auth/op/memberships.ts's claimsContextFor) instead
+ *  of the raw account row. The CLAIM SHAPE never changes: `org` is the
+ *  active org, `roles`/`groups` carry its set — an EMPTY context set
+ *  omits the role claims (never an empty array on the wire — an account
+ *  whose primary membership is invited/disabled emits none). */
+export function roleClaimsForContext(
+  assigned: string[] | null,
+  context: { orgId: string | null; roles: string[] },
+  policy: OidcClientClaimsPolicy | null,
+): Record<string, unknown> {
+  const gate = new Set(policy?.claims ?? [])
+  const out: Record<string, unknown> = {}
+  const roles = rolesForClient(assigned, context.roles, policy)
+  if (roles.length) {
+    if (gate.has('roles')) out.roles = roles
+    if (gate.has('groups')) out.groups = roles
+  }
+  if (gate.has('org') && context.orgId) out.org = context.orgId
+  return out
+}

@@ -51,12 +51,14 @@ import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/conf
 import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, type OpSigningKey } from '../auth/op/keys'
 import { hashClientSecret, verifyClientSecret } from '../auth/op/secrets'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
-import { roleClaimsForClient, pictureClaimForClient } from '../auth/op/claims'
+import { roleClaimsForContext, pictureClaimForClient } from '../auth/op/claims'
+import { claimsContextFor } from '../auth/op/memberships'
 import { avatarKeys, AVATAR_PUBLIC_CACHE, initialsAvatarSvg } from '../auth/op/avatars'
 import { getBlobStore } from '../blobs'
 import { validateLaunch, type LaunchInput } from '../auth/op/launch'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { SESSION_COOKIE, sessionUser } from '@oimlsmart/platform-server/session'
+import { getCookie } from 'hono/cookie'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -327,10 +329,18 @@ export function createOpRouter(): Hono {
     // The role claims this client's tokens carry for THIS account (shown
     // honestly on the consent page — the account shares more than its
     // name): the per-client assignment through the client's policy
-    // allowlist (TODO.identity/03, auth/op/claims.ts).
-    const assigned = await getStore().getOpClientRoles(user.id, row!.clientId)
+    // allowlist (TODO.identity/03, auth/op/claims.ts). TODO.identity/11:
+    // resolved under the session's ACTIVE-ORG CONTEXT (the membership
+    // model) — the page shows exactly the claims the token will carry.
+    const store = getStore()
+    const assigned = await store.getOpClientRoles(user.id, row!.clientId)
+    const rawUser = await store.getUserById(user.id)
+    const activeOrg = await store.getSessionActiveOrg(getCookie(c, SESSION_COOKIE) ?? '')
+    const context = rawUser
+      ? await claimsContextFor(store, rawUser, activeOrg)
+      : { orgId: null, roles: [] as string[] }
     const roleClaims = client
-      ? roleClaimsForClient(assigned, { role: user.role, roles: user.roles, orgId: user.orgId }, client.claimsPolicy)
+      ? roleClaimsForContext(assigned, context, client.claimsPolicy)
       : {}
     return c.json({
       id: row!.id,
@@ -376,6 +386,12 @@ export function createOpRouter(): Hono {
 
     const config = configFor(c)
     const code = opRandomToken()
+    // TODO.identity/11: the code inherits the session's stamped
+    // active-org context — the token endpoint emits the claims of the
+    // context the account consented IN (re-judged against the live
+    // membership at the exchange).
+    const sessionToken = getCookie(c, SESSION_COOKIE)
+    const contextOrg = sessionToken ? await getStore().getSessionActiveOrg(sessionToken) : null
     await getStore().createOidcCode({
       code,
       clientId: decided.clientId,
@@ -384,6 +400,7 @@ export function createOpRouter(): Hono {
       nonce: decided.nonce,
       codeChallenge: decided.codeChallenge,
       userId: user.id,
+      contextOrg,
       ttlMs: config.codeTtlMs,
     })
     back.searchParams.set('code', code)
@@ -485,7 +502,11 @@ export function createOpRouter(): Hono {
     // the role VALUES are the account's per-client assignment (no row =
     // the account's OP-side default set), bounded by the policy's
     // optional role allowlist — the OP never emits a role the client is
-    // not configured to receive (auth/op/claims.ts).
+    // not configured to receive (auth/op/claims.ts). TODO.identity/11: the
+    // default set is resolved under the code's stamped ORG CONTEXT (the
+    // consent's active org, re-judged against the live membership — a
+    // membership disabled mid-flow falls back to the primary context,
+    // never a dead org's claims).
     const scopes = code.scope.split(/\s+/).filter(Boolean)
     const nowSec = Math.floor(Date.now() / 1000)
     const claims: Record<string, unknown> = {
@@ -505,7 +526,8 @@ export function createOpRouter(): Hono {
       claims.email_verified = true
     }
     const assigned = await store.getOpClientRoles(user.id, client!.clientId)
-    Object.assign(claims, roleClaimsForClient(assigned, user, client!.claimsPolicy))
+    const context = await claimsContextFor(store, user, code.contextOrg ?? null)
+    Object.assign(claims, roleClaimsForContext(assigned, context, client!.claimsPolicy))
     // The picture family (auth/op/claims.ts): the public avatar route's
     // absolute URL, ONLY when the policy names the family AND the account
     // has an uploaded avatar — absent otherwise, never a broken URL.
@@ -530,6 +552,7 @@ export function createOpRouter(): Hono {
       userId: user.id,
       clientId: client!.clientId,
       scope: code.scope,
+      contextOrg: code.contextOrg ?? null,
       ttlMs: config.accessTokenTtlMs,
     })
 
@@ -571,9 +594,11 @@ export function createOpRouter(): Hono {
       claims.email_verified = true
     }
     // The same shaping the ID token carried (TODO.identity/03): the
-    // per-client assignment through the client's policy allowlist.
+    // per-client assignment through the client's policy allowlist, under
+    // the granting code's org context (TODO.identity/11).
     const assigned = await store.getOpClientRoles(user.id, access.clientId)
-    Object.assign(claims, roleClaimsForClient(assigned, user, client?.claimsPolicy ?? null))
+    const context = await claimsContextFor(store, user, access.contextOrg ?? null)
+    Object.assign(claims, roleClaimsForContext(assigned, context, client?.claimsPolicy ?? null))
     const picture = pictureClaimForClient(user, client?.claimsPolicy ?? null, configFor(c).issuer)
     if (picture) claims.picture = picture
     return c.json(claims)
