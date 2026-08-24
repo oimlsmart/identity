@@ -8,7 +8,10 @@
 //                   with its verification state and the verify-new-email
 //                   ceremony (the link is SHOWN honestly while no mailer
 //                   is configured; TODO.identity/09 owns the send), the
-//                   avatar (from a linked provider; initials otherwise);
+//                   avatar (the uploaded picture, or a linked
+//                   provider's; initials otherwise — served publicly by
+//                   convention at /op/avatar/<id>, the OIDC `picture`
+//                   claim's target, and the section says so plainly);
 //   SIGN-IN METHODS the password and the linked upstream identities
 //                   (TODO.identity/08's registry surface) with icons,
 //                   the linked account's id and date, link/unlink and
@@ -669,6 +672,13 @@ async function revokeOthers() {
               <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ t('account.profile.roleLine', { role: context.account.role }) }}</p>
               <p class="mt-1 text-xs text-slate-400 dark:text-slate-500" data-testid="account-avatar-note">
                 {{ avatarUploads ? t('account.profile.avatarNoteUpload', { max: avatarMaxMb }) : t('account.profile.avatarNote') }}
+              </p>
+              <!-- The public-by-convention posture, stated plainly: the
+                   picture (or the initials fallback) serves from the
+                   public /op/avatar/<id> route the OIDC `picture` claim
+                   names — the RP's <img> loads it without a session. -->
+              <p class="mt-1 text-xs text-slate-400 dark:text-slate-500" data-testid="account-avatar-public-note">
+                {{ t('account.profile.avatarPublic') }}
               </p>
               <p v-if="avatarError" class="mt-1 text-xs text-red-600 dark:text-red-400" data-testid="account-avatar-error">{{ avatarError }}</p>
 

@@ -81,6 +81,7 @@ export const en = {
   "account.profile.avatarChange": "Change the picture",
   "account.profile.avatarNote": "The avatar comes from a linked identity provider; with none linked, your initials stand in.",
   "account.profile.avatarNoteUpload": "Upload your own picture (at most {max} MB — PNG, JPEG, WebP or GIF), or the avatar comes from a linked identity provider; with neither, your initials stand in.",
+  "account.profile.avatarPublic": "Your picture is public by convention (the GitHub-avatars pattern): the services you sign in to load it from a public URL, so only upload one you would show anywhere.",
   "account.profile.avatarRemove": "Remove the picture",
   "account.profile.avatarRemoved": "Your picture was removed — your initials stand in.",
   "account.profile.avatarSaved": "Your picture was updated.",
