@@ -27,6 +27,9 @@
       ]
     },
     "idToken": {
+      "amr": [
+        "pwd"
+      ],
       "aud": "fixture-rp",
       "email": "ia@oiml.org",
       "email_verified": true,
@@ -49,6 +52,9 @@
       "token_type": "Bearer"
     },
     "userinfo": {
+      "amr": [
+        "pwd"
+      ],
       "email": "ia@oiml.org",
       "email_verified": true,
       "groups": [
@@ -77,7 +83,8 @@
       "picture",
       "roles",
       "groups",
-      "org"
+      "org",
+      "amr"
     ],
     "code_challenge_methods_supported": [
       "S256"
