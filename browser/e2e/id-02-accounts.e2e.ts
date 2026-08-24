@@ -224,8 +224,9 @@ async function bootIdentityStack(github: StubGitHub): Promise<Stack> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes — the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes — the fed-01 stall class; /op/join is the table-bound one
+    // here: the root IS the sign-in page and answers early).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()
@@ -242,7 +243,7 @@ async function stopStack(stack: Stack | undefined): Promise<void> {
 
 const SETTLE = 240_000 // spawned astro compiles page chunks cold on first hit
 // The FIRST /app/* navigation of a run compiles the whole app-shell
-// island (id-01 only ever hits PUBLIC islands — /app/login, /op/consent);
+// island (the OP's islands — /, /op/consent, /op/account);
 // on a contended host that cold compile outlives SETTLE. The first
 // account-page wait of each flow carries this budget; once warm, the
 // later waits are cheap.
@@ -405,7 +406,7 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
       await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
       flog(page, 'leg1: submitted; the first app-shell navigation compiles cold')
       await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
-      expect(new URL(page.url()).pathname).toBe('/app/account')
+      expect(new URL(page.url()).pathname).toBe('/op/account')
       expect(await page.$eval('[data-testid="account-name"]', el => el.textContent?.trim())).toBe(ROOT.name)
       flog(page, 'leg1: done')
     })
@@ -445,14 +446,14 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
 
   it('leg 3 — the password sign-in through the login page’s OP form', { timeout: 600_000 }, async () => {
     await withPage(async (page) => {
-      await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       // The OP surface: the password form AND the registry-driven GitHub
       // button (TODO.identity/08's upstream row) AND (the fixture keeps
       // the cast) the demo accounts.
       await page.waitForSelector('[data-testid="upstream-login-github"]', { timeout: SETTLE, polling: 500 })
       await opPasswordSignIn(page, WILLA.email, WILLA.password)
       await page.waitForSelector('[data-testid="account-name"]', { timeout: SETTLE, polling: 500 })
-      expect(new URL(page.url()).pathname).toBe('/app/account')
+      expect(new URL(page.url()).pathname).toBe('/op/account')
       expect(await page.$eval('[data-testid="account-password-state"]', el => el.textContent ?? '')).toContain('A password is set')
       // The sessions card marks THIS session.
       await page.waitForSelector('[data-testid="account-session-current"]', { timeout: SETTLE, polling: 500 })
@@ -464,13 +465,13 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
     const cookie = await passwordCookie(stack.base, WILLA.email, WILLA.password)
     await withPage(async (page) => {
       await signInViaCookie(page, stack.base, cookie)
-      await page.goto(`${stack.base}/app/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="op-account-link-github-action"]', { timeout: APP_COLD, polling: 500 })
       await interceptStubGitHub(page, GH_WILLA.login)
       try {
         await page.evaluate(() => (document.querySelector('[data-testid="op-account-link-github-action"]') as HTMLElement).click())
         await page.waitForFunction(
-          () => window.location.pathname === '/app/account' && window.location.search.includes('linked=github'),
+          () => window.location.pathname === '/op/account' && window.location.search.includes('linked=github'),
           { timeout: SETTLE, polling: 500 },
         )
         // The URL matches at navigation START — the account page's load
@@ -496,13 +497,13 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
     // so the card lists several and the revoke has a target.
     await passwordCookie(stack.base, WILLA.email, WILLA.password)
     await withPage(async (page) => {
-      await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="upstream-login-github"]', { timeout: SETTLE, polling: 500 })
       await interceptStubGitHub(page, GH_WILLA.login)
       try {
         await page.evaluate(() => (document.querySelector('[data-testid="upstream-login-github"]') as HTMLElement).click())
         // The upstream login lands on the role home (/app for a viewer)…
-        await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+        await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
         // …and STANDS before the teardown: the URL flips at navigation
         // start while the landing page's subresources still stream through
         // the listener — disabling interception then strands them
@@ -515,7 +516,7 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
         await stopIntercepting(page)
       }
       // …and the account page confirms the session is WILLA's.
-      await page.goto(`${stack.base}/app/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="account-name"]', { timeout: SETTLE, polling: 500 })
       expect(await page.$eval('[data-testid="account-name"]', el => el.textContent?.trim())).toBe(WILLA.name)
       flog(page, 'leg5: signed in with GitHub')
@@ -549,7 +550,7 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
     const cookie = await passwordCookie(stack.base, WILLA.email, WILLA.password)
     await withPage(async (page) => {
       await signInViaCookie(page, stack.base, cookie)
-      await page.goto(`${stack.base}/app/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="op-account-unlink-github"]', { timeout: APP_COLD, polling: 500 })
       await page.evaluate(() => (document.querySelector('[data-testid="op-account-unlink-github"]') as HTMLElement).click())
       await page.waitForSelector('[data-testid="op-account-no-links"]', { timeout: 60_000, polling: 500 })
@@ -557,7 +558,7 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
 
       // The next GitHub sign-in is refused honestly.
       await browserSignOut(page, stack.base)
-      await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="upstream-login-github"]', { timeout: SETTLE, polling: 500 })
       await interceptStubGitHub(page, GH_WILLA.login)
       try {
@@ -569,7 +570,7 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
       const refusal = await page.$eval('[data-testid="login-error"]', el => el.textContent ?? '')
       expect(refusal).toContain('not linked')
       expect(refusal).toContain('administrator')
-      expect(new URL(page.url()).pathname).toBe('/app/login')
+      expect(new URL(page.url()).pathname).toBe('/')
       flog(page, 'leg6: refused honestly')
     })
   })
@@ -582,7 +583,7 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
       // The OP's sign-in surface with the flow's re-entry target — the
       // PASSWORD account signs in (the OP form).
       await page.waitForFunction(
-        () => window.location.pathname === '/app/login' && window.location.search.includes('redirect='),
+        () => window.location.pathname === '/' && window.location.search.includes('redirect='),
         { timeout: SETTLE, polling: 500 },
       )
       await opPasswordSignIn(page, WILLA.email, WILLA.password)

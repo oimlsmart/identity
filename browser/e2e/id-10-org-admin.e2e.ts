@@ -182,8 +182,9 @@ async function bootIdentityStack(): Promise<Stack> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes — the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes — the fed-01 stall class; /op/join is the table-bound one
+    // here: the root IS the sign-in page and answers early).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()
@@ -231,7 +232,7 @@ async function readSetupUrl(page: Page): Promise<string> {
 }
 
 /** Drive 02's setup page: the one-time link sets the password and signs
- *  the account in (lands on /app/account). */
+ *  the account in (lands on /op/account). */
 async function driveSetup(page: Page, setupUrl: string, password: string, expectEmail: string): Promise<void> {
   await page.goto(setupUrl, { waitUntil: 'domcontentloaded', timeout: SETTLE })
   await page.waitForSelector('[data-testid="op-setup-account"]', { timeout: SETTLE, polling: 500 })
@@ -240,7 +241,7 @@ async function driveSetup(page: Page, setupUrl: string, password: string, expect
   await page.type('[data-testid="op-setup-password"]', password)
   await page.type('[data-testid="op-setup-confirm"]', password)
   await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
-  await page.waitForFunction(() => window.location.pathname === '/app/account', { timeout: SETTLE, polling: 500 })
+  await page.waitForFunction(() => window.location.pathname === '/op/account', { timeout: SETTLE, polling: 500 })
 }
 
 /** The signed-in session's payload (null when signed out). */
@@ -252,11 +253,27 @@ async function sessionPayload(page: Page): Promise<{ email: string; orgId: strin
   })
 }
 
-/** Drop the session (the cookie is httpOnly — the browser-side delete). */
+/** Drop the session (the cookie is httpOnly — the browser-side delete),
+ *  then settle the browser on the sign-in page: the console page the
+ *  browser is leaving can self-redirect when the session dies (the 401
+ *  posture), and a caller's next goto then races that navigation (the
+ *  main-CI id-10 leg-3 ERR_ABORTED, 2026-08-24). The settle carries one
+ *  retry on exactly that signature. */
 async function signOut(page: Page): Promise<void> {
   await page.evaluate(async () => {
     await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' })
   })
+  const origin = new URL(page.url()).origin
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await page.goto(`${origin}/`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+      return
+    } catch (e) {
+      const msg = String(e)
+      if (attempt === 1 || !(msg.includes('ERR_ABORTED') || msg.includes('Execution context was destroyed'))) throw e
+      await delay(600)
+    }
+  }
 }
 
 /** The join-request row id for an email on the CURRENT page (the
@@ -291,7 +308,7 @@ describe('TODO.identity/10 — delegated organization administration (the identi
   })
 
   it('leg 1 — the login page links to the join page; the selector is fed from the register (registered only)', { timeout: 600_000 }, async () => {
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="login-join-link"]', { timeout: SETTLE, polling: 500 })
 
     await page.goto(`${stack.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
@@ -311,9 +328,9 @@ describe('TODO.identity/10 — delegated organization administration (the identi
   })
 
   it('leg 2 — BIML creates the org admin for the registered Utilizer (the enrollment link sets her password)', { timeout: 900_000 }, async () => {
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, 'admin@oiml.org')
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
 
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="biml-org-admins"]', { timeout: SETTLE, polling: 500 })
@@ -366,9 +383,9 @@ describe('TODO.identity/10 — delegated organization administration (the identi
 
   it('leg 4 — the org admin approves: the invite is issued; the people slice shows ONLY the org', { timeout: 900_000 }, async () => {
     await signOut(page)
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opPasswordSignIn(page, ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD)
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="org-queue"]', { timeout: SETTLE, polling: 500 })
 
@@ -448,9 +465,9 @@ describe('TODO.identity/10 — delegated organization administration (the identi
 
     // BIML's new-organizations queue carries it — never the org's queue.
     await signOut(page)
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, 'admin@oiml.org')
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="biml-orgs-queue"]', { timeout: SETTLE, polling: 500 })
     const requestId = await requestIdFor(page, FAKE_ORG_EMAIL)

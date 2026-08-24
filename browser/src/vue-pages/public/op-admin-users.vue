@@ -186,7 +186,7 @@ async function load(): Promise<void> {
     api('/api/op/organizations'),
   ])
   if (queueRes.status === 401) {
-    window.location.assign(`/app/login?redirect=${encodeURIComponent('/op/admin/users')}`)
+    window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/users')}`)
     return
   }
   if (queueRes.status === 403) {
@@ -668,7 +668,7 @@ onMounted(async () => {
   try {
     const session = await fetch('/api/auth/session', { credentials: 'include' })
     if (!session.ok) {
-      window.location.assign(`/app/login?redirect=${encodeURIComponent('/op/admin/users')}`)
+      window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/users')}`)
       return
     }
     account.value = await session.json() as { id: string; name: string; email: string; roles: string[] }

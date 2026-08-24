@@ -241,8 +241,9 @@ async function bootOpStack(github: StubGitHub): Promise<Stack> {
     const base = `http://localhost:${OP_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes; the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes; the fed-01 stall class — and here the root IS the
+    // sign-in page, so the table-bound gate is /op/join).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     for (const proc of [astro, api]) killTreeHard(proc)
@@ -367,7 +368,7 @@ async function opSetActive(op: Stack, accountId: string, active: boolean): Promi
 }
 
 /** Drive 02's setup page: the one-time link sets the password and signs
- *  the account in (lands on /app/account). */
+ *  the account in (lands on /op/account). */
 async function driveSetup(page: Page, setupUrl: string, password: string, expectEmail: string): Promise<void> {
   await page.goto(setupUrl, { waitUntil: 'domcontentloaded', timeout: SETTLE })
   await page.waitForSelector('[data-testid="op-setup-account"]', { timeout: SETTLE, polling: 500 })
@@ -377,7 +378,7 @@ async function driveSetup(page: Page, setupUrl: string, password: string, expect
   await page.type('[data-testid="op-setup-confirm"]', password)
   await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
   await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
-  expect(new URL(page.url()).pathname).toBe('/app/account')
+  expect(new URL(page.url()).pathname).toBe('/op/account')
 }
 
 /** The OP's password sign-in through the login page form (clears first). */
@@ -399,7 +400,7 @@ async function rpSignInToConsent(page: Page, rp: StubRp, account: { email: strin
   await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
   // The OP's sign-in surface (its own login page, the redirect re-entry).
   await page.waitForFunction(
-    (opPort) => window.location.port === opPort && window.location.pathname === '/app/login' && window.location.search.includes('redirect='),
+    (opPort) => window.location.port === opPort && window.location.pathname === '/' && window.location.search.includes('redirect='),
     { timeout: SETTLE, polling: 500 },
     String(OP_WEB),
   )
@@ -413,7 +414,7 @@ async function rpSignInToConsent(page: Page, rp: StubRp, account: { email: strin
 async function rpViaGitHubToConsent(page: Page, rp: StubRp, login: string): Promise<void> {
   await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
   await page.waitForFunction(
-    (opPort) => window.location.port === opPort && window.location.pathname === '/app/login' && window.location.search.includes('redirect='),
+    (opPort) => window.location.port === opPort && window.location.pathname === '/' && window.location.search.includes('redirect='),
     { timeout: SETTLE, polling: 500 },
     String(OP_WEB),
   )
@@ -534,7 +535,7 @@ describe('TODO.identity/05: the full identity arc, OP-side (real OP, fixture RP,
 
   it('leg 3: LINK UPSTREAM: the account console links her GitHub (the registry row, the signed state, the stub round trip)', { timeout: 900_000 }, async () => {
     await withPage(async (page) => {
-      await page.goto(`${op.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${op.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await opPasswordSignIn(page, VERA.email, VERA.password)
       await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
 
@@ -543,7 +544,7 @@ describe('TODO.identity/05: the full identity arc, OP-side (real OP, fixture RP,
       try {
         await page.evaluate(() => (document.querySelector('[data-testid="op-account-link-github-action"]') as HTMLElement).click())
         await page.waitForFunction(
-          () => window.location.pathname === '/app/account' && window.location.search.includes('linked=github'),
+          () => window.location.pathname === '/op/account' && window.location.search.includes('linked=github'),
           { timeout: SETTLE, polling: 500 },
         )
         // The URL matches at navigation START; the account page's load
@@ -696,7 +697,7 @@ describe('TODO.identity/05: the full identity arc, OP-side (real OP, fixture RP,
     await withPage(async (page) => {
       await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForFunction(
-        (opPort) => window.location.port === opPort && window.location.pathname === '/app/login' && window.location.search.includes('redirect='),
+        (opPort) => window.location.port === opPort && window.location.pathname === '/' && window.location.search.includes('redirect='),
         { timeout: SETTLE, polling: 500 },
         String(OP_WEB),
       )

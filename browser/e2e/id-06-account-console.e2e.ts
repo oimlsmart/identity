@@ -199,8 +199,9 @@ async function bootIdentityStack(github: StubGitHub): Promise<Stack> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes — the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes — the fed-01 stall class; /op/join is the table-bound one
+    // here: the root IS the sign-in page and answers early).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()
@@ -312,7 +313,7 @@ async function stopIntercepting(page: Page): Promise<void> {
 /** The console, loaded signed in: navigate + wait for the profile card. */
 async function openConsole(page: Page, base: string, cookie: string): Promise<void> {
   await signInViaCookie(page, base, cookie)
-  await page.goto(`${base}/app/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+  await page.goto(`${base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
   await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
 }
 
@@ -440,7 +441,7 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
       flog(page, 'leg2: the change confirmed')
 
       // Back at the console: the new address, the honest unverified badge.
-      await page.goto(`${stack.base}/app/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="account-email"]', { timeout: SETTLE, polling: 500 })
       expect(await page.$eval('[data-testid="account-email"]', el => el.textContent?.trim())).toBe(CASEY_EMAIL_2)
       await page.waitForSelector('[data-testid="account-email-unverified"]', { timeout: SETTLE, polling: 500 })
@@ -468,7 +469,7 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
       try {
         await page.evaluate(() => (document.querySelector('[data-testid="op-account-link-github-action"]') as HTMLElement).click())
         await page.waitForFunction(
-          () => window.location.pathname === '/app/account' && window.location.search.includes('linked=github'),
+          () => window.location.pathname === '/op/account' && window.location.search.includes('linked=github'),
           { timeout: SETTLE, polling: 500 },
         )
         // The URL matches at navigation START — the page's load still

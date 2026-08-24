@@ -76,7 +76,7 @@ onMounted(async () => {
       // No session (or a different account's): the answer carries the
       // login URL with the flow's re-entry target.
       const body = await res.json().catch(() => null) as { login?: string } | null
-      window.location.assign(body?.login ?? '/app/login')
+      window.location.assign(body?.login ?? '/')
       return
     }
     if (!res.ok) {
@@ -106,7 +106,7 @@ async function decide(decision: 'allow' | 'deny') {
     })
     if (res.status === 401 || res.status === 403) {
       const body = await res.json().catch(() => null) as { login?: string } | null
-      window.location.assign(body?.login ?? '/app/login')
+      window.location.assign(body?.login ?? '/')
       return
     }
     if (!res.ok) {

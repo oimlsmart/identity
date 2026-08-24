@@ -189,5 +189,6 @@ jobs:
             e2e/id-08-upstream.e2e.ts \
             e2e/id-09-email.e2e.ts \
             e2e/id-10-org-admin.e2e.ts \
+            e2e/id-surface.e2e.ts \
             e2e/op-surface-contract.e2e.ts \
             e2e/op-key-rotate.e2e.ts

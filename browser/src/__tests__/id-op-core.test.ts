@@ -440,7 +440,7 @@ describe('the sign-in surface + the consent decision', () => {
     const res = await app.request(`${ISSUER}/op/authorize?${query}`)
     expect(res.status).toBe(302)
     const login = new URL(res.headers.get('location')!, ISSUER)
-    expect(login.pathname).toBe('/app/login')
+    expect(login.pathname).toBe('/')
     const redirect = login.searchParams.get('redirect')!
     expect(redirect.startsWith('/op/authorize?')).toBe(true)
     expect(redirect).toContain(`client_id=${CONFIDENTIAL.client_id}`)

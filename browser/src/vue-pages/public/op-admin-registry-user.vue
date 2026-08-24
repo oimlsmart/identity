@@ -141,7 +141,7 @@ async function api(path: string, init?: RequestInit): Promise<Response> {
 async function load(): Promise<void> {
   const res = await api(`/api/op/registry/users/${encodeURIComponent(userId.value)}`)
   if (res.status === 401) {
-    window.location.assign(`/app/login?redirect=${encodeURIComponent(`/op/admin/registry/users/${userId.value}`)}`)
+    window.location.assign(`/?redirect=${encodeURIComponent(`/op/admin/registry/users/${userId.value}`)}`)
     return
   }
   if (res.status === 403) {
@@ -377,7 +377,7 @@ onMounted(async () => {
   try {
     const session = await fetch('/api/auth/session', { credentials: 'include' })
     if (!session.ok) {
-      window.location.assign(`/app/login?redirect=${encodeURIComponent(`/op/admin/registry/users/${userId.value}`)}`)
+      window.location.assign(`/?redirect=${encodeURIComponent(`/op/admin/registry/users/${userId.value}`)}`)
       return
     }
     const me = await session.json() as { id: string }

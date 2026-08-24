@@ -356,7 +356,7 @@ describe('the registry admin API + the public projection', () => {
   it('refuses flows for unknown/disabled providers honestly', async () => {
     const res = await app.request(`${ISSUER}/op/upstream/nope/signin`, { redirect: 'manual' })
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toContain('/app/login?error=upstream_unknown')
+    expect(res.headers.get('location')).toContain('/?error=upstream_unknown')
   })
 })
 
@@ -367,7 +367,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     const cookie = await demoLogin('ia@oiml.org')
     const res = await runFlow('/op/upstream/fixture-idp/link', 'ada', cookie)
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe(`${ISSUER}/app/account?linked=fixture-idp`)
+    expect(res.headers.get('location')).toBe(`${ISSUER}/op/account?linked=fixture-idp`)
 
     const link = await store.findIdentityLink('fixture-idp', 'stub-ada')
     expect(link).toBeTruthy()
@@ -385,7 +385,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     // The flow start refuses fast: the account already holds the link.
     const start = await app.request(`${ISSUER}/op/upstream/fixture-idp/link`, { headers: { cookie }, redirect: 'manual' })
     expect(start.status).toBe(302)
-    expect(start.headers.get('location')).toContain('/app/account?error=provider_linked')
+    expect(start.headers.get('location')).toContain('/op/account?error=provider_linked')
   })
 
   it('signs in by the link — (provider, sub), never by email — and starts the session', async () => {
@@ -407,7 +407,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     const res = await runFlow('/op/upstream/fixture-idp/signin', 'vic')
     expect(res.status).toBe(302)
     const location = res.headers.get('location')!
-    expect(location).toContain('/app/login?error=upstream_not_linked')
+    expect(location).toContain('/?error=upstream_not_linked')
     expect(location).toContain('provider=Fixture')
     expect(res.headers.get('set-cookie')).toBeNull()
 
@@ -424,7 +424,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     // ada is linked to ia (the first leg) — viewer's attempt loses.
     const res = await runFlow('/op/upstream/fixture-idp/link', 'ada', viewerCookie)
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toContain('/app/account?error=link_taken')
+    expect(res.headers.get('location')).toContain('/op/account?error=link_taken')
   })
 
   it('the POST (form_post) callback shape works — Apple rides this path', async () => {
@@ -432,7 +432,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     const cookie = await demoLogin('viewer@oiml.org')
     const res = await runFlow('/op/upstream/fixture-idp/link', 'bob', cookie, 'POST')
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe(`${ISSUER}/app/account?linked=fixture-idp`)
+    expect(res.headers.get('location')).toBe(`${ISSUER}/op/account?linked=fixture-idp`)
     expect((await store.findIdentityLink('fixture-idp', 'stub-bob'))?.userId).toBe((await store.findUserByEmail('viewer@oiml.org'))!.id)
   })
 
@@ -447,7 +447,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     expect(await store.findIdentityLink('fixture-idp', 'stub-bob')).toBeNull()
 
     const res = await runFlow('/op/upstream/fixture-idp/signin', 'bob')
-    expect(res.headers.get('location')).toContain('/app/login?error=upstream_not_linked')
+    expect(res.headers.get('location')).toContain('/?error=upstream_not_linked')
     expect(res.headers.get('set-cookie')).toBeNull()
   })
 
@@ -459,7 +459,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     const wrong = new URL(callbackUrl)
     const res = await app.request(`${ISSUER}/op/upstream/github/callback?code=${wrong.searchParams.get('code')}&state=${encodeURIComponent(wrong.searchParams.get('state')!)}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toContain('/app/login?error=upstream_state')
+    expect(res.headers.get('location')).toContain('/?error=upstream_state')
   })
 
   it('the upstream error redirect lands on the plain-language page', async () => {
@@ -467,7 +467,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     // malformed on purpose — simpler: the provider's own refusal param.
     const res = await app.request(`${ISSUER}/op/upstream/fixture-idp/callback?error=access_denied&error_description=declined&state=whatever`, { redirect: 'manual' })
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toContain('/app/login?error=upstream_refused')
+    expect(res.headers.get('location')).toContain('/?error=upstream_refused')
   })
 })
 
@@ -489,7 +489,7 @@ describe('the upstream GitHub flow against the stub GitHub', () => {
   it('links and signs in by the GitHub profile id', async () => {
     const cookie = await demoLogin('tl@oiml.org')
     const linked = await runGitHubFlow('/op/upstream/github/link', 'octocat-staff', cookie)
-    expect(linked.headers.get('location')).toBe(`${ISSUER}/app/account?linked=github`)
+    expect(linked.headers.get('location')).toBe(`${ISSUER}/op/account?linked=github`)
     const tl = await store.findUserByEmail('tl@oiml.org')
     expect((await store.findIdentityLink('github', '102'))?.userId).toBe(tl!.id)
 
@@ -505,7 +505,7 @@ describe('the upstream GitHub flow against the stub GitHub', () => {
     // account email must not match: use a fresh user whose email we then
     // point at an account to prove the guard reads ONLY the link table.
     const res = await runGitHubFlow('/op/upstream/github/signin', 'octocat-stranger')
-    expect(res.headers.get('location')).toContain('/app/login?error=upstream_not_linked')
+    expect(res.headers.get('location')).toContain('/?error=upstream_not_linked')
     expect(res.headers.get('set-cookie')).toBeNull()
     expect(await store.findIdentityLink('github', '106')).toBeNull()
   })
@@ -517,7 +517,7 @@ describe('the upstream GitHub flow against the stub GitHub', () => {
     authorizeUrl.searchParams.set('login', 'octocat-staff')
     const consented = await fetch(authorizeUrl.toString(), { redirect: 'manual' })
     const res = await app.request(consented.headers.get('location')!, { redirect: 'manual' })
-    expect(res.headers.get('location')).toContain('/app/login?error=upstream_exchange')
+    expect(res.headers.get('location')).toContain('/?error=upstream_exchange')
     await store.deleteIdentityProvider('github-nosecret')
   })
 })

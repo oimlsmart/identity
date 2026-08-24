@@ -29,14 +29,13 @@ const IslandPage = { template: '<div />' }
 // The OP's route table: every URL the identity pages serve or link to.
 // Names exist so useRoute().name resolves exactly as the pages expect.
 const ROUTE_PATHS: Array<{ path: string; name: string }> = [
-  { path: '/', name: 'landing' },
-  { path: '/app/login', name: 'login' },
-  { path: '/app/account', name: 'account' },
-  { path: '/op/account', name: 'op-account' },
+  { path: '/', name: 'login' },
+  { path: '/op/account', name: 'account' },
   { path: '/op/consent', name: 'op-consent' },
   { path: '/op/join', name: 'op-join' },
   { path: '/op/setup', name: 'op-setup' },
   { path: '/op/email-change', name: 'op-email-change' },
+  { path: '/op/admin', name: 'op-admin' },
   { path: '/op/admin/clients', name: 'op-admin-clients' },
   { path: '/op/admin/providers', name: 'op-admin-providers' },
   { path: '/op/admin/users', name: 'op-admin-users' },

@@ -197,8 +197,9 @@ async function bootIdentityStack(): Promise<Stack> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000, logs)
     // Gate on a routed page (astro answers `/` before its route table
-    // finishes — the fed-01 stall class).
-    await waitForHttp(`${base}/app/login`, 240_000, logs, true)
+    // finishes — the fed-01 stall class; /op/join is the table-bound one
+    // here: the root IS the sign-in page and answers early).
+    await waitForHttp(`${base}/op/join`, 240_000, logs, true)
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()
@@ -245,7 +246,7 @@ async function readSetupUrl(page: Page): Promise<string> {
 }
 
 /** Drive 02's setup page: the one-time link sets the password and signs
- *  the account in (lands on /app/account). */
+ *  the account in (lands on /op/account). */
 async function driveSetup(page: Page, setupUrl: string, password: string, expectEmail: string): Promise<void> {
   await page.goto(setupUrl, { waitUntil: 'domcontentloaded', timeout: SETTLE })
   await page.waitForSelector('[data-testid="op-setup-account"]', { timeout: SETTLE, polling: 500 })
@@ -254,7 +255,7 @@ async function driveSetup(page: Page, setupUrl: string, password: string, expect
   await page.type('[data-testid="op-setup-password"]', password)
   await page.type('[data-testid="op-setup-confirm"]', password)
   await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
-  await page.waitForFunction(() => window.location.pathname === '/app/account', { timeout: SETTLE, polling: 500 })
+  await page.waitForFunction(() => window.location.pathname === '/op/account', { timeout: SETTLE, polling: 500 })
 }
 
 /** The signed-in session's payload (null when signed out / revoked). */
@@ -328,9 +329,9 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
   })
 
   it('leg 1 — the registry console lists the OP’s accounts; the admin invites one (the setup link shows once)', { timeout: 900_000 }, async () => {
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, 'admin@oiml.org')
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
 
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="registry"]', { timeout: SETTLE, polling: 500 })
@@ -366,9 +367,9 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
 
     // The admin assigns the per-client role through the console editor.
     await signOut(page, stack.base)
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, 'admin@oiml.org')
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector(`[data-testid="registry-roles-open-${erinId}"]`, { timeout: SETTLE, polling: 500 })
     await page.evaluate((id) => {
@@ -418,7 +419,7 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
 
     // The OP's sign-in surface — the PASSWORD account signs in.
     await page.waitForFunction(
-      () => window.location.pathname === '/app/login' && window.location.search.includes('redirect='),
+      () => window.location.pathname === '/' && window.location.search.includes('redirect='),
       { timeout: SETTLE, polling: 500 },
     )
     await opPasswordSignIn(page, ERIN.email, ERIN.password)
@@ -454,9 +455,9 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
 
   it('leg 4 — the registry’s last-sign-in column reads the audit chain', { timeout: 600_000 }, async () => {
     await signOut(page, stack.base)
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, 'admin@oiml.org')
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector(`[data-testid="registry-lastsignin-${erinId}"]`, { timeout: SETTLE, polling: 500 })
     // Leg 3's password sign-in landed on the audit chain — the column
@@ -509,19 +510,19 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
     expect(((await refused.json()) as { error: string }).error).toContain('deactivated')
 
     await signOut(page, stack.base)
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opPasswordSignIn(page, ERIN.email, ERIN.password)
     await page.waitForSelector('[data-testid="login-error"]', { timeout: SETTLE, polling: 500 })
     const message = await page.$eval('[data-testid="login-error"]', el => el.textContent ?? '')
     expect(message).toContain('deactivated')
-    expect(new URL(page.url()).pathname).toBe('/app/login')
+    expect(new URL(page.url()).pathname).toBe('/')
   })
 
   it('leg 6 — reactivate: she signs in again, and the round trip still carries her assignment (the history was kept)', { timeout: 900_000 }, async () => {
     // The admin reactivates her from the console.
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, 'admin@oiml.org')
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector(`[data-testid="registry-toggle-${erinId}"]`, { timeout: SETTLE, polling: 500 })
     await page.evaluate((id) => {
@@ -533,9 +534,9 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
 
     // She signs in again (the right password works)…
     await signOut(page, stack.base)
-    await page.goto(`${stack.base}/app/login`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opPasswordSignIn(page, ERIN.email, ERIN.password)
-    await page.waitForFunction(() => window.location.pathname !== '/app/login', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     expect((await sessionPayload(page))?.email).toBe(ERIN.email)
 
     // …and a fresh round trip (her LIVE session goes straight to the

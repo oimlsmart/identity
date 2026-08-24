@@ -203,7 +203,7 @@ export function createOpRouter(): Hono {
     if (!user) {
       const here = new URL(c.req.url)
       const target = `${here.pathname}${here.search}`
-      return c.redirect(`/app/login?redirect=${encodeURIComponent(target)}`)
+      return c.redirect(`/?redirect=${encodeURIComponent(target)}`)
     }
 
     // 5. The pending authorization (D1 — the consent decision may land
@@ -262,7 +262,7 @@ export function createOpRouter(): Hono {
     if (!user) {
       return c.json({
         error: 'authentication_required',
-        login: `/app/login?redirect=${encodeURIComponent(authorizeUrlFor(row!))}`,
+        login: `/?redirect=${encodeURIComponent(authorizeUrlFor(row!))}`,
       }, 401)
     }
     if (row!.userId && row!.userId !== user.id) {
@@ -270,7 +270,7 @@ export function createOpRouter(): Hono {
       // page offers to restart the sign-in as that account).
       return c.json({
         error: 'account_mismatch',
-        login: `/app/login?redirect=${encodeURIComponent(authorizeUrlFor(row!))}`,
+        login: `/?redirect=${encodeURIComponent(authorizeUrlFor(row!))}`,
       }, 403)
     }
     const client = await getStore().getOidcClient(row!.clientId)

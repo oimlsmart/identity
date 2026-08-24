@@ -1,6 +1,5 @@
 ---
-// The identity shell mount for src/vue-pages/account.vue.
-import IdShell from '../../layouts/IdShell.astro'
+// The pre-02a path redirects to the account console's native home.
 export const prerender = true
+return Astro.redirect('/op/account')
 ---
-<IdShell title="Your account" page="account" />
