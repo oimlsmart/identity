@@ -30,6 +30,7 @@ const IslandPage = { template: '<div />' }
 // Names exist so useRoute().name resolves exactly as the pages expect.
 const ROUTE_PATHS: Array<{ path: string; name: string }> = [
   { path: '/', name: 'login' },
+  { path: '/op/home', name: 'op-home' },
   { path: '/op/account', name: 'account' },
   { path: '/op/consent', name: 'op-consent' },
   { path: '/op/join', name: 'op-join' },

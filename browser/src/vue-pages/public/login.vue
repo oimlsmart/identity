@@ -101,11 +101,11 @@ onMounted(async () => {
   } catch { /* a registry read failure renders no extra buttons */ }
 
   // An existing session skips the form: the authorize flow's re-entry
-  // target, else the account console.
+  // target, else the SSO home (the launcher's post-login landing).
   try {
     const res = await fetch('/api/auth/session', { credentials: 'include' })
     if (res.ok) {
-      const redirect = (route.query.redirect as string) || '/op/account'
+      const redirect = (route.query.redirect as string) || '/op/home'
       router.replace(redirect)
       return
     }
@@ -124,10 +124,11 @@ function upstreamLogin(providerId: string) {
 
 /** The identity provider's own sign-in: the password account against
  *  POST /api/op/login. Lands on the redirect target (the authorize
- *  flow's re-entry) or the account page. When the deployment keeps the
- *  DEMO cast alongside (the development/e2e/preview posture), a refused
- *  password sign-in falls back to the demo endpoint — one form, two
- *  account kinds; the refusal text never distinguishes them. */
+ *  flow's re-entry) or the SSO home (the launcher's post-login
+ *  landing). When the deployment keeps the DEMO cast alongside (the
+ *  development/e2e/preview posture), a refused password sign-in falls
+ *  back to the demo endpoint — one form, two account kinds; the refusal
+ *  text never distinguishes them. */
 async function submitOpLogin() {
   const res = await fetch('/api/op/login', {
     method: 'POST',
@@ -136,7 +137,7 @@ async function submitOpLogin() {
     body: JSON.stringify({ email: email.value, password: password.value }),
   })
   if (res.ok) {
-    const redirect = (route.query.redirect as string) || '/op/account'
+    const redirect = (route.query.redirect as string) || '/op/home'
     router.replace(redirect)
     return
   }
@@ -150,7 +151,7 @@ async function submitOpLogin() {
       body: JSON.stringify({ email: email.value, password: password.value }),
     })
     if (demoRes.ok) {
-      const redirect = (route.query.redirect as string) || '/op/account'
+      const redirect = (route.query.redirect as string) || '/op/home'
       router.replace(redirect)
       return
     }
