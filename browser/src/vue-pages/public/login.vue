@@ -170,11 +170,6 @@ function upstreamLogin(providerId: string) {
  *  back to the demo endpoint — one form, two account kinds; the refusal
  *  text never distinguishes them.
  *
- *  flow's re-entry) or the account page. When the deployment keeps the
- *  DEMO cast alongside (the development/e2e/preview posture), a refused
- *  password sign-in falls back to the demo endpoint — one form, two
- *  account kinds; the refusal text never distinguishes them.
- *
  *  TODO.identity-sso/03: an account holding factors answers
  *  `mfaRequired` + the one-time challenge token instead of a session —
  *  the page swaps to the factor step (below). */
