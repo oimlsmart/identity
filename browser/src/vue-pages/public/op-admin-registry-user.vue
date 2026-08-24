@@ -925,7 +925,9 @@ onMounted(async () => {
             <div class="flex items-center justify-between gap-3">
               <p class="text-xs text-slate-600 dark:text-slate-300">
                 <strong>{{ link.provider }}</strong> <code class="font-mono">{{ link.providerAccountId }}</code>
-                · {{ t('account.methods.linkedAt', { date: link.linkedAt.slice(0, 10) }) }}<template v-if="link.linkedBy"> {{ t('account.methods.linkedBy', { by: link.linkedBy }) }}</template>
+                · {{ link.linkedBy
+                  ? t('admin.user.methods.linkedLine', { date: link.linkedAt.slice(0, 10), by: link.linkedBy })
+                  : t('account.methods.linkedAt', { date: link.linkedAt.slice(0, 10) }) }}
               </p>
               <button
                 :data-testid="`op-reg-unlink-open-${link.provider}`"
