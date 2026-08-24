@@ -18,7 +18,7 @@
 //   4. the Ed25519 COSE conversion against an RFC 8032 known-answer pair.
 //
 // The live interop proof (Chrome's real authenticator through the real
-// pages) is e2e/id-13-factors.e2e.ts's virtual-authenticator legs.
+// pages) is e2e/id-14-factors.e2e.ts's virtual-authenticator legs.
 // ─────────────────────────────────────────────────────────────────────
 
 import { describe, expect, it } from 'vitest'

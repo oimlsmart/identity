@@ -30,9 +30,9 @@
 //          authenticator keeps the account reachable after the first
 //          authenticator is gone (never a lockout).
 //
-// SELF-CONTAINED: own ports (API 9893 / astro 9993 — clear of id-01's
+// SELF-CONTAINED: own ports (API 10193 / astro 10194 — clear of id-01's
 // 8693/8393, id-02's 8793/8593, id-06's 9493/9393, id-08's 8993/8893,
-// id-10's 9193/9093, the contract gate's 9693/9694, and 9793), own
+// id-10's 9193/9093, the contract gate's 9693/9694, 9793, and the memberships leg's 9993/9994), own
 // SQLite file, the stub mailer on a kernel-assigned port. THE BROWSER IS
 // PER-LEG (the id-02 header note); cross-leg state rides the DATABASE.
 // ═══════════════════════════════════════════════════════════════════
@@ -52,11 +52,11 @@ import { assertWith, attest, mintAuthenticator, userHandleFor } from '../src/__t
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
-const DB_DIR = join(BROWSER_DIR, '.cache', 'id-13')
+const DB_DIR = join(BROWSER_DIR, '.cache', 'id-14')
 
-const ID_API = 9893
-const ID_WEB = 9993
-const RP_CALLBACK_PORT = 9894
+const ID_API = 10193
+const ID_WEB = 10194
+const RP_CALLBACK_PORT = 10195
 
 const ISSUER = `http://localhost:${ID_WEB}` // the astro origin (the browser's OP)
 const RP_CLIENT_ID = 'factors-rp'

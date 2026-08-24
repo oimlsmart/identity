@@ -25,7 +25,7 @@
 // The throttle ladder rides OP_MFA_BACKOFF_BASE_MS=1 (declared below) so
 // the backoff is exercised, not slept through. The live-browser
 // ceremonies (Chrome's real virtual authenticator) are
-// e2e/id-13-factors.e2e.ts.
+// e2e/id-14-factors.e2e.ts.
 // ─────────────────────────────────────────────────────────────────────
 
 import { mkdtempSync, rmSync } from 'node:fs'
