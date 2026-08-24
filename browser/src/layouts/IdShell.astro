@@ -11,9 +11,16 @@
 //
 // bare: the sign-in page (/) — no header (the page centers the brand
 // block itself), the footer stays.
+//
+// DARK MODE follows the house shell's class pattern (the package's
+// tokens.css @custom-variant + the oiml-theme localStorage key the
+// inline script below reads before first paint): the toggle is the
+// package's own ThemeToggle — the header's right end, or the footer's
+// on the bare page (the sign-in page has no header to carry it).
 // ═══════════════════════════════════════════════════════════════════
 import IdPage from '../astro/IdPage.vue'
 import AccountChip from '../components/AccountChip.vue'
+import ThemeToggle from '@oimlsmart/site-shell/components/ThemeToggle.vue'
 import '../styles/app.css'
 
 interface Props {
@@ -49,7 +56,10 @@ const { title = 'OIML SMART Identity', page, bare = false } = Astro.props
             <img src="/oiml-logo-dark.svg" alt="" class="h-6 w-auto hidden dark:block" aria-hidden="true" />
             <span class="font-serif text-sm font-semibold tracking-tight">OIML SMART Identity</span>
           </a>
-          <AccountChip client:only="vue" />
+          <div class="flex items-center gap-3">
+            <ThemeToggle client:load />
+            <AccountChip client:only="vue" />
+          </div>
         </div>
       </header>
     )}
@@ -64,7 +74,12 @@ const { title = 'OIML SMART Identity', page, bare = false } = Astro.props
     <footer class="border-t border-slate-200 dark:border-slate-700 mt-8">
       <div class="max-w-5xl mx-auto px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
         <span>OIML SMART Identity: the single sign-on service for the oimlsmart.org estate</span>
-        <a href="/api/health" class="hover:underline" data-testid="shell-status">Service status</a>
+        <span class="flex items-center gap-3">
+          <a href="/api/health" class="hover:underline" data-testid="shell-status">Service status</a>
+          {/* The bare posture (the sign-in page) has no header: the
+              theme toggle rides the footer there. */}
+          {bare && <ThemeToggle client:load />}
+        </span>
       </div>
     </footer>
     <script is:inline>

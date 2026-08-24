@@ -28,9 +28,18 @@ export const prerender = true
       </p>
       <p class="text-sm">
         <a href="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="not-found-signin">Sign in</a>
-        ·
+        {' · '}
         <a href="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline">Your account</a>
       </p>
     </div>
+    {/* The same pre-paint theme read as IdShell (the oiml-theme key):
+        this page stands outside the shell, so it applies .dark itself. */}
+    <script is:inline>
+      var stored = localStorage.getItem('oiml-theme')
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      if (stored === 'dark' || (!stored && prefersDark)) {
+        document.documentElement.classList.add('dark')
+      }
+    </script>
   </body>
 </html>
