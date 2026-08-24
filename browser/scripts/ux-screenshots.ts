@@ -13,7 +13,7 @@
 //   real authorize round trip against the stub RP) · the 404.
 //
 // Run: npx tsx scripts/ux-screenshots.ts
-// Ports: API 9893 / astro 9793 (clear of every e2e leg's 93-pair).
+// Ports: API 23457 / astro 23456 (clear of every e2e leg's 93-pair and the other waves' dev stacks).
 // ═══════════════════════════════════════════════════════════════════
 
 import puppeteer, { type Browser, type Page } from 'puppeteer'
@@ -30,8 +30,8 @@ const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
 const WORK_DIR = join(BROWSER_DIR, '.cache', 'ux')
 const OUT_DIR = join(WORK_DIR, 'shots')
 
-const ID_API = 9893
-const ID_WEB = 9793
+const ID_API = 23457
+const ID_WEB = 23456
 const ISSUER = `http://localhost:${ID_WEB}`
 const RP_CLIENT_ID = 'ux-shot-rp'
 const RP_CLIENT_SECRET = 'ux-shot-rp-secret'
