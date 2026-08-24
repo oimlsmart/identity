@@ -43,7 +43,7 @@ import { generatePkce } from '@oimlsmart/platform-server/oidc'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
-const DB_DIR = join(BROWSER_DIR, '.cache', 'id-11')
+const DB_DIR = join(BROWSER_DIR, '.cache', 'id-12')
 
 // Port-isolated: clear of every running leg (the registry lives in the
 // sibling files' headers: shared 5190/3190, fed/id stacks through 9793,
@@ -155,7 +155,7 @@ async function bootIdentityStack(): Promise<Stack> {
       OP_HEARTBEAT_API_BASE: `http://127.0.0.1:${GH_STUB}`,
       OP_CLIENT_SEED: JSON.stringify([{
         client_id: RP_CLIENT_ID,
-        name: 'The id-11 fixture RP',
+        name: 'The id-12 fixture RP',
         secret: RP_CLIENT_SECRET,
         redirect_uris: ['http://127.0.0.1:19894/callback'],
         claims_policy: { claims: ['roles'] },

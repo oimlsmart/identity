@@ -221,10 +221,11 @@ describe('TODO.identity-extract/02a — the identity-native frontend surface', (
     await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     expect(new URL(page.url()).pathname).toBe('/op/account')
     await page.waitForSelector('[data-testid="account-name"]', { timeout: SETTLE, polling: 500 })
-    // The admin area: /op/admin lands on the registry console, native.
+    // The admin area: /op/admin lands on the dashboard's overview,
+    // native (TODO.identity-sso/01 moved the home from the registry).
     await page.goto(`${stack.base}/op/admin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForFunction(
-      () => window.location.pathname === '/op/admin/registry',
+      () => window.location.pathname === '/op/admin/overview',
       { timeout: SETTLE, polling: 500 },
     )
     await page.waitForSelector('[data-testid="op-admin-nav"]', { timeout: SETTLE, polling: 500 })
