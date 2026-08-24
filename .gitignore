@@ -24,3 +24,6 @@ dist/
 
 # The e2e legs' per-stack SQLite files + vite caches
 browser/.cache/
+
+# Astro generated types
+.astro/
