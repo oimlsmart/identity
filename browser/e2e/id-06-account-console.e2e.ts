@@ -41,6 +41,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync, writeFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
+import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 import { startStubGitHub, type StubGitHub } from './fixtures/stub-github'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -152,6 +153,9 @@ async function bootIdentityStack(github: StubGitHub): Promise<Stack> {
       OIDC_CLIENT_ID: '',
       DEMO_ACCOUNTS_ENABLED: 'true',
       OP_ISSUER: ISSUER,
+      // identity#7: a declared-issuer stack declares its signing key too
+      // (the generated dev key never registers off the dev posture).
+      OP_SIGNING_KEY: await fixtureOpSigningKey(),
       OP_ACCOUNT_SEED: JSON.stringify([{ email: ROOT.email, name: ROOT.name, role: 'admin' }]),
       // The linked login's upstream: the stub GitHub as a REGISTRY ROW
       // (TODO.identity/08 — a provider is a row, never a code fork).

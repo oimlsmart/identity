@@ -47,6 +47,15 @@ has passed, never automatically mid-flight.
   flicker: the read path resolved the secret unguarded, so a
   propagation window 500'd the endpoint; oimlsmart/identity#5,
   oimlsmart/smart#181.)
+- Registration invariant: `oidc_keys` accepts a public half only from
+  the DECLARED `OP_SIGNING_KEY` secret, plus the one dev exception: the
+  generated development key registers only when the issuer comes from
+  the request origin (`OP_ISSUER` unset, the local dev posture). When
+  the binding reads empty mid-propagation on the declared-issuer
+  deployment, the resolve falls to the dev generation (the loud warning
+  fires), but that ephemeral per-isolate key never enters the keyset
+  the RPs validate against; the JWKS serves the registered table as it
+  stands (oimlsmart/identity#7).
 
 - The rotation ceremony is a script, not a hand-edit: generate the
   successor pair, declare the secret, JWKS advertises both, retire the

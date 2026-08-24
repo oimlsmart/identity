@@ -138,6 +138,14 @@ async function demoLogin(email: string): Promise<string> {
 }
 
 beforeAll(async () => {
+  // The simulated deployment declares its signing key (identity#7's
+  // registration gate: a declared-issuer instance never registers a
+  // GENERATED development key into oidc_keys — the round trips below
+  // validate against the JWKS, so the served key must be the declared
+  // one, exactly the production posture).
+  const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
+  process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
+
   const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
   store = installSqliteStore()
   const profileMod = await import('@oimlsmart/platform-server/profile')
@@ -175,6 +183,7 @@ afterAll(() => {
   resetProfile()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
+  delete process.env.OP_SIGNING_KEY
   delete process.env.OP_CLIENT_SEED
   delete process.env.DATABASE_PATH
 })

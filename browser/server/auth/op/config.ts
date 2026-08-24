@@ -20,7 +20,12 @@
 //                         development key is generated per process with
 //                         a LOUD warning (keys.ts) — tokens invalidate
 //                         at restart and across isolates, never a
-//                         production posture.
+//                         production posture. The generated key's
+//                         self-registration into oidc_keys is gated on
+//                         the dev posture (issuerFromRequest below;
+//                         routes/op.ts's maySelfRegisterOpKey,
+//                         identity#7): a declared-issuer deployment
+//                         never registers it.
 //   OP_CLIENT_SEED        the client registry's bootstrap: a JSON array
 //                         of { client_id, name, secret?, redirect_uris,
 //                         claims_policy? } upserted at boot (registry.ts).
