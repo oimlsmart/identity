@@ -43,6 +43,7 @@ import PageHeader from '../components/PageHeader.vue'
 import UpstreamProviderIcon from '../components/UpstreamProviderIcon.vue'
 import AvatarCropDialog from '../components/AvatarCropDialog.vue'
 import { AVATAR_ACCEPT_TYPES } from '../lib/avatar-crop'
+import AccountFactors, { type FactorsPayload } from '../components/AccountFactors.vue'
 import { t, type MessageKey } from '../i18n'
 
 interface AccountContext {
@@ -148,6 +149,11 @@ const providers = ref<PublicProvider[]>([])
 const activity = ref<ActivityEvent[] | null>(null)
 const notice = ref<string | null>(null)
 const error = ref<string | null>(null)
+
+/** The factor registry's payload (TODO.identity-sso/02+03): the console's
+ *  FACTORS section reads it through the AccountFactors component, and the
+ *  sign-in-methods guard counts the passkeys (a passkey is a way in). */
+const factors = ref<FactorsPayload | null>(null)
 
 // The profile edit.
 const nameEditing = ref(false)
@@ -301,9 +307,13 @@ async function requestMembership() {
 const linkable = computed(() => providers.value.filter(p => !links.value.some(l => l.provider === p.id)))
 
 /** THE GUARD, client-side (the server holds the same rule): removing
- *  this method would strand the account with no way in. */
-const passwordIsLastMethod = computed(() => (context.value?.passwordSet ?? false) && links.value.length === 0)
-const linkIsLastMethod = computed(() => links.value.length === 1 && !(context.value?.passwordSet ?? false))
+ *  this method would strand the account with no way in. The passkeys
+ *  count (TODO.identity-sso/02): a passkey is a PRIMARY sign-in method. */
+const passkeyCount = computed(() => factors.value?.passkeys.length ?? 0)
+const passwordIsLastMethod = computed(() => (context.value?.passwordSet ?? false) && links.value.length === 0 && passkeyCount.value === 0)
+const linkIsLastMethod = computed(() => links.value.length === 1 && !(context.value?.passwordSet ?? false) && passkeyCount.value === 0)
+/** The factors section's revoke guard: the sole passkey is the last way in. */
+const lastPasskeyIsLastMethod = computed(() => passkeyCount.value === 1 && !(context.value?.passwordSet ?? false) && links.value.length === 0)
 
 /** The avatar's initials fallback (the avatar itself is the uploaded
  *  picture, or a linked provider's). */
@@ -444,9 +454,17 @@ const strength = computed(() => {
 const METER_COLORS = ['bg-red-400', 'bg-amber-400', 'bg-brand-400', 'bg-green-500']
 
 /** The activity row's label: the catalog's per-action copy when it
- *  exists, the raw action otherwise (the feed never renders blank). */
+ *  exists, the raw action otherwise (the feed never renders blank).
+ *  TODO.identity-sso/02+03: the sign-in event's label follows the
+ *  metadata's method (password+factor combinations read honestly). */
 function activityLabel(event: ActivityEvent): string {
-  const key = `account.activity.action.${event.action}` as MessageKey
+  let key = `account.activity.action.${event.action}` as MessageKey
+  if (event.action === 'account.sign_in' && typeof event.metadata.method === 'string') {
+    const variant = `account.activity.action.account.sign_in.${event.metadata.method.replaceAll('+', '_')}` as MessageKey
+    // The catalog resolves known variants; an unknown one falls back to
+    // the base label (t() answers the key itself when missing).
+    if (t(variant) !== variant) key = variant
+  }
   const params: Record<string, string | number> = {}
   if (typeof event.metadata.to === 'string') params.to = event.metadata.to
   if (typeof event.metadata.provider === 'string') params.provider = event.metadata.provider
@@ -454,6 +472,7 @@ function activityLabel(event: ActivityEvent): string {
   // TODO.identity/11: the org acts resolve the org's name from the
   // memberships (the audit metadata carries the org id).
   if (typeof event.metadata.org_id === 'string') params.org = orgName(event.metadata.org_id) || event.metadata.org_id
+  if (typeof event.metadata.name === 'string') params.name = event.metadata.name
   const resolved = t(key, params)
   return resolved === key ? event.action : resolved
 }
@@ -474,8 +493,12 @@ function fmtDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-async function load() {
-  loading.value = true
+async function load(quiet = false) {
+  // A quiet reload (the factors section's @changed) never flips the
+  // spinner: the v-if swap would UNMOUNT the factors component and drop
+  // its local state mid-ceremony (the shown-once recovery dialog — the
+  // id-11 leg-1 lesson).
+  if (!quiet) loading.value = true
   try {
     const res = await fetch('/api/op/account', { credentials: 'include' })
     if (res.status === 404) {
@@ -495,16 +518,26 @@ async function load() {
       fetch('/api/op/account/activity', { credentials: 'include' }),
       // The registered-orgs feed (public) — the join form's selector.
       fetch('/api/op/organizations'),
+    const [linksRes, providersRes, activityRes, factorsRes] = await Promise.all([
+      fetch('/api/op/account/links', { credentials: 'include' }),
+      fetch('/api/op/providers/public'),
+      fetch('/api/op/account/activity', { credentials: 'include' }),
+      fetch('/api/op/account/factors', { credentials: 'include' }),
     ])
     if (linksRes.ok) links.value = await linksRes.json() as LinkRow[]
     providers.value = providersRes.ok ? await providersRes.json() as PublicProvider[] : []
     activity.value = activityRes.ok ? await activityRes.json() as ActivityEvent[] : []
     selectableOrgs.value = orgsRes.ok ? await orgsRes.json() as SelectableOrg[] : []
+    factors.value = factorsRes.ok ? await factorsRes.json() as FactorsPayload : null
     loading.value = false
   } catch {
     error.value = t('account.loadError')
     loading.value = false
   }
+}
+
+async function loadQuiet(): Promise<void> {
+  await load(true)
 }
 
 onMounted(async () => {
@@ -1179,6 +1212,15 @@ async function revokeOthers() {
             </button>
           </div>
         </section>
+
+        <!-- 3 · The factor registry (TODO.identity-sso/02+03): passkeys,
+             authenticator apps, recovery codes. -->
+        <AccountFactors
+          :email-verified="!!context.account.emailVerifiedAt"
+          :factors="factors"
+          :last-passkey-is-last-method="lastPasskeyIsLastMethod"
+          @changed="loadQuiet"
+        />
 
         <!-- 4 · The password. -->
         <section id="password" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-password">

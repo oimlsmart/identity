@@ -13,11 +13,26 @@
 // development/e2e posture, the identity preview), a refused password
 // sign-in retries against POST /api/auth/demo — one form, two account
 // kinds; the refusal text never distinguishes them.
+//
+// TODO.identity-sso/02+03 (the strong-authentication wave): the passkey
+// button beside the password form (the passwordless ceremony), the
+// conditional-UI passkey autofill on the email field as the progressive
+// enhancement, and the SECOND-FACTOR step when the account holds factors
+// (the TOTP code, the passkey assertion, or a recovery code — the user's
+// choice; routes/op-mfa.ts's pending challenge carries it).
 // ═══════════════════════════════════════════════════════════════════
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
 import { useBranding } from '../../branding'
+import { t } from '../../i18n'
+import {
+  assertPasskey,
+  conditionalUiAvailable,
+  webauthnAvailable,
+  type AssertionOptionsJson,
+  type CredentialJson,
+} from '../../webauthn'
 
 const route = useRoute()
 const router = useRouter()
@@ -47,6 +62,29 @@ const resetEmail = ref('')
 const resetBusy = ref(false)
 const resetDone = ref<string | null>(null)
 const resetError = ref<string | null>(null)
+
+// ── the strong-authentication state (TODO.identity-sso/02+03) ────────
+// The password answer's mfaRequired branch: the pending second-factor
+// challenge. The page swaps the password form for the factor step.
+const mfa = ref<{ token: string; methods: { totp: boolean; passkey: boolean; recovery: boolean } } | null>(null)
+const mfaCode = ref('')
+const mfaBusy = ref(false)
+const mfaShowRecovery = ref(false)
+const recoveryCode = ref('')
+/** The passkey sign-in's availability (the button hides where the
+ *  browser has no WebAuthn — an old browser is not an error). */
+const passkeysSupported = webauthnAvailable()
+const passkeyBusy = ref(false)
+
+/** The post-login destination (the authorize flow's re-entry target). */
+function redirectTarget(): string {
+  return (route.query.redirect as string) || '/op/home'
+}
+
+/** A completed sign-in's landing (the session cookie is set by then). */
+function landSignedIn() {
+  router.replace(redirectTarget())
+}
 
 // The upstream provider outcomes (server/routes/op-upstream.ts). THE
 // MATCH RULE's refusal is upstream_not_linked: the provider
@@ -105,12 +143,14 @@ onMounted(async () => {
   try {
     const res = await fetch('/api/auth/session', { credentials: 'include' })
     if (res.ok) {
-      const redirect = (route.query.redirect as string) || '/op/home'
-      router.replace(redirect)
+      router.replace(redirectTarget())
       return
     }
   } catch { /* no session — the form renders */ }
   loading.value = false
+  // The conditional-UI passkey autofill (the progressive enhancement):
+  // the email field offers the device's passkeys directly.
+  void startConditionalUi()
 })
 
 // The OP's upstream provider button: the flow starts at the OP's
@@ -128,8 +168,18 @@ function upstreamLogin(providerId: string) {
  *  landing). When the deployment keeps the DEMO cast alongside (the
  *  development/e2e/preview posture), a refused password sign-in falls
  *  back to the demo endpoint — one form, two account kinds; the refusal
- *  text never distinguishes them. */
+ *  text never distinguishes them.
+ *
+ *  flow's re-entry) or the account page. When the deployment keeps the
+ *  DEMO cast alongside (the development/e2e/preview posture), a refused
+ *  password sign-in falls back to the demo endpoint — one form, two
+ *  account kinds; the refusal text never distinguishes them.
+ *
+ *  TODO.identity-sso/03: an account holding factors answers
+ *  `mfaRequired` + the one-time challenge token instead of a session —
+ *  the page swaps to the factor step (below). */
 async function submitOpLogin() {
+  abortConditionalUi() // the form wins over the passkey autofill
   const res = await fetch('/api/op/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -137,8 +187,19 @@ async function submitOpLogin() {
     body: JSON.stringify({ email: email.value, password: password.value }),
   })
   if (res.ok) {
-    const redirect = (route.query.redirect as string) || '/op/home'
-    router.replace(redirect)
+    const body = await res.json().catch(() => null) as {
+      mfaRequired?: boolean
+      mfaToken?: string
+      methods?: { totp: boolean; passkey: boolean; recovery: boolean }
+    } | null
+    if (body?.mfaRequired && body.mfaToken && body.methods) {
+      mfa.value = { token: body.mfaToken, methods: body.methods }
+      mfaCode.value = ''
+      recoveryCode.value = ''
+      mfaShowRecovery.value = false
+      return
+    }
+    landSignedIn()
     return
   }
   if (res.status === 401 && demoEnabled.value) {
@@ -151,8 +212,7 @@ async function submitOpLogin() {
       body: JSON.stringify({ email: email.value, password: password.value }),
     })
     if (demoRes.ok) {
-      const redirect = (route.query.redirect as string) || '/op/home'
-      router.replace(redirect)
+      landSignedIn()
       return
     }
   }
@@ -177,6 +237,186 @@ async function submitLogin() {
     submitting.value = false
   }
 }
+
+// ── the second-factor step (TODO.identity-sso/03) ────────────────────
+
+/** The factor step's error mapping: the honest 401 (try again), the
+ *  throttle's 429 (the backoff, or the locked burn), the expired
+ *  challenge's restart. */
+function mfaErrorFrom(res: Response, body: { error?: string; locked?: boolean } | null) {
+  if (res.status === 429) {
+    error.value = body?.error ?? t('login.mfa.throttled')
+    if (body?.locked) mfa.value = null // the burned attempt: back to the password form
+  } else if (body?.error) {
+    error.value = body.error
+    if (res.status === 401 && /expired|already completed/i.test(body.error)) mfa.value = null
+  } else {
+    error.value = t('login.mfa.failed')
+  }
+}
+
+/** The TOTP code against the pending challenge. */
+async function submitMfaTotp() {
+  if (mfaBusy.value || !mfa.value) return
+  mfaBusy.value = true
+  error.value = null
+  try {
+    const res = await fetch('/api/op/login/mfa/totp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token: mfa.value.token, code: mfaCode.value.trim() }),
+    })
+    if (res.ok) { landSignedIn(); return }
+    mfaErrorFrom(res, await res.json().catch(() => null))
+  } catch {
+    error.value = 'Network error. Is the server running?'
+  } finally {
+    mfaBusy.value = false
+  }
+}
+
+/** A recovery code against the pending challenge (the account-recovery
+ *  floor — one-time each). */
+async function submitMfaRecovery() {
+  if (mfaBusy.value || !mfa.value) return
+  mfaBusy.value = true
+  error.value = null
+  try {
+    const res = await fetch('/api/op/login/mfa/recovery', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token: mfa.value.token, code: recoveryCode.value }),
+    })
+    if (res.ok) { landSignedIn(); return }
+    mfaErrorFrom(res, await res.json().catch(() => null))
+  } catch {
+    error.value = 'Network error. Is the server running?'
+  } finally {
+    mfaBusy.value = false
+  }
+}
+
+/** The passkey as the second factor (the account's credentials only). */
+async function submitMfaPasskey() {
+  if (mfaBusy.value || !mfa.value) return
+  abortConditionalUi() // one pending get at a time
+  mfaBusy.value = true
+  error.value = null
+  try {
+    const optRes = await fetch('/api/op/login/mfa/passkey/options', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token: mfa.value.token }),
+    })
+    if (!optRes.ok) { mfaErrorFrom(optRes, await optRes.json().catch(() => null)); mfaBusy.value = false; return }
+    const { publicKey } = await optRes.json() as { publicKey: AssertionOptionsJson }
+    let credential: CredentialJson
+    try {
+      credential = await assertPasskey(publicKey)
+    } catch {
+      error.value = t('login.mfa.passkeyCancelled')
+      mfaBusy.value = false
+      return
+    }
+    const res = await fetch('/api/op/login/mfa/passkey', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token: mfa.value.token, credential }),
+    })
+    if (res.ok) { landSignedIn(); return }
+    mfaErrorFrom(res, await res.json().catch(() => null))
+  } catch {
+    error.value = 'Network error. Is the server running?'
+  } finally {
+    mfaBusy.value = false
+  }
+}
+
+/** Abandon the factor step (the challenge expires server-side; the page
+ *  returns to the password form). */
+function cancelMfa() {
+  mfa.value = null
+  error.value = null
+}
+
+// ── the passwordless passkey sign-in (TODO.identity-sso/02) ──────────
+
+/** The passwordless ceremony's shared finish: the assertion against the
+ *  passwordless endpoint. */
+async function finishPasswordless(credential: CredentialJson) {
+  const res = await fetch('/api/op/login/passkey', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ credential }),
+  })
+  if (res.ok) { landSignedIn(); return }
+  const body = await res.json().catch(() => null) as { error?: string } | null
+  error.value = body?.error ?? t('login.passkeyFailed')
+}
+
+/** The passkey button: the discoverable assertion ceremony. */
+async function signInWithPasskey() {
+  if (passkeyBusy.value) return
+  abortConditionalUi() // the button wins over the autofill wait (one pending get at a time)
+  passkeyBusy.value = true
+  error.value = null
+  try {
+    const optRes = await fetch('/api/op/login/passkey/options', { method: 'POST', credentials: 'include' })
+    if (!optRes.ok) {
+      error.value = t('login.passkeyFailed')
+      passkeyBusy.value = false
+      return
+    }
+    const { publicKey } = await optRes.json() as { publicKey: AssertionOptionsJson }
+    let credential: CredentialJson
+    try {
+      credential = await assertPasskey(publicKey)
+    } catch {
+      error.value = t('login.mfa.passkeyCancelled')
+      passkeyBusy.value = false
+      return
+    }
+    await finishPasswordless(credential)
+  } catch {
+    error.value = 'Network error. Is the server running?'
+  } finally {
+    passkeyBusy.value = false
+  }
+}
+
+// The conditional-UI autofill: on a browser that offers it, the email
+// field's autofill can answer a passkey directly. The wait is aborted
+// when the password form or the passkey button wins.
+const conditionalUiAbort = ref<AbortController | null>(null)
+
+function abortConditionalUi() {
+  conditionalUiAbort.value?.abort()
+  conditionalUiAbort.value = null
+}
+
+async function startConditionalUi() {
+  if (!(await conditionalUiAvailable())) return
+  const controller = new AbortController()
+  conditionalUiAbort.value = controller
+  try {
+    const optRes = await fetch('/api/op/login/passkey/options', { method: 'POST', credentials: 'include' })
+    if (!optRes.ok || controller.signal.aborted) return
+    const { publicKey } = await optRes.json() as { publicKey: AssertionOptionsJson }
+    const credential = await assertPasskey(publicKey, { mediation: 'conditional', signal: controller.signal })
+    if (controller.signal.aborted) return
+    await finishPasswordless(credential)
+  } catch {
+    // A conditional-UI wait that never resolves, the user dismissing the
+    // autofill, or the abort — all silent: the password form stands.
+  }
+}
+
+onUnmounted(() => abortConditionalUi())
 
 /** The self-service reset request. The panel prefills the form's email;
  *  the response's own words render (the constant 200 answer, or the
@@ -250,7 +490,102 @@ async function submitReset() {
       </div>
 
       <!-- The OP's account sign-in form (always present — the identity
-           provider always has its account form). -->
+           provider always has its account form). Swaps for the factor
+           step when the account holds factors (TODO.identity-sso/03). -->
+      <template v-if="mfa">
+        <div class="space-y-3" data-testid="login-mfa">
+          <p class="text-sm text-slate-600 dark:text-slate-300">{{ t('login.mfa.prompt') }}</p>
+
+          <!-- The authenticator code (the user's choice when both exist). -->
+          <form v-if="mfa.methods.totp" class="flex items-center gap-2" @submit.prevent="submitMfaTotp">
+            <input
+              v-model="mfaCode"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="6"
+              data-testid="login-mfa-code"
+              :placeholder="t('login.mfa.codePlaceholder')"
+              class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <button
+              type="submit"
+              :disabled="mfaBusy || !/^\d{6}$/.test(mfaCode.trim())"
+              data-testid="login-mfa-submit"
+              class="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+            >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.verify') }}</button>
+          </form>
+
+          <button
+            v-if="mfa.methods.passkey"
+            type="button"
+            :disabled="mfaBusy"
+            data-testid="login-mfa-passkey"
+            class="w-full py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+            @click="submitMfaPasskey"
+          >{{ t('login.mfa.usePasskey') }}</button>
+
+          <!-- The recovery floor (one-time codes; the email reset stands
+               behind everything). -->
+          <div v-if="mfa.methods.recovery">
+            <p v-if="!mfaShowRecovery" class="text-center">
+              <button
+                type="button"
+                data-testid="login-mfa-recovery-toggle"
+                class="text-xs text-brand-600 dark:text-brand-300 hover:underline"
+                @click="mfaShowRecovery = true"
+              >{{ t('login.mfa.useRecovery') }}</button>
+            </p>
+            <form v-else class="flex items-center gap-2" @submit.prevent="submitMfaRecovery">
+              <input
+                v-model="recoveryCode"
+                type="text"
+                data-testid="login-mfa-recovery-code"
+                :placeholder="t('login.mfa.recoveryPlaceholder')"
+                class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <button
+                type="submit"
+                :disabled="mfaBusy"
+                data-testid="login-mfa-recovery-submit"
+                class="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+              >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.recoverySubmit') }}</button>
+            </form>
+          </div>
+
+          <p class="text-center">
+            <button
+              type="button"
+              data-testid="login-mfa-cancel"
+              class="text-xs text-slate-400 dark:text-slate-500 hover:underline"
+              @click="cancelMfa"
+            >{{ t('login.mfa.cancel') }}</button>
+          </p>
+        </div>
+      </template>
+
+      <template v-else>
+      <!-- The passwordless passkey button (TODO.identity-sso/02): beside
+           the password form, and the email field carries the conditional
+           autofill where the browser offers it. -->
+      <div v-if="passkeysSupported" class="mb-4">
+        <button
+          type="button"
+          :disabled="passkeyBusy"
+          data-testid="login-passkey"
+          class="w-full py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          @click="signInWithPasskey"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+          {{ passkeyBusy ? t('login.passkeyBusy') : t('login.passkeyButton') }}
+        </button>
+        <div class="flex items-center gap-3 mt-4 mb-1" aria-hidden="true">
+          <div class="flex-1 border-t border-slate-200 dark:border-slate-700" />
+          <span class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('login.passkeyOr') }}</span>
+          <div class="flex-1 border-t border-slate-200 dark:border-slate-700" />
+        </div>
+      </div>
+
       <form @submit.prevent="submitLogin" class="space-y-3">
         <div>
           <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
@@ -258,6 +593,7 @@ async function submitReset() {
             v-model="email"
             type="email"
             required
+            autocomplete="username webauthn"
             data-testid="login-email"
             class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             placeholder="you@example.org"
@@ -335,6 +671,7 @@ async function submitReset() {
       <p v-if="branding.supportUrl" class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
         Need help? <a :href="branding.supportUrl" target="_blank" rel="noopener" data-testid="login-support" class="text-brand-600 dark:text-brand-300 hover:underline">Contact support</a>
       </p>
+      </template>
     </div>
   </div>
 </template>

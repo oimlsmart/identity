@@ -14,6 +14,9 @@
 //   verify_email  the confirm-the-new-address message — the template
 //                 ships NOW (EN/FR) for TODO.identity/06's email-change
 //                 flow to send; it wires in when that route lands.
+//   mfa_locked    the second-factor lockout notice (TODO.identity-sso/03:
+//                 a burned sign-in attempt surfaces to the account by
+//                 email — the hard-throttle rule's other half).
 //
 // The copy lives in the i18n catalogs (src/i18n/en.ts + fr.ts, the
 // mail.* namespace) so the EN/FR lockstep rule covers the outbound mail;
@@ -45,7 +48,7 @@ import { fr } from '../../../src/i18n/fr'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { mailerFor, type MailEnv, type MailPosture } from '@oimlsmart/platform-server/mailer'
 
-export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email'
+export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'mfa_locked'
 
 /** The self-hosted brand mark the HTML shell carries. Email clients need
  *  an ABSOLUTE public URL for images and the platform's www asset path
@@ -78,6 +81,10 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   reset: { subject: 'mail.reset.subject', preheader: 'mail.reset.preheader', heading: 'mail.reset.heading', body: 'mail.reset.body', why: 'mail.reset.why', action: 'mail.reset.action', link: true },
   signin: { subject: 'mail.signin.subject', preheader: 'mail.signin.preheader', heading: 'mail.signin.heading', body: 'mail.signin.body', why: 'mail.signin.why', link: false },
   verify_email: { subject: 'mail.verifyEmail.subject', preheader: 'mail.verifyEmail.preheader', heading: 'mail.verifyEmail.heading', body: 'mail.verifyEmail.body', why: 'mail.verifyEmail.why', action: 'mail.verifyEmail.action', link: true },
+  // TODO.identity-sso/03: the second-factor lockout notice — a pure
+  // notification like signin (no link, no expiry).
+  mfa_locked: { subject: 'mail.mfaLocked.subject', preheader: 'mail.mfaLocked.preheader', heading: 'mail.mfaLocked.heading', body: 'mail.mfaLocked.body', why: 'mail.mfaLocked.why', link: false },
+}
 }
 
 export type MailLocale = 'en' | 'fr'
@@ -221,10 +228,16 @@ export async function sendOpMail(
     ...(input.params ?? {}),
   }
   // The sign-in notification's method: the callers pass the upstream
-  // provider's display name; the password sign-in leaves it unset and
-  // the localized label fills in.
-  if (input.template === 'signin' && params.method === undefined) {
-    params.method = (locale === 'fr' ? fr : en)['mail.signin.methodPassword']
+  // provider's display name OR (TODO.identity-sso/02+03) a catalog key
+  // for the factor methods ('mail.signin.methodPasswordTotp', …); the
+  // password sign-in leaves it unset and the localized label fills in.
+  if (input.template === 'signin') {
+    const catalog: Record<MessageKey, string> = locale === 'fr' ? fr : en
+    if (params.method === undefined) {
+      params.method = catalog['mail.signin.methodPassword']
+    } else if (typeof params.method === 'string' && params.method in catalog) {
+      params.method = catalog[params.method as MessageKey]
+    }
   }
   const rendered = renderOpMail(input.template, locale, params)
   try {
