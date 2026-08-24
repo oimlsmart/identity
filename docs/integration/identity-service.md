@@ -45,6 +45,7 @@ Issuer: `https://id.oimlsmart.org`
 | Authorization endpoint | `{issuer}/op/authorize` |
 | Token endpoint | `{issuer}/op/token` (authorization_code ONLY) |
 | UserInfo | `{issuer}/op/userinfo` |
+| Avatar (the `picture` claim's target; public, no session) | `{issuer}/op/avatar/<account id>` |
 | Account console (your users manage their own profile, linked identities, password, avatar there) | `{issuer}/op/account` |
 
 ## 3. Onboarding your service (the client registry)
@@ -70,8 +71,9 @@ Your service needs a client registration on the OP. One entry:
 - `redirect_uris` are **exact-match**. No wildcards, ever.
 - `claims_policy` (the per-client privilege): `claims` names the claim
   FAMILIES the ID token may carry for your service (absent = profile +
-  email only); `roles` bounds WHICH roles those claims may carry
-  (absent = unbounded by the policy — declare it). **Least claims by
+  email only): `roles`, `groups`, `org`, and `picture`. `roles` bounds
+  WHICH roles those claims may carry
+  (absent = unbounded by the policy; declare it). **Least claims by
   default**: if you need only identity, ask for no claims policy.
 - How to get registered: ask an OP administrator (the admin console at
   `{issuer}/op/admin` manages clients), or the registry API
@@ -91,6 +93,15 @@ families:
 - `roles` — the account's estate role codes (see §6 for the vocabulary).
 - `groups` — the account's group memberships.
 - `org` — the account's registered organization affiliation.
+- `picture`: the absolute URL of the account's avatar under the issuer
+  (`{issuer}/op/avatar/<sub>`). The serve is PUBLIC (no session; the
+  GitHub-avatars convention), so your UI can load it from a plain
+  cross-origin `<img>`. The claim appears only when your client's policy
+  carries the family AND the account has an uploaded picture; when it is
+  absent, render your own initials fallback (the OP's console does the
+  same). The URL stays fetchable for a known account even without an
+  upload: the OP answers a generated-initials image there, and a plain
+  404 for an unknown account.
 
 Claims beyond profile+email arrive ONLY when your client's policy
 allows them. The same user signing into two services can therefore

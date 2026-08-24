@@ -420,6 +420,7 @@ account model" below); the demo cast rides along in development only
 | `GET /op/consent` | The consent page (the app's house style): the client name, the scopes, the account being shared, allow/deny. |
 | `POST /op/token` | The code exchange: the one-time code (consumed atomically — a replay always loses with `invalid_grant`), the PKCE verifier, and the client secret (HTTP Basic or form; public clients run on PKCE alone). Answers the signed ES256 ID token (`iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, plus the claims policy's extras) and a Bearer access token. |
 | `GET /op/userinfo` | The access token's claims (the same scope + policy split as the ID token). |
+| `GET /op/avatar/:id` | The PUBLIC avatar serve (no session; the GitHub-avatars convention): the stored upload with its real content type + `nosniff` + a short public cache, the generated-initials SVG for a known account without an upload (or with no blob store bound), a plain JSON 404 for an unknown or erased account. This is the URL the `picture` claim names. |
 
 All OP state that must survive Worker isolates lives in D1
 (`oidc_clients`, `oidc_authorizations`, `oidc_codes`,
@@ -552,6 +553,18 @@ feature degrades honestly: the routes answer 503, the console hides the
 upload and says why (the identity Worker's R2 binding ships commented
 out in `wrangler.toml` until the operator creates the bucket, the same
 doctrine as the mailer).
+
+The READ side has a second, public face: `GET /op/avatar/<account id>`
+(the table above) serves the same bytes WITHOUT a session, the
+GitHub-avatars pattern, because the OIDC `picture` claim names that URL
+and an RP loads it from a cross-origin `<img>`. A known account without
+an upload answers the generated-initials SVG (the console's own
+fallback, served), an unknown or erased account the plain 404; never an
+error page. The claim itself (`picture`, one of the claims-policy
+families) appears in the ID token and userinfo only when the client's
+policy carries the family AND the account has an uploaded picture, so a
+token never points at the fallback. The console's avatar section states
+this public-by-convention posture to the account holder.
 
 **Linked identities.** The `identity_links` table binds an upstream
 account to the identity it may sign in: `(user, provider,
