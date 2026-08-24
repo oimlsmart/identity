@@ -1,6 +1,7 @@
 ---
-// The identity shell mount for src/vue-pages/public/login.vue.
-import IdShell from '../../layouts/IdShell.astro'
+// The pre-02a path redirects to the identity-native sign-in (the host's
+// root IS the sign-in page). The query string does not carry across a
+// static redirect — a stale in-flight authorize chain simply restarts.
 export const prerender = true
+return Astro.redirect('/')
 ---
-<IdShell title="Sign in" page="public/login" />

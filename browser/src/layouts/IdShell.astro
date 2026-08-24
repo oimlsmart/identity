@@ -1,12 +1,17 @@
 ---
 // ═══════════════════════════════════════════════════════════════════
-// IdShell — the identity service's one layout: the house shell
-// (@oimlsmart/site-shell's Base with the federation header + footer)
-// mounting the named vue-pages component as the page's only island.
-// Every page self-gates on the session (the 401 → /app/login redirect
-// lives in the page), so there is no app/public layout split here.
+// IdShell — the identity service's own minimal shell (the wave-02a
+// identity-native frontend). NO platform chrome on this host: no
+// federation nav, no platform consoles, no app PWA manifest. The house
+// design tokens + blueprint arrive through ../styles/app.css (the
+// @oimlsmart/site-shell CSS contract); the chrome is the identity
+// brand's slim header bar (the account context on the right when a
+// session exists), the page island, and the one-line footer with the
+// status link.
+//
+// bare: the sign-in page (/) — no header (the page centers the brand
+// block itself), the footer stays.
 // ═══════════════════════════════════════════════════════════════════
-import { Base } from '@oimlsmart/site-shell'
 import IdPage from '../astro/IdPage.vue'
 import AccountChip from '../components/AccountChip.vue'
 import '../styles/app.css'
@@ -15,20 +20,59 @@ interface Props {
   title?: string
   /** Key under src/vue-pages (no extension), e.g. "public/op-consent". */
   page: string
+  /** The sign-in page's chromeless posture. */
+  bare?: boolean
 }
-const { title = 'OIML SMART Identity', page } = Astro.props
+const { title = 'OIML SMART Identity', page, bare = false } = Astro.props
 ---
 
-<Base title={title} siteTitle="OIML SMART Identity" brandName="OIML SMART Identity">
-  <link slot="head" rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  {/* The OP's account context: the slim account bar under the federation
-      header when a session exists (the avatar chip the account console's
-      upload propagates to), nothing when signed out. */}
-  <AccountChip client:only="vue" />
-  {/* The single shell kind IS the app shell here — the data-layout
-      landmark the moved legs' settle waits read (the monorepo's App
-      layout's contract), wrapping the page island. */}
-  <div data-layout="app">
-    <IdPage page={page} client:only="vue" />
-  </div>
-</Base>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#004996" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="The OIML SMART identity service: the single sign-on service for the oimlsmart.org estate." />
+    <title>{title} | OIML SMART Identity</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-cream dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased min-h-screen flex flex-col">
+    {!bare && (
+      <header class="border-b border-slate-200 dark:border-slate-700">
+        <div class="max-w-5xl mx-auto px-6 h-12 flex items-center justify-between">
+          <a href="/" class="flex items-center gap-2 no-underline text-inherit" data-testid="shell-brand">
+            <img src="/oiml-logo-light.svg" alt="The OIML SMART logo" class="h-6 w-auto dark:hidden" />
+            <img src="/oiml-logo-dark.svg" alt="" class="h-6 w-auto hidden dark:block" aria-hidden="true" />
+            <span class="font-serif text-sm font-semibold tracking-tight">OIML SMART Identity</span>
+          </a>
+          <AccountChip client:only="vue" />
+        </div>
+      </header>
+    )}
+    <main class="flex-1 flex flex-col">
+      {/* The single shell kind IS the app shell here — the data-layout
+          landmark the moved legs' settle waits read (the monorepo's App
+          layout's contract), wrapping the page island. */}
+      <div data-layout="app">
+        <IdPage page={page} client:only="vue" />
+      </div>
+    </main>
+    <footer class="border-t border-slate-200 dark:border-slate-700 mt-8">
+      <div class="max-w-5xl mx-auto px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+        <span>OIML SMART Identity: the single sign-on service for the oimlsmart.org estate</span>
+        <a href="/api/health" class="hover:underline" data-testid="shell-status">Service status</a>
+      </div>
+    </footer>
+    <script is:inline>
+      var stored = localStorage.getItem('oiml-theme')
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      if (stored === 'dark' || (!stored && prefersDark)) {
+        document.documentElement.classList.add('dark')
+      }
+    </script>
+  </body>
+</html>

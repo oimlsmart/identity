@@ -1,7 +1,6 @@
 ---
-// The OP's one account surface is the account console: the kernel's
-// roleHome() answers /app for a console-less role, so /app redirects
-// here (the same posture as /op/account).
+// The kernel's roleHome() answers /app for a console-less role; on this
+// host the one account surface is the account console.
 export const prerender = true
-return Astro.redirect('/app/account')
+return Astro.redirect('/op/account')
 ---

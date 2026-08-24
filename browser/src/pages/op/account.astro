@@ -1,5 +1,7 @@
 ---
-// The legacy account path redirects to the account console.
+// The account console, native on this host (the wave-02a frontend: the
+// console pages never redirect into the platform app).
+import IdShell from '../../layouts/IdShell.astro'
 export const prerender = true
-return Astro.redirect('/app/account')
 ---
+<IdShell title="Your account" page="account" />

@@ -1,0 +1,36 @@
+---
+// The honest 404 (the wave-02a frontend): anything platform-shaped on
+// the identity host 404s with the pointer to the platform.
+import '../styles/app.css'
+export const prerender = true
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#004996" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Not found | OIML SMART Identity</title>
+  </head>
+  <body class="bg-cream dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased min-h-screen flex items-center justify-center px-6">
+    <div class="max-w-md text-center">
+      <img src="/oiml-logo-light.svg" alt="The OIML SMART logo" class="h-8 mx-auto mb-6 dark:hidden" />
+      <img src="/oiml-logo-dark.svg" alt="" class="h-8 mx-auto mb-6 hidden dark:block" aria-hidden="true" />
+      <h1 class="text-xl font-serif font-bold mb-3">This page is not here</h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
+        id.oimlsmart.org is the OIML SMART identity service: sign-in and
+        account administration only. The platform (the certification
+        consoles, the library, the operations surfaces) lives at
+        {' '}<a href="https://platform.oimlsmart.org" class="text-brand-600 dark:text-brand-300 hover:underline">platform.oimlsmart.org</a>.
+      </p>
+      <p class="text-sm">
+        <a href="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="not-found-signin">Sign in</a>
+        ·
+        <a href="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline">Your account</a>
+      </p>
+    </div>
+  </body>
+</html>
