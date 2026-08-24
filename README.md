@@ -15,7 +15,7 @@ This repository carries the OP half of the identity contract only:
 
 - the OP domain modules (`browser/server/auth/op/`, `auth/upstream/`,
   `auth/passwords.ts`, `auth/org-registry.ts`),
-- the five OP routers (`browser/server/routes/op*.ts`),
+- the OP routers (`browser/server/routes/op*.ts` — the protocol, the accounts, the upstream providers, the join intake, the memberships, the registry),
 - the D1 migrations (`browser/server/db/migrations/`), byte-identical
   with the monorepo's set: the live account registry
   (`oiml-smart-platform-identity`, D1) never moves, and wrangler keys
