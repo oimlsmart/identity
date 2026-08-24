@@ -1,4 +1,4 @@
--- Migration 0013 — the strong-authentication wave (TODO.identity-sso/02
+-- Migration 0012 — the strong-authentication wave (TODO.identity-sso/02
 -- passkeys + /03 the factor registry): passkeys (WebAuthn credentials),
 -- TOTP authenticator apps, recovery codes, the one-time ceremony state
 -- (WebAuthn challenges + the pending second-factor sign-in row), and the

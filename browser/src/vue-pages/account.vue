@@ -512,16 +512,13 @@ async function load(quiet = false) {
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     context.value = await res.json() as AccountContext
-    const [linksRes, providersRes, activityRes, orgsRes] = await Promise.all([
+    const [linksRes, providersRes, activityRes, orgsRes, factorsRes] = await Promise.all([
       fetch('/api/op/account/links', { credentials: 'include' }),
       fetch('/api/op/providers/public'),
       fetch('/api/op/account/activity', { credentials: 'include' }),
       // The registered-orgs feed (public) — the join form's selector.
       fetch('/api/op/organizations'),
-    const [linksRes, providersRes, activityRes, factorsRes] = await Promise.all([
-      fetch('/api/op/account/links', { credentials: 'include' }),
-      fetch('/api/op/providers/public'),
-      fetch('/api/op/account/activity', { credentials: 'include' }),
+      // TODO.identity-sso/02+03: the factor registry (the console's FACTORS section).
       fetch('/api/op/account/factors', { credentials: 'include' }),
     ])
     if (linksRes.ok) links.value = await linksRes.json() as LinkRow[]
