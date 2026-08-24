@@ -24,7 +24,22 @@
 //          token endpoint (the real authorize → consent → token
 //          exchange at the fetch level);
 //   leg 8  the activity feed carries every act above; the category
-//          filter narrows; the account target deep-links.
+//          filter narrows; the account target deep-links;
+//   leg 9  the erasure (the two-step delete, the tombstone, the freed
+//          email);
+//   leg 10 the APPS view (the heavy rebuild's per-client verdicts): can
+//          enter / no, with the reason named plainly (the allowlist vs
+//          the account's roles, the no-claims policy, the disabled
+//          client);
+//   leg 11 the per-client role grants edited ON the page: the grant
+//          flips the app verdict, the revoke restores the default, both
+//          audited;
+//   leg 12 the end-all-sessions act (the light act): every cookie stops
+//          resolving at once, the audit row carries the count;
+//   leg 13 the self-lockout rule: the admin's own page disarms the
+//          heavy acts and the server refuses them anyway;
+//   leg 14 the invited account's honest empty sections, and the erased
+//          account's tombstone page (no acts, the erasure on the trail).
 //
 // SELF-CONTAINED: the suite's shared stack (E2E_BASE_URL) is untouched —
 // own ports (API 9293 / astro 9294), own SQLite file. No stub GitHub:
@@ -294,6 +309,7 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
   let stack: Stack
   let erinId = ''
   let erinSetupUrl = ''
+  let backAgainId = ''
 
   beforeAll(async () => {
     stack = await bootIdentityStack()
@@ -476,7 +492,8 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
       await signInViaCookie(page, stack.base, root)
       await page.goto(`${stack.base}/op/admin/registry/users/${erinId}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="op-reg-user"]', { timeout: SETTLE, polling: 500 })
-      expect(await page.$eval('[data-testid="op-reg-profile-email"]', el => el.textContent?.trim())).toBe(ERIN.email)
+      // The email cell carries the verification badge next to the address.
+      expect(await page.$eval('[data-testid="op-reg-profile-email"]', el => el.textContent ?? '')).toContain(ERIN.email)
 
       // The role assignment (the merged account-wide model): Erin gains
       // tl_operator; the primary stays viewer.
@@ -485,13 +502,16 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
       await page.waitForSelector('[data-testid="op-reg-user-notice"]', { timeout: 60_000, polling: 500 })
       flog(page, 'leg4: roles saved')
 
-      // The "what the instances receive" panel names the fixture hub (its
-      // policy carries the roles claim); the per-client assignments block
-      // reads TODO.identity/03's rows (empty here) and deep-links the
-      // editor (the merged user-registry console).
-      expect(await page.$eval(`[data-testid="op-reg-claims-client-${HUB_CLIENT}"]`, el => el.textContent ?? '')).toContain('receives this account’s roles')
-      expect(await page.$eval('[data-testid="op-reg-client-roles-empty"]', el => el.textContent ?? '')).toContain('No per-client assignments')
-      expect(await page.$eval('[data-testid="op-reg-claims-seam"]', el => el.textContent ?? '')).toContain('user-registry console')
+      // The apps view names the fixture hub: Erin enters it WITH her
+      // roles (the policy carries the role claims, no allowlist bounds
+      // them); the per-client grants block reads empty honestly.
+      await page.waitForSelector(`[data-testid="op-reg-app-${HUB_CLIENT}"]`, { timeout: 60_000, polling: 500 })
+      expect(await page.$eval(`[data-testid="op-reg-app-badge-${HUB_CLIENT}"]`, el => el.textContent?.trim())).toBe('can enter')
+      const hubReason = await page.$eval(`[data-testid="op-reg-app-reason-${HUB_CLIENT}"]`, el => el.textContent ?? '')
+      expect(hubReason).toContain('viewer')
+      expect(hubReason).toContain('tl_operator')
+      expect(await page.$eval('[data-testid="op-reg-client-roles-empty"]', el => el.textContent ?? '')).toContain('No per-client grants')
+      expect(await page.$eval('[data-testid="op-reg-grants-seam"]', el => el.textContent ?? '')).toContain('relying parties console')
 
       // The link from leg 3 is listed with its provenance; the on-behalf
       // form's justification gate is live.
@@ -778,6 +798,244 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
       body: JSON.stringify({ email: 'gone@example.org', name: 'Back Again' }),
     })
     expect(reinvited.status).toBe(201)
+    backAgainId = ((await reinvited.json()) as { account: { id: string } }).account.id
     flog(null, 'leg9: the email is free again')
+  })
+
+  it('leg 10 — the apps view: the per-client verdicts with the reasons named plainly', { timeout: 900_000 }, async () => {
+    const root = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    // The fixture clients: a role-allowlist client (Erin’s viewer +
+    // tl_operator are outside it), a profile+email-only client, and a
+    // disabled one.
+    const bounded = await fetch(`${stack.base}/api/op/clients`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${root}` },
+      body: JSON.stringify({
+        client_id: 'ia-bounded-07', name: 'The id-07 bounded IA',
+        redirect_uris: ['https://ia-07.example.org/api/auth/callback/oidc'],
+        claims_policy: { claims: ['roles'], roles: ['ia_officer'] },
+      }),
+    })
+    expect(bounded.status).toBe(201)
+    const plain = await fetch(`${stack.base}/api/op/clients`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${root}` },
+      body: JSON.stringify({
+        client_id: 'profile-only-07', name: 'The id-07 profile-only app',
+        redirect_uris: ['https://plain-07.example.org/api/auth/callback/oidc'],
+      }),
+    })
+    expect(plain.status).toBe(201)
+    const off = await fetch(`${stack.base}/api/op/clients`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${root}` },
+      body: JSON.stringify({
+        client_id: 'off-07', name: 'The id-07 disabled app',
+        redirect_uris: ['https://off-07.example.org/api/auth/callback/oidc'],
+        claims_policy: { claims: ['roles'] },
+      }),
+    })
+    expect(off.status).toBe(201)
+    await fetch(`${stack.base}/api/op/clients/off-07/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${root}` },
+      body: JSON.stringify({ status: 'disabled' }),
+    })
+
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, root)
+      await page.goto(`${stack.base}/op/admin/registry/users/${erinId}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-reg-apps-list"]', { timeout: SETTLE, polling: 500 })
+
+      // The fixture hub: can enter, the tokens carry Erin’s two roles.
+      expect(await page.$eval(`[data-testid="op-reg-app-badge-${HUB_CLIENT}"]`, el => el.textContent?.trim())).toBe('can enter')
+      expect(await page.$eval(`[data-testid="op-reg-app-reason-${HUB_CLIENT}"]`, el => el.textContent ?? '')).toContain('viewer, tl_operator')
+
+      // The bounded client: NO, and the reason names both sets.
+      expect(await page.$eval('[data-testid="op-reg-app-badge-ia-bounded-07"]', el => el.textContent?.trim())).toBe('no')
+      const boundedReason = await page.$eval('[data-testid="op-reg-app-reason-ia-bounded-07"]', el => el.textContent ?? '')
+      expect(boundedReason).toContain('[ia_officer]')
+      expect(boundedReason).toContain('[viewer, tl_operator]')
+
+      // The profile-only client: NO, no role claim in its policy.
+      expect(await page.$eval('[data-testid="op-reg-app-reason-profile-only-07"]', el => el.textContent ?? '')).toContain('no role claim')
+
+      // The disabled client: NO, the client is disabled.
+      expect(await page.$eval('[data-testid="op-reg-app-reason-off-07"]', el => el.textContent ?? '')).toContain('disabled')
+
+      // The footnote is honest about what CAN ENTER means.
+      expect(await page.$eval('[data-testid="op-reg-apps-footnote"]', el => el.textContent ?? '')).toContain('sign-in itself never refuses')
+      flog(page, 'leg10: the verdicts and the reasons read correctly')
+    })
+  })
+
+  it('leg 11 — the per-client grants edited on the page: the grant flips the verdict, the revoke restores the default, both audited', { timeout: 900_000 }, async () => {
+    const root = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, root)
+      await page.goto(`${stack.base}/op/admin/registry/users/${erinId}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-reg-grant-open"]', { timeout: SETTLE, polling: 500 })
+
+      // The grant form: the bounded client’s allowlist bounds the
+      // checkboxes (viewer is disabled — outside [ia_officer]).
+      await page.evaluate(() => (document.querySelector('[data-testid="op-reg-grant-open"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="op-reg-grant-form"]', { timeout: 30_000, polling: 200 })
+      await page.select('[data-testid="op-reg-grant-client"]', 'ia-bounded-07')
+      await page.waitForSelector('[data-testid="op-reg-grant-allowlist-note"]', { timeout: 30_000, polling: 200 })
+      expect(await page.$eval('[data-testid="op-reg-grant-role-viewer"]', el => (el as HTMLInputElement).disabled)).toBe(true)
+      expect(await page.$eval('[data-testid="op-reg-grant-role-ia_officer"]', el => (el as HTMLInputElement).disabled)).toBe(false)
+
+      // Grant ia_officer on the bounded client: the verdict flips.
+      await page.evaluate(() => (document.querySelector('[data-testid="op-reg-grant-role-ia_officer"]') as HTMLElement).click())
+      await page.evaluate(() => (document.querySelector('[data-testid="op-reg-grant-save"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="op-reg-user-notice"]', { timeout: 60_000, polling: 500 })
+      await page.waitForSelector('[data-testid="op-reg-grant-ia-bounded-07"]', { timeout: 60_000, polling: 500 })
+      expect(await page.$eval('[data-testid="op-reg-grant-ia-bounded-07"]', el => el.textContent ?? '')).toContain('ia_officer')
+      await page.waitForFunction(
+        () => document.querySelector('[data-testid="op-reg-app-reason-ia-bounded-07"]')?.textContent?.includes('ia_officer')
+          && document.querySelector('[data-testid="op-reg-app-badge-ia-bounded-07"]')?.textContent?.trim() === 'can enter',
+        { timeout: 60_000, polling: 500 },
+      )
+      flog(page, 'leg11: the grant landed and the verdict flipped')
+
+      // The revoke (two-step): the row goes, the default is restored, the
+      // verdict is NO again.
+      await page.evaluate(() => (document.querySelector('[data-testid="op-reg-grant-revoke-ia-bounded-07"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="op-reg-grant-revoke-confirm-ia-bounded-07"]', { timeout: 30_000, polling: 200 })
+      await page.evaluate(() => (document.querySelector('[data-testid="op-reg-grant-revoke-confirm-ia-bounded-07"]') as HTMLElement).click())
+      await page.waitForFunction(
+        () => !document.querySelector('[data-testid="op-reg-grant-ia-bounded-07"]'),
+        { timeout: 60_000, polling: 500 },
+      )
+      await page.waitForFunction(
+        () => document.querySelector('[data-testid="op-reg-app-badge-ia-bounded-07"]')?.textContent?.trim() === 'no',
+        { timeout: 60_000, polling: 500 },
+      )
+      flog(page, 'leg11: the revoke restored the default')
+    })
+
+    // Both acts are on the record.
+    const trail = await (await fetch(`${stack.base}/api/op/registry/activity?q=client_roles`, {
+      headers: { cookie: `oiml-session=${root}` },
+    })).json() as Array<{ action: string; metadata?: Record<string, unknown> }>
+    expect(trail.some(e => e.action === 'account.client_roles' && e.metadata?.client_id === 'ia-bounded-07'
+      && (e.metadata?.roles as string[] ?? []).join() === 'ia_officer')).toBe(true)
+    expect(trail.some(e => e.action === 'account.client_roles_cleared' && e.metadata?.client_id === 'ia-bounded-07')).toBe(true)
+  })
+
+  it('leg 12 — the end-all act ends every session of the account (the light act), audited with its count', { timeout: 900_000 }, async () => {
+    const erinA = await passwordCookie(stack.base, ERIN.email, ERIN.password)
+    const erinB = await passwordCookie(stack.base, ERIN.email, ERIN.password)
+    const root = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, root)
+      await page.goto(`${stack.base}/op/admin/registry/users/${erinId}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-reg-sessions-list"]', { timeout: SETTLE, polling: 500 })
+      const count = await page.$$eval('[data-testid^="op-reg-session-"]', els => els.length)
+      expect(count).toBeGreaterThanOrEqual(2)
+
+      // The two-step: arm, then confirm — the list empties honestly.
+      await page.evaluate(() => (document.querySelector('[data-testid="op-reg-revoke-all"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="op-reg-revoke-all-confirm"]', { timeout: 30_000, polling: 200 })
+      await page.evaluate(() => (document.querySelector('[data-testid="op-reg-revoke-all-confirm"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="op-reg-sessions-empty"]', { timeout: 60_000, polling: 500 })
+      flog(page, 'leg12: every session ended')
+    })
+
+    // Erin’s cookies stop resolving at once.
+    for (const cookie of [erinA, erinB]) {
+      const res = await fetch(`${stack.base}/api/auth/session`, { headers: { cookie: `oiml-session=${cookie}` } })
+      expect(res.status).toBe(401)
+    }
+    // …and the act is on the record (the administrator, the count).
+    const trail = await (await fetch(`${stack.base}/api/op/registry/activity?q=sessions_revoked`, {
+      headers: { cookie: `oiml-session=${root}` },
+    })).json() as Array<{ action: string; metadata?: Record<string, unknown> }>
+    expect(trail.some(e => e.action === 'account.sessions_revoked' && e.metadata?.by === 'administrator' && Number(e.metadata?.count) >= 2)).toBe(true)
+  })
+
+  it('leg 13 — the self-lockout rule: the admin’s own page disables the heavy acts, and the server refuses them', { timeout: 900_000 }, async () => {
+    const root = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    const me = await (await fetch(`${stack.base}/api/auth/session`, { headers: { cookie: `oiml-session=${root}` } })).json() as { id: string }
+
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, root)
+      await page.goto(`${stack.base}/op/admin/registry/users/${me.id}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-reg-user"]', { timeout: SETTLE, polling: 500 })
+
+      // The heavy acts are disabled on your own account, and the page
+      // says why; the end-all warns that this console goes too.
+      expect(await page.$eval('[data-testid="op-reg-deactivate"]', el => (el as HTMLButtonElement).disabled)).toBe(true)
+      expect(await page.$('[data-testid="op-reg-self-deactivate-note"]')).not.toBeNull()
+      expect(await page.$eval('[data-testid="op-reg-erase"]', el => (el as HTMLButtonElement).disabled)).toBe(true)
+      expect(await page.$('[data-testid="op-reg-self-erase-note"]')).not.toBeNull()
+      await page.waitForSelector('[data-testid="op-reg-revoke-all-self"]', { timeout: 60_000, polling: 500 })
+      flog(page, 'leg13: the self page disarms the heavy acts')
+    })
+
+    // The server refuses both (the rule never rests on the buttons).
+    const deactivated = await fetch(`${stack.base}/api/op/accounts/${me.id}/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${root}` },
+      body: JSON.stringify({ active: false }),
+    })
+    expect(deactivated.status).toBe(400)
+    expect(((await deactivated.json()) as { error: string }).error).toContain('your own account')
+    const erased = await fetch(`${stack.base}/api/op/accounts/${me.id}`, {
+      method: 'DELETE',
+      headers: { cookie: `oiml-session=${root}` },
+    })
+    expect(erased.status).toBe(400)
+    expect(((await erased.json()) as { error: string }).error).toContain('your own account')
+    flog(null, 'leg13: the server refuses the self-lockout')
+  })
+
+  it('leg 14 — the invited account answers every section empty honestly; the erased account reads as a tombstone', { timeout: 900_000 }, async () => {
+    const root = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    expect(backAgainId, 'leg 9 re-invited the freed email').toBeTruthy()
+
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, root)
+      await page.goto(`${stack.base}/op/admin/registry/users/${backAgainId}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-reg-user"]', { timeout: SETTLE, polling: 500 })
+
+      // The invited state: the badge names it, never signed in, and every
+      // section answers empty honestly.
+      expect(await page.$eval('[data-testid="op-reg-profile-status"]', el => el.textContent?.trim())).toBe('invited')
+      expect(await page.$eval('[data-testid="op-reg-profile-lastlogin"]', el => el.textContent?.trim())).toBe('never')
+      expect(await page.$('[data-testid="op-reg-sessions-empty"]')).not.toBeNull()
+      expect(await page.$('[data-testid="op-reg-no-links"]')).not.toBeNull()
+      expect(await page.$('[data-testid="op-reg-client-roles-empty"]')).not.toBeNull()
+      expect(await page.$('[data-testid="op-reg-factors-empty"]')).not.toBeNull()
+      // The apps view still computes for an invited account (the hub
+      // enters with the account-wide viewer role).
+      await page.waitForSelector(`[data-testid="op-reg-app-badge-${HUB_CLIENT}"]`, { timeout: 60_000, polling: 500 })
+      expect(await page.$eval(`[data-testid="op-reg-app-badge-${HUB_CLIENT}"]`, el => el.textContent?.trim())).toBe('can enter')
+      flog(page, 'leg14: the invited account reads honestly')
+    })
+
+    // Erase it (the API — leg 9 proved the console flow), then the page
+    // reads as the tombstone it is: no acts, the erasure on the trail.
+    const erased = await fetch(`${stack.base}/api/op/accounts/${backAgainId}`, {
+      method: 'DELETE',
+      headers: { cookie: `oiml-session=${root}` },
+    })
+    expect(erased.status).toBe(200)
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, root)
+      await page.goto(`${stack.base}/op/admin/registry/users/${backAgainId}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-reg-user"]', { timeout: SETTLE, polling: 500 })
+      expect(await page.$eval('[data-testid="op-reg-profile-status"]', el => el.textContent?.trim())).toBe('erased')
+      expect(await page.$eval('[data-testid="op-reg-profile-erased"]', el => el.textContent ?? '')).toContain('anonymized tombstone')
+      expect(await page.$('[data-testid="op-reg-actions"]')).toBeNull()
+      expect(await page.$('[data-testid="op-reg-apps"]')).toBeNull()
+      expect(await page.$('[data-testid="op-reg-sessions"]')).toBeNull()
+      await page.waitForFunction(
+        () => (document.querySelector('[data-testid="op-reg-activity-list"]')?.textContent ?? '').includes('erased the account'),
+        { timeout: 60_000, polling: 500 },
+      )
+      flog(page, 'leg14: the tombstone reads as a tombstone')
+    })
   })
 })
