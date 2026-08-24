@@ -261,10 +261,12 @@ afterAll(async () => {
 describe('the claim-shaping rule (auth/op/claims.ts)', () => {
   let rolesForClient: typeof import('../../server/auth/op/claims').rolesForClient
   let roleClaimsForClient: typeof import('../../server/auth/op/claims').roleClaimsForClient
+  let pictureClaimForClient: typeof import('../../server/auth/op/claims').pictureClaimForClient
   beforeAll(async () => {
     const mod = await import('../../server/auth/op/claims')
     rolesForClient = mod.rolesForClient
     roleClaimsForClient = mod.roleClaimsForClient
+    pictureClaimForClient = mod.pictureClaimForClient
   })
 
   it('no assignment row → the account default carries (the pre-03 behavior)', () => {
@@ -296,6 +298,19 @@ describe('the claim-shaping rule (auth/op/claims.ts)', () => {
     expect(roleClaimsForClient([], { role: 'admin', roles: ['admin'], orgId: 'EX1' }, policy)).toEqual({ org: 'EX1' })
     // no policy at all → profile+email only (01's posture)
     expect(roleClaimsForClient(null, { role: 'admin', roles: ['admin'], orgId: 'EX1' }, null)).toEqual({})
+  })
+
+  it('the picture family: the public avatar URL, ONLY with the policy AND an uploaded avatar', () => {
+    const withAvatar = { id: 'u-1', avatarUrl: '/api/op/account/avatar' }
+    // Policy + avatar → the public route's absolute URL under the issuer.
+    expect(pictureClaimForClient(withAvatar, { claims: ['picture'] }, 'https://id.example'))
+      .toBe('https://id.example/op/avatar/u-1')
+    // The family absent from the policy → no claim (the per-client privilege).
+    expect(pictureClaimForClient(withAvatar, { claims: ['roles', 'org'] }, 'https://id.example')).toBeNull()
+    expect(pictureClaimForClient(withAvatar, null, 'https://id.example')).toBeNull()
+    // No uploaded avatar → no claim, even with the family (never a broken URL).
+    expect(pictureClaimForClient({ id: 'u-1' }, { claims: ['picture'] }, 'https://id.example')).toBeNull()
+    expect(pictureClaimForClient({ id: 'u-1', avatarUrl: null }, { claims: ['picture'] }, 'https://id.example')).toBeNull()
   })
 })
 

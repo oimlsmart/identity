@@ -14,7 +14,8 @@
 //   PKCE verify (wrong verifier loses)      the per-client claims policy
 //   the sign-in redirect (no session)       the module gate (a non-identity
 //   consent deny (access_denied)            profile answers 404)
-//   the registry's admin surface
+//   the registry's admin surface            the public avatar serve (the
+//   the picture claim (policy + avatar)     upload / the initials / the 404)
 // ─────────────────────────────────────────────────────────────────────
 
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -202,6 +203,7 @@ describe('the discovery document', () => {
     expect(meta.id_token_signing_alg_values_supported).toEqual(['ES256'])
     expect(meta.code_challenge_methods_supported).toEqual(['S256'])
     expect(meta.subject_types_supported).toEqual(['public'])
+    expect(meta.claims_supported).toContain('picture')
   })
 
   it('serves the JWKS: one ES256 key with a kid', async () => {
@@ -311,6 +313,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
     expect(claims.roles).toBeUndefined()
     expect(claims.groups).toBeUndefined()
     expect(claims.org).toBeUndefined()
+    expect(claims.picture).toBeUndefined()
   })
 })
 
@@ -542,6 +545,162 @@ describe('the registry admin surface', () => {
   })
 })
 
+describe('the public avatar route (GET /op/avatar/:id)', () => {
+  // A 1x1 transparent PNG (the id-accounts fixture's own bytes), as the
+  // ArrayBuffer the BlobStore contract takes.
+  const PNG_BUF = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+  const PNG = PNG_BUF.buffer.slice(PNG_BUF.byteOffset, PNG_BUF.byteOffset + PNG_BUF.byteLength) as ArrayBuffer
+
+  /** The in-memory BlobStore (the id-accounts pattern). */
+  function memoryBlobs() {
+    const map = new Map<string, { data: ArrayBuffer; contentType: string | null }>()
+    return {
+      map,
+      async put(key: string, data: ArrayBuffer, contentType: string | null) { map.set(key, { data, contentType }) },
+      async get(key: string) {
+        const hit = map.get(key)
+        return hit ? { data: hit.data, contentType: hit.contentType, size: hit.data.byteLength } : null
+      },
+      async delete(key: string) { map.delete(key) },
+    }
+  }
+
+  it('serves the stored upload publicly: no session, the real type, nosniff, a short public cache', async () => {
+    const { installBlobStore, uninstallBlobStoreForTest } = await import('../../server/blobs')
+    const { avatarKey } = await import('../../server/auth/op/avatars')
+    const mem = memoryBlobs()
+    installBlobStore(mem)
+    try {
+      const ia = (await store.findUserByEmail('ia@oiml.org'))!
+      await mem.put(avatarKey(ia.id, 'image/png'), PNG, 'image/png')
+      // NO session cookie — the GitHub-avatars posture.
+      const res = await app.request(`${ISSUER}/op/avatar/${ia.id}`)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toBe('image/png')
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(res.headers.get('cache-control')).toBe('public, max-age=300')
+      expect(Buffer.from(await res.arrayBuffer()).equals(PNG_BUF)).toBe(true)
+    } finally {
+      uninstallBlobStoreForTest()
+    }
+  })
+
+  it('a known account without an upload answers the generated initials (never a broken image)', async () => {
+    // NO blob store bound at all: the initials still serve.
+    const { uninstallBlobStoreForTest } = await import('../../server/blobs')
+    uninstallBlobStoreForTest()
+    const ia = (await store.findUserByEmail('ia@oiml.org'))!
+    const res = await app.request(`${ISSUER}/op/avatar/${ia.id}`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/svg+xml')
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(res.headers.get('content-security-policy')).toBe("default-src 'none'")
+    expect(res.headers.get('cache-control')).toBe('public, max-age=300')
+    const svg = await res.text()
+    expect(svg).toContain('>IO</text>') // IA Officer's initials, the console's own fallback
+  })
+
+  it('an unknown or erased account answers the plain 404 (never an error page, never a tombstone picture)', async () => {
+    const { uninstallBlobStoreForTest } = await import('../../server/blobs')
+    uninstallBlobStoreForTest()
+    const unknown = await app.request(`${ISSUER}/op/avatar/${crypto.randomUUID()}`)
+    expect(unknown.status).toBe(404)
+    expect(unknown.headers.get('content-type')).toContain('application/json')
+
+    // The erasure's promise: the tombstone never serves, even with a
+    // surviving blob row (the store-level erase does not touch blobs).
+    const gone = await store.provisionSsoUser({
+      email: 'gone@example.org', name: 'Gone User', provider: 'oidc', providerAccountId: 'gone-1', role: 'viewer', orgId: null,
+    })
+    const { installBlobStore, uninstallBlobStoreForTest: uninstall2 } = await import('../../server/blobs')
+    const { avatarKey } = await import('../../server/auth/op/avatars')
+    const mem = memoryBlobs()
+    installBlobStore(mem)
+    try {
+      await mem.put(avatarKey(gone.id, 'image/png'), PNG, 'image/png')
+      expect((await app.request(`${ISSUER}/op/avatar/${gone.id}`)).status).toBe(200) // live: serves
+      await store.eraseOpAccount(gone.id)
+      const res = await app.request(`${ISSUER}/op/avatar/${gone.id}`)
+      expect(res.status).toBe(404)
+      expect(res.headers.get('content-type')).toContain('application/json')
+    } finally {
+      uninstall2()
+    }
+  })
+})
+
+describe('the picture claim (the per-client family)', () => {
+  const PICTURE_RP = {
+    client_id: 'rag-instance',
+    name: 'The Publications Assistant',
+    redirect_uris: ['https://rag.example/callback'],
+  }
+
+  it('carries the public avatar URL only with the policy AND an uploaded avatar; userinfo matches', async () => {
+    const cookie = await demoLogin('ia@oiml.org')
+    const ia = (await store.findUserByEmail('ia@oiml.org'))!
+    await store.upsertOidcClient({
+      clientId: PICTURE_RP.client_id,
+      name: PICTURE_RP.name,
+      secretHash: null, // a public client: PKCE is the whole credential
+      redirectUris: PICTURE_RP.redirect_uris,
+      claimsPolicy: { claims: ['picture'] },
+      createdBy: 'test',
+    })
+    const expectedUrl = `${ISSUER}/op/avatar/${ia.id}`
+
+    try {
+      // 1. The family WITHOUT an uploaded avatar: no claim anywhere.
+      let pkce = await generatePkce()
+      let result = await driveAuthorize(cookie, {
+        clientId: PICTURE_RP.client_id, redirectUri: PICTURE_RP.redirect_uris[0]!, challenge: pkce.challenge,
+      }) as AuthorizeResult
+      expect(result.consent.policyClaims).toEqual(['picture'])
+      let token = await exchange({ code: result.code, redirectUri: PICTURE_RP.redirect_uris[0]!, clientId: PICTURE_RP.client_id, verifier: pkce.verifier })
+      expect(token.status).toBe(200)
+      let tokens = await token.json() as { id_token: string; access_token: string }
+      let claims = await validateIdToken(tokens.id_token, { issuer: ISSUER, clientId: PICTURE_RP.client_id, nonce: 'nn-1', jwksUri: `${ISSUER}/jwks.json` }, appFetch)
+      expect(claims.picture).toBeUndefined()
+      let userinfo = await app.request(`${ISSUER}/op/userinfo`, { headers: { authorization: `Bearer ${tokens.access_token}` } })
+      expect((await userinfo.json() as Record<string, unknown>).picture).toBeUndefined()
+
+      // 2. The avatar lands (the upload's marker): the claim appears —
+      //    the public route's absolute URL under the issuer.
+      await store.setUserAvatar(ia.id, '/api/op/account/avatar')
+      pkce = await generatePkce()
+      result = await driveAuthorize(cookie, {
+        clientId: PICTURE_RP.client_id, redirectUri: PICTURE_RP.redirect_uris[0]!, challenge: pkce.challenge,
+      }) as AuthorizeResult
+      token = await exchange({ code: result.code, redirectUri: PICTURE_RP.redirect_uris[0]!, clientId: PICTURE_RP.client_id, verifier: pkce.verifier })
+      tokens = await token.json() as { id_token: string; access_token: string }
+      claims = await validateIdToken(tokens.id_token, { issuer: ISSUER, clientId: PICTURE_RP.client_id, nonce: 'nn-1', jwksUri: `${ISSUER}/jwks.json` }, appFetch)
+      expect(claims.picture).toBe(expectedUrl)
+      userinfo = await app.request(`${ISSUER}/op/userinfo`, { headers: { authorization: `Bearer ${tokens.access_token}` } })
+      expect((await userinfo.json() as Record<string, unknown>).picture).toBe(expectedUrl)
+
+      // 3. A client whose policy lacks the family never receives the
+      //    claim — avatar or not (the CONFIDENTIAL client: roles/groups/org).
+      pkce = await generatePkce()
+      result = await driveAuthorize(cookie, {
+        clientId: CONFIDENTIAL.client_id, redirectUri: CONFIDENTIAL.redirect_uris[0]!, challenge: pkce.challenge,
+      }) as AuthorizeResult
+      token = await exchange({
+        code: result.code, redirectUri: CONFIDENTIAL.redirect_uris[0]!,
+        clientId: CONFIDENTIAL.client_id, verifier: pkce.verifier, secret: CONFIDENTIAL.secret,
+      })
+      tokens = await token.json() as { id_token: string; access_token: string }
+      claims = await validateIdToken(tokens.id_token, { issuer: ISSUER, clientId: CONFIDENTIAL.client_id, nonce: 'nn-1', jwksUri: `${ISSUER}/jwks.json` }, appFetch)
+      expect(claims.roles).toEqual(['ia_officer']) // the policy's own families still land
+      expect(claims.picture).toBeUndefined()
+      userinfo = await app.request(`${ISSUER}/op/userinfo`, { headers: { authorization: `Bearer ${tokens.access_token}` } })
+      expect((await userinfo.json() as Record<string, unknown>).picture).toBeUndefined()
+    } finally {
+      // The avatar marker never leaks into the other suites' posture.
+      await store.setUserAvatar(ia.id, null)
+    }
+  })
+})
+
 describe('the module gate', () => {
   it('a non-identity profile answers 404 on every OP path', async () => {
     resetProfile() // the hub default (no identity module)
@@ -552,6 +711,7 @@ describe('the module gate', () => {
         ['GET', '/op/authorize?client_id=x'],
         ['POST', '/op/token'],
         ['GET', '/op/userinfo'],
+        ['GET', '/op/avatar/some-account-id'],
         ['GET', '/api/op/clients'],
       ] as const) {
         const res = await app.request(`${ISSUER}${path}`, { method })

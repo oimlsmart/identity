@@ -561,6 +561,33 @@ describe('the avatar upload', () => {
   })
 })
 
+// ── the avatar fallback (the public route's generated initials) ──────
+
+describe('the generated-initials fallback (auth/op/avatars.ts)', () => {
+  it('the initials rule mirrors the console exactly', async () => {
+    const { avatarInitials } = await import('../../server/auth/op/avatars')
+    expect(avatarInitials('Nina Avatar')).toBe('NA')
+    expect(avatarInitials('Madonna')).toBe('MM') // the console's rule: first + last word, one word twice
+    expect(avatarInitials('  spaced   out   name ')).toBe('SN')
+    expect(avatarInitials('')).toBe('?')
+    expect(avatarInitials('   ')).toBe('?')
+    expect(avatarInitials('lower case')).toBe('LC')
+  })
+
+  it('the SVG is inert and carries the initials (escaped) in the brand palette', async () => {
+    const { initialsAvatarSvg } = await import('../../server/auth/op/avatars')
+    const svg = initialsAvatarSvg('Nina Avatar')
+    expect(svg).toContain('>NA</text>')
+    expect(svg).toContain('#dde9fc') // brand-100, the console chip's light scheme
+    expect(svg).toContain('#003a78') // brand-700
+    expect(svg).not.toContain('<script')
+    // A hostile name never breaks out of the markup.
+    const evil = initialsAvatarSvg('<script>')
+    expect(evil).not.toContain('<script>')
+    expect(evil).toContain('&lt;')
+  })
+})
+
 // ── the erasure (the offboarding runbook's delete path) ──────────────
 
 describe('the account erasure (DELETE /api/op/accounts/:id)', () => {

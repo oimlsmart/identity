@@ -74,6 +74,7 @@
       "name",
       "email",
       "email_verified",
+      "picture",
       "roles",
       "groups",
       "org"
