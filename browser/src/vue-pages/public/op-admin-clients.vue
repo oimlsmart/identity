@@ -28,6 +28,20 @@ interface ClientRow {
   createdBy: string | null
 }
 
+/** The per-client activity (TODO.identity-sso/01, surface 4): issuance
+ *  per UTC day from the audit journal, the refusal count, the registry's
+ *  own events. Merged into the registry rows by clientId. */
+interface ClientActivity {
+  clientId: string
+  activity: {
+    days: Array<{ date: string; issued: number }>
+    totalIssued14d: number
+    lastIssuedAt: string | null
+    refusals14d: number
+  }
+  registryEvents: Array<{ at: string; action: string; by: string }>
+}
+
 const CLAIM_OPTIONS = ['roles', 'groups', 'org', 'picture']
 
 const { branding } = useBranding()
@@ -37,6 +51,9 @@ const forbidden = ref(false)
 const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
 const rows = ref<ClientRow[]>([])
+/** The per-client activity, keyed by clientId (null until the read
+ *  lands; the strip then hides honestly). */
+const activity = ref<Record<string, ClientActivity> | null>(null)
 const saving = ref(false)
 /** The role vocabulary for the claims policy's role allowlist
  *  (TODO.identity/03): the instance map's keys. */
@@ -103,6 +120,25 @@ async function load(): Promise<void> {
   }
   if (!res.ok) throw new Error(`the client registry failed (${res.status})`)
   rows.value = await res.json() as ClientRow[]
+}
+
+/** The activity read (the dashboard API): merged by clientId. A failure
+ *  never blocks the registry itself — the strips just stay hidden. */
+async function loadActivity(): Promise<void> {
+  const res = await api('/api/op/dashboard/clients')
+  if (!res.ok) return
+  const body = await res.json() as { clients: ClientActivity[] }
+  activity.value = Object.fromEntries(body.clients.map(row => [row.clientId, row]))
+}
+
+/** The strip's one-liner for a row. */
+function activityLine(clientId: string): string {
+  const a = activity.value?.[clientId]
+  if (!a) return ''
+  const issued = `${a.activity.totalIssued14d} token issuance(s) in 14 d`
+  const last = a.activity.lastIssuedAt ? ` · last ${a.activity.lastIssuedAt.slice(0, 16).replace('T', ' ')}Z` : ' · none yet'
+  const refused = a.activity.refusals14d ? ` · ${a.activity.refusals14d} token refusal(s)` : ''
+  return issued + last + refused
 }
 
 /** The form's URI list, validated inline (persistent): every line must
@@ -211,6 +247,7 @@ onMounted(async () => {
     const rolesRes = await api('/api/users/roles')
     if (rolesRes.ok) roleOptions.value = Object.keys(await rolesRes.json() as Record<string, string[]>)
     await load()
+    void loadActivity()
   } catch (e) {
     error.value = (e as Error).message || 'Network error. Is the server running?'
   } finally {
@@ -299,6 +336,9 @@ onMounted(async () => {
                 <ul class="mt-1" :data-testid="`op-client-uris-${row.clientId}`">
                   <li v-for="uri in row.redirectUris" :key="uri" class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">{{ uri }}</li>
                 </ul>
+                <p v-if="activity?.[row.clientId]" class="mt-1 text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`op-client-activity-${row.clientId}`">
+                  {{ activityLine(row.clientId) }}
+                </p>
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <button

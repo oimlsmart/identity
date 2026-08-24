@@ -99,6 +99,7 @@ function describe(event: AuditEvent): string {
       ? `ended every session of ${String(meta.email ?? event.entity_id)} (${Number(meta.count ?? 0)}, administrator)`
       : `signed out ${Number(meta.count ?? 0)} other session(s)`
     case 'account.sign_in': return `signed in with the password`
+    case 'account.sign_in_failed': return `a password sign-in failed for ${String(meta.email ?? event.entity_id)} (${meta.reason === 'deactivated' ? 'the account is deactivated' : 'invalid credentials'})`
     case 'account.client_roles': {
       const roles = (meta.roles as string[] ?? [])
       return `granted roles on ${String(meta.client_id ?? '')}: ${roles.length ? roles.join(', ') : 'none (the explicit no-claim posture)'}`
@@ -116,6 +117,8 @@ function describe(event: AuditEvent): string {
     case 'upstream_refused': return `a ${String(meta.provider ?? '')} sign-in was refused (${String(meta.reason ?? '')}): ${String(meta.handle ?? '')}`
     case 'upstream_link_conflict': return `a ${String(meta.provider ?? '')} link hit a conflict: ${String(meta.handle ?? '')}`
     case 'client.registered': return `registered the relying party ${event.entity_id} (${meta.confidential ? 'confidential' : 'public'}; claims: ${(meta.claims as string[] ?? []).join(', ') || 'profile + email'})`
+    case 'client.token_issued': return `the token endpoint issued tokens for ${event.entity_id} (scope ${String(meta.scope ?? '')})`
+    case 'client.token_refused': return `the token endpoint refused ${event.entity_id} (${String(meta.error ?? '')})`
     case 'client.updated': return `updated the relying party ${event.entity_id}${meta.rekeyed ? ' (re-keyed)' : ''}${meta.made_public ? ' (made public)' : ''}`
     case 'client.status': return `set the relying party ${event.entity_id} to ${String(meta.status ?? '')}`
     case 'provider.registered': return `registered the sign-in provider ${event.entity_id}`
