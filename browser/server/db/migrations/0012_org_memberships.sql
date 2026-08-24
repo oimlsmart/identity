@@ -1,4 +1,4 @@
--- Migration 0011 — the multi-organization membership model
+-- Migration 0012 — the multi-organization membership model
 -- (TODO.identity/11). An account can belong to SEVERAL organizations and
 -- acts AS one at a time (the GitHub context-switch pattern): the
 -- org_memberships table carries the account × org × per-org role set with
