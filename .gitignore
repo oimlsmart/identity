@@ -1,0 +1,26 @@
+# The sibling checkouts (the x/ doctrine): the platform-server kernel
+# resolves through x/oimlsmart/smart until the first npm publish. Never
+# committed; CI checks it out at the same declared path.
+x/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# node
+node_modules/
+dist/
+
+# Local env files (never committed; .env.example templates excepted)
+*.local
+.env
+.env.*
+!.env.example
+
+# Wrangler / the Cloudflare local posture: .dev.vars holds local-only
+# vars, .wrangler the local D1 state.
+.dev.vars
+.wrangler/
+
+# The e2e legs' per-stack SQLite files + vite caches
+browser/.cache/
