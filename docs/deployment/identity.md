@@ -1019,7 +1019,8 @@ ORGANIZATION ── manages ──▶ ITS OWN PEOPLE (the org-scoped
   to the caller's own organization binding: the list answers only the
   org's users, creates land in the org with a role the org's KIND bounds
   (an IA's staff get `ia_officer` and the NMI split roles, a TL's staff
-  `tl_operator`, a Utilizer/Associate's staff `viewer` —
+  `tl_operator`, a Utilizer/Associate's staff `viewer`, a
+  manufacturer's staff `applicant` + `viewer` — TODO.register/01 —
   `server/auth/org-registry.ts`), and another org's accounts are not
   found (no cross-org slice exists). The org's own administrator account
   stays with the scheme operator: the scoped grant can neither assign
@@ -1042,6 +1043,23 @@ ORGANIZATION ── manages ──▶ ITS OWN PEOPLE (the org-scoped
   registered — creates its organization administrator. A refusal always
   carries a reason (the requester sees it; for a fake org, the
   participation pointer).
+- **The manufacturer path (TODO.register/01)**: the join page's "my
+  organization manufactures measuring instruments" branch — a
+  manufacturer org is NOT an OIML-CS participant (no peer assessment, no
+  scope). The org row is created by the self-registration itself with
+  the manufacturer kind and the DECLARED standing (the founder's work
+  email declares the org's email-domain hint; the enrollment ceremony
+  proves the mailbox); when the work email's domain matches an existing
+  manufacturer org's declared hint, the request JOINS it instead (the
+  member's `applicant` role, the org's own administrator decides). The
+  founder's `org_admin` ask lands with BIML. An issuing authority the
+  manufacturer applied to can CONFIRM the relationship
+  (`/api/op/org-endorsements`, the IA's own officers or its org admin —
+  the registry operator may curate), upgrading the standing to
+  IA-endorsed; the withdrawal keeps the row with its revocation stamps.
+  The standing NEVER reads participant, and every act rides the
+  org-registry lifecycle's audit chain (the admin consoles render it
+  per kind, honestly).
 - **The org-admin console** (`/op/admin/users`): the org admin's queue
   (approve → the invite is issued — the TODO.identity/02 enrollment
   seam, bound to its real machinery: an OP password account + the

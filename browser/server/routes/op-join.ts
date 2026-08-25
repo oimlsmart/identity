@@ -11,6 +11,13 @@
 // participation flow, gated to active orgs carrying a participant
 // kind); each organization manages its OWN people through its org
 // admin (the org-scoped `org.users.manage` grant, routes/users.ts).
+// TODO.register/01 adds the MANUFACTURER path to the intake: a
+// manufacturer org is NOT a PD-03 participant — its standing is
+// declared on self-registration (the founder's work email declares the
+// domain hint; an existing manufacturer org with a matching domain
+// takes the join ask), upgradeable to IA-endorsed by an issuing
+// authority's confirmation (routes/op-endorsements.ts), and NEVER the
+// participant standing.
 // This router carries the intake + the decisions:
 //
 //   GET  /api/op/organizations             — the PUBLIC selector feed:
@@ -56,8 +63,11 @@ import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
 import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
 import {
+  admitsJoinFlow,
+  emailDomain,
   emailDomainHint,
   listRegistryOrganizations,
+  mintManufacturerOrgId,
   orgAssignableRoles,
   resolveRegistryOrg,
 } from '../auth/org-registry'
@@ -145,16 +155,21 @@ export function createOpJoinRouter(): Hono {
 
   // ── the public submit ──────────────────────────────────────────────
 
-  // POST /api/op/join-requests — file the request. Two shapes:
+  // POST /api/op/join-requests — file the request. Three shapes:
   //   { name, email, org_id, requested_role, note? }   — a registry org
   //   { name, email, org_name_text, note? }            — the not-listed
   //                                                      path (BIML's queue)
+  //   { name, email, org_kind: 'manufacturer', org_name_text, country?,
+  //     note? }                                        — the manufacturer
+  //                                                      path (TODO.register/01)
   router.post('/api/op/join-requests', async (c) => {
     const body = await c.req.json<{
       name?: string
       email?: string
       org_id?: string | null
+      org_kind?: string | null
       org_name_text?: string | null
+      country?: string | null
       requested_role?: string
       note?: string | null
     }>().catch(() => null)
@@ -173,15 +188,15 @@ export function createOpJoinRouter(): Hono {
 
     const orgId = typeof body.org_id === 'string' && body.org_id.trim() ? body.org_id.trim() : null
     if (orgId) {
-      // The registry path: the org must be an ACTIVE registry org
-      // carrying a participant kind (the public intake is the scheme's
-      // participation flow) and the role asked for must be one its kind
+      // The registry path: the org must admit the join flow (an ACTIVE
+      // participant org — PD-03 — or an ACTIVE manufacturer org,
+      // TODO.register/01) and the role asked for must be one its kind
       // bounds (the selector offers only valid pairs — the server
       // re-checks).
       const org = await resolveRegistryOrg(getStore(), orgId)
-      if (!org || !org.registered) {
+      if (!org || !admitsJoinFlow(org)) {
         return c.json({
-          error: 'that organization is not an active participant on the identity service’s organization registry — if your organization is not listed, use the "not listed" path so BIML can verify its participation',
+          error: 'that organization is not an active participant on the identity service’s organization registry and not an active manufacturer organization either — account requests file only for those; if your organization is not listed, use the "not listed" path so BIML can verify its participation',
         }, 400)
       }
       const role = body.requested_role ?? ''
@@ -194,6 +209,77 @@ export function createOpJoinRouter(): Hono {
         name, email, orgId, orgNameText: null, requestedRole: role, note,
       })
       return c.json(request, 201)
+    }
+
+    // ── the manufacturer path (TODO.register/01): "my organization
+    //    manufactures measuring instruments". The org row is the
+    //    SELF-REGISTRATION: an existing ACTIVE manufacturer org whose
+    //    declared email-domain hint matches the requester's work-email
+    //    domain takes the request (its own administrator decides, the
+    //    member's 'applicant' role); otherwise the org is CREATED with
+    //    the manufacturer kind and the DECLARED standing (the founder's
+    //    work email declares the domain hint — the enrollment ceremony
+    //    proves the mailbox), and the founder's ask (org_admin, fixed
+    //    honestly) lands with BIML like the not-listed path's. A
+    //    manufacturer org NEVER gains the participant standing — the
+    //    kind's honesty is the scheme's liability shield.
+    const orgKind = typeof body.org_kind === 'string' && body.org_kind.trim() ? body.org_kind.trim() : null
+    if (orgKind) {
+      if (orgKind !== 'manufacturer') {
+        return c.json({
+          error: `the self-service intake declares only the manufacturer kind ('${orgKind}' asked) — OIML-CS participation (an issuing authority, a test laboratory, a utilizer, an associate) is verified by BIML through the "not listed" path (PD-03/PD-09)`,
+        }, 400)
+      }
+      const orgNameText = typeof body.org_name_text === 'string' && body.org_name_text.trim() ? body.org_name_text.trim() : null
+      if (!orgNameText) {
+        return c.json({ error: 'name your manufacturing organization' }, 400)
+      }
+      const country = typeof body.country === 'string' && body.country.trim() ? body.country.trim() : null
+      const store = getStore()
+
+      // Join on the declared email-domain hint (a hint, never the proof —
+      // the org's administrator decides). A case-insensitive exact name
+      // match wins among the domain's orgs; a single domain match stands
+      // alone.
+      const domain = emailDomain(email)
+      const domainMatches = domain
+        ? (await listRegistryOrganizations(store)).filter(o => o.kind === 'manufacturer' && o.state === 'active' && o.emailDomain === domain)
+        : []
+      const match = domainMatches.find(o => o.name.toLowerCase() === orgNameText.toLowerCase()) ?? domainMatches[0] ?? null
+      if (match) {
+        const request = await store.createOrgJoinRequest({
+          name, email, orgId: match.id, orgNameText: null, requestedRole: 'applicant', note,
+        })
+        return c.json({ ...request, organization: { id: match.id, name: match.name, created: false } }, 201)
+      }
+
+      // Create the org with the declared standing. The audit row carries
+      // the SELF-REGISTRATION act (no session yet — the founder's
+      // name/email are the actor, the enrollment proves the mailbox).
+      const id = await mintManufacturerOrgId(store, orgNameText)
+      const org = await store.createOrgRegistryOrg({
+        id, name: orgNameText, shortName: null, kind: 'manufacturer', country,
+        contacts: [{ name, email }], participantRef: null, createdBy: email,
+      })
+      if (!org) {
+        return c.json({ error: `the organization id '${id}' was taken while filing — file the request again` }, 409)
+      }
+      const auditId = crypto.randomUUID()
+      await store.putEntity('auditEvents', auditId, null, JSON.stringify({
+        id: auditId,
+        timestamp: new Date().toISOString(),
+        standard_id: '',
+        entity_type: 'organization',
+        entity_id: id,
+        action: 'organization.added',
+        user_id: email,
+        user_name: name,
+        metadata: { name: orgNameText, kind: 'manufacturer', participant_ref: null, self_registered: true, email },
+      }))
+      const request = await store.createOrgJoinRequest({
+        name, email, orgId: id, orgNameText: null, requestedRole: 'org_admin', note,
+      })
+      return c.json({ ...request, organization: { id, name: orgNameText, created: true } }, 201)
     }
 
     // The not-listed path: BIML's new-organizations queue. The requester
@@ -292,9 +378,9 @@ export function createOpJoinRouter(): Hono {
       }
     }
     const org = await resolveRegistryOrg(store, orgId)
-    if (!org || !org.registered) {
+    if (!org || !admitsJoinFlow(org)) {
       return c.json({
-        error: `organization '${orgId}' is not an active participant on the organization registry — accounts are created only for active participant orgs (PD-03 / B 18:2025 §10.2); the identity administrator adds/activates it on the Organizations surface first`,
+        error: `organization '${orgId}' is not an active participant on the organization registry and not an active manufacturer organization either — accounts are created only for those (PD-03 / B 18:2025 §10.2 for the participant kinds; TODO.register/01 for the manufacturer); the identity administrator adds/activates it on the Organizations surface first`,
       }, 400)
     }
     if (role !== 'org_admin' && !orgAssignableRoles(org).includes(role)) {

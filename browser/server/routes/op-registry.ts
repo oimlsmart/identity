@@ -123,7 +123,7 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getStore, type AuthUserPayload, type OrgRegistryContact, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { isRegistryOrgKind, listRegistryOrganizations, resolveRegistryOrg, type RegistryOrg } from '../auth/org-registry'
+import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, type RegistryOrg } from '../auth/org-registry'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
@@ -617,7 +617,7 @@ export function createOpRegistryRouter(): Hono {
     }
     if (body.kind !== undefined) {
       if (body.kind !== null && !isRegistryOrgKind(body.kind)) {
-        return { error: c.json({ error: `kind must be one of issuing-authority, test-laboratory, utilizer, associate (or null for a non-participant organization)` }, 400) }
+        return { error: c.json({ error: `kind must be one of issuing-authority, test-laboratory, utilizer, associate, manufacturer (or null for a non-participant organization)` }, 400) }
       }
       fields.kind = body.kind === null ? null : (body.kind as string)
     }
@@ -641,13 +641,15 @@ export function createOpRegistryRouter(): Hono {
 
   // GET /api/op/registry/orgs — the Organizations list: every registry
   // org (every state, name-ordered) with its ACTIVE member count, its
-  // organization administrators (the active org_admin memberships), and
-  // the lifecycle state.
+  // organization administrators (the active org_admin memberships), the
+  // lifecycle state, and the per-kind STANDING (TODO.register/01: a
+  // manufacturer row says what it is — declared / ia-endorsed — never
+  // the participant posture).
   registry.get('/api/op/registry/orgs', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
     const store = getStore()
-    const [orgs, users] = await Promise.all([store.listOrgRegistryOrgs(), store.listUsers()])
+    const [orgs, users] = await Promise.all([listRegistryOrganizations(store), store.listUsers()])
     const byId = new Map(users.map(u => [u.id, u]))
     const rows = []
     for (const org of orgs) {
@@ -661,6 +663,8 @@ export function createOpRegistryRouter(): Hono {
         country: org.country,
         participantRef: org.participantRef,
         state: org.state,
+        standing: org.standing,
+        endorsedBy: org.endorsedBy,
         members: {
           active: active.length,
           invited: memberships.filter(m => m.state === 'invited').length,
@@ -818,7 +822,9 @@ export function createOpRegistryRouter(): Hono {
   // GET /api/op/registry/orgs/:orgId — the per-ORG view (TODO.identity/11,
   // the multi-org model; TODO.identity-features/05 extends it to the
   // first-class org): the registry org's FULL row (the display data, the
-  // contacts, the participant_ref annotation, the lifecycle stamps), its
+  // contacts, the participant_ref annotation, the lifecycle stamps, the
+  // per-kind STANDING — TODO.register/01), the manufacturer standing's
+  // ACTIVE endorsements (the endorsing IAs, names resolved), its
   // MEMBERSHIPS (the members with their per-org role sets + lifecycle
   // states — the org_admins among them marked by the role), its
   // join-request queue (every state, newest first), and the org's own
@@ -842,6 +848,19 @@ export function createOpRegistryRouter(): Hono {
       store.listEntities('auditEvents'),
     ])
     const byId = new Map(users.map(u => [u.id, u]))
+    // The manufacturer standing's endorsements (TODO.register/01): the
+    // ACTIVE rows with the endorsing IA's display name resolved (the
+    // revocations stay on the audit slice below — the history, honestly).
+    const orgNames = new Map((await listRegistryOrganizations(store)).map(o => [o.id, o.name]))
+    const endorsements = (await listOrgEndorsements(store, orgId))
+      .filter(e => !e.revokedAt)
+      .map(e => ({
+        iaOrgId: e.iaOrgId,
+        iaName: orgNames.get(e.iaOrgId) ?? e.iaOrgId,
+        note: e.note,
+        createdAt: e.createdAt,
+        createdBy: e.createdBy,
+      }))
     // The org's own audit slice: its lifecycle acts (entity_type
     // 'organization'), the membership + join-request + org-invite acts
     // NAMING the org (the metadata's org_id).
@@ -865,6 +884,8 @@ export function createOpRegistryRouter(): Hono {
         participantRef: org.participantRef,
         state: org.state,
         registered: org.registered,
+        standing: org.standing,
+        endorsedBy: org.endorsedBy,
         roles: org.roles,
         createdAt: org.createdAt,
         createdBy: org.createdBy,
@@ -873,6 +894,7 @@ export function createOpRegistryRouter(): Hono {
         disabledAt: org.disabledAt,
         disabledBy: org.disabledBy,
       },
+      endorsements,
       members: memberships.map(m => {
         const account = byId.get(m.userId) ?? null
         return {

@@ -17,8 +17,10 @@
 // side's lifecycle honestly: a REGISTERED participant seeds ACTIVE; a
 // mid-pipeline org (the demo register's XX1) seeds DISABLED — on the
 // registry, never joinable, the lifecycle's demonstration. The demo
-// cast's manufacturer binding (mfr-acme) seeds as a NON-participant
-// org (a free slug, kind NULL) — the spec's free-slug posture.
+// cast's manufacturer binding (mfr-acme) seeds with the MANUFACTURER
+// kind (TODO.register/01 — declared standing, never a participant): the
+// registry row the platform's sample data names, resolvable on the OP's
+// org id.
 //
 // NODE-ONLY (node:fs) — the dev-reset seam and the e2e stacks consume
 // this; the Worker never imports it.
@@ -62,19 +64,27 @@ export async function seedOrgRegisterSnapshot(store: ServerStore): Promise<Recor
 interface SnapshotContact { person?: string; email?: string }
 
 /** The demonstration manufacturer's registry row (the demo cast's
- *  applicant binding): a NON-participant org — the free slug, kind
- *  NULL, no participant link. The snapshot (the participants register)
+ *  applicant binding): the MANUFACTURER kind (TODO.register/01) with
+ *  the DECLARED standing — a first-class registry kind, never a PD-03
+ *  participant. The contact declares the email-domain hint (the demo
+ *  cast's ACME Applicant). The snapshot (the participants register)
  *  never carries it: manufacturers are not scheme participants. */
-const DEMO_NON_PARTICIPANT_ORGS = [
-  { id: 'mfr-acme', name: 'ACME (the demonstration manufacturer)', shortName: 'ACME', country: 'Example Member State' },
+const DEMO_MANUFACTURER_ORGS = [
+  {
+    id: 'mfr-acme',
+    name: 'ACME (the demonstration manufacturer)',
+    shortName: 'ACME',
+    country: 'Example Member State',
+    contacts: [{ name: 'ACME Applicant', email: 'applicant@oiml.org' }],
+  },
 ] as const
 
 /** Project the snapshot into the identity service's OWN org registry
  *  (TODO.identity-features/05): one org_registry row per register
  *  organization, the scheme-side admission mapped to the lifecycle
  *  (registered → active; mid-pipeline → disabled), plus the demo cast's
- *  non-participant bindings. Idempotent (create-then-update). Answers
- *  the count for the caller's log line. */
+ *  manufacturer binding (TODO.register/01). Idempotent (create-then-
+ *  update). Answers the count for the caller's log line. */
 export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<number> {
   const snapshot = parseYaml(readFileSync(SNAPSHOT, 'utf-8')) as OrgRegisterSnapshot
 
@@ -123,8 +133,17 @@ export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<n
       n += 1
     }
   }
-  for (const row of DEMO_NON_PARTICIPANT_ORGS) {
-    const input = { ...row, kind: null, contacts: [], participantRef: null, createdBy: 'the demonstration seed' }
+  for (const row of DEMO_MANUFACTURER_ORGS) {
+    const input = {
+      id: row.id,
+      name: row.name,
+      shortName: row.shortName,
+      kind: 'manufacturer',
+      country: row.country,
+      contacts: [...row.contacts],
+      participantRef: null,
+      createdBy: 'the demonstration seed',
+    }
     const created = await store.createOrgRegistryOrg(input)
     if (!created) await store.updateOrgRegistryOrg(row.id, input, 'the demonstration seed')
     n += 1

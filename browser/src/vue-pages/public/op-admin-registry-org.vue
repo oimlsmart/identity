@@ -34,6 +34,9 @@ interface OrgInfo {
   participantRef: string | null
   state: 'active' | 'disabled'
   registered: boolean
+  /** The per-kind standing (TODO.register/01). */
+  standing: 'participant' | 'declared' | 'ia-endorsed' | 'non-participant'
+  endorsedBy: string[]
   roles: string[]
   createdAt: string
   createdBy: string | null
@@ -41,6 +44,16 @@ interface OrgInfo {
   updatedBy: string | null
   disabledAt: string | null
   disabledBy: string | null
+}
+
+/** The manufacturer standing's ACTIVE endorsement (TODO.register/01) —
+ *  the endorsing IA with its display name resolved. */
+interface EndorsementRow {
+  iaOrgId: string
+  iaName: string
+  note: string | null
+  createdAt: string
+  createdBy: string | null
 }
 
 interface MemberRow {
@@ -83,6 +96,7 @@ interface OrgEvent {
 
 interface OrgView {
   org: OrgInfo
+  endorsements: EndorsementRow[]
   members: MemberRow[]
   requests: JoinRequestRow[]
   activity: OrgEvent[]
@@ -120,7 +134,22 @@ const editContacts = ref<Array<{ name: string; email: string }>>([])
 const confirmDisable = ref(false)
 const confirmRemove = ref(false)
 
-const KIND_OPTIONS = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate'] as const
+const KIND_OPTIONS = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'manufacturer'] as const
+
+/** The per-kind standing rendered honestly (TODO.register/01): the
+ *  scheme's registration for a participant kind; the declared /
+ *  IA-endorsed manufacturer standing (NEVER a participation); the plain
+ *  non-participant. */
+const standingText = computed(() => {
+  const org = view.value?.org
+  if (!org) return ''
+  switch (org.standing) {
+    case 'participant': return t('admin.org.standing.participant')
+    case 'declared': return t('admin.org.standing.declared')
+    case 'ia-endorsed': return t('admin.org.standing.iaEndorsed', { ias: org.endorsedBy.join(', ') })
+    default: return t('admin.org.standing.nonParticipant')
+  }
+})
 
 /** The org's administrators (the org_admin memberships — the scheme
  *  operator's delegation). */
@@ -148,6 +177,8 @@ function actionLabel(e: OrgEvent): string {
     case 'organization.disabled': return t('admin.org.activity.action.organization.disabled', { count: Number(meta.memberships_disabled ?? 0) })
     case 'organization.reactivated': return t('admin.org.activity.action.organization.reactivated')
     case 'organization.removed': return t('admin.org.activity.action.organization.removed')
+    case 'organization.endorsed': return t('admin.org.activity.action.organization.endorsed', { ia: String(meta.ia_org_name ?? meta.ia_org_id ?? '') })
+    case 'organization.endorsement_revoked': return t('admin.org.activity.action.organization.endorsement_revoked', { ia: String(meta.ia_org_name ?? meta.ia_org_id ?? '') })
     default: return e.action
   }
 }
@@ -485,6 +516,10 @@ onMounted(async () => {
           <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.countryLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300">{{ view.org.country || '—' }}</dd></div>
           <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.stateLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300">{{ view.org.state === 'active' ? t('admin.orgs.stateActive') : t('admin.orgs.stateDisabled') }}<template v-if="view.org.state === 'disabled' && view.org.disabledAt"> ({{ t('admin.org.details.disabledBy', { date: fmtDate(view.org.disabledAt), by: view.org.disabledBy ?? '—' }) }})</template></dd></div>
           <div class="flex gap-2 sm:col-span-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.standingLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-standing">{{ standingText }}</dd>
+          </div>
+          <div class="flex gap-2 sm:col-span-2">
             <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.participantRefLabel') }}</dt>
             <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-participant">{{ view.org.participantRef ?? t('admin.org.details.participantRefNone') }}</dd>
           </div>
@@ -555,6 +590,28 @@ onMounted(async () => {
             @click="removeOrg"
           >{{ t('admin.org.acts.removeConfirm') }}</button>
         </div>
+      </section>
+
+      <!-- The manufacturer standing's endorsements (TODO.register/01):
+           the ACTIVE IA confirmations, honestly — a manufacturer is
+           never an OIML-CS participant. -->
+      <section v-if="view.org.kind === 'manufacturer'" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-org-endorsements">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.org.endorsements.title') }}</h2>
+        <p v-if="!view.endorsements.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-endorsements-empty">
+          {{ t('admin.org.endorsements.empty') }}
+        </p>
+        <ul v-else class="space-y-1" data-testid="op-reg-org-endorsements-list">
+          <li
+            v-for="e in view.endorsements"
+            :key="e.iaOrgId"
+            class="text-xs text-slate-600 dark:text-slate-300"
+            :data-testid="`op-reg-org-endorsement-${e.iaOrgId}`"
+          >
+            <span class="font-medium text-slate-900 dark:text-white">{{ e.iaName }}</span>
+            — {{ t('admin.org.endorsements.item', { date: fmtDate(e.createdAt), by: e.createdBy ?? '—' }) }}
+            <p v-if="e.note" class="text-slate-500 dark:text-slate-400 mt-0.5">“{{ e.note }}”</p>
+          </li>
+        </ul>
       </section>
 
       <!-- The members: the memberships with their per-org role sets. -->

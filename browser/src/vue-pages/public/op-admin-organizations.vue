@@ -31,6 +31,11 @@ interface OrgRow {
   country: string | null
   participantRef: string | null
   state: 'active' | 'disabled'
+  /** The per-kind standing (TODO.register/01): 'participant' |
+   *  'declared' | 'ia-endorsed' | 'non-participant'. */
+  standing: string
+  /** The active endorsing IA org ids (the manufacturer kind only). */
+  endorsedBy: string[]
   members: { active: number; invited: number; disabled: number }
   admins: Array<{ userId: string; name: string; email: string | null }>
   createdAt: string
@@ -60,7 +65,17 @@ const addParticipantRef = ref('')
 const addContacts = ref<Array<{ name: string; email: string }>>([{ name: '', email: '' }])
 const adding = ref(false)
 
-const KIND_OPTIONS = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate'] as const
+const KIND_OPTIONS = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'manufacturer'] as const
+
+/** The honest per-kind standing line for the list (TODO.register/01):
+ *  a manufacturer row says what it is (declared / IA-endorsed, never a
+ *  participant); the other rows read as before. */
+function standingSuffix(row: OrgRow): string {
+  if (row.kind !== 'manufacturer') return ''
+  return row.standing === 'ia-endorsed'
+    ? ` · ${t('admin.orgs.standingIaEndorsed', { ias: row.endorsedBy.join(', ') })}`
+    : ` · ${t('admin.orgs.standingDeclared')}`
+}
 
 async function api(path: string, init?: RequestInit): Promise<Response> {
   return fetch(path, {
@@ -304,9 +319,10 @@ onMounted(async () => {
                     {{ row.name }}
                     <span class="ml-1 text-[11px] font-normal text-slate-400 dark:text-slate-500">{{ row.id }}</span>
                   </p>
-                  <p class="text-[11px] text-slate-400 dark:text-slate-500">
+                  <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`op-orgs-kind-${row.id}`">
                     {{ row.kind ?? t('admin.orgs.kindNone') }}<template v-if="row.country"> · {{ row.country }}</template>
                     <template v-if="row.participantRef"> · ⛓ {{ row.participantRef }}</template>
+                    {{ standingSuffix(row) }}
                   </p>
                 </td>
                 <td class="py-2 pr-3 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-orgs-members-${row.id}`">

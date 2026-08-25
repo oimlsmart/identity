@@ -908,6 +908,7 @@ onMounted(async () => {
                     asks for <code class="font-mono">{{ row.requestedRole }}</code>
                     <template v-if="isWide && row.orgName"> · <strong class="text-slate-500 dark:text-slate-400">{{ row.orgName }}</strong></template>
                     · filed {{ row.createdAt.slice(0, 10) }}
+                    <template v-if="row.orgKind === 'manufacturer'"> · <span class="text-sky-600 dark:text-sky-400" :data-testid="`join-request-kind-${row.id}`">manufacturer organization — not an OIML-CS participant</span></template>
                     <template v-if="row.emailDomainMatch === true"> · <span class="text-emerald-600 dark:text-emerald-400">email domain matches the register</span></template>
                     <template v-else-if="row.emailDomainMatch === false"> · <span class="text-amber-600 dark:text-amber-400">email domain does not match the register</span></template>
                   </p>
