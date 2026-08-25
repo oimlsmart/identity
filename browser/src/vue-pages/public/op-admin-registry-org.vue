@@ -292,9 +292,9 @@ onMounted(async () => {
             class="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2"
             :data-testid="`op-reg-org-member-${m.userId}`"
           >
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
               <div class="min-w-0">
-                <p class="text-sm font-medium text-slate-900 dark:text-white">
+                <p class="text-sm font-medium text-slate-900 dark:text-white break-words">
                   <router-link
                     :to="`/op/admin/registry/users/${m.userId}`"
                     class="hover:underline text-brand-700 dark:text-brand-300"
