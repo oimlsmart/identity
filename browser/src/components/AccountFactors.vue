@@ -365,14 +365,14 @@ async function regenerateRecoveryCodes() {
       <p v-else class="text-sm text-slate-500 dark:text-slate-400 mb-3" data-testid="factors-passkey-empty">{{ t('account.factors.passkeyEmpty') }}</p>
 
       <template v-if="passkeysSupported && emailVerified">
-        <div v-if="passkeyNameOpen" class="flex items-center gap-2" data-testid="factor-passkey-form">
+        <div v-if="passkeyNameOpen" class="flex flex-wrap items-center gap-2" data-testid="factor-passkey-form">
           <input
             v-model="passkeyName"
             type="text"
             maxlength="60"
             data-testid="factor-passkey-name"
             :placeholder="t('account.factors.passkeyNamePlaceholder')"
-            class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            class="flex-1 min-w-0 basis-full sm:basis-auto px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
           <button
             type="button"
@@ -455,7 +455,7 @@ async function regenerateRecoveryCodes() {
             </div>
             <div class="mt-2">
               <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('account.factors.totpCodeLabel') }}</label>
-              <form class="flex items-center gap-2" @submit.prevent="verifyTotpEnroll">
+              <form class="flex flex-wrap items-center gap-2" @submit.prevent="verifyTotpEnroll">
                 <input
                   v-model="totpCode"
                   type="text"

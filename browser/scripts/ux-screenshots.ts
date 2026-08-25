@@ -1,18 +1,29 @@
 // ═══════════════════════════════════════════════════════════════════
 // ux-screenshots — the identity pages' render-proof sweep (the wave-536
-// account-console UX: light/dark awareness). Boots the identity-profile
-// stack (the id-06 e2e recipe: own API + own astro + the stub GitHub +
-// the stub RP), drives EVERY identity page in BOTH color schemes (the
-// house `oiml-theme` localStorage key the shells read before paint),
-// and captures 1440x900 screenshots into browser/.cache/ux/:
+// account-console UX: light/dark awareness; the wave TODO.identity-
+// features/02 responsive audit: the width sweep + the overflow
+// detector). Boots the identity-profile stack (the id-06 e2e recipe:
+// own API + own astro + the stub GitHub + the stub RP), drives EVERY
+// identity page at EVERY audited width in BOTH color schemes (the house
+// `oiml-theme` localStorage key the shells read before paint), and
+// captures screenshots into browser/.cache/ux/shots/:
 //
 //   sign-in (/) · join · setup (a real bootstrap token) · the account
-//   console (incl. the avatar CROP dialog) · the admin console (registry,
-//   the registry user detail, users, clients, activity, providers) ·
+//   console (incl. the avatar CROP dialog) · the launcher (/op/home) ·
+//   the admin console (overview, registry, the registry user + org
+//   details, users, clients, activity, providers, sessions, security) ·
 //   the email-change confirmation (a real token) · the OIDC consent (a
 //   real authorize round trip against the stub RP) · the 404.
 //
+// Every shot carries an objective HORIZONTAL-OVERFLOW measurement: the
+// page must never scroll sideways (document.scrollWidth <= the viewport
+// width); the offenders (the elements whose box crosses the viewport,
+// skipping honestly-internal scrollers) are named per shot and the set
+// lands in overflow-report.json — the audit's review artifact.
+//
 // Run: npx tsx scripts/ux-screenshots.ts
+// Env: UX_WIDTHS=360,390,768,1440 (the default sweep) ·
+//      UX_MODE=both|light|dark · UX_FILTER=<shot-name substring>
 // Ports: API 23457 / astro 23456 (clear of every e2e leg's 93-pair and the other waves' dev stacks).
 // ═══════════════════════════════════════════════════════════════════
 
@@ -38,6 +49,28 @@ const RP_CLIENT_SECRET = 'ux-shot-rp-secret'
 
 const ROOT = { email: 'root@oimlsmart.org', name: 'Root Operator', password: 'the root operator passphrase' }
 const GH_ROOT = { login: 'octocat-root', id: 307, name: 'Octo Root', email: 'root-gh@example.org' }
+
+// ── the sweep knobs ──────────────────────────────────────────────────
+/** The audited widths (the report's 360/390/768/1440 set) with the
+ *  phone/tablet/desktop heights that keep the fold honest. */
+const WIDTH_HEIGHTS: Record<number, number> = { 360: 740, 390: 844, 768: 1024, 1440: 900 }
+const WIDTHS = (process.env.UX_WIDTHS ?? '360,390,768,1440')
+  .split(',').map(s => Number(s.trim())).filter(w => Number.isFinite(w) && w >= 280)
+const MODES = ((): Array<'light' | 'dark'> => {
+  const m = process.env.UX_MODE ?? 'both'
+  return m === 'light' || m === 'dark' ? [m] : ['light', 'dark']
+})()
+const FILTER = process.env.UX_FILTER ?? ''
+/** UX_FULLPAGE=1: capture the full scroll height (the review artifact for
+ *  lists below the fold — the registry's cards on a phone). Default:
+ *  the viewport shot (what the device shows). */
+const FULLPAGE = process.env.UX_FULLPAGE === '1'
+const heightFor = (w: number): number => WIDTH_HEIGHTS[w] ?? 900
+
+/** The audit's overflow ledger: one entry per shot that scrolls
+ *  sideways (the empty set is the wave's definition of done). */
+interface OverflowEntry { shot: string; width: number; mode: string; over: number; offenders: string[]; absorbed?: string[] }
+const overflowLedger: OverflowEntry[] = []
 
 const logs: string[] = []
 function flog(msg: string): void {
@@ -91,15 +124,100 @@ async function setMode(page: Page, mode: 'light' | 'dark'): Promise<void> {
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 120_000 })
 }
 
-/** Capture the current page in both modes. `settle` is the selector the
- *  page's island renders when it stands (skipped when absent). */
-async function shotBoth(page: Page, name: string, settle?: string): Promise<void> {
-  for (const mode of ['light', 'dark'] as const) {
-    await setMode(page, mode)
-    if (settle) await page.waitForSelector(settle, { timeout: 240_000 })
-    await page.addStyleTag({ content: 'astro-dev-toolbar { display: none !important }' }).catch(() => {})
-    await page.screenshot({ path: join(OUT_DIR, `${name}-${mode}.png`) })
-    flog(`shot ${name} (${mode})`)
+/** The horizontal-overflow measurement: the page scrolls sideways iff
+ *  document.scrollWidth exceeds the viewport; the offenders are the
+ *  outermost elements whose box crosses the viewport edge, SKIPPING the
+ *  subtrees that scroll (or clip) themselves honestly — an internal
+ *  overflow-x scroller is the house idiom, never a page-scroll cause.
+ *  The detector runs as a RAW STRING: tsx's keepNames wraps the inner
+ *  arrows in esbuild's `__name(...)` helper, which the page context
+ *  never defines (the 2026-08-25 crash — it only fires past the early
+ *  return, i.e. exactly when an overflow IS found). */
+const OVERFLOW_PROBE = `(() => {
+  window.scrollTo(0, 0)
+  const vw = document.documentElement.clientWidth
+  const se = document.scrollingElement || document.documentElement
+  const over = se.scrollWidth - vw
+  if (over <= 1) return JSON.stringify({ over: 0, offenders: [], absorbed: [] })
+  const offenders = []
+  const absorbedWide = []
+  const reported = new Set()
+  const reportedAbs = new Set()
+  const describe = (el) => {
+    const parts = []
+    for (let cur = el; cur && cur !== document.body && parts.length < 4; cur = cur.parentElement) {
+      const id = cur.getAttribute('data-testid')
+      const cls = (cur.getAttribute('class') || '').split(/\\s+/).filter(Boolean).slice(0, 3).join('.')
+      parts.push(cur.tagName.toLowerCase() + (id ? '#' + id : '') + (cls ? '.' + cls : ''))
+    }
+    return parts.join(' < ')
+  }
+  const isAbsorbed = (el) => {
+    for (let cur = el; cur && cur !== document.body; cur = cur.parentElement) {
+      const ox = getComputedStyle(cur).overflowX
+      if (ox === 'auto' || ox === 'scroll' || ox === 'hidden' || ox === 'clip') return true
+    }
+    return false
+  }
+  const all = document.querySelectorAll('body *')
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i]
+    const r = el.getBoundingClientRect()
+    if (r.right <= vw + 1 && r.left >= -1) continue
+    if (r.width < 2 && r.height < 2) continue
+    const absorbed = isAbsorbed(el)
+    const seen = absorbed ? reportedAbs : reported
+    let nested = false
+    for (let anc = el.parentElement; anc; anc = anc.parentElement) {
+      if (seen.has(anc)) { nested = true; break }
+    }
+    if (nested) continue
+    seen.add(el)
+    const line = describe(el) + ' [right=' + Math.round(r.right) + ' left=' + Math.round(r.left) + ' w=' + Math.round(r.width) + ']'
+    if (absorbed) { if (absorbedWide.length < 6) absorbedWide.push(line) }
+    else if (offenders.length < 8) offenders.push(line)
+  }
+  return JSON.stringify({ over, offenders, absorbed: absorbedWide })
+})()`
+
+async function measureOverflow(page: Page, shot: string, width: number, mode: string): Promise<void> {
+  const result = JSON.parse(await page.evaluate(OVERFLOW_PROBE)) as { over: number; offenders: string[]; absorbed: string[] }
+  if (result.over > 0) {
+    overflowLedger.push({ shot, width, mode, over: result.over, offenders: result.offenders, absorbed: result.absorbed })
+    flog(`OVERFLOW ${shot} ${width}px ${mode}: page +${result.over}px`)
+    for (const o of result.offenders) flog(`  ↳ ${o}`)
+    // The wide elements inside honest scrollers/clippers — innocent per
+    // Chrome's scrollWidth semantics, listed so a stray cause never
+    // hides behind the absorption rule (the registry page's empty
+    // offenders at the baseline run).
+    for (const o of result.absorbed) flog(`  ·(internal) ${o}`)
+  }
+}
+
+/** The sweep's one step: every width × every mode, reload per mode (the
+ *  theme key applies pre-paint), the settle selector waited, the
+ *  toolbar hidden, the overflow measured, the shot taken. `prepare`
+ *  runs after the reload (the crop dialog's file upload). */
+async function sweep(page: Page, name: string, settle?: string, prepare?: (page: Page) => Promise<void>): Promise<void> {
+  if (FILTER && !name.includes(FILTER)) return
+  for (const w of WIDTHS) {
+    await page.setViewport({ width: w, height: heightFor(w) })
+    for (const mode of MODES) {
+      // One width × mode failing (a cold-compile timeout, a page's own
+      // error) never costs the rest of the audit — it lands in the log.
+      try {
+        await setMode(page, mode)
+        if (prepare) await prepare(page)
+        if (settle) await page.waitForSelector(settle, { timeout: 240_000 })
+        await page.addStyleTag({ content: 'astro-dev-toolbar { display: none !important }' }).catch(() => {})
+        const shot = `${name}-${w}`
+        await measureOverflow(page, name, w, mode)
+        await page.screenshot({ path: join(OUT_DIR, `${shot}-${mode}.png`), fullPage: FULLPAGE })
+        flog(`shot ${shot} (${mode})`)
+      } catch (e) {
+        flog(`SWEEP-FAIL ${name}-${w} (${mode}): ${(e as Error).message?.split('\n')[0]}`)
+      }
+    }
   }
 }
 
@@ -173,7 +291,7 @@ async function main(): Promise<void> {
     const base = `http://localhost:${ID_WEB}`
     await waitForHttp(`${base}/`, 240_000)
     await waitForHttp(`${base}/op/join`, 240_000, true)
-    flog('the stack stands')
+    flog(`the stack stands (widths ${WIDTHS.join('/')}, modes ${MODES.join('+')})`)
 
     // The bootstrap setup link from the boot log (the operator's way in).
     let setupUrl = ''
@@ -192,9 +310,9 @@ async function main(): Promise<void> {
     // 1 · The sign-in landing (the bare shell — the footer carries the
     //     theme toggle there) and the join intake, signed out.
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '01-signin', '[data-testid="login-email"]')
+    await sweep(page, '01-signin', '[data-testid="login-email"]')
     await page.goto(`${base}/op/join`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '02-join', '[data-testid="op-join"]')
+    await sweep(page, '02-join', '[data-testid="op-join"]')
 
     // The painted photo fixture for the crop-dialog shots (a 640x320
     // red/blue PNG, the same shape the e2e leg drives).
@@ -212,53 +330,77 @@ async function main(): Promise<void> {
     const photoPath = join(WORK_DIR, 'ux-photo.png')
     writeFileSync(photoPath, Buffer.from(photoDataUrl.split(',')[1]!, 'base64'))
 
-    // 2 · The setup page on the REAL bootstrap token (both modes), then
-    //     the enrollment (which signs the session in).
+    // 2 · The setup page on the REAL bootstrap token (every width, both
+    //     modes), THEN the enrollment (which signs the session in).
     await page.goto(setupUrl, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '03-setup', '[data-testid="op-setup-password"]')
+    await sweep(page, '03-setup', '[data-testid="op-setup-password"]')
+    // The enrollment's own wait (a filtered sweep never settled the page —
+    // the island still has to mount before the fields accept input).
+    await page.waitForSelector('[data-testid="op-setup-password"]', { timeout: 240_000 })
+    await page.evaluate(() => window.scrollTo(0, 0))
     await page.type('[data-testid="op-setup-password"]', ROOT.password)
     await page.type('[data-testid="op-setup-confirm"]', ROOT.password)
     await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="account-name"]', { timeout: 240_000 })
     flog('enrolled; the session stands')
 
-    // 3 · The account console, then the avatar crop dialog on top of it.
-    await shotBoth(page, '04-account', '[data-testid="account-name"]')
-    for (const mode of ['light', 'dark'] as const) {
-      await setMode(page, mode)
-      await page.waitForSelector('[data-testid="account-avatar-input"]', { timeout: 240_000 })
-      const input = await page.$('[data-testid="account-avatar-input"]') as import('puppeteer').ElementHandle<HTMLInputElement> | null
+    // 3 · The account console, then the avatar crop dialog on top of it
+    //     (the upload re-runs per width × mode: the reload wipes the
+    //     dialog, the prepare opens it again).
+    await sweep(page, '04-account', '[data-testid="account-name"]')
+    await sweep(page, '05-account-crop', '[data-testid="account-avatar-crop-preview"]', async p => {
+      await p.waitForSelector('[data-testid="account-avatar-input"]', { timeout: 240_000 })
+      const input = await p.$('[data-testid="account-avatar-input"]') as import('puppeteer').ElementHandle<HTMLInputElement> | null
       await input!.uploadFile(photoPath)
-      await page.waitForSelector('[data-testid="account-avatar-crop"]', { timeout: 60_000 })
-      await page.waitForSelector('[data-testid="account-avatar-crop-preview"]', { timeout: 60_000 })
-      await page.addStyleTag({ content: 'astro-dev-toolbar { display: none !important }' }).catch(() => {})
-      await page.screenshot({ path: join(OUT_DIR, `05-account-crop-${mode}.png`) })
-      flog(`shot 05-account-crop (${mode})`)
-      await page.evaluate(() => (document.querySelector('[data-testid="account-avatar-crop-cancel"]') as HTMLElement).click())
-      await page.waitForFunction(() => !document.querySelector('[data-testid="account-avatar-crop"]'), { timeout: 30_000 })
-    }
+      await p.waitForSelector('[data-testid="account-avatar-crop"]', { timeout: 60_000 })
+    })
 
-    // 4 · The admin console (the registry home + every sibling).
+    // 4 · The launcher (the SSO home: the service cards + the sections).
+    await page.goto(`${base}/op/home`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '06-home', '[data-testid="home"]')
+
+    // 5 · The admin console: the overview dashboard, the registry home +
+    //     the per-user/per-org details, and every sibling surface.
     const registryRows = await page.evaluate(async () => {
       const res = await fetch('/api/op/registry/users', { credentials: 'include' })
       return res.ok ? await res.json() as Array<{ id: string }> : []
     })
     const rootId = registryRows[0]?.id
     if (!rootId) throw new Error('the registry list carried no root row')
-    await page.goto(`${base}/op/admin`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '06-admin-registry', '[data-testid="op-reg"]')
-    await page.goto(`${base}/op/admin/registry/users/${rootId}`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '07-admin-registry-user', '[data-testid="op-reg-user"]')
-    await page.goto(`${base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '08-admin-users', '[data-testid="op-admin-users"]')
-    await page.goto(`${base}/op/admin/clients`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '09-admin-clients', '[data-testid="op-clients"]')
-    await page.goto(`${base}/op/admin/activity`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '10-admin-activity', '[data-testid="op-act"]')
-    await page.goto(`${base}/op/admin/providers`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '11-admin-providers', '[data-testid="op-providers"]')
+    const orgRows = await page.evaluate(async () => {
+      const res = await fetch('/api/op/registry/orgs', { credentials: 'include' })
+      return res.ok ? await res.json() as Array<{ id: string }> : []
+    })
+    const orgId = orgRows[0]?.id
 
-    // 5 · The email-change confirmation on a REAL token (requested now,
+    await page.goto(`${base}/op/admin/overview`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '07-admin-overview', '[data-testid="op-dash"]')
+    // /op/admin is the redirect to the overview; the registry settles at
+    // its own route.
+    await page.goto(`${base}/op/admin/registry`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '08-admin-registry', '[data-testid="op-reg"]')
+    await page.goto(`${base}/op/admin/registry/users/${rootId}`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '09-admin-registry-user', '[data-testid="op-reg-user"]')
+    if (orgId) {
+      await page.goto(`${base}/op/admin/registry/orgs/${orgId}`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+      await sweep(page, '10-admin-registry-org', '[data-testid="op-reg-org"]')
+    } else {
+      flog('NOTE: no org in the registry fixture — the org-detail shot is skipped')
+    }
+    await page.goto(`${base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '11-admin-users', '[data-testid="op-admin-users"]')
+    await page.goto(`${base}/op/admin/clients`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '12-admin-clients', '[data-testid="op-clients"]')
+    await page.goto(`${base}/op/admin/activity`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '13-admin-activity', '[data-testid="op-act"]')
+    await page.goto(`${base}/op/admin/providers`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '14-admin-providers', '[data-testid="op-providers"]')
+    await page.goto(`${base}/op/admin/sessions`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '15-admin-sessions', '[data-testid="op-sess"]')
+    await page.goto(`${base}/op/admin/security`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+    await sweep(page, '16-admin-security', '[data-testid="op-sec"]')
+
+    // 6 · The email-change confirmation on a REAL token (requested now,
     //     after the console shots so the pending box never photobombs
     //     them). Rendered, never confirmed.
     const changeUrl = await page.evaluate(async () => {
@@ -273,21 +415,23 @@ async function main(): Promise<void> {
     })
     if (changeUrl) {
       await page.goto(new URL(changeUrl).toString(), { waitUntil: 'domcontentloaded', timeout: 120_000 })
-      await shotBoth(page, '12-email-change', '[data-testid="op-email-change"]')
+      await sweep(page, '17-email-change', '[data-testid="op-email-change"]')
     } else {
       flog('NOTE: the email change answered without a shown link (a mailer configured?) — the page shot is skipped')
     }
 
-    // 6 · The OIDC consent: the stub RP's authorize round trip, signed
+    // 7 · The OIDC consent: the stub RP's authorize round trip, signed
     //     in, landing on the consent page. Rendered, never allowed.
     await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '13-consent', '[data-testid="op-consent-allow"]')
+    await sweep(page, '18-consent', '[data-testid="op-consent-allow"]')
 
-    // 7 · The 404.
+    // 8 · The 404.
     await page.goto(`${base}/this-page-is-not-here`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-    await shotBoth(page, '14-not-found', '[data-testid="not-found-signin"]')
+    await sweep(page, '19-not-found', '[data-testid="not-found-signin"]')
 
-    flog('the sweep is complete')
+    // The audit's ledger: the shots that scroll sideways, machine-readable.
+    writeFileSync(join(WORK_DIR, 'overflow-report.json'), JSON.stringify(overflowLedger, null, 2))
+    flog(`the sweep is complete — ${overflowLedger.length} shot(s) with horizontal overflow (overflow-report.json)`)
   } finally {
     await browser?.close().catch(() => {})
     await github?.close()

@@ -32,11 +32,14 @@ async function signOut() {
 </script>
 
 <template>
-  <span v-if="user" class="flex items-center gap-2 text-xs" data-testid="account-chip">
-    <img v-if="user.avatarUrl" :src="user.avatarUrl" :alt="user.name" class="w-5 h-5 rounded-full object-cover" data-testid="header-avatar" />
-    <span v-else class="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center text-[9px] font-bold text-brand-600 dark:text-brand-300" data-testid="header-avatar-initial">{{ initial }}</span>
-    <a href="/op/account" class="font-medium text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-300 transition-colors" data-testid="header-account-link">{{ user.name }}</a>
-    <span class="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
-    <button type="button" class="text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-300 transition-colors" data-testid="header-signout" @click="signOut">Sign out</button>
+  <!-- min-w-0 + the truncating name: a long display name shrinks with
+       an ellipsis instead of scrolling the header sideways on a phone
+       (the responsive audit's latent header cause). -->
+  <span v-if="user" class="flex items-center gap-2 text-xs min-w-0 max-w-full" data-testid="account-chip">
+    <img v-if="user.avatarUrl" :src="user.avatarUrl" :alt="user.name" class="w-5 h-5 shrink-0 rounded-full object-cover" data-testid="header-avatar" />
+    <span v-else class="w-5 h-5 shrink-0 rounded-full bg-brand-100 dark:bg-brand-800 flex items-center justify-center text-[9px] font-bold text-brand-600 dark:text-brand-300" data-testid="header-avatar-initial">{{ initial }}</span>
+    <a href="/op/account" class="min-w-0 truncate font-medium text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-300 transition-colors" data-testid="header-account-link">{{ user.name }}</a>
+    <span class="shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
+    <button type="button" class="shrink-0 text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-300 transition-colors" data-testid="header-signout" @click="signOut">Sign out</button>
   </span>
 </template>

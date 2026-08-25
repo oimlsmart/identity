@@ -217,7 +217,7 @@ onMounted(async () => {
       <!-- The invite action -->
       <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-invite">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Invite an account</h2>
-        <div class="grid sm:grid-cols-4 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
           <input
             v-model="inviteName"
             type="text"
@@ -284,7 +284,52 @@ onMounted(async () => {
           No accounts match — adjust the search or filters, or invite the account above.
         </p>
 
-        <div v-else class="overflow-x-auto">
+        <!-- The directory: CARDS below md, the table from md up (the
+             responsive audit: the table's six columns sideways-scroll
+             their own box on a phone; the card stacks the same fields.
+             The card testids carry the `op-reg-card-` prefix — the
+             table's set stays singular for the desktop e2e legs). -->
+        <ul v-if="rows.length" class="md:hidden space-y-2" data-testid="op-reg-cards">
+          <li
+            v-for="row in rows"
+            :key="row.id"
+            class="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2"
+            :data-testid="`op-reg-card-${row.id}`"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-medium text-sm text-slate-900 dark:text-white break-words">
+                  {{ row.name }}
+                  <span v-if="!row.active" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold">deactivated</span>
+                </p>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 break-all">
+                  {{ row.email }} · {{ row.provider }}
+                  <router-link
+                    v-if="row.orgId"
+                    :to="`/op/admin/registry/orgs/${row.orgId}`"
+                    class="ml-1 text-brand-600 dark:text-brand-300 hover:underline"
+                    :data-testid="`op-reg-card-org-link-${row.id}`"
+                  >· {{ row.orgId }}</router-link>
+                </p>
+              </div>
+              <router-link
+                :to="`/op/admin/registry/users/${row.id}`"
+                class="shrink-0 text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline"
+                :data-testid="`op-reg-card-open-${row.id}`"
+              >Open</router-link>
+            </div>
+            <p class="mt-1.5 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-reg-card-roles-${row.id}`">
+              <span class="text-slate-400 dark:text-slate-500">Roles:</span> {{ row.roles.join(', ') }}
+            </p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+              <span v-if="row.passwordSet">password</span><span v-else>no password yet</span><template v-if="row.links.length"> · {{ row.links.map(l => l.provider).join(', ') }}</template>
+              · <span :class="row.active ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'" :data-testid="`op-reg-card-status-${row.id}`">{{ row.active ? 'active' : 'deactivated' }}</span>
+              · <span :data-testid="`op-reg-card-lastsignin-${row.id}`">{{ lastSignIn(row) }}</span>
+            </p>
+          </li>
+        </ul>
+
+        <div v-if="rows.length" class="hidden md:block overflow-x-auto">
           <table class="w-full text-sm" data-testid="op-reg-list">
             <thead>
               <tr class="text-left text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-700">

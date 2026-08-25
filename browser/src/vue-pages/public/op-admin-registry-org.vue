@@ -355,7 +355,7 @@ onMounted(async () => {
         <!-- The invite (an existing account; the holder accepts). -->
         <div class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-org-invite">
           <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Invite an existing account</h3>
-          <div class="grid sm:grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
               v-model="addEmail"
               type="email"

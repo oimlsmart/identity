@@ -154,7 +154,7 @@ async function confirm() {
           <button
             :disabled="confirming"
             data-testid="op-email-change-confirm"
-            class="w-full py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             @click="confirm"
           >
             <div v-if="confirming" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

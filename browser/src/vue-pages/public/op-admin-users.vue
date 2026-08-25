@@ -1034,7 +1034,7 @@ onMounted(async () => {
                accepts from their account console). -->
           <div class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4" data-testid="org-member-add">
             <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Add an existing account</h3>
-            <div class="grid sm:grid-cols-2 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 v-model="addEmail"
                 type="email"
@@ -1072,7 +1072,7 @@ onMounted(async () => {
                pins the account to the org) -->
           <div v-if="grant === 'org'" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4" data-testid="org-invite">
             <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Invite a colleague</h3>
-            <div class="grid sm:grid-cols-2 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 v-model="inviteName"
                 type="text"
@@ -1127,7 +1127,7 @@ onMounted(async () => {
           <!-- The invite form (02's enrollment seam; 10's org binding) -->
           <div class="mb-4 border border-slate-100 dark:border-slate-700 rounded-lg p-3" data-testid="registry-invite">
             <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Invite an account</h3>
-            <div class="grid sm:grid-cols-2 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 v-model="regInviteName"
                 type="text"
@@ -1403,7 +1403,7 @@ onMounted(async () => {
             One administrator per registered participant org, created after verification (B 18:2025 §10.2).
             Current: {{ orgAdminAccounts.length ? orgAdminAccounts.map(a => `${a.name} (${orgNameOf(a.orgId)})`).join(', ') : 'none yet' }}.
           </p>
-          <div class="grid sm:grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
               v-model="orgAdminName"
               type="text"

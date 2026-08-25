@@ -186,7 +186,7 @@ async function submit() {
             type="submit"
             :disabled="submitting"
             data-testid="op-setup-submit"
-            class="w-full py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             {{ submitting ? 'Setting the password…' : 'Set the password' }}

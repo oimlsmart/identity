@@ -42,8 +42,13 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-/** The square viewport's side, CSS px. */
-const VIEWPORT = 280
+/** The square viewport's side, CSS px — RESPONSIVE: the dialog's honest
+ *  budget is the window minus the overlay's px-4 and the card's p-6; the
+ *  fixed 280 out-measured that budget on a 360px phone and pushed the
+ *  preview column past the card's edge (the audit's 05-account-crop
+ *  offender). The geometry lib threads the value through the view state,
+ *  so every width frames consistently. */
+const VIEWPORT = Math.max(200, Math.min(280, (typeof window !== 'undefined' ? window.innerWidth : 1280) - 80))
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const previewRef = ref<HTMLCanvasElement | null>(null)
@@ -198,7 +203,9 @@ onBeforeUnmount(() => {
       </template>
 
       <template v-else>
-        <div class="flex items-start gap-4">
+        <!-- flex-wrap: the preview drops below the crop window when the
+             row runs out (a 360px phone fits the viewport exactly). -->
+        <div class="flex items-start gap-4 flex-wrap">
           <!-- The crop window: what shows IS what uploads. -->
           <canvas
             ref="canvasRef"
