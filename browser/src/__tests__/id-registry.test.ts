@@ -753,3 +753,51 @@ describe('the instance side honors the OP’s claims (never inventing, never sil
     expect(rolesFromClaims({})).toEqual([])
   })
 })
+
+// ── the list divergence's repair (TODO.identity-features/06) ─────────
+
+describe('the registry list answers every sign-in account (TODO.identity-features/06)', () => {
+  it('the demo cast AND the OP-native accounts answer, each row carrying its provider — the same rows /api/users sees', async () => {
+    const admin = await demoLogin('admin@oiml.org')
+    const invited = await invite(admin, { email: 'vera.visible@example.org', name: 'Ms. Vera Visible', role: 'viewer' })
+
+    const rows = await json(await app.request(`${ISSUER}/api/op/accounts`, { headers: { cookie: admin } }), 200) as any[]
+    // The demo cast — invisible before the repair (the [] of the bug).
+    const demoAdmin = rows.find(r => r.email === 'admin@oiml.org')!
+    expect(demoAdmin.provider).toBe('demo')
+    expect(demoAdmin.passwordSet).toBe(false) // no OP credential — the demo sign-in is its way in
+    expect(demoAdmin.active).toBe(true)
+    // The OP-native account rides the same list.
+    const vera = rows.find(r => r.id === invited.account.id)!
+    expect(vera.provider).toBe('password')
+
+    // BOTH endpoints see the same live accounts: every non-erased row
+    // /api/users answers is on the accounts registry, and back.
+    const users = await json(await app.request(`${ISSUER}/api/users`, { headers: { cookie: admin } }), 200) as any[]
+    const liveUsers = users.filter(u => u.provider !== 'erased')
+    const listedIds = new Set(rows.map(r => r.id))
+    expect(rows.length).toBe(liveUsers.length)
+    for (const u of liveUsers) {
+      expect(listedIds, `the accounts registry carries ${u.email}`).toContain(u.id)
+    }
+  })
+
+  it('an erased account never resurfaces (the tombstone stays out of the list)', async () => {
+    const admin = await demoLogin('admin@oiml.org')
+    const invited = await invite(admin, { email: 'goner@example.org', name: 'Mr. Gary Goner' })
+    const del = await app.request(`${ISSUER}/api/op/accounts/${invited.account.id}`, { method: 'DELETE', headers: { cookie: admin } })
+    expect(del.status).toBe(200)
+
+    const rows = await json(await app.request(`${ISSUER}/api/op/accounts`, { headers: { cookie: admin } }), 200) as any[]
+    expect(rows.some(r => r.id === invited.account.id)).toBe(false)
+    expect(rows.some(r => r.provider === 'erased')).toBe(false)
+    expect(rows.some(r => String(r.email).endsWith('@erased.invalid'))).toBe(false)
+  })
+
+  it('the demo cast’s last sign-in falls back to the row stamp (the demo sign-in never journals the audit chain)', async () => {
+    const admin = await demoLogin('admin@oiml.org') // the demo sign-in stamps last_login
+    const rows = await json(await app.request(`${ISSUER}/api/op/accounts`, { headers: { cookie: admin } }), 200) as any[]
+    const demoAdmin = rows.find(r => r.email === 'admin@oiml.org')!
+    expect(demoAdmin.lastSignIn).toBeTruthy()
+  })
+})

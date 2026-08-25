@@ -39,7 +39,11 @@
 //   leg 13 the self-lockout rule: the admin's own page disarms the
 //          heavy acts and the server refuses them anyway;
 //   leg 14 the invited account's honest empty sections, and the erased
-//          account's tombstone page (no acts, the erasure on the trail).
+//          account's tombstone page (no acts, the erasure on the trail);
+//   leg 15 the 06 divergence's repair: the seeded demo cast reads on
+//          BOTH /api/op/accounts and /api/users (set-equal, the erased
+//          tombstones out), and the users page's registry section
+//          renders the cast — never the "No accounts yet" lie.
 //
 // SELF-CONTAINED: the suite's shared stack (E2E_BASE_URL) is untouched —
 // own ports (API 9293 / astro 9294), own SQLite file. No stub GitHub:
@@ -1036,6 +1040,53 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
         { timeout: 60_000, polling: 500 },
       )
       flog(page, 'leg14: the tombstone reads as a tombstone')
+    })
+  })
+
+  it('leg 15 — TODO.identity-features/06: the seeded demo cast reads on BOTH the accounts registry and the users list (and the console section shows it)', { timeout: 900_000 }, async () => {
+    const root = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    const auth = { headers: { cookie: `oiml-session=${root}` } }
+
+    // The platform user store's list (the demo cast's home — 16 rows on
+    // a fresh stack: the 15-person cast + the instance admin's kind).
+    const users = await (await fetch(`${stack.base}/api/users`, auth)).json() as Array<{ id: string; email: string; provider: string }>
+    const anchors = ['admin@oiml.org', 'cs@oiml.org', 'tl@oiml.org']
+    for (const email of anchors) {
+      expect(users.some(u => u.email === email && u.provider === 'demo'), `/api/users carries the cast member ${email}`).toBe(true)
+    }
+
+    // The accounts registry answers the SAME live accounts (the repair:
+    // the list is every sign-in account, never the erased tombstones).
+    const accounts = await (await fetch(`${stack.base}/api/op/accounts`, auth)).json() as Array<{ id: string; email: string; provider: string }>
+    expect(accounts.some(a => a.provider === 'erased')).toBe(false)
+    const accountIds = new Set(accounts.map(a => a.id))
+    const liveUsers = users.filter(u => u.provider !== 'erased') // legs 9/14 left tombstones
+    expect(accounts.length).toBe(liveUsers.length)
+    for (const u of liveUsers) {
+      expect(accountIds, `the accounts registry carries ${u.email}`).toContain(u.id)
+    }
+    for (const email of anchors) {
+      const row = accounts.find(a => a.email === email)!
+      expect(row.provider, `${email} is the demo cast`).toBe('demo')
+    }
+    flog(null, `leg15: the cast reads on both endpoints (${accounts.length} live accounts)`)
+
+    // …and the console's users page renders the registry section over
+    // the cast — never the "No accounts yet" lie of the divergence.
+    const demoAdmin = users.find(u => u.email === 'admin@oiml.org')!
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, root)
+      await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="registry-list"]', { timeout: SETTLE, polling: 500 })
+      expect(await page.$('[data-testid="registry-empty"]')).toBeNull()
+      await page.waitForSelector(`[data-testid="registry-user-${demoAdmin.id}"]`, { timeout: 60_000, polling: 500 })
+      expect(await page.$eval(`[data-testid="registry-provider-${demoAdmin.id}"]`, el => el.textContent?.trim())).toBe('demo cast')
+      // The seed-managed row offers no OP-native act (the server 404s
+      // them); the OP account's row (root's) keeps its own. Root's own
+      // row disarms the self-lockout acts, so Erin's is the marker.
+      expect(await page.$(`[data-testid="registry-edit-${demoAdmin.id}"]`)).toBeNull()
+      expect(await page.$(`[data-testid="registry-edit-${erinId}"]`)).not.toBeNull()
+      flog(page, 'leg15: the console section renders the cast honestly')
     })
   })
 })
