@@ -50,13 +50,25 @@ import { mailerFor, type MailEnv, type MailPosture } from '@oimlsmart/platform-s
 
 export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'mfa_locked'
 
-/** The self-hosted brand mark the HTML shell carries. Email clients need
- *  an ABSOLUTE public URL for images and the platform's www asset path
- *  404s today, so the OP serves its own copy (browser/public/brand/) and
- *  the shell references the production URL. The globe is the SMART
- *  program's light mark (deep-blue line art on transparency) — the light
- *  variant because the header sits on the light card. */
+/** The DEFAULT mail brand mark: the self-hosted globe, referenced by its
+ *  absolute production URL (email clients need an ABSOLUTE public image
+ *  URL and the platform's www asset path 404s today, so the OP serves
+ *  its own copy, browser/public/brand/). The globe is the SMART
+ *  program's light mark (deep-blue line art on transparency) — the
+ *  light variant because the header sits on the light card.
+ *
+ *  SELF-HOST NOTE (TODO.self-host/02): a self-hosted OP that configures
+ *  a mailer must declare OP_MAIL_LOGO_URL to its OWN absolute https
+ *  image URL — the default names the estate's domain, and mail bearing
+ *  another deployment's brand is the leak this env closes. */
 export const OP_MAIL_LOGO_URL = 'https://id.oimlsmart.org/brand/oiml-smart-globe-light.png'
+
+/** The deployment's mail brand mark: the OP_MAIL_LOGO_URL env wins, the
+ *  estate's self-hosted default otherwise. */
+export function resolveMailLogoUrl(env: Record<string, unknown>): string {
+  const declared = typeof env.OP_MAIL_LOGO_URL === 'string' ? env.OP_MAIL_LOGO_URL.trim() : ''
+  return declared || OP_MAIL_LOGO_URL
+}
 
 /** The web-safe stacks the brand typography falls back to in email (no
  *  web fonts: Fraunces → Georgia serif for the display line, IBM Plex
@@ -136,6 +148,9 @@ export function renderOpMail(
   const raw = (key: MessageKey): string => interpolate(catalog[key], params)
   const esc = (key: MessageKey): string => interpolate(catalog[key], escaped)
   const product = escapeHtml(String(params.product ?? ''))
+  // The brand mark: the caller's logoUrl (sendOpMail fills it from the
+  // deployment's env), else the estate default.
+  const logoUrl = escapeHtml(typeof params.logoUrl === 'string' && params.logoUrl ? String(params.logoUrl) : OP_MAIL_LOGO_URL)
 
   // The action URL is per-template (the setup link for invite/reset,
   //  the confirmation link for verify_email) — never "whichever param
@@ -180,7 +195,7 @@ export function renderOpMail(
     + '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px">'
     // The branded header: the self-hosted globe + the service name.
     + '<tr><td style="padding:0 8px 20px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
-    + `<td width="40" valign="middle"><img src="${OP_MAIL_LOGO_URL}" width="40" height="40" alt="${product}" style="display:block;border:0;outline:none"></td>`
+    + `<td width="40" valign="middle"><img src="${logoUrl}" width="40" height="40" alt="${product}" style="display:block;border:0;outline:none"></td>`
     + `<td valign="middle" style="padding-left:12px;font-family:${SERIF};font-size:19px;line-height:1.2;font-weight:600;color:#001e41">${product}</td>`
     + '</tr></table></td></tr>'
     // The content card on the light canvas.
@@ -224,6 +239,7 @@ export async function sendOpMail(
   const params: Record<string, string | number> = {
     product: getInstanceProfile().branding.name,
     issuer: input.issuer,
+    logoUrl: resolveMailLogoUrl(env),
     ...(input.params ?? {}),
   }
   // The sign-in notification's method: the callers pass the upstream

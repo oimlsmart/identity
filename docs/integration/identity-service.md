@@ -245,6 +245,14 @@ and map the estate roles into them at your boundary.
   `docs/deployment/identity-operations.md` §"Deployment portability"),
   so a sovereign operator can run the whole OP too.
 
+The four postures an operator can take toward identity — trust the
+estate's OP, deploy this service on their own domain, bring their own
+OIDC provider entirely, or the hybrid (estate accounts behind their
+upstream IdP) — are the canonical matrix in the smart monorepo's
+[identity-postures.md](https://github.com/oimlsmart/smart/blob/v2/docs/deployment/identity-postures.md),
+each pinned as a configuration act with its proof; the self-host
+posture's runbook lives here as `docs/deployment/identity-self-host.md`.
+
 ## 8a. One login across every oimlsmart.org property (the SSO doctrine)
 
 The estate spans many properties (the platform instances, the identity

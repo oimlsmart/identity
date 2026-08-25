@@ -73,3 +73,12 @@ environment's required reviewers). The runbook:
 `docs/deployment/identity-deploy.md`; operations:
 `docs/deployment/identity-operations.md`; Relying Party integration:
 `docs/integration/identity-service.md`.
+
+## Self-host
+
+Running this service as YOUR OWN OP on your own domain (your users, your
+registry, your keys) is a configuration act, never a code change — the
+runbook (Node + SQLite and Workers + D1 on a non-estate account, the
+bootstrap admin, the degradation story, the upgrade path):
+`docs/deployment/identity-self-host.md`. Its executable proof:
+`browser/e2e/id-16-selfhost.e2e.ts`.
