@@ -208,7 +208,7 @@ async function decide(decision: 'allow' | 'deny') {
             data-testid="op-consent-allow"
             :disabled="deciding"
             @click="decide('allow')"
-            class="flex-1 py-2.5 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            class="flex-1 min-h-11 py-2.5 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <div v-if="deciding" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             Allow
@@ -217,7 +217,7 @@ async function decide(decision: 'allow' | 'deny') {
             data-testid="op-consent-deny"
             :disabled="deciding"
             @click="decide('deny')"
-            class="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+            class="flex-1 min-h-11 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
           >
             Deny
           </button>

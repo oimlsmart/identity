@@ -122,11 +122,13 @@ async function requestAccess(service: HomeService) {
       </div>
 
       <!-- The launcher: one card per service the account can enter (or
-           may ask to enter). -->
+           may ask to enter). The base grid-cols-1 pins the track to
+           minmax(0, 1fr) — an implicit auto track would size to the
+           card's max-content and scroll the page sideways on phones. -->
       <p v-if="!feed.services.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="home-empty">
         {{ t('home.empty') }}
       </p>
-      <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="home-services">
+      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="home-services">
         <template v-for="service in feed.services" :key="service.clientId">
           <!-- The launchable card: the whole card is the launch. -->
           <a
@@ -166,7 +168,7 @@ async function requestAccess(service: HomeService) {
               <button
                 type="button"
                 :disabled="service.requested || requesting === service.clientId"
-                class="text-xs font-medium rounded-md px-2.5 py-1.5 border transition-colors disabled:opacity-60"
+                class="min-h-11 text-xs font-medium rounded-md px-2.5 py-1.5 border transition-colors disabled:opacity-60"
                 :class="service.requested
                   ? 'border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 cursor-default'
                   : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-300'"
@@ -179,8 +181,11 @@ async function requestAccess(service: HomeService) {
       </div>
 
       <!-- The account menu entry + the admin area (a separate section,
-           never mixed into the service cards). -->
-      <section class="mt-10 grid gap-4 sm:grid-cols-2" data-testid="home-sections">
+           never mixed into the service cards). grid-cols-1 pins the
+           track (the truncating descriptions are nowrap: an implicit
+           auto track sizes to their max-content — the +143px page
+           scroll the responsive audit measured at 360/390). -->
+      <section class="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="home-sections">
         <a
           href="/op/account"
           class="group rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 flex items-center gap-4 hover:border-brand-300 dark:hover:border-brand-600 hover:shadow-md transition-all no-underline"

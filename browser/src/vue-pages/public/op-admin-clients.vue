@@ -417,7 +417,7 @@ onMounted(async () => {
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           {{ editing ? `Edit ${editing}` : 'Register an instance' }}
         </h2>
-        <div class="grid sm:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">client id (slug, rides the OAuth parameters)</label>
             <input
@@ -486,7 +486,7 @@ onMounted(async () => {
               On the SSO home (the post-login launcher)
             </label>
             <div v-if="form.launchOn" class="mt-2 space-y-2" data-testid="op-client-field-launch">
-              <div class="grid sm:grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div class="sm:col-span-2">
                   <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">launch URL (the service’s sign-in start — the live OP session lets the user straight in)</label>
                   <input

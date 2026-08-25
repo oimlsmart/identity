@@ -238,8 +238,10 @@ onMounted(async () => {
       </div>
 
       <template v-if="security">
-        <!-- The signals -->
-        <section class="grid sm:grid-cols-2 gap-3 mb-6" data-testid="op-sec-signals">
+        <!-- The signals (the grid's explicit base pins the track —
+             minmax(0, 1fr) — so a tile's content never sizes the
+             column to its max-content on phones) -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6" data-testid="op-sec-signals">
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-failed-logins">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Failed sign-ins</h2>
             <p class="mt-1 text-2xl font-semibold" :class="security.signals.failedSignIns.day ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'">{{ security.signals.failedSignIns.day }}</p>

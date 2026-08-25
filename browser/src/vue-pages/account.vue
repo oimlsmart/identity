@@ -857,21 +857,24 @@ async function revokeOthers() {
             <div class="min-w-0 flex-1">
               <!-- The display name: read + inline edit. -->
               <div v-if="!nameEditing" class="flex items-center gap-3">
-                <p class="text-sm font-medium text-slate-900 dark:text-white" data-testid="account-name">{{ context.account.name }}</p>
+                <p class="text-sm font-medium text-slate-900 dark:text-white break-words" data-testid="account-name">{{ context.account.name }}</p>
                 <button
-                  class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline"
+                  class="shrink-0 text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline"
                   data-testid="account-profile-edit"
                   @click="startNameEdit"
                 >{{ t('account.profile.edit') }}</button>
               </div>
-              <form v-else class="flex items-center gap-2" @submit.prevent="saveName">
+              <!-- The inline edit: the input takes its own row on phones
+                   (the fixed w-64 + the two buttons out-measure the card's
+                   narrow column — the audit's flex min-content class). -->
+              <form v-else class="flex flex-wrap items-center gap-2" @submit.prevent="saveName">
                 <input
                   v-model="nameDraft"
                   type="text"
                   required
                   maxlength="200"
                   data-testid="account-profile-name-input"
-                  class="w-64 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  class="w-full sm:w-64 sm:flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                   @input="nameError = null"
                 />
                 <button
@@ -889,10 +892,13 @@ async function revokeOthers() {
               </form>
               <p v-if="nameError" class="mt-1 text-xs text-red-600 dark:text-red-400" data-testid="account-profile-name-error">{{ nameError }}</p>
 
-              <!-- The primary email + its verification state. -->
+              <!-- The primary email + its verification state. The
+                   address is an unbreakable string: break-all lets it
+                   wrap inside the narrow column instead of scrolling
+                   the page (the audit's 04-account offender). -->
               <p class="mt-2 text-sm text-slate-700 dark:text-slate-300">
                 <span class="text-slate-400 dark:text-slate-500">{{ t('account.profile.emailLabel') }}:</span>
-                <span class="font-medium" data-testid="account-email">{{ context.account.email }}</span>
+                <span class="font-medium break-all" data-testid="account-email">{{ context.account.email }}</span>
                 <span
                   v-if="context.account.emailVerifiedAt"
                   class="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
@@ -929,15 +935,19 @@ async function revokeOthers() {
                 {{ t('account.profile.emailPending', { email: context.pendingEmailChange.newEmail, expires: fmtDate(context.pendingEmailChange.expiresAt) }) }}
               </p>
 
-              <!-- The verify-new-email ceremony. -->
+              <!-- The verify-new-email ceremony. The input takes its own
+                   row on phones (flex-wrap + w-full→sm:flex-1): the row's
+                   min-content (the input's intrinsic width + the shrink-0
+                   button) out-measured the column and scrolled the page
+                   (the audit's 04-account offender). -->
               <form class="mt-4 max-w-sm" @submit.prevent="requestEmailChange">
                 <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('account.profile.newEmailLabel') }}</label>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                   <input
                     v-model="emailDraft"
                     type="email"
                     data-testid="account-email-input"
-                    class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    class="w-full sm:flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                     @input="emailError = null"
                   />
                   <button
@@ -996,9 +1006,9 @@ async function revokeOthers() {
               class="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-3"
               :data-testid="`account-org-${m.orgId}`"
             >
-              <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center justify-between gap-3 flex-wrap">
                 <div class="min-w-0">
-                  <p class="text-sm font-medium text-slate-900 dark:text-white">
+                  <p class="text-sm font-medium text-slate-900 dark:text-white break-words">
                     {{ m.orgName }}
                     <span v-if="m.isPrimary" class="ml-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500" :data-testid="`account-org-primary-${m.orgId}`">{{ t('account.organizations.primaryBadge') }}</span>
                     <span
@@ -1091,7 +1101,7 @@ async function revokeOthers() {
           <!-- The join ask: another registered organization. -->
           <div v-if="joinableOrgs.length" class="border-t border-slate-100 dark:border-slate-700/60 pt-4" data-testid="account-org-join">
             <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2">{{ t('account.organizations.requestTitle') }}</h3>
-            <div class="grid sm:grid-cols-2 gap-2 max-w-lg">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg">
               <select
                 v-model="joinOrgId"
                 data-testid="account-org-join-org"

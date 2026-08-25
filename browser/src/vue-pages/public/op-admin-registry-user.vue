@@ -920,7 +920,7 @@ onMounted(async () => {
           {{ t('admin.user.card.erasedNote', { date: detail.account.erasedAt ? fmtStamp(detail.account.erasedAt) : '—' }) }}
         </p>
 
-        <dl class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm mb-4">
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm mb-4">
           <div><dt class="text-[11px] text-slate-400 dark:text-slate-500">{{ t('admin.user.card.nameLabel') }}</dt><dd class="text-slate-900 dark:text-white">{{ detail.account.name }}</dd></div>
           <div>
             <dt class="text-[11px] text-slate-400 dark:text-slate-500">{{ t('admin.user.card.emailLabel') }}</dt>
@@ -1146,7 +1146,7 @@ onMounted(async () => {
         <!-- The administrator's link on behalf -->
         <div class="border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-link-form">
           <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.user.methods.linkTitle') }}</h3>
-          <div class="grid sm:grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <select
               v-model="linkProvider"
               data-testid="op-reg-link-provider"
@@ -1325,7 +1325,7 @@ onMounted(async () => {
         <!-- Add to another registered org (the membership invite). -->
         <div v-if="addableOrgs.length" class="mt-3 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-membership-add">
           <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.user.memberships.addTitle') }}</h3>
-          <div class="grid sm:grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <select
               v-model="addOrgId"
               data-testid="op-reg-membership-add-org"
@@ -1469,7 +1469,7 @@ onMounted(async () => {
         >{{ t('admin.user.grants.grant') }}</button>
 
         <div v-if="grantFormOpen" class="rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 p-3" data-testid="op-reg-grant-form">
-          <div class="grid sm:grid-cols-2 gap-2 mb-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
             <label class="text-xs text-slate-500 dark:text-slate-400">
               {{ t('admin.user.grants.clientLabel') }}
               <select
