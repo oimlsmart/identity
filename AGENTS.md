@@ -68,6 +68,10 @@ before it can reach a relying party.
 - Operations runbook: `docs/deployment/identity-operations.md`.
 - Deploy runbook (the staged rollout, the one-time setup, rollback):
   `docs/deployment/identity-deploy.md`.
+- Self-host runbook (posture b: a third party's own OP on their domain,
+  Node + SQLite or Workers + D1 on a non-estate account, proven by
+  `browser/e2e/id-16-selfhost.e2e.ts`):
+  `docs/deployment/identity-self-host.md`.
 - The upstream identity providers (GitHub/Google/Apple/Entra setup):
   `docs/deployment/identity-upstreams.md`.
 - The RP integration guide (consumed by every OIML SMART instance):

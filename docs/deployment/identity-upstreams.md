@@ -180,5 +180,8 @@ no server-side residue follows a provider.
 - Every registration, enable/disable, removal, sign-in, link, and
   refusal lands an `auditEvents` row (the admin console's activity view
   and the access review's evidence base).
-- The admin console UI for the registry is TODO.identity/07's; until
-  then the admin API above is the surface.
+- Two surfaces manage the registry: the admin console's Sign-in
+  providers page (`/op/admin/providers`, the landed TODO.identity/07
+  dashboard wave) carries the full CRUD for interactive operation, and
+  the admin API above (`/api/op/providers`) is the automation surface —
+  scripts, pipelines, and the `OP_UPSTREAM_SEED` declaration.

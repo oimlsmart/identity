@@ -373,6 +373,18 @@ describe('renderOpMail — the EN/FR templates', () => {
     expect(mail.html).not.toContain('onerror=alert(1)"')
   })
 
+  it('the brand mark is the deployment’s: the logoUrl param wins, the estate default otherwise (TODO.self-host/02)', () => {
+    // The default: the estate's self-hosted URL (the constant).
+    expect(renderOpMail('invite', 'en', params).html).toContain(`<img src="${OP_MAIL_LOGO_URL}"`)
+    // A self-hosted OP declares its own absolute URL (sendOpMail fills
+    // the param from OP_MAIL_LOGO_URL); the shell escapes it.
+    const own = renderOpMail('invite', 'en', { ...params, logoUrl: 'https://id.example.invalid/brand/acme.png' })
+    expect(own.html).toContain('<img src="https://id.example.invalid/brand/acme.png"')
+    expect(own.html).not.toContain(OP_MAIL_LOGO_URL)
+    const evil = renderOpMail('invite', 'en', { ...params, logoUrl: 'https://x.invalid/"><script>alert(1)</script>' })
+    expect(evil.html).not.toContain('<script>')
+  })
+
   it('the sign-in notification carries no button and no expiry (the pure notification)', () => {
     const mail = renderOpMail('signin', 'en', { name: 'Willa', product: 'P', issuer: 'i', when: '2026-08-17 03:08', method: 'GitHub' })
     expect(mail.html).toContain('New sign-in detected') // the heading
@@ -396,7 +408,7 @@ describe('the OP routes with the mailer bound', () => {
   let app: import('hono').Hono
   let stub: StubMailer
 
-  const MAIL_ENV = ['EMAIL_FROM', 'MAIL_PROVIDER_URL', 'MAIL_PROVIDER_KEY', 'MAIL_RATE_LIMIT_CAPACITY', 'MAIL_LOCALE'] as const
+  const MAIL_ENV = ['EMAIL_FROM', 'MAIL_PROVIDER_URL', 'MAIL_PROVIDER_KEY', 'MAIL_RATE_LIMIT_CAPACITY', 'MAIL_LOCALE', 'OP_MAIL_LOGO_URL'] as const
 
   function clearMailEnv(): void {
     for (const k of MAIL_ENV) delete process.env[k]
@@ -573,6 +585,23 @@ demo_personas: true
       expect(mail.text).toContain(body.setupUrl)
     } finally {
       delete process.env.MAIL_LOCALE
+      resetMailerForTest()
+    }
+  })
+
+  it('the deployment’s own brand mark rides the env (TODO.self-host/02): OP_MAIL_LOGO_URL reaches the email', async () => {
+    bindStubProvider()
+    process.env.OP_MAIL_LOGO_URL = 'https://id.example.invalid/brand/acme.png'
+    resetMailerForTest()
+    stub.reset()
+    try {
+      const body = await invite('branding@example.org', 'Branding Selfhost')
+      expect(body.mail.sent).toBe(true)
+      const mail = stub.messages[0]!
+      expect(mail.html).toContain('<img src="https://id.example.invalid/brand/acme.png"')
+      expect(mail.html).not.toContain('id.oimlsmart.org/brand')
+    } finally {
+      delete process.env.OP_MAIL_LOGO_URL
       resetMailerForTest()
     }
   })

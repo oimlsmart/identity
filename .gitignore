@@ -18,9 +18,13 @@ dist/
 !.env.example
 
 # Wrangler / the Cloudflare local posture: .dev.vars holds local-only
-# vars, .wrangler the local D1 state.
+# vars, .wrangler the local D1 state. wrangler.self-host.toml is the
+# self-host deploy overlay (TODO.self-host/02, scripts/deploy-instance.ts
+# --overlay): the operator's own worker name / D1 ids / vars — never
+# committed.
 .dev.vars
 .wrangler/
+browser/wrangler.self-host.toml
 
 # The e2e legs' per-stack SQLite files + vite caches
 browser/.cache/

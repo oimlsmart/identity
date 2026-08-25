@@ -19,23 +19,44 @@
  *     (compose dist/server/wrangler.<env>.json WITHOUT deploying — the
  *     CI bundle-shape dry leg and the rollback recipe's config source,
  *     docs/deployment/identity-deploy.md)
+ *   npx tsx scripts/deploy-instance.ts selfhost --overlay wrangler.self-host.toml
+ *     (the SELF-HOST path, TODO.self-host/02: the env block comes from an
+ *     UNTRACKED overlay toml — the operator's own worker name, D1 ids,
+ *     buckets, vars — so the tracked wrangler.toml stays the estate's
+ *     deployment and a self-host deploy never edits a tracked file; the
+ *     runbook is docs/deployment/identity-self-host.md)
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { parse } from 'smol-toml';
 
 const env = process.argv[2];
 const composeOnly = process.argv.includes('--compose-only');
-if (!env) {
-  console.error('usage: npx tsx scripts/deploy-instance.ts <env-name>  (an [env.<name>] block in wrangler.toml)');
+// The env block's source: the tracked wrangler.toml (the estate's
+// deployment) or an UNTRACKED overlay (`--overlay <path>` — the
+// self-host path, never a tracked-file edit).
+const overlayIdx = process.argv.indexOf('--overlay');
+const overlay = overlayIdx >= 0 ? process.argv[overlayIdx + 1] : undefined;
+if (overlayIdx >= 0 && !overlay) {
+  console.error('--overlay needs a path (an untracked toml carrying your [env.<name>] block)');
+  process.exit(1);
+}
+if (!env || env.startsWith('--')) {
+  console.error('usage: npx tsx scripts/deploy-instance.ts <env-name> [--overlay <toml>] [--compose-only]  (an [env.<name>] block in wrangler.toml or the overlay)');
+  process.exit(1);
+}
+
+const sourcePath = overlay ?? 'wrangler.toml';
+if (overlay && !existsSync(overlay)) {
+  console.error(`the overlay ${overlay} does not exist (the self-host runbook: docs/deployment/identity-self-host.md)`);
   process.exit(1);
 }
 
 const base = JSON.parse(readFileSync('dist/server/wrangler.json', 'utf8'));
-const toml = parse(readFileSync('wrangler.toml', 'utf8'));
+const toml = parse(readFileSync(sourcePath, 'utf8'));
 const block = toml?.env?.[env];
 if (!block) {
-  console.error(`no [env.${env}] block in wrangler.toml (have: ${Object.keys(toml.env ?? {}).join(', ') || 'none'})`);
+  console.error(`no [env.${env}] block in ${sourcePath} (have: ${Object.keys(toml.env ?? {}).join(', ') || 'none'})`);
   process.exit(1);
 }
 if (!block.name || !block.d1_databases?.length) {
