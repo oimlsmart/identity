@@ -27,6 +27,7 @@ import { createOpFactorsRouter } from './routes/op-factors'
 import { createOpMfaRouter } from './routes/op-mfa'
 import { createOpJoinRouter } from './routes/op-join'
 import { createOpMembershipsRouter } from './routes/op-memberships'
+import { createOpEndorsementsRouter } from './routes/op-endorsements'
 import { createOpRegistryRouter } from './routes/op-registry'
 import { createOpDashboardRouter } from './routes/op-dashboard'
 import { createOpHomeRouter } from './routes/op-home'
@@ -102,6 +103,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // membership management API (the org admin's people slice + the
   // identity admin's per-org view).
   app.route('/', createOpMembershipsRouter())
+  // The manufacturer standing's endorsement acts (TODO.register/01): an
+  // issuing authority confirms / withdraws the manufacturer relationship
+  // (declared → ia-endorsed, never the participant standing).
+  app.route('/', createOpEndorsementsRouter())
   // The administrator's identity registry: the account search and
   // detail aggregate, link-on-behalf, session revocation, the activity
   // feed.

@@ -13,6 +13,18 @@
 // and lands with BIML (the new-organizations queue): BIML verifies the
 // participation (PD-03/PD-09), and the requester becomes the org's
 // administrator once the org is registered.
+//
+// The MANUFACTURER path (TODO.register/01): "my organization
+// manufactures measuring instruments". A manufacturer org is NOT an
+// OIML-CS participant — its registry standing is DECLARED on
+// self-registration (the founder's work email declares the domain
+// hint), upgradeable to IA-endorsed by an issuing authority's
+// confirmation. When the work email's domain matches an already
+// registered manufacturer org's declared domain, the request JOINS it
+// (its administrator decides); otherwise the org is created with the
+// declared standing and the founder's administrator ask lands with
+// BIML. The page says all of this honestly — the kind is the proof,
+// never the claim.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../../components/BrandLogo.vue'
@@ -40,14 +52,17 @@ const email = ref('')
 const orgSearch = ref('')
 const selectedOrgId = ref<string | null>(null)
 const notListed = ref(false)
+/** The TODO.register/01 manufacturer path. */
+const manufacturer = ref(false)
 const orgNameText = ref('')
+const orgCountry = ref('')
 const requestedRole = ref('')
 const note = ref('')
 
 const submitting = ref(false)
 const error = ref<string | null>(null)
 /** The success panel's copy once the request is filed. */
-const filed = ref<{ queue: 'org' | 'biml'; orgName: string } | null>(null)
+const filed = ref<{ queue: 'org' | 'biml' | 'manufacturer'; orgName: string; orgCreated?: boolean } | null>(null)
 
 const KIND_LABELS: Record<SelectorOrg['kind'], string> = {
   'issuing-authority': 'Issuing Authority',
@@ -89,7 +104,7 @@ const roleOptions = computed(() => selectedOrg.value?.roles ?? [])
 const canSubmit = computed(() => {
   if (submitting.value) return false
   if (!name.value.trim() || !email.value.includes('@')) return false
-  if (notListed.value) return !!orgNameText.value.trim()
+  if (manufacturer.value || notListed.value) return !!orgNameText.value.trim()
   return !!selectedOrg.value && !!requestedRole.value
 })
 
@@ -98,8 +113,11 @@ function pickOrg(id: string) {
   requestedRole.value = ''
 }
 
-function setNotListed(on: boolean) {
-  notListed.value = on
+/** The three intake paths are mutually exclusive (the register selector,
+ *  the manufacturer path, the not-listed path). */
+function setPath(path: 'register' | 'manufacturer' | 'not-listed') {
+  notListed.value = path === 'not-listed'
+  manufacturer.value = path === 'manufacturer'
   selectedOrgId.value = null
   requestedRole.value = ''
   error.value = null
@@ -110,20 +128,29 @@ async function submit() {
   submitting.value = true
   error.value = null
   try {
-    const payload = notListed.value
+    const payload = manufacturer.value
       ? {
           name: name.value.trim(),
           email: email.value.trim(),
+          org_kind: 'manufacturer',
           org_name_text: orgNameText.value.trim(),
+          country: orgCountry.value.trim() || undefined,
           note: note.value.trim() || undefined,
         }
-      : {
-          name: name.value.trim(),
-          email: email.value.trim(),
-          org_id: selectedOrgId.value,
-          requested_role: requestedRole.value,
-          note: note.value.trim() || undefined,
-        }
+      : notListed.value
+        ? {
+            name: name.value.trim(),
+            email: email.value.trim(),
+            org_name_text: orgNameText.value.trim(),
+            note: note.value.trim() || undefined,
+          }
+        : {
+            name: name.value.trim(),
+            email: email.value.trim(),
+            org_id: selectedOrgId.value,
+            requested_role: requestedRole.value,
+            note: note.value.trim() || undefined,
+          }
     const res = await fetch('/api/op/join-requests', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -134,9 +161,18 @@ async function submit() {
       error.value = body.error ?? `The request could not be filed (${res.status}).`
       return
     }
-    filed.value = notListed.value
-      ? { queue: 'biml', orgName: orgNameText.value.trim() }
-      : { queue: 'org', orgName: selectedOrg.value?.name ?? 'your organization' }
+    if (manufacturer.value) {
+      const created = await res.json().catch(() => ({})) as { organization?: { name: string; created: boolean } }
+      filed.value = {
+        queue: 'manufacturer',
+        orgName: created.organization?.name ?? orgNameText.value.trim(),
+        orgCreated: created.organization?.created ?? false,
+      }
+    } else {
+      filed.value = notListed.value
+        ? { queue: 'biml', orgName: orgNameText.value.trim() }
+        : { queue: 'org', orgName: selectedOrg.value?.name ?? 'your organization' }
+    }
   } catch {
     error.value = 'Network error. Is the server running?'
   } finally {
@@ -187,6 +223,16 @@ onMounted(async () => {
           Your request is with <strong>{{ filed.orgName }}</strong>’s administrator. Approval comes from
           your organization — you will receive your invite when they approve it.
         </p>
+        <p v-else-if="filed.queue === 'manufacturer' && filed.orgCreated" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-manufacturer-created">
+          <strong>{{ filed.orgName }}</strong> is registered on the identity service with the
+          <strong>declared</strong> manufacturer standing (not an OIML-CS participation). Your request to
+          become its organization administrator is with the BIML secretariat — you will receive your
+          invite once they approve it.
+        </p>
+        <p v-else-if="filed.queue === 'manufacturer'" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-manufacturer-join">
+          Your work email’s domain matches <strong>{{ filed.orgName }}</strong>’s declared domain — your
+          request to join it is with its administrator. Approval comes from your organization.
+        </p>
         <p v-else class="text-sm text-emerald-800 dark:text-emerald-300">
           <strong>{{ filed.orgName }}</strong> is not on the participants register, so your request is with
           the BIML secretariat. They verify organizations joining the OIML-CS; once the participation is
@@ -236,7 +282,7 @@ onMounted(async () => {
           </div>
 
           <!-- The organization selector (the register, never a typed name) -->
-          <div v-if="!notListed">
+          <div v-if="!notListed && !manufacturer">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-org-search">Organization</label>
             <input
               id="join-org-search"
@@ -268,8 +314,50 @@ onMounted(async () => {
             </p>
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
               Only organizations on the OIML-CS participants register can be picked.
-              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-not-listed" @click="setNotListed(true)">
+              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-manufacturer" @click="setPath('manufacturer')">
+                My organization manufactures measuring instruments
+              </button>
+              ·
+              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-not-listed" @click="setPath('not-listed')">
                 My organization is not listed
+              </button>
+            </p>
+          </div>
+
+          <!-- The manufacturer path (TODO.register/01): the declared
+               standing, honestly — never an OIML-CS participation. -->
+          <div v-else-if="manufacturer">
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-mfr-name">Your organization’s name</label>
+            <input
+              id="join-mfr-name"
+              v-model="orgNameText"
+              type="text"
+              required
+              data-testid="join-mfr-name"
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="e.g. ACME Measuring Instruments"
+            />
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mt-3 mb-1" for="join-mfr-country">
+              Country <span class="text-slate-400">(optional)</span>
+            </label>
+            <input
+              id="join-mfr-country"
+              v-model="orgCountry"
+              type="text"
+              data-testid="join-mfr-country"
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="e.g. Example Member State"
+            />
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-mfr-note">
+              Your organization is registered with the <strong>declared</strong> manufacturer standing — a
+              manufacturer is <strong>not an OIML-CS participant</strong> (no peer assessment, no scope).
+              An Issuing Authority you applied to can endorse the relationship, upgrading the standing to
+              <strong>IA-endorsed</strong>. If your work email’s domain matches an already-registered
+              manufacturer organization, your request goes to its administrator to join it; otherwise the
+              organization is created and you become its administrator once the BIML secretariat confirms
+              the founding.
+              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-mfr-back" @click="setPath('register')">
+                Pick from the register instead
               </button>
             </p>
           </div>
@@ -290,14 +378,14 @@ onMounted(async () => {
               Your request goes to the <strong>BIML secretariat</strong>: they verify organizations joining
               the OIML-CS (the participation procedures PD-03/PD-09). Once your organization is registered,
               you become its organization administrator.
-              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-listed" @click="setNotListed(false)">
+              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-listed" @click="setPath('register')">
                 Pick from the register instead
               </button>
             </p>
           </div>
 
           <!-- The role asked for (bounded by the org's kind) -->
-          <div v-if="!notListed && selectedOrg">
+          <div v-if="!notListed && !manufacturer && selectedOrg">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-role">Role you are asking for</label>
             <select
               id="join-role"
