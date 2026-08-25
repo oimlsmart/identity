@@ -44,7 +44,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import BrandLogo from '../../components/BrandLogo.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 import { t, type MessageKey } from '../../i18n'
@@ -839,14 +839,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen px-4 py-12 bg-cream dark:bg-slate-900">
-    <div v-if="loading" class="flex flex-col items-center gap-4">
+  <div class="max-w-3xl mx-auto px-6 py-10 w-full">
+    <div v-if="loading" class="flex flex-col items-center gap-4 py-24">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
     </div>
 
-    <div v-else-if="forbidden" class="w-full max-w-md mx-auto">
+    <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
         <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('admin.user.title') }}</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
@@ -856,8 +855,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else-if="notFound" class="w-full max-w-md mx-auto text-center">
-      <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
+    <div v-else-if="notFound" class="max-w-md mx-auto py-16 text-center">
       <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2">{{ t('admin.user.notFoundTitle') }}</h1>
       <p class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-user-notfound">
         {{ t('admin.user.notFound') }}
@@ -865,18 +863,16 @@ onMounted(async () => {
       </p>
     </div>
 
-    <div v-else-if="detail" class="w-full max-w-3xl mx-auto" data-testid="op-reg-user">
-      <div class="text-center mb-6">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ detail.account.name }}</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-user-context">
-          {{ detail.account.email }} · {{ branding.productName }}
-        </p>
-        <OpAdminNav current="registry" class="mt-3" />
-        <p class="mt-2 text-xs">
-          <router-link to="/op/admin/registry" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-reg-user-back">← {{ t('admin.user.back') }}</router-link>
-        </p>
-      </div>
+    <div v-else-if="detail" data-testid="op-reg-user">
+      <p class="mb-2 text-sm">
+        <router-link to="/op/admin/registry" class="text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 font-medium transition-colors" data-testid="op-reg-user-back">← {{ t('admin.user.back') }}</router-link>
+      </p>
+      <PageHeader :title="detail.account.name">
+        <template #description>
+          <span data-testid="op-reg-user-context">{{ detail.account.email }} · {{ branding.productName }}</span>
+        </template>
+      </PageHeader>
+      <OpAdminNav current="registry" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-reg-user-error">{{ error }}</p>
@@ -905,7 +901,7 @@ onMounted(async () => {
 
       <!-- 1. THE IDENTITY CARD: the profile, the lifecycle state, the
            role set, and the lifecycle acts. -->
-      <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-profile">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-profile">
         <div class="flex items-start justify-between gap-4 mb-4">
           <div class="flex items-center gap-3 min-w-0">
             <img v-if="detail.account.avatarUrl" :src="detail.account.avatarUrl" :alt="detail.account.name" class="w-10 h-10 rounded-full object-cover shrink-0" data-testid="op-reg-profile-avatar" />
@@ -1074,7 +1070,7 @@ onMounted(async () => {
       <!-- 2. THE APPS THE ACCOUNT CAN ACCESS: the launcher's visibility
            rule read admin-side (the server computes it with the claims
            rule the token endpoint runs). -->
-      <section v-if="!erased" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-apps">
+      <section v-if="!erased" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-apps">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.user.apps.title') }}</h2>
         <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.user.apps.description') }}</p>
         <p v-if="!detail.appAccess.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-apps-empty">
@@ -1105,7 +1101,7 @@ onMounted(async () => {
       <!-- 3. THE SIGN-IN METHODS + FACTORS: the password state, the
            linked identities (unlink / the justified link on behalf),
            and the additional-factors slot the strong-auth wave fills. -->
-      <section v-if="!erased" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-methods">
+      <section v-if="!erased" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-methods">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.user.methods.title') }}</h2>
         <p class="text-xs text-slate-600 dark:text-slate-300 mb-3" data-testid="op-reg-password-state">
           {{ t(detail.passwordSet ? 'admin.user.methods.passwordSet' : 'admin.user.methods.passwordUnset') }}
@@ -1255,7 +1251,7 @@ onMounted(async () => {
            invitation waits on the holder's console). Its own section
            card, its own testids, per the slot's contract.
            ════════════════════════════════════════════════════════════ -->
-      <section v-if="!erased" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-memberships">
+      <section v-if="!erased" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-memberships">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.user.memberships.title') }}</h2>
         <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">{{ t('admin.user.memberships.description') }}</p>
         <p v-if="!memberships.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-memberships-empty">
@@ -1364,7 +1360,7 @@ onMounted(async () => {
 
       <!-- 4. THE LIVE SESSIONS: per-session revoke + END ALL (the light
            act) vs deactivation (the heavy act, the identity card). -->
-      <section v-if="!erased" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-sessions">
+      <section v-if="!erased" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-sessions">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.user.sessions.title') }}</h2>
         <p v-if="!detail.sessions.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-sessions-empty">
           {{ t('admin.user.sessions.empty') }}
@@ -1420,7 +1416,7 @@ onMounted(async () => {
 
       <!-- 5. THE PER-CLIENT ROLE GRANTS: grant / edit / revoke on this
            page (the writes ride routes/op-accounts.ts, audited). -->
-      <section v-if="!erased" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-grants">
+      <section v-if="!erased" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-grants">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.user.grants.title') }}</h2>
         <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.user.grants.description') }}</p>
 
@@ -1528,7 +1524,7 @@ onMounted(async () => {
 
       <!-- 6. THE AUDIT TRAIL: the account's own events, newest first,
            honestly paged (the total is in every answer). -->
-      <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5" data-testid="op-reg-activity">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-reg-activity">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
           {{ t('admin.user.activity.title') }}
           <router-link to="/op/admin/activity" class="ml-2 font-normal normal-case text-brand-600 dark:text-brand-300 hover:underline">{{ t('admin.user.activity.feedLink') }} →</router-link>

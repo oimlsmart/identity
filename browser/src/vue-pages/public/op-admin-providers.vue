@@ -11,7 +11,7 @@
 // ('env:<NAME>'), resolved server-side per request.
 // ═══════════════════════════════════════════════════════════════════
 import { ref, onMounted } from 'vue'
-import BrandLogo from '../../components/BrandLogo.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import OpAdminNav from '../../components/OpAdminNav.vue'
 
 interface ProviderRow {
@@ -163,16 +163,15 @@ async function remove(row: ProviderRow) {
 </script>
 
 <template>
-  <div class="min-h-screen px-4 py-12 bg-cream dark:bg-slate-900 flex justify-center">
+  <div class="max-w-3xl mx-auto px-6 py-10 w-full">
     <!-- Loading state -->
-    <div v-if="loading" class="flex flex-col items-center gap-4 self-center">
+    <div v-if="loading" class="flex flex-col items-center gap-4 py-24">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
     </div>
 
     <!-- The honest refusal (the API's 403) -->
-    <div v-else-if="forbidden" class="w-full max-w-md self-center">
+    <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
         <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Sign-in providers</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
@@ -182,14 +181,12 @@ async function remove(row: ProviderRow) {
       </div>
     </div>
 
-    <div v-else class="w-full max-w-2xl" data-testid="op-providers">
-      <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Sign-in providers</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          The upstream registry — GitHub, Google, Apple, Entra, generic OIDC. Enabled rows render on the sign-in page.
-        </p>
-      </div>
+    <div v-else data-testid="op-providers">
+      <PageHeader
+        title="Sign-in providers"
+        description="The upstream registry — GitHub, Google, Apple, Entra, generic OIDC. Enabled rows render on the sign-in page."
+      />
+      <OpAdminNav current="providers" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-providers-error">{{ error }}</p>
@@ -202,7 +199,7 @@ async function remove(row: ProviderRow) {
       </div>
 
       <!-- The registry -->
-      <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6">
+      <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Registered providers</h2>
         <p v-if="!rows.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-providers-empty">
           No providers registered yet — create the first one below.
@@ -246,11 +243,11 @@ async function remove(row: ProviderRow) {
       </div>
 
       <!-- The create/edit form -->
-      <form @submit.prevent="save" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-3" data-testid="op-provider-form">
+      <form @submit.prevent="save" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 space-y-3" data-testid="op-provider-form">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           {{ editing ? `Edit ${editing}` : 'Register a provider' }}
         </h2>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">id (slug, rides URLs)</label>
             <input v-model="form.id" :disabled="!!editing" required data-testid="op-provider-field-id" placeholder="google"
@@ -277,7 +274,7 @@ async function remove(row: ProviderRow) {
               <option v-for="mark in BRAND_MARKS" :key="mark" :value="mark">{{ mark }}</option>
             </select>
           </div>
-          <div class="col-span-2">
+          <div class="sm:col-span-2">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">issuer (oidc kind — the discovery root; Apple: https://appleid.apple.com)</label>
             <input v-model="form.issuer" :disabled="form.kind === 'github'" data-testid="op-provider-field-issuer" placeholder="https://accounts.google.com"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white disabled:opacity-60" />
@@ -292,7 +289,7 @@ async function remove(row: ProviderRow) {
             <input v-model="form.client_secret_ref" data-testid="op-provider-field-secret" placeholder="env:GOOGLE_CLIENT_SECRET"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
           </div>
-          <div class="col-span-2">
+          <div class="sm:col-span-2">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">scopes (optional override; defaults per kind)</label>
             <input v-model="form.scopes" data-testid="op-provider-field-scopes" placeholder="openid profile email"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
@@ -310,11 +307,6 @@ async function remove(row: ProviderRow) {
           <button v-if="editing" type="button" @click="resetForm" class="text-sm text-slate-500 hover:underline">Cancel edit</button>
         </div>
       </form>
-
-      <!-- The other identity administration surfaces (TODO.identity/07) -->
-      <div class="mt-6">
-        <OpAdminNav current="providers" />
-      </div>
     </div>
   </div>
 </template>

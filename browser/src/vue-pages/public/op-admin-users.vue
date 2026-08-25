@@ -19,7 +19,7 @@
 // routes/op-join.ts); this page only renders what the APIs answer.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
-import BrandLogo from '../../components/BrandLogo.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
@@ -797,21 +797,26 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen px-4 py-12 bg-cream dark:bg-slate-900">
-    <div v-if="loading" class="flex flex-col items-center gap-4">
+  <div class="max-w-3xl mx-auto px-6 py-10 w-full">
+    <div v-if="loading" class="flex flex-col items-center gap-4 py-24">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
     </div>
 
-    <div v-else class="w-full max-w-3xl mx-auto" data-testid="op-admin-users">
-      <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Organization administration</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="op-admin-identity">
-          <template v-if="account">{{ account.name }} &lt;{{ account.email }}&gt; — </template>{{ branding.productName }}
-          <template v-if="grant === 'org' && grantOrgName"> · {{ grantOrgName }}</template>
-          <template v-else-if="grant === 'wide'"> · the scheme operator’s view</template>
-        </p>
-      </div>
+    <div v-else data-testid="op-admin-users">
+      <PageHeader title="Organization administration">
+        <template #description>
+          <span data-testid="op-admin-identity">
+            <template v-if="account">{{ account.name }} &lt;{{ account.email }}&gt; — </template>{{ branding.productName }}
+            <template v-if="grant === 'org' && grantOrgName"> · {{ grantOrgName }}</template>
+            <template v-else-if="grant === 'wide'"> · the scheme operator’s view</template>
+          </span>
+        </template>
+      </PageHeader>
+
+      <!-- The console's tab bar — the wide grant only (the org admin's
+           grant would 403 on the sibling surfaces, honestly but
+           noisily). -->
+      <OpAdminNav v-if="isWide" current="users" />
 
       <!-- Error / notice -->
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
@@ -864,7 +869,7 @@ onMounted(async () => {
       <template v-if="grant">
         <!-- ═══ The join-request queue (the org admin's own; BIML's
              oversight of the org-bound ones) ═══ -->
-        <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="org-queue">
+        <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="org-queue">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
             {{ grant === 'org' ? `Join requests — ${grantOrgName ?? 'your organization'}` : 'Join requests — every organization' }}
           </h2>
@@ -947,7 +952,7 @@ onMounted(async () => {
 
         <!-- ═══ The people slice (org admin only — the wide grant's
              account surface is the identity registry below) ═══ -->
-        <section v-if="grant === 'org'" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="org-users">
+        <section v-if="grant === 'org'" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="org-users">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
             People — {{ grantOrgName ?? 'your organization' }}
           </h2>
@@ -1108,7 +1113,7 @@ onMounted(async () => {
              operator's account surface): every OP account, its per-client
              roles, the last sign-in from the audit chain, and the admin
              acts (invite, edit, assign, deactivate/reactivate) ═══ -->
-        <section v-if="isWide" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="registry">
+        <section v-if="isWide" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="registry">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
             The identity registry
           </h2>
@@ -1320,7 +1325,7 @@ onMounted(async () => {
         </section>
 
         <!-- ═══ BIML: the new-organizations queue ═══ -->
-        <section v-if="isWide" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="biml-orgs-queue">
+        <section v-if="isWide" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="biml-orgs-queue">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
             New organizations — the BIML queue
           </h2>
@@ -1390,7 +1395,7 @@ onMounted(async () => {
         </section>
 
         <!-- ═══ BIML: create an org admin for a registered org ═══ -->
-        <section v-if="isWide" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="biml-org-admins">
+        <section v-if="isWide" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="biml-org-admins">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
             Organization administrators
           </h2>
@@ -1431,14 +1436,7 @@ onMounted(async () => {
         </section>
       </template>
 
-      <!-- The other identity administration surfaces (TODO.identity/07) —
-           the wide grant only (the org admin's grant would 403 there,
-           honestly but noisily). -->
-      <div v-if="isWide" class="mb-4" data-testid="op-admin-nav-row">
-        <OpAdminNav current="users" />
-      </div>
-
-      <p class="text-center text-[10px] text-slate-400 dark:text-slate-500">
+      <p class="text-[11px] text-slate-400 dark:text-slate-500">
         <router-link to="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline">Your account</router-link>
         · the register’s view of administration is on the
         <router-link to="/app/cs/participants" class="text-brand-600 dark:text-brand-300 hover:underline">participants page</router-link>

@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import BrandLogo from '../../components/BrandLogo.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 
@@ -224,14 +224,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen px-4 py-12 bg-cream dark:bg-slate-900">
-    <div v-if="loading" class="flex flex-col items-center gap-4">
+  <div class="max-w-3xl mx-auto px-6 py-10 w-full">
+    <div v-if="loading" class="flex flex-col items-center gap-4 py-24">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
     </div>
 
-    <div v-else-if="forbidden" class="w-full max-w-md mx-auto">
+    <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
         <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Registry organization</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
@@ -241,31 +240,30 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else-if="notFound" class="w-full max-w-md mx-auto text-center">
-      <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
+    <div v-else-if="notFound" class="max-w-md mx-auto py-16 text-center">
       <p class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-notfound">
         This organization is not on the participants register.
       </p>
     </div>
 
-    <div v-else-if="view" class="w-full max-w-3xl mx-auto" data-testid="op-reg-org">
-      <div class="text-center mb-6">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white" data-testid="op-reg-org-name">{{ view.org.name }}</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-context">
-          {{ view.org.kind }}<template v-if="view.org.country"> · {{ view.org.country }}</template>
-          <span
-            class="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
-            :class="view.org.registered ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'"
-            data-testid="op-reg-org-registered"
-          >{{ view.org.registered ? 'registered participant' : 'not registered' }}</span>
-          — {{ branding.productName }}
-        </p>
-        <p class="mt-2 text-xs" data-testid="op-reg-org-back">
-          <router-link to="/op/admin/registry" class="text-brand-600 dark:text-brand-300 hover:underline">← the identity registry</router-link>
-        </p>
-        <OpAdminNav current="registry" class="mt-3" />
-      </div>
+    <div v-else-if="view" data-testid="op-reg-org">
+      <p class="mb-2 text-sm" data-testid="op-reg-org-back">
+        <router-link to="/op/admin/registry" class="text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 font-medium transition-colors">← the identity registry</router-link>
+      </p>
+      <PageHeader :title="view.org.name" title-test-id="op-reg-org-name">
+        <template #description>
+          <span data-testid="op-reg-org-context">
+            {{ view.org.kind }}<template v-if="view.org.country"> · {{ view.org.country }}</template>
+            <span
+              class="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
+              :class="view.org.registered ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'"
+              data-testid="op-reg-org-registered"
+            >{{ view.org.registered ? 'registered participant' : 'not registered' }}</span>
+            — {{ branding.productName }}
+          </span>
+        </template>
+      </PageHeader>
+      <OpAdminNav current="registry" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-reg-org-error">{{ error }}</p>
@@ -275,7 +273,7 @@ onMounted(async () => {
       </div>
 
       <!-- The members: the memberships with their per-org role sets. -->
-      <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-org-members">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-org-members">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Members</h2>
         <p class="text-xs text-slate-500 dark:text-slate-400 mb-3" data-testid="op-reg-org-admins">
           <template v-if="orgAdmins.length">
@@ -392,7 +390,7 @@ onMounted(async () => {
       </section>
 
       <!-- The org's join-request queue (every state, newest first). -->
-      <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5" data-testid="op-reg-org-requests">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-reg-org-requests">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Join requests</h2>
         <p v-if="!view.requests.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-requests-empty">
           No join requests naming this organization.
