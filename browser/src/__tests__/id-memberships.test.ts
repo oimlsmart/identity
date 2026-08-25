@@ -55,13 +55,17 @@ let app: import('hono').Hono
 let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
 let resetProfile: () => void
 
-// ── the seeded participants register (the id-org-admin posture) ─────
-// EX1: a REGISTERED IA; ut-nmi-nl: a REGISTERED Utilizer; XX1: a
-// MID-PIPELINE IA (never registered).
+// ── the seeded participants register (the entity store) + the ────────
+// organization registry (TODO.identity-features/05 — the identity
+// service's OWN org rows, the membership graph's source of truth):
+// EX1: an ACTIVE IA; 21: an ACTIVE TL; ut-nmi-nl: an ACTIVE Utilizer;
+// XX1: the mid-pipeline IA — on the participants register but NEVER on
+// the organization registry (the unregistered posture the gates refuse).
 const ORGS = [
   { id: 'EX1', kind: 'issuing-authority', name: 'Example Issuing Authority', short_name: 'EIA', country: 'Example Member State', contact: { email: 'office@eia.example.org' } },
   { id: 'XX1', kind: 'issuing-authority', name: 'Demo Issuing Authority', short_name: 'DIA', contact: { email: 'office@dia.example.org' } },
 ]
+const TL_ORG = { id: '21', kind: 'test-laboratory', name: 'Example Test Laboratory', short_name: 'ETL', contact: { email: 'lab@etl.example.org' } }
 const UTILIZERS = [
   { id: 'ut-nmi-nl', name: 'Example Metrology Authority (Netherlands)', short_name: 'EMA-NL', country: 'Netherlands', contact: { email: 'oiml-cs@nmi.example.org' } },
 ]
@@ -181,6 +185,21 @@ demo_personas: true
   for (const org of ORGS) await store.putEntity('organizations', org.id, null, JSON.stringify(org))
   for (const u of UTILIZERS) await store.putEntity('utilizers', u.id, null, JSON.stringify(u))
   for (const d of DECLARATIONS) await store.putEntity('participantDeclarations', d.id, null, JSON.stringify(d))
+
+  // The organization registry (TODO.identity-features/05 — the identity
+  // service's OWN rows; the membership graph's source of truth). XX1
+  // stays OFF it: the mid-pipeline org is never a registry row.
+  for (const org of [ORGS[0]!, TL_ORG, ...UTILIZERS.map(u => ({ ...u, kind: 'utilizer' }))]) {
+    await store.createOrgRegistryOrg({
+      id: org.id,
+      name: org.name,
+      shortName: org.short_name,
+      kind: org.kind,
+      country: (org as { country?: string }).country ?? null,
+      contacts: org.contact?.email ? [{ name: null, email: org.contact.email }] : [],
+      participantRef: org.id,
+    })
+  }
 
   // The Utilizer's org admin (the delegation's actor) — the legacy write
   // path, its membership arrives through the mirror.
@@ -432,13 +451,14 @@ describe('the org-admin delegation is bounded', () => {
     })
     await json(grant, 200)
     expect((await store.getOrgMembership(officerUser.id, 'EX1'))?.roles).toEqual(['ia_officer', 'org_admin'])
-    // …but never on an UNREGISTERED org.
+    // …but never on an org the registry does not carry (XX1 — the
+    // mid-pipeline posture — is on the participants register only).
     const officer2 = await store.createLocalUser({ email: 'o2@x.example.org', name: 'O2', role: 'viewer', roles: ['viewer'], orgId: null })
     const ineligible = await app.request(`${ISSUER}/api/op/org-memberships`, {
       method: 'POST', headers: jsonHeaders(wideCookie), body: JSON.stringify({ email: officer2.email, org_id: 'XX1', roles: ['org_admin'] }),
     })
     expect(ineligible.status).toBe(400)
-    expect((await ineligible.json()).error).toContain('not a registered participant')
+    expect((await ineligible.json()).error).toContain('not on the organization registry')
     // restore the fixture's roles for the later legs
     await store.setOrgMembershipRoles(officerUser.id, 'EX1', ['ia_officer'])
   })

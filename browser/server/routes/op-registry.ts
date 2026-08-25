@@ -39,12 +39,43 @@
 //                                                      trail, paged (newest
 //                                                      first, the total in
 //                                                      every answer)
-//   GET    /api/op/registry/orgs/:orgId              — the per-ORG view
-//                                                      (TODO.identity/11):
-//                                                      the org's members +
-//                                                      per-org roles + its
-//                                                      org_admins, and its
-//                                                      join-request queue
+//   GET    /api/op/registry/orgs               — the ORGANIZATIONS list
+//                                                (TODO.identity-features/05):
+//                                                every registry org with its
+//                                                member count, its org_admins,
+//                                                and its lifecycle state
+//   POST   /api/op/registry/orgs               — the add act (the stable slug
+//                                                id — the participant org's
+//                                                OIML code — the display data,
+//                                                the contacts, the optional
+//                                                participant_ref)
+//   GET    /api/op/registry/orgs/:orgId        — the per-ORG view
+//                                                (TODO.identity/11):
+//                                                the org's members +
+//                                                per-org roles + its
+//                                                org_admins, its
+//                                                join-request queue, and
+//                                                (05) the org's own audit
+//                                                slice
+//   PUT    /api/op/registry/orgs/:orgId        — the edit act (the display
+//                                                data; the id never moves)
+//   POST   /api/op/registry/orgs/:orgId/state  — the lifecycle act: disable
+//                                                (the honest removal — the
+//                                                org's ACTIVE memberships
+//                                                disable with it, the
+//                                                per-org roles stop carrying;
+//                                                the invited invitations wait,
+//                                                blocked) / re-enable (the
+//                                                memberships stay disabled —
+//                                                re-activation is the
+//                                                per-membership deliberate
+//                                                act)
+//   DELETE /api/op/registry/orgs/:orgId        — the erasure-adjacent hard
+//                                                delete: only when the org
+//                                                never held a membership and
+//                                                no join request references
+//                                                it (the honest 409 points at
+//                                                disable otherwise)
 //   POST   /api/op/registry/users/:id/links          — the admin's
 //                                                      "link on behalf"
 //                                                      (justification
@@ -90,17 +121,18 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
-import { getStore, type AuthUserPayload, type UserAdminRow } from '@oimlsmart/platform-server/store'
+import { getStore, type AuthUserPayload, type OrgRegistryContact, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { listRegistryOrganizations, resolveRegistryOrg } from '../auth/org-registry'
+import { isRegistryOrgKind, listRegistryOrganizations, resolveRegistryOrg, type RegistryOrg } from '../auth/org-registry'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
 /** The audit actions the registry's activity feed surfaces: the identity
  *  registry's own journal rows (accounts, roles, links, sessions,
- *  sign-ins, clients, providers, join requests). Other workflow stores
+ *  sign-ins, clients, providers, join requests, and (TODO.identity-
+ *  features/05) the organization lifecycle). Other workflow stores
  *  write auditEvents too; the feed keeps the identity slice. */
-const REGISTRY_ENTITY_TYPES = new Set(['account', 'users', 'auth', 'client', 'provider'])
+const REGISTRY_ENTITY_TYPES = new Set(['account', 'users', 'auth', 'client', 'provider', 'organization'])
 const REGISTRY_ACTION_PREFIXES = ['org_invite.', 'org_join.']
 
 /** The account trail's page size (the detail aggregate's embedded first
@@ -160,12 +192,14 @@ export function createOpRegistryRouter(): Hono {
   }
 
   /** The registry mutations' audit trail (entity_type 'account' for the
-   *  account-targeted acts — the same journal op-accounts.ts writes). */
+   *  account-targeted acts, 'organization' for the org lifecycle — the
+   *  same journal op-accounts.ts writes). */
   async function audit(
     action: string,
     entityId: string,
     actor: { userId?: string; userName?: string },
     metadata: Record<string, unknown>,
+    entityType: 'account' | 'organization' = 'account',
   ): Promise<void> {
     try {
       const id = crypto.randomUUID()
@@ -173,7 +207,7 @@ export function createOpRegistryRouter(): Hono {
         id,
         timestamp: new Date().toISOString(),
         standard_id: '',
-        entity_type: 'account',
+        entity_type: entityType,
         entity_id: entityId,
         action,
         user_id: actor.userId,
@@ -523,12 +557,275 @@ export function createOpRegistryRouter(): Hono {
     return c.json({ ok: true, revoked: count })
   })
 
+  // ── the organization registry's lifecycle (TODO.identity-features/05 ─
+  //    organizations as first-class citizens) ───────────────────────────
+  // The identity administrator (admin/cs_admin — requireAdmin) adds,
+  // edits, disables and (guarded) removes the registry's orgs. The org
+  // admin NEVER reaches these routes: requireAdmin's 403 is the only
+  // answer, never a scoped slice — the org admin's own-organization
+  // management rides routes/op-memberships.ts's scoped grant.
+
+  /** The stable slug's shape: the id lands in URLs and the OIDC org
+   *  claim, and the participant org's OIML code rides it (EX1, 21). */
+  const ORG_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+
+  interface OrgPayloadFields {
+    name?: string
+    shortName?: string | null
+    kind?: string | null
+    country?: string | null
+    contacts?: OrgRegistryContact[]
+    participantRef?: string | null
+  }
+
+  /** The add/edit payloads' shared validation: answers the validated
+   *  fields (only the ones PRESENT — the edit's patch semantics), or
+   *  the error response. `requireAll` is the add act's posture (id +
+   *  name mandatory). */
+  function orgPayload(
+    c: Context,
+    body: Record<string, unknown> | null,
+    requireAll: boolean,
+  ): { fields: OrgPayloadFields & { id?: string } } | { error: Response } {
+    if (!body || typeof body !== 'object') {
+      return { error: c.json({ error: 'a JSON body is required' }, 400) }
+    }
+    const fields: OrgPayloadFields & { id?: string } = {}
+    if (body.id !== undefined) {
+      const id = typeof body.id === 'string' ? body.id.trim() : ''
+      if (!ORG_ID_PATTERN.test(id)) {
+        return { error: c.json({ error: 'the organization id is the stable slug: letters, digits, dot/dash/underscore, starting with a letter or digit (the participant org’s OIML code rides it — EX1, 21)' }, 400) }
+      }
+      fields.id = id
+    } else if (requireAll) {
+      return { error: c.json({ error: 'id is required — the stable slug (for a participant org, its OIML code)' }, 400) }
+    }
+    if (body.name !== undefined) {
+      const name = typeof body.name === 'string' ? body.name.trim() : ''
+      if (!name) return { error: c.json({ error: 'the display name must not be empty' }, 400) }
+      fields.name = name
+    } else if (requireAll) {
+      return { error: c.json({ error: 'name is required — the organization’s display name' }, 400) }
+    }
+    for (const [key, target] of [['short_name', 'shortName'], ['country', 'country'], ['participant_ref', 'participantRef']] as const) {
+      if (body[key] === undefined) continue
+      if (body[key] !== null && typeof body[key] !== 'string') {
+        return { error: c.json({ error: `${key} must be a string (or null to clear)` }, 400) }
+      }
+      const value = typeof body[key] === 'string' ? (body[key] as string).trim() : ''
+      fields[target] = value || null
+    }
+    if (body.kind !== undefined) {
+      if (body.kind !== null && !isRegistryOrgKind(body.kind)) {
+        return { error: c.json({ error: `kind must be one of issuing-authority, test-laboratory, utilizer, associate (or null for a non-participant organization)` }, 400) }
+      }
+      fields.kind = body.kind === null ? null : (body.kind as string)
+    }
+    if (body.contacts !== undefined) {
+      if (!Array.isArray(body.contacts)) {
+        return { error: c.json({ error: 'contacts must be a list of { name?, email }' }, 400) }
+      }
+      const contacts: OrgRegistryContact[] = []
+      for (const [i, entry] of body.contacts.entries()) {
+        const rec = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>
+        const email = typeof rec.email === 'string' ? rec.email.trim() : ''
+        if (!email.includes('@')) {
+          return { error: c.json({ error: `contacts[${i}] needs an email (the contact’s work address)` }, 400) }
+        }
+        contacts.push({ name: typeof rec.name === 'string' && rec.name.trim() ? rec.name.trim() : null, email })
+      }
+      fields.contacts = contacts
+    }
+    return { fields }
+  }
+
+  // GET /api/op/registry/orgs — the Organizations list: every registry
+  // org (every state, name-ordered) with its ACTIVE member count, its
+  // organization administrators (the active org_admin memberships), and
+  // the lifecycle state.
+  registry.get('/api/op/registry/orgs', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error) return gate.error
+    const store = getStore()
+    const [orgs, users] = await Promise.all([store.listOrgRegistryOrgs(), store.listUsers()])
+    const byId = new Map(users.map(u => [u.id, u]))
+    const rows = []
+    for (const org of orgs) {
+      const memberships = await store.listOrgMembers(org.id)
+      const active = memberships.filter(m => m.state === 'active')
+      rows.push({
+        id: org.id,
+        name: org.name,
+        shortName: org.shortName,
+        kind: org.kind,
+        country: org.country,
+        participantRef: org.participantRef,
+        state: org.state,
+        members: {
+          active: active.length,
+          invited: memberships.filter(m => m.state === 'invited').length,
+          disabled: memberships.filter(m => m.state === 'disabled').length,
+        },
+        admins: active.filter(m => m.roles.includes('org_admin')).map(m => ({
+          userId: m.userId,
+          name: byId.get(m.userId)?.name ?? '(erased account)',
+          email: byId.get(m.userId)?.email ?? null,
+        })),
+        createdAt: org.createdAt,
+        updatedAt: org.updatedAt,
+        disabledAt: org.disabledAt,
+        disabledBy: org.disabledBy,
+      })
+    }
+    return c.json(rows)
+  })
+
+  // POST /api/op/registry/orgs — the add act: { id, name, short_name?,
+  // kind?, country?, contacts?, participant_ref? }. The id is forever
+  // (the stable slug — never editable later); the id conflict is the
+  // honest 409.
+  registry.post('/api/op/registry/orgs', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+    const parsed = orgPayload(c, body, true)
+    if ('error' in parsed) return parsed.error
+    const { id, name, ...rest } = parsed.fields
+    const store = getStore()
+    const created = await store.createOrgRegistryOrg({ id: id!, name: name!, ...rest, createdBy: gate.user!.email })
+    if (!created) {
+      return c.json({ error: `the id '${id}' is taken — the organization already exists (open it to edit)` }, 409)
+    }
+    await audit('organization.added', created.id, { userId: gate.user!.id, userName: gate.user!.name }, {
+      name: created.name,
+      kind: created.kind,
+      participant_ref: created.participantRef,
+    }, 'organization')
+    return c.json(created, 201)
+  })
+
+  // PUT /api/op/registry/orgs/:orgId — the edit act: the display data +
+  // the participant_ref annotation. The id never moves (a rename is a
+  // new org); present fields set, null clears, absent fields stand.
+  registry.put('/api/op/registry/orgs/:orgId', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const orgId = c.req.param('orgId')
+    const org = await store.getOrgRegistryOrg(orgId)
+    if (!org) return c.json({ error: 'not found' }, 404)
+    const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+    const parsed = orgPayload(c, body, false)
+    if ('error' in parsed) return parsed.error
+    const patch = parsed.fields
+    if (patch.id !== undefined && patch.id !== orgId) {
+      return c.json({ error: 'the id is the stable slug — it never changes (a rename is a new organization)' }, 400)
+    }
+    const { id: _id, ...fields } = patch
+    if (Object.keys(fields).length === 0) {
+      return c.json({ error: 'nothing to update — name the fields to change' }, 400)
+    }
+    const updated = await store.updateOrgRegistryOrg(orgId, fields, gate.user!.email)
+    await audit('organization.updated', orgId, { userId: gate.user!.id, userName: gate.user!.name }, {
+      name: updated!.name,
+      fields: Object.keys(fields),
+    }, 'organization')
+    return c.json(updated)
+  })
+
+  // POST /api/op/registry/orgs/:orgId/state — the lifecycle act:
+  // { state: 'disabled' | 'active' }. DISABLE is the honest removal: the
+  // org's ACTIVE memberships disable with it (the members' per-org roles
+  // stop carrying at the next claims emission; the sessions' active-org
+  // stamps clear inside the store's act), and the answer names the
+  // cascade. The INVITED memberships wait — an invitation carries
+  // nothing yet; the holder's accept refuses while the org is disabled.
+  // RE-ENABLE reopens the row only: the memberships stay disabled (the
+  // per-membership re-activation is the deliberate act, never an
+  // automatic one).
+  registry.post('/api/op/registry/orgs/:orgId/state', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const orgId = c.req.param('orgId')
+    const org = await store.getOrgRegistryOrg(orgId)
+    if (!org) return c.json({ error: 'not found' }, 404)
+    const body = await c.req.json<{ state?: string }>().catch(() => null)
+    if (!body || (body.state !== 'active' && body.state !== 'disabled')) {
+      return c.json({ error: 'state must be "active" or "disabled"' }, 400)
+    }
+    if (body.state === org.state) {
+      return c.json({ error: `the organization is already ${org.state}` }, 409)
+    }
+    if (body.state === 'disabled') {
+      const memberships = await store.listOrgMembers(orgId)
+      let cascaded = 0
+      for (const m of memberships) {
+        if (m.state !== 'active') continue
+        await store.setOrgMembershipState(m.userId, orgId, 'disabled', gate.user!.email)
+        cascaded += 1
+      }
+      const waiting = memberships.filter(m => m.state === 'invited').length
+      const updated = await store.setOrgRegistryOrgState(orgId, 'disabled', gate.user!.email)
+      await audit('organization.disabled', orgId, { userId: gate.user!.id, userName: gate.user!.name }, {
+        name: org.name,
+        memberships_disabled: cascaded,
+        invitations_waiting: waiting,
+      }, 'organization')
+      return c.json({ org: updated, membershipsDisabled: cascaded, invitationsWaiting: waiting })
+    }
+    const updated = await store.setOrgRegistryOrgState(orgId, 'active', gate.user!.email)
+    const stillDisabled = (await store.listOrgMembers(orgId)).filter(m => m.state === 'disabled').length
+    await audit('organization.reactivated', orgId, { userId: gate.user!.id, userName: gate.user!.name }, {
+      name: org.name,
+      memberships_still_disabled: stillDisabled,
+    }, 'organization')
+    return c.json({ org: updated, membershipsStillDisabled: stillDisabled })
+  })
+
+  // DELETE /api/op/registry/orgs/:orgId — the erasure-adjacent hard
+  // delete, guarded honestly: only an org that NEVER held a membership
+  // and has no join request referencing it (either history class keeps
+  // the org: disable it instead — the audit trail is the history). The
+  // audit row lands BEFORE the delete and carries the tombstone data.
+  registry.delete('/api/op/registry/orgs/:orgId', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const orgId = c.req.param('orgId')
+    const org = await store.getOrgRegistryOrg(orgId)
+    if (!org) return c.json({ error: 'not found' }, 404)
+    const [memberships, requests] = await Promise.all([
+      store.listOrgMembers(orgId),
+      store.listOrgJoinRequests({ scope: 'org', orgId }),
+    ])
+    if (memberships.length || requests.length) {
+      return c.json({
+        error: `organization '${orgId}' holds history (${memberships.length} membership(s), ${requests.length} join request(s)) — removal is DISABLE honestly: the lifecycle act keeps the audit trail; the hard delete exists only for an org that never held either`,
+        memberships: memberships.length,
+        requests: requests.length,
+      }, 409)
+    }
+    await audit('organization.removed', orgId, { userId: gate.user!.id, userName: gate.user!.name }, {
+      name: org.name,
+      kind: org.kind,
+      participant_ref: org.participantRef,
+    }, 'organization')
+    await store.deleteOrgRegistryOrg(orgId)
+    return c.json({ ok: true })
+  })
+
   // GET /api/op/registry/orgs/:orgId — the per-ORG view (TODO.identity/11,
-  // the multi-org model): the register's org, its MEMBERSHIPS (the members
-  // with their per-org role sets + lifecycle states — the org_admins among
-  // them marked by the role), and its join-request queue (every state,
-  // newest first). The mutations live in routes/op-memberships.ts (the
-  // grant-checked surface); this aggregate is the registry's read.
+  // the multi-org model; TODO.identity-features/05 extends it to the
+  // first-class org): the registry org's FULL row (the display data, the
+  // contacts, the participant_ref annotation, the lifecycle stamps), its
+  // MEMBERSHIPS (the members with their per-org role sets + lifecycle
+  // states — the org_admins among them marked by the role), its
+  // join-request queue (every state, newest first), and the org's own
+  // audit slice (the lifecycle acts + the membership + join-request acts
+  // naming it, newest first, 50 deep). The membership mutations live in
+  // routes/op-memberships.ts (the grant-checked surface); the org's own
+  // acts are this router's (above); this aggregate is the read.
   registry.get('/api/op/registry/orgs/:orgId', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
@@ -536,16 +833,46 @@ export function createOpRegistryRouter(): Hono {
     const orgId = c.req.param('orgId')
     const org = await resolveRegistryOrg(store, orgId)
     if (!org) {
-      return c.json({ error: `organization '${orgId}' is not on the participants register` }, 404)
+      return c.json({ error: `organization '${orgId}' is not on the organization registry` }, 404)
     }
-    const [memberships, users, requests] = await Promise.all([
+    const [memberships, users, requests, auditRows] = await Promise.all([
       store.listOrgMembers(orgId),
       store.listUsers(),
       store.listOrgJoinRequests({ scope: 'org', orgId }),
+      store.listEntities('auditEvents'),
     ])
     const byId = new Map(users.map(u => [u.id, u]))
+    // The org's own audit slice: its lifecycle acts (entity_type
+    // 'organization'), the membership + join-request + org-invite acts
+    // NAMING the org (the metadata's org_id).
+    const activity = auditRows
+      .map(row => parseAuditEvent(row.data))
+      .filter((e): e is AuditEvent => !!e && (
+        (e.entity_type === 'organization' && e.entity_id === orgId)
+        || ((e.entity_type === 'org_memberships' || e.entity_type === 'org_join_requests' || e.action.startsWith('org_invite.'))
+          && e.metadata?.org_id === orgId)
+      ))
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+      .slice(0, 50)
     return c.json({
-      org: { id: org.id, name: org.name, shortName: org.shortName, kind: org.kind, country: org.country, registered: org.registered, roles: org.roles },
+      org: {
+        id: org.id,
+        name: org.name,
+        shortName: org.shortName,
+        kind: org.kind,
+        country: org.country,
+        contacts: org.contacts,
+        participantRef: org.participantRef,
+        state: org.state,
+        registered: org.registered,
+        roles: org.roles,
+        createdAt: org.createdAt,
+        createdBy: org.createdBy,
+        updatedAt: org.updatedAt,
+        updatedBy: org.updatedBy,
+        disabledAt: org.disabledAt,
+        disabledBy: org.disabledBy,
+      },
       members: memberships.map(m => {
         const account = byId.get(m.userId) ?? null
         return {
@@ -566,6 +893,7 @@ export function createOpRegistryRouter(): Hono {
         }
       }),
       requests: [...requests].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      activity,
     })
   })
 

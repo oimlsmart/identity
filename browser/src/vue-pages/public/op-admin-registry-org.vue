@@ -1,12 +1,17 @@
 <script setup lang="ts">
 // ═══════════════════════════════════════════════════════════════════
 // The registry's PER-ORG view (TODO.identity/11 — the multi-org
-// membership model): one organization on the participants register with
-// its MEMBERS (the memberships: the per-org role sets + the lifecycle
+// membership model; TODO.identity-features/05 — the first-class org):
+// one organization on the identity service's own registry with its
+// MEMBERS (the memberships: the per-org role sets + the lifecycle
 // states, the org_admins marked), its join-request queue (every state),
-// and the identity admin's membership acts (invite an existing account,
-// edit the per-org roles, disable/re-activate — routes/op-memberships.ts
-// enforces the bounds; this page only renders what the APIs answer).
+// the organization card (the display data + the participant link + the
+// lifecycle stamps), the lifecycle ACTS (edit, disable/re-enable, the
+// guarded remove), and the organization's own audit slice — the
+// identity admin's membership acts (invite an existing account, edit
+// the per-org roles, disable/re-activate — routes/op-memberships.ts
+// enforces the bounds; routes/op-registry.ts enforces the org acts;
+// this page only renders what the APIs answer).
 //
 // The audience is the identity administrator (admin/cs_admin — the
 // registry console's gate). The org admin's own people console is
@@ -17,15 +22,25 @@ import { useRoute } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
 import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
+import { t } from '../../i18n'
 
 interface OrgInfo {
   id: string
   name: string
   shortName: string
-  kind: string
+  kind: string | null
   country: string
+  contacts: Array<{ name: string | null; email: string }>
+  participantRef: string | null
+  state: 'active' | 'disabled'
   registered: boolean
   roles: string[]
+  createdAt: string
+  createdBy: string | null
+  updatedAt: string | null
+  updatedBy: string | null
+  disabledAt: string | null
+  disabledBy: string | null
 }
 
 interface MemberRow {
@@ -58,10 +73,19 @@ interface JoinRequestRow {
   createdAt: string
 }
 
+interface OrgEvent {
+  id: string
+  timestamp: string
+  action: string
+  user_name?: string
+  metadata?: Record<string, unknown>
+}
+
 interface OrgView {
   org: OrgInfo
   members: MemberRow[]
   requests: JoinRequestRow[]
+  activity: OrgEvent[]
 }
 
 const route = useRoute()
@@ -83,6 +107,21 @@ const memberRoleDrafts = ref<Record<string, string[]>>({})
 const addEmail = ref('')
 const addRoleChecks = ref<string[]>([])
 
+// The org's own acts (TODO.identity-features/05): the edit form (the
+// current values preloaded), the disable/re-enable confirmation, and
+// the guarded remove.
+const editOpen = ref(false)
+const editName = ref('')
+const editShortName = ref('')
+const editKind = ref('')
+const editCountry = ref('')
+const editParticipantRef = ref('')
+const editContacts = ref<Array<{ name: string; email: string }>>([])
+const confirmDisable = ref(false)
+const confirmRemove = ref(false)
+
+const KIND_OPTIONS = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate'] as const
+
 /** The org's administrators (the org_admin memberships — the scheme
  *  operator's delegation). */
 const orgAdmins = computed(() => view.value?.members.filter(m => m.roles.includes('org_admin')) ?? [])
@@ -90,6 +129,28 @@ const orgAdmins = computed(() => view.value?.members.filter(m => m.roles.include
 /** The role options the org's kind bounds, plus org_admin (the wide
  *  grant's delegation act — the server re-checks the eligibility). */
 const roleOptions = computed(() => (view.value ? [...view.value.org.roles, 'org_admin'] : []))
+
+/** The honest counts the disable confirmation names. */
+const activeMembers = computed(() => view.value?.members.filter(m => m.state === 'active').length ?? 0)
+const invitedMembers = computed(() => view.value?.members.filter(m => m.state === 'invited').length ?? 0)
+/** The remove act's guard mirrors the server's: the org never held a
+ *  membership and no join request names it. */
+const removable = computed(() => (view.value?.members.length ?? 1) === 0 && (view.value?.requests.length ?? 1) === 0)
+
+/** The org record's action label: the catalogued organization acts in
+ *  words; the membership/join acts fall back to the action id (their
+ *  consoles carry the full renderers). */
+function actionLabel(e: OrgEvent): string {
+  const meta = e.metadata ?? {}
+  switch (e.action) {
+    case 'organization.added': return t('admin.org.activity.action.organization.added')
+    case 'organization.updated': return t('admin.org.activity.action.organization.updated', { fields: String(meta.fields ?? '') })
+    case 'organization.disabled': return t('admin.org.activity.action.organization.disabled', { count: Number(meta.memberships_disabled ?? 0) })
+    case 'organization.reactivated': return t('admin.org.activity.action.organization.reactivated')
+    case 'organization.removed': return t('admin.org.activity.action.organization.removed')
+    default: return e.action
+  }
+}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -201,8 +262,114 @@ async function inviteMember() {
     addRoleChecks.value = []
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('account.networkError')
   } finally {
+    acting.value = null
+  }
+}
+
+// ── the organization card's acts (TODO.identity-features/05) ─────────
+
+function openEdit() {
+  if (!view.value) return
+  editOpen.value = !editOpen.value
+  confirmDisable.value = false
+  confirmRemove.value = false
+  const org = view.value.org
+  editName.value = org.name
+  editShortName.value = org.shortName === org.name ? '' : org.shortName
+  editKind.value = org.kind ?? ''
+  editCountry.value = org.country
+  editParticipantRef.value = org.participantRef ?? ''
+  editContacts.value = org.contacts.length
+    ? org.contacts.map(ct => ({ name: ct.name ?? '', email: ct.email }))
+    : [{ name: '', email: '' }]
+}
+
+async function saveEdit() {
+  if (acting.value || !view.value) return
+  acting.value = 'edit'
+  error.value = null
+  notice.value = null
+  try {
+    const contacts = editContacts.value
+      .map(ct => ({ name: ct.name.trim() || undefined, email: ct.email.trim() }))
+      .filter(ct => ct.email)
+    const res = await api(`/api/op/registry/orgs/${encodeURIComponent(orgId.value)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: editName.value.trim(),
+        short_name: editShortName.value.trim() || null,
+        kind: editKind.value || null,
+        country: editCountry.value.trim() || null,
+        participant_ref: editParticipantRef.value.trim() || null,
+        contacts,
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? t('admin.user.failed', { status: res.status })
+      return
+    }
+    notice.value = t('admin.org.acts.saved')
+    editOpen.value = false
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+/** The lifecycle act: disable (the honest removal — the cascade answer
+ *  names the memberships) / re-enable (the memberships stay disabled). */
+async function setOrgState(state: 'active' | 'disabled') {
+  if (acting.value) return
+  acting.value = 'org-state'
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/registry/orgs/${encodeURIComponent(orgId.value)}/state`, {
+      method: 'POST',
+      body: JSON.stringify({ state }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? t('admin.user.failed', { status: res.status })
+      return
+    }
+    const answer = await res.json() as { membershipsDisabled?: number; membershipsStillDisabled?: number }
+    notice.value = state === 'disabled'
+      ? t('admin.org.acts.disabled', { count: answer.membershipsDisabled ?? 0 })
+      : t('admin.org.acts.reactivated', { count: answer.membershipsStillDisabled ?? 0 })
+    confirmDisable.value = false
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+/** The guarded hard delete: the org never held a membership and no join
+ *  request names it (the server's 409 is the honest refusal otherwise).
+ *  The org is gone — back to the Organizations surface. */
+async function removeOrg() {
+  if (acting.value) return
+  acting.value = 'remove'
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/registry/orgs/${encodeURIComponent(orgId.value)}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? t('admin.user.failed', { status: res.status })
+      confirmRemove.value = false
+      return
+    }
+    window.location.assign('/op/admin/organizations')
+  } catch {
+    error.value = t('account.networkError')
     acting.value = null
   }
 }
@@ -242,28 +409,33 @@ onMounted(async () => {
 
     <div v-else-if="notFound" class="max-w-md mx-auto py-16 text-center">
       <p class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-notfound">
-        This organization is not on the participants register.
+        This organization is not on the organization registry.
       </p>
     </div>
 
     <div v-else-if="view" data-testid="op-reg-org">
       <p class="mb-2 text-sm" data-testid="op-reg-org-back">
-        <router-link to="/op/admin/registry" class="text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 font-medium transition-colors">← the identity registry</router-link>
+        <router-link to="/op/admin/organizations" class="text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200 font-medium transition-colors">← {{ t('admin.orgs.title') }}</router-link>
       </p>
       <PageHeader :title="view.org.name" title-test-id="op-reg-org-name">
         <template #description>
           <span data-testid="op-reg-org-context">
-            {{ view.org.kind }}<template v-if="view.org.country"> · {{ view.org.country }}</template>
+            {{ view.org.kind ?? t('admin.org.details.kindNone') }}<template v-if="view.org.country"> · {{ view.org.country }}</template>
             <span
               class="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
-              :class="view.org.registered ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'"
-              data-testid="op-reg-org-registered"
-            >{{ view.org.registered ? 'registered participant' : 'not registered' }}</span>
+              :class="view.org.state === 'active' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'"
+              data-testid="op-reg-org-state"
+            >{{ view.org.state === 'active' ? t('admin.orgs.stateActive') : t('admin.orgs.stateDisabled') }}</span>
+            <span
+              v-if="view.org.participantRef"
+              class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300"
+              data-testid="op-reg-org-participant-ref"
+            >participant {{ view.org.participantRef }}</span>
             — {{ branding.productName }}
           </span>
         </template>
       </PageHeader>
-      <OpAdminNav current="registry" />
+      <OpAdminNav current="organizations" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-reg-org-error">{{ error }}</p>
@@ -271,6 +443,119 @@ onMounted(async () => {
       <div v-if="notice" class="mb-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
         <p class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="op-reg-org-notice">{{ notice }}</p>
       </div>
+
+      <!-- The organization card: the display data + the lifecycle acts. -->
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-org-card">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('admin.org.details.title') }}</h2>
+          <div class="shrink-0 flex items-center gap-3 text-xs font-medium">
+            <button
+              data-testid="op-reg-org-edit"
+              :disabled="acting !== null"
+              class="text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
+              @click="openEdit"
+            >{{ editOpen ? t('admin.user.memberships.rolesClose') : t('admin.org.acts.edit') }}</button>
+            <button
+              v-if="view.org.state === 'active'"
+              data-testid="op-reg-org-disable"
+              :disabled="acting !== null"
+              class="text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+              @click="confirmDisable = !confirmDisable; confirmRemove = false; editOpen = false"
+            >{{ t('admin.org.acts.disable') }}</button>
+            <button
+              v-else
+              data-testid="op-reg-org-reactivate"
+              :disabled="acting !== null"
+              class="text-emerald-600 dark:text-emerald-400 hover:underline disabled:opacity-50"
+              @click="setOrgState('active')"
+            >{{ t('admin.org.acts.reactivate') }}</button>
+            <button
+              v-if="removable"
+              data-testid="op-reg-org-remove"
+              :disabled="acting !== null"
+              class="text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+              @click="confirmRemove = !confirmRemove; confirmDisable = false; editOpen = false"
+            >{{ t('admin.org.acts.remove') }}</button>
+          </div>
+        </div>
+
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs" data-testid="op-reg-org-details">
+          <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.idLabel') }}</dt><dd class="font-mono text-slate-700 dark:text-slate-300" data-testid="op-reg-org-id">{{ view.org.id }}</dd></div>
+          <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.kindLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-kind">{{ view.org.kind ?? t('admin.org.details.kindNone') }}</dd></div>
+          <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.countryLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300">{{ view.org.country || '—' }}</dd></div>
+          <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.stateLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300">{{ view.org.state === 'active' ? t('admin.orgs.stateActive') : t('admin.orgs.stateDisabled') }}<template v-if="view.org.state === 'disabled' && view.org.disabledAt"> ({{ t('admin.org.details.disabledBy', { date: fmtDate(view.org.disabledAt), by: view.org.disabledBy ?? '—' }) }})</template></dd></div>
+          <div class="flex gap-2 sm:col-span-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.participantRefLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-participant">{{ view.org.participantRef ?? t('admin.org.details.participantRefNone') }}</dd>
+          </div>
+          <div class="flex gap-2 sm:col-span-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.contactsLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-contacts">
+              <template v-if="view.org.contacts.length">
+                <span v-for="(ct, i) in view.org.contacts" :key="i" class="inline-block mr-3"><template v-if="ct.name">{{ ct.name }} </template>&lt;{{ ct.email }}&gt;</span>
+              </template>
+              <span v-else class="text-slate-400 dark:text-slate-500">{{ t('admin.org.details.contactsEmpty') }}</span>
+            </dd>
+          </div>
+          <div v-if="view.org.updatedAt" class="flex gap-2 sm:col-span-2">
+            <dd class="text-slate-400 dark:text-slate-500" data-testid="op-reg-org-updated">{{ t('admin.org.details.updatedBy', { date: fmtDate(view.org.updatedAt), by: view.org.updatedBy ?? '—' }) }}</dd>
+          </div>
+        </dl>
+
+        <!-- The edit form -->
+        <div v-if="editOpen" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-org-edit-form">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input v-model="editName" type="text" data-testid="op-reg-org-edit-name" :placeholder="t('admin.orgs.field.name')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <input v-model="editShortName" type="text" data-testid="op-reg-org-edit-short-name" :placeholder="t('admin.orgs.field.shortName')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <select v-model="editKind" data-testid="op-reg-org-edit-kind" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="">{{ t('admin.orgs.kindNone') }}</option>
+              <option v-for="k in KIND_OPTIONS" :key="k" :value="k">{{ k }}</option>
+            </select>
+            <input v-model="editCountry" type="text" data-testid="op-reg-org-edit-country" :placeholder="t('admin.orgs.field.country')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <input v-model="editParticipantRef" type="text" data-testid="op-reg-org-edit-participant-ref" :placeholder="t('admin.orgs.field.participantRef')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 sm:col-span-2" />
+          </div>
+          <div class="mt-3">
+            <p class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.orgs.field.contacts') }}</p>
+            <div v-for="(contact, i) in editContacts" :key="i" class="flex flex-wrap sm:flex-nowrap items-center gap-2 mb-2" :data-testid="`op-reg-org-edit-contact-${i}`">
+              <input v-model="contact.name" type="text" :data-testid="`op-reg-org-edit-contact-name-${i}`" :placeholder="t('admin.orgs.contactName')" class="flex-1 min-w-40 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <input v-model="contact.email" type="email" :data-testid="`op-reg-org-edit-contact-email-${i}`" :placeholder="t('admin.orgs.contactEmail')" class="flex-1 min-w-40 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <button v-if="editContacts.length > 1" type="button" :data-testid="`op-reg-org-edit-contact-remove-${i}`" class="shrink-0 text-xs text-red-600 dark:text-red-400 hover:underline" @click="editContacts.splice(i, 1)">{{ t('admin.orgs.contactRemove') }}</button>
+            </div>
+            <button type="button" data-testid="op-reg-org-edit-contact-add" class="text-xs text-brand-600 dark:text-brand-300 hover:underline" @click="editContacts.push({ name: '', email: '' })">+ {{ t('admin.orgs.contactAdd') }}</button>
+          </div>
+          <div class="mt-3">
+            <button
+              :disabled="acting === 'edit' || !editName.trim()"
+              data-testid="op-reg-org-edit-save"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+              @click="saveEdit"
+            >{{ acting === 'edit' ? t('admin.org.acts.saving') : t('admin.org.acts.save') }}</button>
+          </div>
+        </div>
+
+        <!-- The disable confirmation (the honest cascade named) -->
+        <div v-if="confirmDisable" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-org-disable-confirm">
+          <p class="text-xs text-slate-600 dark:text-slate-300 mb-2">{{ t('admin.org.acts.disableNote') }}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">{{ activeMembers }} active · {{ invitedMembers }} invited</p>
+          <button
+            :disabled="acting === 'org-state'"
+            data-testid="op-reg-org-disable-submit"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+            @click="setOrgState('disabled')"
+          >{{ t('admin.org.acts.disableConfirm') }}</button>
+        </div>
+
+        <!-- The remove confirmation (the guarded hard delete) -->
+        <div v-if="confirmRemove" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-org-remove-confirm">
+          <p class="text-xs text-slate-600 dark:text-slate-300 mb-2">{{ t('admin.org.acts.removeNote') }}</p>
+          <button
+            :disabled="acting === 'remove'"
+            data-testid="op-reg-org-remove-submit"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+            @click="removeOrg"
+          >{{ t('admin.org.acts.removeConfirm') }}</button>
+        </div>
+      </section>
 
       <!-- The members: the memberships with their per-org role sets. -->
       <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-org-members">
@@ -390,7 +675,7 @@ onMounted(async () => {
       </section>
 
       <!-- The org's join-request queue (every state, newest first). -->
-      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-reg-org-requests">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-org-requests">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Join requests</h2>
         <p v-if="!view.requests.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-requests-empty">
           No join requests naming this organization.
@@ -416,6 +701,27 @@ onMounted(async () => {
           The decisions happen on the
           <router-link to="/op/admin/users" class="text-brand-600 dark:text-brand-300 hover:underline">organization administration console</router-link>.
         </p>
+      </section>
+
+      <!-- The organization's own audit slice (TODO.identity-features/05):
+           the lifecycle acts + the membership/join acts naming it. -->
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-reg-org-activity">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.org.activity.title') }}</h2>
+        <p v-if="!view.activity.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-activity-empty">
+          {{ t('admin.org.activity.empty') }}
+        </p>
+        <ul v-else class="space-y-1" data-testid="op-reg-org-activity-list">
+          <li
+            v-for="e in view.activity"
+            :key="e.id"
+            class="text-xs text-slate-600 dark:text-slate-300"
+            :data-testid="`op-reg-org-event-${e.id}`"
+          >
+            <span class="text-slate-400 dark:text-slate-500">{{ fmtDate(e.timestamp) }}</span>
+            — <span class="font-medium">{{ e.user_name ?? '—' }}</span>
+            {{ actionLabel(e) }}
+          </li>
+        </ul>
       </section>
     </div>
   </div>

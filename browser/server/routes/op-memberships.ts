@@ -36,7 +36,7 @@ import { getStore, type AuthUserPayload, type OrgMembership, type ServerStore } 
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
 import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
-import { orgKindRoles, resolveRegistryOrg } from '../auth/org-registry'
+import { orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
 /** The caller's grant over these routes: 'wide' (the identity admin) or
@@ -143,8 +143,11 @@ export function createOpMembershipsRouter(): Hono {
   }
 
   /** The role-set validation: the platform vocabulary is the route's
-   *  caller's concern (the store trusts it) — here: the org's KIND
-   *  bounds the set; org_admin is the scheme operator's alone. */
+   *  caller's concern (the store trusts it) — here: the org must be an
+   *  ACTIVE registry organization (TODO.identity-features/05 — the
+   *  identity service's own registry, any kind; a disabled org's
+   *  membership graph is suspended), the org's KIND bounds the set, and
+   *  org_admin is the identity administrator's alone. */
   async function rolesRefusal(
     c: Context,
     grant: MembershipGrant,
@@ -157,16 +160,21 @@ export function createOpMembershipsRouter(): Hono {
       }, 403)
     }
     const org = await resolveRegistryOrg(getStore(), orgId)
-    if (!org || !org.registered) {
+    if (!org) {
       return c.json({
-        error: `organization '${orgId}' is not a registered participant — memberships exist only for registered participant orgs (PD-03 / B 18:2025 §10.2)`,
+        error: `organization '${orgId}' is not on the organization registry — the identity administrator adds it first (the Organizations surface)`,
       }, 400)
     }
-    const bounded = new Set(orgKindRoles(org.kind))
+    if (org.state !== 'active') {
+      return c.json({
+        error: `organization '${orgId}' is disabled — its membership graph is suspended until the identity administrator re-enables it`,
+      }, 409)
+    }
+    const bounded = new Set(orgAssignableRoles(org))
     const outside = roles.filter(r => !bounded.has(r) && r !== 'org_admin')
     if (outside.length) {
       return c.json({
-        error: `role(s) ${outside.map(r => `'${r}'`).join(', ')} are not assignable within a ${org.kind} — the org's kind bounds the set (assignable: ${[...bounded].join(', ')})`,
+        error: `role(s) ${outside.map(r => `'${r}'`).join(', ')} are not assignable within a ${org.kind ?? 'non-participant organization'} — the org's kind bounds the set (assignable: ${[...bounded].join(', ')})`,
       }, 403)
     }
     return null
@@ -193,11 +201,11 @@ export function createOpMembershipsRouter(): Hono {
     if ('error' in scoped) return scoped.error
     const store = getStore()
     const org = await resolveRegistryOrg(store, scoped.orgId)
-    if (!org) return c.json({ error: `organization '${scoped.orgId}' is not on the participants register` }, 404)
+    if (!org) return c.json({ error: `organization '${scoped.orgId}' is not on the organization registry` }, 404)
     const members = await store.listOrgMembers(scoped.orgId)
     return c.json({
       grant: gate.grant.kind,
-      org: { id: org.id, name: org.name, shortName: org.shortName, kind: org.kind, country: org.country, registered: org.registered, roles: org.roles },
+      org: { id: org.id, name: org.name, shortName: org.shortName, kind: org.kind, country: org.country, state: org.state, registered: org.registered, roles: org.roles },
       members: await Promise.all(members.map(m => memberView(store, m))),
     })
   })
@@ -302,7 +310,9 @@ export function createOpMembershipsRouter(): Hono {
   // POST /api/op/org-memberships/:userId/:orgId/state — the lifecycle
   // act: { state: 'active' | 'disabled' }. Disabling ends the account's
   // live sessions' context into the org (the store clears the stamps);
-  // re-activation is deliberate, never automatic.
+  // re-activation is deliberate, never automatic — and it refuses while
+  // the ORG itself is disabled (TODO.identity-features/05: a disabled
+  // org's membership graph stays suspended).
   router.post('/api/op/org-memberships/:userId/:orgId/state', async (c) => {
     const gate = await grant(c)
     if ('error' in gate) return gate.error
@@ -323,6 +333,14 @@ export function createOpMembershipsRouter(): Hono {
       }, 409)
     }
     const store = getStore()
+    if (body.state === 'active') {
+      const org = await store.getOrgRegistryOrg(membership.orgId)
+      if (org?.state === 'disabled') {
+        return c.json({
+          error: `organization '${membership.orgId}' is disabled — the identity administrator re-enables the organization first; the membership's re-activation follows`,
+        }, 409)
+      }
+    }
     const updated = await store.setOrgMembershipState(membership.userId, membership.orgId, body.state, user.email)
     await audit(user, g, membership.userId, body.state === 'disabled' ? 'membership.disabled' : 'membership.activated', {
       org_id: membership.orgId,

@@ -11,13 +11,15 @@
 // ─────────────────────────────────────────────────────────────────────
 import { t, type MessageKey } from '../i18n'
 
-type AdminSurface = 'overview' | 'registry' | 'sessions' | 'clients' | 'activity' | 'providers' | 'security' | 'users'
+type AdminSurface = 'overview' | 'registry' | 'organizations' | 'sessions' | 'clients' | 'activity' | 'providers' | 'security' | 'users'
 
 defineProps<{ current: AdminSurface }>()
 
 const entries: ReadonlyArray<{ key: AdminSurface; to: string; labelKey: MessageKey }> = [
   { key: 'overview', to: '/op/admin/overview', labelKey: 'admin.nav.overview' },
   { key: 'registry', to: '/op/admin/registry', labelKey: 'admin.nav.registry' },
+  // TODO.identity-features/05 — the organization registry's own surface.
+  { key: 'organizations', to: '/op/admin/organizations', labelKey: 'admin.orgs.title' },
   { key: 'sessions', to: '/op/admin/sessions', labelKey: 'admin.nav.sessions' },
   { key: 'clients', to: '/op/admin/clients', labelKey: 'admin.nav.clients' },
   { key: 'activity', to: '/op/admin/activity', labelKey: 'admin.nav.activity' },

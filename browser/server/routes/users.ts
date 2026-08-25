@@ -16,13 +16,12 @@
 //     and a target outside the org is not found (no cross-org slice
 //     exists). Organization-administrator accounts themselves stay with
 //     the scheme operator: the scoped grant can neither assign
-//     `org_admin` nor modify an account holding it (one per org,
-//     created by BIML after verification — B 18 §10.2 / PD-03).
+//     `org_admin` nor modify an account holding it.
 //
 // The ELIGIBILITY RULE lives here too (the wide grant's half): assigning
-// `org_admin` requires the account's org to be a REGISTERED participant
-// org (the participants register, read from the entity store) — a
-// refusal names the rule.
+// `org_admin` requires the account's org to be an ACTIVE organization on
+// the identity service's own org registry (TODO.identity-features/05 —
+// any kind; a refusal names the rule).
 //
 // Refusals name the missing permission (honest 403, the same contract
 // as the entity gate). Every mutation journals an audit event naming
@@ -38,7 +37,7 @@ import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type AuthUserPayload } from '@oimlsmart/platform-server/store'
 import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
 import { effectiveRolesOf, mapRoles, roleHolders, type RolePermissionMap } from '@oimlsmart/platform-server/vocab'
-import { isRegisteredParticipant, orgKindRoles, resolveRegistryOrg } from '../auth/org-registry'
+import { isActiveRegistryOrg, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
 /** The caller's grant over these routes: 'wide' (users.manage — the
@@ -144,7 +143,7 @@ export function createUsersRouter(): Hono<{ Variables: { user: AuthUserPayload; 
     const org = await resolveRegistryOrg(getStore(), scope.orgId!)
     if (!org) return c.json({} satisfies RolePermissionMap)
     const bounded: RolePermissionMap = {}
-    for (const role of orgKindRoles(org.kind)) {
+    for (const role of orgAssignableRoles(org)) {
       if (map[role]) bounded[role] = map[role]!
     }
     return c.json(bounded)
@@ -177,28 +176,30 @@ export function createUsersRouter(): Hono<{ Variables: { user: AuthUserPayload; 
     }
     const org = await resolveRegistryOrg(getStore(), scope.orgId!)
     if (!org) {
-      return c.json({ error: `organization '${scope.orgId}' is not on the participants register — no assignable roles` }, 403)
+      return c.json({ error: `organization '${scope.orgId}' is not on the organization registry — no assignable roles` }, 403)
     }
-    const bounded = new Set(orgKindRoles(org.kind))
+    const bounded = new Set(orgAssignableRoles(org))
     const outside = roles.filter(r => !bounded.has(r))
     if (outside.length) {
       return c.json({
-        error: `role(s) ${outside.map(r => `'${r}'`).join(', ')} are not assignable within a ${org.kind} — the org's kind bounds the set (assignable: ${[...bounded].join(', ')})`,
+        error: `role(s) ${outside.map(r => `'${r}'`).join(', ')} are not assignable within a ${org.kind ?? 'non-participant organization'} — the org's kind bounds the set (assignable: ${[...bounded].join(', ')})`,
       }, 403)
     }
     return null
   }
 
   /** THE ELIGIBILITY RULE (the wide grant's org_admin assignment): the
-   *  target's org must be a REGISTERED participant org. Answers the
+   *  target's org must be an ACTIVE organization on the identity
+   *  service's registry (TODO.identity-features/05 — any kind: the
+   *  non-participant org's delegated administrator too). Answers the
    *  error response, or null when the assignment stands. */
   async function orgAdminAssignmentAllowed(c: Context, orgId: string | null): Promise<Response | null> {
     if (!orgId) {
       return c.json({ error: 'an org_admin account must be bound to its organization (orgId)' }, 400)
     }
-    if (!(await isRegisteredParticipant(getStore(), orgId))) {
+    if (!(await isActiveRegistryOrg(getStore(), orgId))) {
       return c.json({
-        error: `organization '${orgId}' is not a registered participant — an organization administrator can be created only for a registered participant org (PD-03 / B 18:2025 §10.2)`,
+        error: `organization '${orgId}' is not an active organization on the registry — an organization administrator can be created only for an active registry org; the identity administrator adds/activates it on the Organizations surface first`,
       }, 400)
     }
     return null
