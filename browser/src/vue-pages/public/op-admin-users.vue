@@ -86,9 +86,14 @@ interface MemberRow {
 
 // ── TODO.identity/03 — the identity registry (the wide grant's surface) ──
 
-/** A registry account row (GET /api/op/accounts): the OP's own accounts
- *  with the per-client role assignments and the audit-chain last
- *  sign-in. */
+/** A registry account row (GET /api/op/accounts): EVERY sign-in account
+ *  on the identity service (TODO.identity-features/06 — the OP's own
+ *  password accounts AND the seed-managed demo cast, marked by
+ *  `provider`) with the per-client role assignments and the last
+ *  sign-in. The registry's ACTS (edit, client roles, setup link,
+ *  deactivation) serve the OP's own accounts only — the server answers
+ *  404 for the demo cast, so the row's buttons render for
+ *  `provider === 'password'` only. */
 interface RegistryAccount {
   id: string
   email: string
@@ -97,6 +102,7 @@ interface RegistryAccount {
   roles: string[]
   orgId: string | null
   active: boolean
+  provider: string
   passwordSet: boolean
   links: Array<{ provider: string; linkedAt: string; linkedBy: string | null }>
   lastSignIn: string | null
@@ -1122,6 +1128,9 @@ onMounted(async () => {
             (the relying-party registry): an account's own role set is its federation-wide default, a
             per-client assignment overrides it for that client, and a client whose claims policy declares
             a role allowlist never receives a role outside it — the token shaping enforces both.
+            The demo cast is listed for the audit too (marked <em>demo cast</em>): it is seed-managed —
+            the invite/edit/roles/setup-link/deactivation acts apply to the OP's password accounts; a demo
+            row's detail page carries its acts.
           </p>
 
           <!-- The invite form (02's enrollment seam; 10's org binding) -->
@@ -1188,10 +1197,11 @@ onMounted(async () => {
                     {{ acc.name }}
                     <span class="font-normal text-slate-500 dark:text-slate-400" :data-testid="`registry-email-${acc.id}`">&lt;{{ acc.email }}&gt;</span>
                     <span v-if="!acc.active" class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold">deactivated</span>
+                    <span v-if="acc.provider !== 'password'" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-semibold" :data-testid="`registry-provider-${acc.id}`">demo cast</span>
                   </p>
                   <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`registry-meta-${acc.id}`">
                     default roles: {{ acc.roles.join(', ') }}<template v-if="acc.orgId"> · {{ orgNameOf(acc.orgId) }}</template>
-                    · {{ acc.passwordSet ? 'password set' : 'password not set' }}<template v-if="acc.links.length"> · linked: {{ acc.links.map(l => l.provider).join(', ') }}</template>
+                    <template v-if="acc.provider === 'password'"> · {{ acc.passwordSet ? 'password set' : 'password not set' }}</template><template v-else> · demo sign-in (seed-managed)</template><template v-if="acc.links.length"> · linked: {{ acc.links.map(l => l.provider).join(', ') }}</template>
                   </p>
                   <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`registry-lastsignin-${acc.id}`">
                     {{ lastSignInLabel(acc) }}
@@ -1206,26 +1216,32 @@ onMounted(async () => {
                     :data-testid="`registry-detail-${acc.id}`"
                     class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline"
                   >Detail</router-link>
+                  <!-- The registry's acts serve the OP's own accounts
+                       (the server 404s the demo cast — seed-managed);
+                       the buttons never offer an act that refuses. -->
                   <button
+                    v-if="acc.provider === 'password'"
                     :data-testid="`registry-edit-${acc.id}`"
                     :disabled="acting === acc.id"
                     class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
                     @click="startEdit(acc)"
                   >Edit</button>
                   <button
+                    v-if="acc.provider === 'password'"
                     :data-testid="`registry-roles-open-${acc.id}`"
                     :disabled="acting === acc.id"
                     class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
                     @click="toggleRolesEditor(acc)"
                   >{{ rolesEditorFor === acc.id ? 'Close client roles' : 'Client roles' }}</button>
                   <button
+                    v-if="acc.provider === 'password'"
                     :data-testid="`registry-enroll-${acc.id}`"
                     :disabled="acting === acc.id"
                     class="text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline disabled:opacity-50"
                     @click="freshSetupLink(acc)"
                   >Fresh setup link</button>
                   <button
-                    v-if="acc.id !== account?.id"
+                    v-if="acc.provider === 'password' && acc.id !== account?.id"
                     :data-testid="`registry-toggle-${acc.id}`"
                     :disabled="acting === acc.id"
                     class="text-xs font-medium hover:underline disabled:opacity-50"

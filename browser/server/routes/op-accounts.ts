@@ -24,9 +24,12 @@
 //                                            24 h setup link (optionally
 //                                            org-bound + per-client roles)
 //   GET  /api/op/accounts                  — the registry list (admin):
-//                                            accounts with their per-client
-//                                            roles + the audit-chain last
-//                                            sign-in
+//                                            EVERY sign-in account (the OP's
+//                                            password accounts + the demo
+//                                            cast — TODO.identity-features/06)
+//                                            with the per-client roles + the
+//                                            last sign-in; the erased
+//                                            tombstones stay out
 //   PUT  /api/op/accounts/:id              — the edit act (name, email)
 //   DELETE /api/op/accounts/:id            — the ERASURE act (admin): the
 //                                            offboarding runbook's delete
@@ -496,15 +499,24 @@ export function createOpAccountsRouter(): Hono {
     }, 201)
   })
 
-  // GET /api/op/accounts — the registry list (TODO.identity/03): the
-  // OP's own accounts with their sign-in posture, their PER-CLIENT role
-  // assignments, and the last sign-in read back from the audit chain
-  // (never any credential material).
+  // GET /api/op/accounts — the registry list (TODO.identity/03): EVERY
+  // sign-in account on the identity service with its sign-in posture, its
+  // PER-CLIENT role assignments, and the last sign-in (never any
+  // credential material). TODO.identity-features/06: the list is the
+  // admin's "who can sign in" audit, so it answers the demo cast
+  // (provider 'demo') alongside the OP's own password accounts — the demo
+  // personas ARE sign-in accounts on a demo-postured deployment, and
+  // filtering them out had the console declare "no accounts yet" over
+  // accounts that exist. The erased tombstones (provider 'erased') never
+  // resurface. The last sign-in prefers the audit chain; the demo
+  // sign-in never journals there, so its rows fall back to the account's
+  // own last-login stamp. The ACTS below stay scoped to the OP's own
+  // accounts (registryAccount) — the demo cast is seed-managed.
   accounts.get('/api/op/accounts', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
     const store = getStore()
-    const rows = (await store.listUsers()).filter(u => u.provider === OP_ACCOUNT_PROVIDER)
+    const rows = (await store.listUsers()).filter(u => u.provider !== 'erased')
     const signIns = await store.lastAccountSignIns()
     const out = []
     for (const row of rows) {
@@ -519,9 +531,10 @@ export function createOpAccountsRouter(): Hono {
         roles: row.roles,
         orgId: row.orgId,
         active: row.active,
+        provider: row.provider,
         passwordSet: methods.password,
         links: links.map(l => ({ provider: l.provider, linkedAt: l.linkedAt, linkedBy: l.linkedBy })),
-        lastSignIn: signIns[row.id] ?? null,
+        lastSignIn: signIns[row.id] ?? row.lastLogin ?? null,
         clientRoles: clientRoles.map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt })),
       })
     }
@@ -535,10 +548,14 @@ export function createOpAccountsRouter(): Hono {
   // operator) — the org-scoped org_admin keeps 10's /api/users slice and
   // never reaches these (the requireAdmin gate above refuses it).
 
-  /** The registry's own accounts only (provider 'password' — the OP's
-   *  list); any other account id is not found here (the registry never
-   *  edits the demo cast or an SSO-provisioned row). The provider flag
-   *  lives on the admin row, so the read goes through listUsers. */
+  /** The registry ACTS' scope: the OP's own accounts only (provider
+   *  'password'); any other account id is not found here. The LIST above
+   *  is deliberately wider (every sign-in account — the "who can sign
+   *  in" audit, TODO.identity-features/06), but the acts stay here: the
+   *  demo cast is seed-managed (its rows re-align at every seed, so an
+   *  edit/erasure would fight the seed), and an SSO-provisioned row's
+   *  credential material is not the OP's. The provider flag lives on the
+   *  admin row, so the read goes through listUsers. */
   async function registryAccount(id: string) {
     const user = (await getStore().listUsers()).find(u => u.id === id) ?? null
     if (!user || user.provider !== OP_ACCOUNT_PROVIDER) return null
