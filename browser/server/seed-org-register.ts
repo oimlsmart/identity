@@ -8,6 +8,18 @@
 // repo), unchanged by the extraction — production degrades honestly
 // (the "not listed" path routes to the scheme operator).
 //
+// TODO.identity-features/05 (organizations as first-class citizens):
+// the SAME snapshot projects into the identity service's OWN org
+// registry (the org_registry table) — the identity plane's membership
+// graph. The mapping is the spec's §4: a participant org's id IS its
+// OIML code, and participant_ref documents the participant record the
+// row mirrors. The scheme-side admission state maps to the identity
+// side's lifecycle honestly: a REGISTERED participant seeds ACTIVE; a
+// mid-pipeline org (the demo register's XX1) seeds DISABLED — on the
+// registry, never joinable, the lifecycle's demonstration. The demo
+// cast's manufacturer binding (mfr-acme) seeds as a NON-participant
+// org (a free slug, kind NULL) — the spec's free-slug posture.
+//
 // NODE-ONLY (node:fs) — the dev-reset seam and the e2e stacks consume
 // this; the Worker never imports it.
 // ═══════════════════════════════════════════════════════════════════
@@ -45,4 +57,77 @@ export async function seedOrgRegisterSnapshot(store: ServerStore): Promise<Recor
     counts[storeName] = n
   }
   return counts
+}
+
+interface SnapshotContact { person?: string; email?: string }
+
+/** The demonstration manufacturer's registry row (the demo cast's
+ *  applicant binding): a NON-participant org — the free slug, kind
+ *  NULL, no participant link. The snapshot (the participants register)
+ *  never carries it: manufacturers are not scheme participants. */
+const DEMO_NON_PARTICIPANT_ORGS = [
+  { id: 'mfr-acme', name: 'ACME (the demonstration manufacturer)', shortName: 'ACME', country: 'Example Member State' },
+] as const
+
+/** Project the snapshot into the identity service's OWN org registry
+ *  (TODO.identity-features/05): one org_registry row per register
+ *  organization, the scheme-side admission mapped to the lifecycle
+ *  (registered → active; mid-pipeline → disabled), plus the demo cast's
+ *  non-participant bindings. Idempotent (create-then-update). Answers
+ *  the count for the caller's log line. */
+export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<number> {
+  const snapshot = parseYaml(readFileSync(SNAPSHOT, 'utf-8')) as OrgRegisterSnapshot
+
+  // The scheme-side admission state (the same rule the participants
+  // register's resolver reads): a signed Declaration registers the
+  // participant; the TL leg's ACTIVE participation case registers it.
+  const registered = new Set<string>()
+  for (const d of snapshot.participantDeclarations ?? []) {
+    if (d.status === 'signed' && typeof d.participant_id === 'string') registered.add(d.participant_id)
+  }
+  for (const a of snapshot.participantApplications ?? []) {
+    if (a.status === 'ACTIVE' && typeof a.applicant_organization_id === 'string') registered.add(a.applicant_organization_id)
+  }
+
+  let n = 0
+  const rows: Array<[Array<Record<string, unknown>> | undefined, string]> = [
+    [snapshot.organizations, ''],
+    [snapshot.utilizers, 'utilizer'],
+    [snapshot.associates, 'associate'],
+  ]
+  for (const [list, fixedKind] of rows) {
+    for (const row of list ?? []) {
+      const id = String(row.id ?? '')
+      const name = typeof row.name === 'string' ? row.name : ''
+      if (!id || !name) continue
+      const contact = (row.contact ?? {}) as SnapshotContact
+      const input = {
+        id,
+        name,
+        shortName: typeof row.short_name === 'string' ? row.short_name : null,
+        kind: fixedKind || (typeof row.kind === 'string' ? row.kind : null),
+        country: typeof row.country === 'string' ? row.country : null,
+        contacts: typeof contact.email === 'string' && contact.email
+          ? [{ name: typeof contact.person === 'string' ? contact.person : null, email: contact.email }]
+          : [],
+        // §4: the participant org's id IS its code; participant_ref
+        // documents the participant record the row mirrors.
+        participantRef: id,
+        createdBy: 'the demonstration seed',
+      }
+      const created = await store.createOrgRegistryOrg(input)
+      if (!created) await store.updateOrgRegistryOrg(id, input, 'the demonstration seed')
+      if (!registered.has(id)) {
+        await store.setOrgRegistryOrgState(id, 'disabled', 'the demonstration seed')
+      }
+      n += 1
+    }
+  }
+  for (const row of DEMO_NON_PARTICIPANT_ORGS) {
+    const input = { ...row, kind: null, contacts: [], participantRef: null, createdBy: 'the demonstration seed' }
+    const created = await store.createOrgRegistryOrg(input)
+    if (!created) await store.updateOrgRegistryOrg(row.id, input, 'the demonstration seed')
+    n += 1
+  }
+  return n
 }

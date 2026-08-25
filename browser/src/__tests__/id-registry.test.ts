@@ -240,6 +240,19 @@ demo_personas: true
   }))
   await store.putEntity('participantDeclarations', 'decl-ut-nl', null, JSON.stringify({ id: 'decl-ut-nl', participant_id: 'ut-nmi-nl', status: 'signed' }))
 
+  // TODO.identity-features/05: the org binding's source of truth is the
+  // identity service's OWN organization registry — the same Utilizer as
+  // an ACTIVE registry org (the participant link is the annotation).
+  await store.createOrgRegistryOrg({
+    id: 'ut-nmi-nl',
+    name: 'Example Metrology Authority (Netherlands)',
+    shortName: 'EMA-NL',
+    kind: 'utilizer',
+    country: 'Netherlands',
+    contacts: [{ name: null, email: 'oiml-cs@nmi.example.org' }],
+    participantRef: 'ut-nmi-nl',
+  })
+
   // The bootstrap seeds land on the first requests.
   const probe = await app.request(`${ISSUER}/.well-known/openid-configuration`)
   expect(probe.status).toBe(200)
@@ -418,7 +431,7 @@ describe('the registry acts', () => {
     const badOrg = await invite(admin, {
       email: 'otto@example.org', name: 'Otto', role: 'viewer', org_id: 'no-such-org',
     }, 400)
-    expect(badOrg.error).toContain('not a registered participant')
+    expect(badOrg.error).toContain('not an active organization on the registry')
   })
 
   it('the edit act updates name + email, refuses the taken email (409), and audits before/after', async () => {

@@ -3,12 +3,15 @@
 // join-request surface: the public "Request an account" intake and the
 // two decision queues.
 //
-// The topology (B 18:2025 §10.2 / PD-03): BIML manages ORGANIZATIONS
-// (the participants register is the source of truth — an account naming
-// an org is created only for a REGISTERED participant org); each
-// organization manages its OWN people through its org admin (the
-// org-scoped `org.users.manage` grant, routes/users.ts). This router
-// carries the intake + the decisions:
+// The topology (B 18:2025 §10.2 / PD-03, TODO.identity-features/05):
+// the identity administrator manages ORGANIZATIONS (the identity
+// service's OWN organization registry is the membership graph's source
+// of truth — an account naming an org is created only for an ACTIVE
+// registry org; the PUBLIC intake's selector + submit stay the scheme's
+// participation flow, gated to active orgs carrying a participant
+// kind); each organization manages its OWN people through its org
+// admin (the org-scoped `org.users.manage` grant, routes/users.ts).
+// This router carries the intake + the decisions:
 //
 //   GET  /api/op/organizations             — the PUBLIC selector feed:
 //                                            the REGISTERED participant
@@ -54,9 +57,8 @@ import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
 import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
 import {
   emailDomainHint,
-  isRegisteredParticipant,
   listRegistryOrganizations,
-  orgKindRoles,
+  orgAssignableRoles,
   resolveRegistryOrg,
 } from '../auth/org-registry'
 import { issueAccountInvite } from '../auth/op/enrollment'
@@ -171,19 +173,21 @@ export function createOpJoinRouter(): Hono {
 
     const orgId = typeof body.org_id === 'string' && body.org_id.trim() ? body.org_id.trim() : null
     if (orgId) {
-      // The registry path: the org must be a REGISTERED participant and
-      // the role asked for must be one its kind bounds (the selector
-      // offers only valid pairs — the server re-checks).
+      // The registry path: the org must be an ACTIVE registry org
+      // carrying a participant kind (the public intake is the scheme's
+      // participation flow) and the role asked for must be one its kind
+      // bounds (the selector offers only valid pairs — the server
+      // re-checks).
       const org = await resolveRegistryOrg(getStore(), orgId)
       if (!org || !org.registered) {
         return c.json({
-          error: 'that organization is not on the OIML-CS participants register — if your organization is not listed, use the "not listed" path so BIML can verify its participation',
+          error: 'that organization is not an active participant on the identity service’s organization registry — if your organization is not listed, use the "not listed" path so BIML can verify its participation',
         }, 400)
       }
       const role = body.requested_role ?? ''
-      if (!orgKindRoles(org.kind).includes(role)) {
+      if (!orgAssignableRoles(org).includes(role)) {
         return c.json({
-          error: `role '${role}' is not one a ${org.kind} organization's staff holds (assignable: ${orgKindRoles(org.kind).join(', ')})`,
+          error: `role '${role}' is not one a ${org.kind} organization's staff holds (assignable: ${orgAssignableRoles(org).join(', ')})`,
         }, 400)
       }
       const request = await getStore().createOrgJoinRequest({
@@ -274,7 +278,7 @@ export function createOpJoinRouter(): Hono {
     const store = getStore()
 
     // The approval's org + role: org-bound rows approve as asked (the
-    // role re-validated against the org's kind — the register may have
+    // role re-validated against the org's kind — the registry may have
     // moved since the ask); the unregistered queue approves onto the
     // body's org as its ADMINISTRATOR.
     let orgId = request.orgId
@@ -284,16 +288,16 @@ export function createOpJoinRouter(): Hono {
       orgId = typeof body?.org_id === 'string' && body.org_id.trim() ? body.org_id.trim() : null
       role = 'org_admin'
       if (!orgId) {
-        return c.json({ error: 'approve with the organization’s register id (org_id) once its participation is registered' }, 400)
+        return c.json({ error: 'approve with the organization’s registry id (org_id) once its organization is added and active' }, 400)
       }
     }
     const org = await resolveRegistryOrg(store, orgId)
     if (!org || !org.registered) {
       return c.json({
-        error: `organization '${orgId}' is not a registered participant — accounts are created only for registered participant orgs (PD-03 / B 18:2025 §10.2)`,
+        error: `organization '${orgId}' is not an active participant on the organization registry — accounts are created only for active participant orgs (PD-03 / B 18:2025 §10.2); the identity administrator adds/activates it on the Organizations surface first`,
       }, 400)
     }
-    if (role !== 'org_admin' && !orgKindRoles(org.kind).includes(role)) {
+    if (role !== 'org_admin' && !orgAssignableRoles(org).includes(role)) {
       return c.json({
         error: `role '${role}' is not one a ${org.kind} organization's staff holds — refuse the request and ask the requester to re-apply`,
       }, 400)
@@ -422,11 +426,12 @@ export function createOpJoinRouter(): Hono {
 
   // POST /api/op/org-invites — the console's direct invite (no join
   // request in flight): the org admin invites a colleague within its own
-  // org (the role bounded by the org's kind, org_admin never); the scheme
-  // operator creates an org admin for a REGISTERED org (the eligibility
-  // rule). Either way the invite is the 02 enrollment link — EMAILED
-  // when a provider is configured (TODO.identity/09), shown once for
-  // the handover otherwise.
+  // org (the role bounded by the org's kind, org_admin never); the
+  // identity administrator creates an org admin for an ACTIVE registry
+  // org (any kind — the non-participant org's delegated administrator
+  // too, TODO.identity-features/05). Either way the invite is the 02
+  // enrollment link — EMAILED when a provider is configured
+  // (TODO.identity/09), shown once for the handover otherwise.
   router.post('/api/op/org-invites', async (c) => {
     const gate = await queueGrant(c)
     if ('error' in gate) return gate.error
@@ -458,14 +463,14 @@ export function createOpJoinRouter(): Hono {
 
     const store = getStore()
     const org = orgId ? await resolveRegistryOrg(store, orgId) : null
-    if (orgId && (!org || !org.registered)) {
+    if (orgId && (!org || org.state !== 'active')) {
       return c.json({
-        error: `organization '${orgId}' is not a registered participant — accounts are created only for registered participant orgs (PD-03 / B 18:2025 §10.2)`,
+        error: `organization '${orgId}' is not an active organization on the registry — accounts bind only to active registry orgs; the identity administrator adds/activates it on the Organizations surface first`,
       }, 400)
     }
-    if (org && role !== 'org_admin' && !orgKindRoles(org.kind).includes(role)) {
+    if (org && role !== 'org_admin' && !orgAssignableRoles(org).includes(role)) {
       return c.json({
-        error: `role '${role}' is not one a ${org.kind} organization's staff holds (assignable: ${orgKindRoles(org.kind).join(', ')})`,
+        error: `role '${role}' is not one a ${org.kind ?? 'non-participant'} organization's staff holds (assignable: ${orgAssignableRoles(org).join(', ')})`,
       }, 400)
     }
 

@@ -119,7 +119,7 @@ import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
-import { isRegisteredParticipant, listRegistryOrganizations, orgKindRoles, resolveRegistryOrg } from '../auth/org-registry'
+import { isActiveRegistryOrg, listRegistryOrganizations, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
 import { hashPassword, passwordPolicy, verifyPasswordLogin } from '../auth/passwords'
 import { avatarKey, avatarKeys, avatarMaxBytes, AVATAR_TYPES, sniffAvatar } from '../auth/op/avatars'
@@ -431,12 +431,13 @@ export function createOpAccountsRouter(): Hono {
     }
     const store = getStore()
 
-    // The org binding (TODO.identity/10's topology): a provided org must
-    // be a REGISTERED participant org (PD-03 / B 18:2025 §10.2).
+    // The org binding (TODO.identity/10's topology,
+    // TODO.identity-features/05's registry): a provided org must be an
+    // ACTIVE organization on the identity service's own registry.
     const orgId = typeof body.org_id === 'string' && body.org_id.trim() ? body.org_id.trim() : null
-    if (orgId && !(await isRegisteredParticipant(store, orgId))) {
+    if (orgId && !(await isActiveRegistryOrg(store, orgId))) {
       return c.json({
-        error: `organization '${orgId}' is not a registered participant — accounts bind only to registered participant orgs (PD-03 / B 18:2025 §10.2)`,
+        error: `organization '${orgId}' is not an active organization on the registry — accounts bind only to active registry orgs; the identity administrator adds/activates it on the Organizations surface first`,
       }, 400)
     }
 
@@ -1224,7 +1225,9 @@ export function createOpAccountsRouter(): Hono {
 
   // POST /api/op/account/memberships/:orgId/accept — the holder accepts an
   // org's invitation (state invited → active). Only the account's OWN
-  // invited membership, never someone else's row.
+  // invited membership, never someone else's row. The ORG's own state
+  // rules too (TODO.identity-features/05): a disabled org's invitations
+  // wait until the identity administrator re-enables it.
   accounts.post('/api/op/account/memberships/:orgId/accept', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
@@ -1234,6 +1237,10 @@ export function createOpAccountsRouter(): Hono {
     if (!membership) return c.json({ error: 'no membership in that organization' }, 404)
     if (membership.state !== 'invited') {
       return c.json({ error: `this membership is ${membership.state} — only an invitation can be accepted` }, 409)
+    }
+    const org = await store.getOrgRegistryOrg(orgId)
+    if (org?.state === 'disabled') {
+      return c.json({ error: `organization '${orgId}' is disabled — the invitation waits until the identity administrator re-enables the organization` }, 409)
     }
     await store.setOrgMembershipState(user.id, orgId, 'active')
     await audit('account.membership_accepted', user.id, { userId: user.id, userName: user.name }, { org_id: orgId, roles: membership.roles })
@@ -1274,13 +1281,13 @@ export function createOpAccountsRouter(): Hono {
     const org = await resolveRegistryOrg(store, orgId)
     if (!org || !org.registered) {
       return c.json({
-        error: 'that organization is not on the OIML-CS participants register — only registered participant orgs can be joined (PD-03 / B 18:2025 §10.2)',
+        error: 'that organization is not an active participant on the identity service’s organization registry — only active participant orgs can be joined (PD-03 / B 18:2025 §10.2)',
       }, 400)
     }
     const role = typeof body.requested_role === 'string' && body.requested_role.trim() ? body.requested_role.trim() : ''
-    if (!orgKindRoles(org.kind).includes(role)) {
+    if (!orgAssignableRoles(org).includes(role)) {
       return c.json({
-        error: `role '${role}' is not one a ${org.kind} organization's staff holds (assignable: ${orgKindRoles(org.kind).join(', ')})`,
+        error: `role '${role}' is not one a ${org.kind} organization's staff holds (assignable: ${orgAssignableRoles(org).join(', ')})`,
       }, 400)
     }
     if (await store.getOrgMembership(user.id, orgId)) {

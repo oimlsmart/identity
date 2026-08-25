@@ -36,11 +36,11 @@ const ORIGIN = 'http://op.test'
 let app: import('hono').Hono
 let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
 
-// ── the seeded participants register ────────────────────────────────
-// EX1: a REGISTERED IA (signed Declaration); 21: a REGISTERED TL (the
-// ACTIVE participation case — TLs sign no Declaration); XX1: a
-// MID-PIPELINE IA (draft Declaration, DECLARATION_PENDING case — NOT
-// registered); ut-nmi-nl: a REGISTERED Utilizer (signed Declaration).
+// ── the seeded organization registry ────────────────────────────────
+// TODO.identity-features/05: the identity service's OWN registry (the
+// org_registry store rows) — EX1 an ACTIVE IA, 21 an ACTIVE TL, ut-nmi-nl
+// an ACTIVE Utilizer; XX1 the mid-pipeline IA seeded DISABLED (on the
+// registry, never joinable — the lifecycle's demonstration).
 const ORGS = [
   { id: 'EX1', kind: 'issuing-authority', name: 'Example Issuing Authority', short_name: 'EIA', country: 'Example Member State', contact: { email: 'office@eia.example.org' } },
   { id: '21', kind: 'test-laboratory', name: 'Example Test Laboratory', short_name: 'ETL', contact: { email: 'lab@etl.example.org' } },
@@ -49,15 +49,8 @@ const ORGS = [
 const UTILIZERS = [
   { id: 'ut-nmi-nl', name: 'Example Metrology Authority (Netherlands)', short_name: 'EMA-NL', country: 'Netherlands', contact: { email: 'oiml-cs@nmi.example.org' } },
 ]
-const DECLARATIONS = [
-  { id: 'decl-ia-ex1', participant_id: 'EX1', status: 'signed' },
-  { id: 'decl-ia-xx1', participant_id: 'XX1', status: 'draft' },
-  { id: 'decl-ut-nl', participant_id: 'ut-nmi-nl', status: 'signed' },
-]
-const APPLICATIONS = [
-  { id: 'app-tl-21', applicant_organization_id: '21', status: 'ACTIVE' },
-  { id: 'app-ia-xx1', applicant_organization_id: 'XX1', status: 'DECLARATION_PENDING' },
-]
+/** The orgs the registry carries DISABLED (the mid-pipeline posture). */
+const DISABLED_ORGS = new Set(['XX1'])
 
 async function demoLogin(email: string): Promise<string> {
   const res = await app.request(`${ORIGIN}/api/auth/demo`, {
@@ -99,12 +92,20 @@ demo_personas: true
   root.route('/', createOpJoinRouter())
   app = root
 
-  // The participants register (the entity store, the seeded-registry
-  // posture) + the org admin accounts the legs need.
-  for (const org of ORGS) await store.putEntity('organizations', org.id, null, JSON.stringify(org))
-  for (const u of UTILIZERS) await store.putEntity('utilizers', u.id, null, JSON.stringify(u))
-  for (const d of DECLARATIONS) await store.putEntity('participantDeclarations', d.id, null, JSON.stringify(d))
-  for (const a of APPLICATIONS) await store.putEntity('participantApplications', a.id, null, JSON.stringify(a))
+  // The organization registry (TODO.identity-features/05 — the identity
+  // service's OWN rows; XX1 disabled, the mid-pipeline posture).
+  for (const org of [...ORGS, ...UTILIZERS.map(u => ({ ...u, kind: 'utilizer' }))]) {
+    await store.createOrgRegistryOrg({
+      id: org.id,
+      name: org.name,
+      shortName: org.short_name,
+      kind: org.kind,
+      country: org.country ?? null,
+      contacts: org.contact?.email ? [{ name: null, email: org.contact.email }] : [],
+      participantRef: org.id,
+    })
+    if (DISABLED_ORGS.has(org.id)) await store.setOrgRegistryOrgState(org.id, 'disabled', 'the test seed')
+  }
 
   // The Utilizer's org admin (BIML created it — the eligibility rule's
   // positive leg) and a second org's admin for the cross-org proofs.
@@ -125,17 +126,18 @@ afterAll(async () => {
 
 // ── the registry resolver (the eligibility rule + the kind bounding) ──
 
-describe('the participants-register resolver', () => {
-  it('marks the signed-Declaration orgs and the ACTIVE-case TL registered; the mid-pipeline org is not', async () => {
+describe('the organization-registry resolver', () => {
+  it('the active participant orgs read registered; the disabled mid-pipeline org does not', async () => {
     const { listRegistryOrganizations, isRegisteredParticipant } = await import('../../server/auth/org-registry')
     const orgs = await listRegistryOrganizations(store)
     const byId = new Map(orgs.map(o => [o.id, o]))
     expect(byId.get('EX1')?.registered).toBe(true)
     expect(byId.get('EX1')?.kind).toBe('issuing-authority')
-    expect(byId.get('21')?.registered).toBe(true) // the TL: ACTIVE case, no Declaration
+    expect(byId.get('21')?.registered).toBe(true)
     expect(byId.get('ut-nmi-nl')?.registered).toBe(true)
     expect(byId.get('ut-nmi-nl')?.kind).toBe('utilizer')
-    expect(byId.get('XX1')?.registered).toBe(false) // mid-pipeline
+    expect(byId.get('XX1')?.state).toBe('disabled') // mid-pipeline
+    expect(byId.get('XX1')?.registered).toBe(false)
     expect(await isRegisteredParticipant(store, 'no-such-org')).toBe(false)
   })
 
@@ -299,7 +301,7 @@ describe('the eligibility rule (users.manage assigning org_admin)', () => {
       body: JSON.stringify({ email: 'admin@dia.example.org', name: 'DIA Admin', role: 'org_admin', orgId: 'XX1' }),
     })
     expect(mid.status).toBe(400)
-    expect((await mid.json()).error).toContain('not a registered participant')
+    expect((await mid.json()).error).toContain('not an active organization on the registry')
     // An org the register does not carry at all.
     const unknown = await app.request(`${ORIGIN}/api/users`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
@@ -377,7 +379,7 @@ describe('the join flow (the org selector + the queues)', () => {
       body: JSON.stringify({ name: 'Early Bird', email: 'early@dia.example.org', org_id: 'XX1', requested_role: 'ia_officer' }),
     })
     expect(unregistered.status).toBe(400)
-    expect((await unregistered.json()).error).toContain('not on the OIML-CS participants register')
+    expect((await unregistered.json()).error).toContain('not an active participant on the identity service')
     // A role the Utilizer kind does not carry.
     const role = await app.request(`${ORIGIN}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -496,7 +498,7 @@ describe('the join flow (the org selector + the queues)', () => {
       body: JSON.stringify({ org_id: 'no-such-org' }),
     })
     expect(premature.status).toBe(400)
-    expect((await premature.json()).error).toContain('not a registered participant')
+    expect((await premature.json()).error).toContain('not an active participant on the organization registry')
 
     // Once the participation IS registered, the approval creates the org admin.
     const res = await app.request(`${ORIGIN}/api/op/join-requests/${row.id}/approve`, {
@@ -565,7 +567,7 @@ describe('the org invites (POST /api/op/org-invites)', () => {
       body: JSON.stringify({ name: 'Early Admin', email: 'admin@dia.example.org', role: 'org_admin', org_id: 'XX1' }),
     })
     expect(refused.status).toBe(400)
-    expect((await refused.json()).error).toContain('not a registered participant')
+    expect((await refused.json()).error).toContain('not an active organization on the registry')
     // …and the registered one issues the enrollment link.
     const res = await app.request(`${ORIGIN}/api/op/org-invites`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
