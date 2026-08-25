@@ -14,7 +14,7 @@
 // routes/op-accounts.ts); this page only renders what the APIs answer.
 // ═══════════════════════════════════════════════════════════════════
 import { onMounted, ref, watch } from 'vue'
-import BrandLogo from '../../components/BrandLogo.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 
@@ -162,15 +162,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen px-4 py-12 bg-cream dark:bg-slate-900">
-    <div v-if="loading" class="flex flex-col items-center gap-4">
+  <div class="max-w-5xl mx-auto px-6 py-10 w-full">
+    <div v-if="loading" class="flex flex-col items-center gap-4 py-24">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
     </div>
 
     <!-- The honest refusal (the API's 403) -->
-    <div v-else-if="forbidden" class="w-full max-w-md mx-auto">
+    <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
         <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Identity registry</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
@@ -180,15 +179,13 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else class="w-full max-w-5xl mx-auto" data-testid="op-reg">
-      <div class="text-center mb-6">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Identity registry</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-identity">
-          <template v-if="account">{{ account.name }} &lt;{{ account.email }}&gt; — </template>{{ branding.productName }}
-        </p>
-        <OpAdminNav current="registry" class="mt-3" />
-      </div>
+    <div v-else data-testid="op-reg">
+      <PageHeader title="Identity registry">
+        <template #description>
+          <span data-testid="op-reg-identity"><template v-if="account">{{ account.name }} &lt;{{ account.email }}&gt; — </template>{{ branding.productName }}</span>
+        </template>
+      </PageHeader>
+      <OpAdminNav current="registry" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-reg-error">{{ error }}</p>
@@ -218,7 +215,7 @@ onMounted(async () => {
       </div>
 
       <!-- The invite action -->
-      <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-reg-invite">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-invite">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Invite an account</h2>
         <div class="grid sm:grid-cols-4 gap-2">
           <input
@@ -255,7 +252,7 @@ onMounted(async () => {
       </section>
 
       <!-- Search + filters -->
-      <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5" data-testid="op-reg-directory">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-reg-directory">
         <div class="flex flex-wrap items-center gap-2 mb-4">
           <input
             v-model="search"

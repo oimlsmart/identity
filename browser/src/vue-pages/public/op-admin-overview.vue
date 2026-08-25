@@ -13,7 +13,7 @@
 // panels.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
-import BrandLogo from '../../components/BrandLogo.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 
@@ -114,15 +114,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen px-4 py-12 bg-cream dark:bg-slate-900">
-    <div v-if="loading" class="flex flex-col items-center gap-4">
+  <div class="max-w-5xl mx-auto px-6 py-10 w-full">
+    <div v-if="loading" class="flex flex-col items-center gap-4 py-24">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
     </div>
 
     <!-- The honest refusal (the API's 403) -->
-    <div v-else-if="forbidden" class="w-full max-w-md mx-auto">
+    <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
         <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Administration overview</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
@@ -132,15 +131,12 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else class="w-full max-w-5xl mx-auto" data-testid="op-dash">
-      <div class="text-center mb-6">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Administration overview</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          {{ branding.productName }} at a glance — the registry, the sign-ins, the service level, today’s anomalies.
-        </p>
-        <OpAdminNav current="overview" class="mt-3" />
-      </div>
+    <div v-else data-testid="op-dash">
+      <PageHeader
+        title="Administration overview"
+        :description="`${branding.productName} at a glance — the registry, the sign-ins, the service level, today’s anomalies.`"
+      />
+      <OpAdminNav current="overview" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-dash-error">{{ error }}</p>
@@ -149,28 +145,28 @@ onMounted(async () => {
       <template v-if="overview">
         <!-- The tiles -->
         <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" data-testid="op-dash-tiles">
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-accounts">
+          <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-accounts">
             <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Accounts</p>
             <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{{ overview.accounts.total }}</p>
             <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400" data-testid="op-dash-tile-accounts-split">
               {{ overview.accounts.active }} active · {{ overview.accounts.invited }} invited · {{ overview.accounts.deactivated }} deactivated
             </p>
           </div>
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-signins">
+          <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-signins">
             <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Sign-ins (14 d)</p>
             <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{{ overview.signIns.totals.succeeded }}</p>
             <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
               <span :class="overview.signIns.totals.failed ? 'text-red-500 dark:text-red-400 font-semibold' : ''">{{ overview.signIns.totals.failed }} failed</span>
             </p>
           </div>
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-sessions">
+          <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-sessions">
             <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Live sessions</p>
             <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white" data-testid="op-dash-live-sessions">{{ overview.liveSessions }}</p>
             <p class="mt-1 text-[11px] text-brand-600 dark:text-brand-300">
               <router-link to="/op/admin/sessions" class="hover:underline" data-testid="op-dash-open-sessions">who is signed in now</router-link>
             </p>
           </div>
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-anomalies">
+          <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-anomalies">
             <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Anomalies today</p>
             <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white" data-testid="op-dash-anomalies-total">
               {{ overview.anomaliesToday.failedSignIns + overview.anomaliesToday.rateLimited + overview.anomaliesToday.tokenRefusals }}
@@ -182,7 +178,7 @@ onMounted(async () => {
         </section>
 
         <!-- The sign-in series -->
-        <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-dash-signins">
+        <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-dash-signins">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sign-ins, succeeded vs failed</h2>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-4">{{ overview.signIns.note }}.</p>
           <div class="flex items-end gap-1 h-24" data-testid="op-dash-signins-chart">
@@ -208,7 +204,7 @@ onMounted(async () => {
         </section>
 
         <!-- The SLO panel -->
-        <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5" data-testid="op-dash-slo">
+        <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-dash-slo">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Service level — the independent heartbeat</h2>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-4">
             The stated SLO is 99.9% monthly, measured by the identity-heartbeat workflow’s 15-minute probes of the public OIDC surface; the probe’s results live in the workflow’s own history, read at the source.
@@ -254,7 +250,7 @@ onMounted(async () => {
           </p>
         </section>
 
-        <p class="mt-4 text-[11px] text-slate-400 dark:text-slate-500 text-center" data-testid="op-dash-retention">{{ overview.retention }}</p>
+        <p class="mt-4 text-[11px] text-slate-400 dark:text-slate-500" data-testid="op-dash-retention">{{ overview.retention }}</p>
       </template>
     </div>
   </div>

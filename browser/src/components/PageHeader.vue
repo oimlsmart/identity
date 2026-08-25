@@ -19,6 +19,9 @@ defineProps<{
   /** When set, renders a "← back" link above the title; the parent
       owns the navigation (via the `back` event) to keep routing local. */
   backLabel?: string
+  /** Optional test hook on the title element (the registry detail
+      pages' e2e reads the entity name off it). */
+  titleTestId?: string
 }>()
 
 const emit = defineEmits<{ back: [] }>()
@@ -35,7 +38,7 @@ const emit = defineEmits<{ back: [] }>()
     <div class="flex items-start justify-between gap-4 flex-wrap">
       <div class="min-w-0">
         <div class="flex items-center gap-3 flex-wrap">
-          <h1 class="text-2xl lg:text-3xl font-serif font-bold text-brand-900 dark:text-brand-100 tracking-tight">{{ title }}</h1>
+          <h1 class="text-2xl lg:text-3xl font-serif font-bold text-brand-900 dark:text-brand-100 tracking-tight" :data-testid="titleTestId">{{ title }}</h1>
           <slot name="badges" />
         </div>
         <div v-if="description || $slots.description" class="text-sm text-slate-500 dark:text-slate-400 mt-2">

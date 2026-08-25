@@ -17,7 +17,7 @@
 // rule is SERVER-ENFORCED; this page only renders what the APIs answer.
 // ═══════════════════════════════════════════════════════════════════
 import { onMounted, ref, watch } from 'vue'
-import BrandLogo from '../../components/BrandLogo.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 
@@ -210,14 +210,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen px-4 py-12 bg-cream dark:bg-slate-900">
-    <div v-if="loading" class="flex flex-col items-center gap-4">
+  <div class="max-w-5xl mx-auto px-6 py-10 w-full">
+    <div v-if="loading" class="flex flex-col items-center gap-4 py-24">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
     </div>
 
-    <div v-else-if="forbidden" class="w-full max-w-md mx-auto">
+    <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
         <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Security and audit</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
@@ -227,15 +226,12 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else class="w-full max-w-5xl mx-auto" data-testid="op-sec">
-      <div class="text-center mb-6">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Security and audit</h1>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          The signals over {{ branding.productName }}'s own audit journal, the queryable log, and the live access review.
-        </p>
-        <OpAdminNav current="security" class="mt-3" />
-      </div>
+    <div v-else data-testid="op-sec">
+      <PageHeader
+        title="Security and audit"
+        :description="`The signals over ${branding.productName}'s own audit journal, the queryable log, and the live access review.`"
+      />
+      <OpAdminNav current="security" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-sec-error">{{ error }}</p>
@@ -244,7 +240,7 @@ onMounted(async () => {
       <template v-if="security">
         <!-- The signals -->
         <section class="grid sm:grid-cols-2 gap-3 mb-6" data-testid="op-sec-signals">
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-failed-logins">
+          <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-failed-logins">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Failed sign-ins</h2>
             <p class="mt-1 text-2xl font-semibold" :class="security.signals.failedSignIns.day ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'">{{ security.signals.failedSignIns.day }}</p>
             <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ security.windows.day }} · {{ security.signals.failedSignIns.week }} over {{ security.windows.week }}</p>
@@ -257,7 +253,7 @@ onMounted(async () => {
             <p v-else class="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400" data-testid="op-sec-bursts-none">no bursts in the window</p>
           </div>
 
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-token-refusals">
+          <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-token-refusals">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Token-endpoint refusals</h2>
             <p class="mt-1 text-2xl font-semibold" :class="security.signals.tokenRefusals.day ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'">{{ security.signals.tokenRefusals.day }}</p>
             <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ security.windows.day }} · {{ security.signals.tokenRefusals.week }} over {{ security.windows.week }}</p>
@@ -267,7 +263,7 @@ onMounted(async () => {
             <p v-else class="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400">none in the window</p>
           </div>
 
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-rate-limits">
+          <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-rate-limits">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rate-limit trips</h2>
             <p class="mt-1 text-2xl font-semibold" :class="security.signals.rateLimited.day ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'">{{ security.signals.rateLimited.day }}</p>
             <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ security.windows.day }} · {{ security.signals.rateLimited.week }} over {{ security.windows.week }}</p>
@@ -277,7 +273,7 @@ onMounted(async () => {
             <p v-else class="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400">none in the window</p>
           </div>
 
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-new-links">
+          <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-new-links">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">New links and clients ({{ security.windows.week }})</h2>
             <p class="mt-1 text-sm text-slate-700 dark:text-slate-300" data-testid="op-sec-new-links-count">
               {{ security.signals.newLinks.week }} upstream link(s) · {{ security.signals.newClients.week }} client registration(s)
@@ -296,7 +292,7 @@ onMounted(async () => {
       </template>
 
       <!-- The queryable audit log -->
-      <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6" data-testid="op-sec-audit">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-sec-audit">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">The audit log</h2>
         <div class="flex flex-wrap items-center gap-2 mb-3">
           <input
@@ -350,7 +346,7 @@ onMounted(async () => {
       </section>
 
       <!-- The live access review -->
-      <section class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5" data-testid="op-sec-review">
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-sec-review">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">The access review, live</h2>
         <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-4" data-testid="op-sec-review-source">
           <template v-if="review">{{ review.source }}. Generated {{ stamp(review.generatedAt) }}.</template>
