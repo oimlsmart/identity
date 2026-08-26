@@ -194,6 +194,7 @@ jobs:
             e2e/id-15-mobile-viewport.e2e.ts \
             e2e/id-16-selfhost.e2e.ts \
             e2e/id-17-manufacturer-kind.e2e.ts \
+            e2e/id-18-org-signing-keys.e2e.ts \
             e2e/id-surface.e2e.ts \
             e2e/op-surface-contract.e2e.ts \
             e2e/op-key-rotate.e2e.ts
