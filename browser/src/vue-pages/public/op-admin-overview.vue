@@ -14,7 +14,6 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
-import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 
 interface Overview {
@@ -136,7 +135,6 @@ onMounted(async () => {
         title="Administration overview"
         :description="`${branding.productName} at a glance — the registry, the sign-ins, the service level, today’s anomalies.`"
       />
-      <OpAdminNav current="overview" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-dash-error">{{ error }}</p>

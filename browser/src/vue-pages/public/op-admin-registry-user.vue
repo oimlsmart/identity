@@ -45,7 +45,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
-import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 import { t, type MessageKey } from '../../i18n'
 
@@ -872,7 +871,6 @@ onMounted(async () => {
           <span data-testid="op-reg-user-context">{{ detail.account.email }} · {{ branding.productName }}</span>
         </template>
       </PageHeader>
-      <OpAdminNav current="registry" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-reg-user-error">{{ error }}</p>

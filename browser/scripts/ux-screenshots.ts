@@ -22,8 +22,8 @@
 // lands in overflow-report.json — the audit's review artifact.
 //
 // Run: npx tsx scripts/ux-screenshots.ts
-// Env: UX_WIDTHS=360,390,768,1440 (the default sweep) ·
-//      UX_MODE=both|light|dark · UX_FILTER=<shot-name substring>
+// Env: UX_WIDTHS=320,360,390,768,1440,2560 (the default sweep — 07's
+//      320–2560 contract) · UX_MODE=both|light|dark · UX_FILTER=<shot-name substring>
 // Ports: API 23457 / astro 23456 (clear of every e2e leg's 93-pair and the other waves' dev stacks).
 // ═══════════════════════════════════════════════════════════════════
 
@@ -51,10 +51,11 @@ const ROOT = { email: 'root@oimlsmart.org', name: 'Root Operator', password: 'th
 const GH_ROOT = { login: 'octocat-root', id: 307, name: 'Octo Root', email: 'root-gh@example.org' }
 
 // ── the sweep knobs ──────────────────────────────────────────────────
-/** The audited widths (the report's 360/390/768/1440 set) with the
- *  phone/tablet/desktop heights that keep the fold honest. */
-const WIDTH_HEIGHTS: Record<number, number> = { 360: 740, 390: 844, 768: 1024, 1440: 900 }
-const WIDTHS = (process.env.UX_WIDTHS ?? '360,390,768,1440')
+/** The audited widths (320–2560 per TODO.identity-features/07: the
+ *  detector proves zero sideways scroll across the whole range) with
+ *  the phone/tablet/desktop heights that keep the fold honest. */
+const WIDTH_HEIGHTS: Record<number, number> = { 320: 700, 360: 740, 390: 844, 768: 1024, 1440: 900, 2560: 1000 }
+const WIDTHS = (process.env.UX_WIDTHS ?? '320,360,390,768,1440,2560')
   .split(',').map(s => Number(s.trim())).filter(w => Number.isFinite(w) && w >= 280)
 const MODES = ((): Array<'light' | 'dark'> => {
   const m = process.env.UX_MODE ?? 'both'
@@ -375,6 +376,36 @@ async function main(): Promise<void> {
 
     await page.goto(`${base}/op/admin/overview`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
     await sweep(page, '07-admin-overview', '[data-testid="op-dash"]')
+
+    // 5b · The console nav's disclosure sheet (TODO.identity-features/07's
+    //     phone pattern): opened through the header's nav toggle at the
+    //     sub-lg widths, measured with the sheet OPEN — the sheet itself
+    //     must never scroll the page sideways. (At lg+ the rail is always
+    //     on show and the toggle is hidden — nothing to open.)
+    if (!FILTER || '07b-admin-nav-sheet'.includes(FILTER)) {
+      // A filtered run may have skipped step 5's navigation — stand on
+      // the admin overview first (the sheet's admin content is the
+      // shot's subject).
+      await page.goto(`${base}/op/admin/overview`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+      await page.waitForSelector('[data-testid="op-dash"]', { timeout: 240_000 })
+      for (const w of WIDTHS.filter(v => v < 1024)) {
+        for (const mode of MODES) {
+          try {
+            await page.setViewport({ width: w, height: heightFor(w) })
+            await setMode(page, mode)
+            await page.waitForSelector('[data-testid="shell-nav-toggle"]', { timeout: 240_000 })
+            await page.evaluate(() => (document.querySelector('[data-testid="shell-nav-toggle"]') as HTMLElement).click())
+            await page.waitForSelector('#shell-console-nav:not(.hidden)', { timeout: 60_000 })
+            await page.addStyleTag({ content: 'astro-dev-toolbar { display: none !important }' }).catch(() => {})
+            await measureOverflow(page, '07b-admin-nav-sheet', w, mode)
+            await page.screenshot({ path: join(OUT_DIR, `07b-admin-nav-sheet-${w}-${mode}.png`), fullPage: FULLPAGE })
+            flog(`shot 07b-admin-nav-sheet-${w} (${mode})`)
+          } catch (e) {
+            flog(`SWEEP-FAIL 07b-admin-nav-sheet-${w} (${mode}): ${(e as Error).message?.split('\n')[0]}`)
+          }
+        }
+      }
+    }
     // /op/admin is the redirect to the overview; the registry settles at
     // its own route.
     await page.goto(`${base}/op/admin/registry`, { waitUntil: 'domcontentloaded', timeout: 120_000 })

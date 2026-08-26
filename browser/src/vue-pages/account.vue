@@ -811,7 +811,7 @@ async function revokeOthers() {
         <!-- 1 · The profile. -->
         <section id="profile" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-profile">
           <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">{{ t('account.profile.title') }}</h2>
-          <div class="flex items-start gap-4">
+          <div class="flex flex-col sm:flex-row sm:items-start gap-4">
             <!-- The avatar: the uploaded picture, the linked provider's
                  picture, the initials otherwise. The upload rides the
                  server's own cap + type allowlist (named honestly). -->
@@ -828,7 +828,7 @@ async function revokeOthers() {
                 class="w-12 h-12 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-200 flex items-center justify-center text-sm font-semibold"
                 data-testid="account-avatar-initials"
               >{{ initials }}</div>
-              <div v-if="avatarUploads" class="mt-2 flex flex-col items-center gap-1">
+              <div v-if="avatarUploads" class="mt-2 flex flex-col items-start sm:items-center gap-1">
                 <input
                   ref="avatarInput"
                   type="file"
@@ -897,7 +897,7 @@ async function revokeOthers() {
                    wrap inside the narrow column instead of scrolling
                    the page (the audit's 04-account offender). -->
               <p class="mt-2 text-sm text-slate-700 dark:text-slate-300">
-                <span class="text-slate-400 dark:text-slate-500">{{ t('account.profile.emailLabel') }}:</span>
+                <span class="mr-1 text-slate-400 dark:text-slate-500">{{ t('account.profile.emailLabel') }}:</span>
                 <span class="font-medium break-all" data-testid="account-email">{{ context.account.email }}</span>
                 <span
                   v-if="context.account.emailVerifiedAt"

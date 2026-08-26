@@ -12,7 +12,6 @@
 // ═══════════════════════════════════════════════════════════════════
 import { ref, onMounted } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
-import OpAdminNav from '../../components/OpAdminNav.vue'
 
 interface ProviderRow {
   id: string
@@ -186,7 +185,6 @@ async function remove(row: ProviderRow) {
         title="Sign-in providers"
         description="The upstream registry — GitHub, Google, Apple, Entra, generic OIDC. Enabled rows render on the sign-in page."
       />
-      <OpAdminNav current="providers" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-providers-error">{{ error }}</p>

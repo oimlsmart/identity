@@ -20,7 +20,6 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
-import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
 
@@ -818,11 +817,6 @@ onMounted(async () => {
           </span>
         </template>
       </PageHeader>
-
-      <!-- The console's tab bar — the wide grant only (the org admin's
-           grant would 403 on the sibling surfaces, honestly but
-           noisily). -->
-      <OpAdminNav v-if="isWide" current="users" />
 
       <!-- Error / notice -->
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
