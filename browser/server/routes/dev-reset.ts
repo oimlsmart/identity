@@ -22,7 +22,7 @@ import { Hono } from 'hono'
 import { rm } from 'node:fs/promises'
 import { getDb } from '@oimlsmart/platform-server/store/sqlite'
 import { getStore } from '@oimlsmart/platform-server/store'
-import { seedOrgRegisterSnapshot, seedOrgRegistryFromSnapshot } from '../seed-org-register'
+import { seedOrgRegisterSnapshot, seedOrgRegistryFromSnapshot, seedOrgSigningKeysDemo } from '../seed-org-register'
 import { nodeBlobsRoot } from '../blobs-node'
 
 const app = new Hono()
@@ -52,9 +52,13 @@ app.post('/', async (c) => {
   await store.seedDemoAccounts()
   const registerCounts = await seedOrgRegisterSnapshot(store)
   const orgRows = await seedOrgRegistryFromSnapshot(store)
+  // TODO.trust-registry/01: the demo cast's signing key (EX1's
+  // demonstration key — the private half lives in the seed module only,
+  // clearly marked) reseeds with the registry rows.
+  const signingKeys = await seedOrgSigningKeysDemo(store)
   const registerRows = Object.values(registerCounts).reduce((a, b) => a + b, 0)
   const count = (db.prepare('SELECT COUNT(*) AS n FROM entities').get() as { n: number }).n
-  return c.json({ status: 'reset', entities: count, registerRows, orgRows })
+  return c.json({ status: 'reset', entities: count, registerRows, orgRows, signingKeys })
 })
 
 export default app

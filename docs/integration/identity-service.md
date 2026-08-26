@@ -46,6 +46,7 @@ Issuer: `https://id.oimlsmart.org`
 | Token endpoint | `{issuer}/op/token` (authorization_code ONLY) |
 | UserInfo | `{issuer}/op/userinfo` |
 | Avatar (the `picture` claim's target; public, no session) | `{issuer}/op/avatar/<account id>` |
+| Org signing keys (TODO.trust-registry/01 — an org's PUBLIC key set + its standing, for artifact verifiers; anonymous, `Cache-Control: public, max-age=60`, CORS-open) | `{issuer}/op/keys/<org id>.json` |
 | Account console (your users manage their own profile, linked identities, password, avatar there) | `{issuer}/op/account` |
 
 ## 3. Onboarding your service (the client registry)

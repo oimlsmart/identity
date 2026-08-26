@@ -31,6 +31,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { load as parseYaml } from 'js-yaml'
 import type { ServerStore } from '@oimlsmart/platform-server/store'
+import { registerOrgSigningKey, resolveOrgSigningKey } from './auth/org-signing-keys'
 
 const SNAPSHOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'org-register.snapshot.yaml')
 
@@ -149,4 +150,49 @@ export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<n
     n += 1
   }
   return n
+}
+
+// ── the demo cast's signing key (TODO.trust-registry/01) ─────────────
+// The demonstration IA (EX1 — the snapshot's Example Issuing Authority)
+// carries a DEMONSTRATION signing key so the dev/e2e stacks can run the
+// full signing arc: the public half lands on the org's key set (the
+// public endpoint /op/keys/EX1.json resolves it with the participant
+// standing), and the PRIVATE half lives HERE, in the demo seed ONLY,
+// clearly marked — the platform's demonstration signing flow uses it to
+// sign AS the demo IA. A real organization's private material is NEVER
+// stored on the OP (the custody rule, auth/org-signing-keys.ts): this
+// constant exists because the demonstration cast has no real key
+// ceremony. NEVER a real deployment, NEVER a real artifact.
+
+/** THE DEMONSTRATION KEY — EX1's signing key pair (ES256). The private
+ *  coordinate (`d`) is demo material: it signs NOTHING real. The kid is
+ *  the OP's own derivation (kidFor over the coordinates). */
+export const DEMO_EX1_SIGNING_KEY = {
+  kid: 'VG3h_czfNyI9i4o16E0dTh',
+  label: 'ACME demonstration signing key (EX1, demo material only)',
+  publicJwk: {
+    kty: 'EC',
+    crv: 'P-256',
+    x: 'b8JV81JHDBKltSP6d0I8eQxIGgCV8U1-JctvRXQX6MI',
+    y: 'GMTPfjd3afJ9dfD7TBuViMqcF4zP658OcKx6XRjOXI0',
+  },
+  /** THE DEMONSTRATION PRIVATE HALF — demo seed material ONLY, clearly
+   *  marked: it exists so the demo/e2e stacks can sign AS the demo IA.
+   *  The OP's store never carries it (registerOrgSigningKey takes the
+   *  public half alone). */
+  privateJwkD: '16_v4yWLTOceOgiCoVylWQvjjWGtwD3izyYZYT0pG_I',
+} as const
+
+/** Seed the demo cast's signing key (EX1's demonstration key above).
+ *  Idempotent (the kid is content-derived). Answers 1 when the row
+ *  landed, 0 when it already stood. */
+export async function seedOrgSigningKeysDemo(store: ServerStore): Promise<number> {
+  if (await resolveOrgSigningKey(store, 'EX1', DEMO_EX1_SIGNING_KEY.kid)) return 0
+  const key = await registerOrgSigningKey(store, {
+    orgId: 'EX1',
+    publicJwk: DEMO_EX1_SIGNING_KEY.publicJwk,
+    label: DEMO_EX1_SIGNING_KEY.label,
+    createdBy: 'the demonstration seed',
+  })
+  return key ? 1 : 0
 }

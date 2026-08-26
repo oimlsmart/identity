@@ -28,6 +28,7 @@ import { createOpMfaRouter } from './routes/op-mfa'
 import { createOpJoinRouter } from './routes/op-join'
 import { createOpMembershipsRouter } from './routes/op-memberships'
 import { createOpEndorsementsRouter } from './routes/op-endorsements'
+import { createOpKeysRouter } from './routes/op-keys'
 import { createOpRegistryRouter } from './routes/op-registry'
 import { createOpDashboardRouter } from './routes/op-dashboard'
 import { createOpHomeRouter } from './routes/op-home'
@@ -107,6 +108,11 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // issuing authority confirms / withdraws the manufacturer relationship
   // (declared → ia-endorsed, never the participant standing).
   app.route('/', createOpEndorsementsRouter())
+  // The org signing keys (TODO.trust-registry/01): the management acts
+  // (register/rotate/revoke, the org_admin-in-context or the estate
+  // admin) + the PUBLIC key-resolution endpoint /op/keys/<org-id>.json
+  // (the key set + the standing projection, anonymous + cacheable).
+  app.route('/', createOpKeysRouter())
   // The administrator's identity registry: the account search and
   // detail aggregate, link-on-behalf, session revocation, the activity
   // feed.

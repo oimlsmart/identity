@@ -56,6 +56,22 @@ interface EndorsementRow {
   createdBy: string | null
 }
 
+/** The org's signing key (TODO.trust-registry/01): the PUBLIC half + the
+ *  custody chain (the administrator sees the actors; the public document
+ *  carries the dates only). */
+interface SigningKeyRow {
+  kid: string
+  label: string
+  publicJwk: JsonWebKey & { kid?: string }
+  createdAt: string
+  createdBy: string | null
+  rotatedAt: string | null
+  rotatedBy: string | null
+  successorKid: string | null
+  revokedAt: string | null
+  revokedBy: string | null
+}
+
 interface MemberRow {
   userId: string
   name: string
@@ -97,6 +113,9 @@ interface OrgEvent {
 interface OrgView {
   org: OrgInfo
   endorsements: EndorsementRow[]
+  /** TODO.trust-registry/01: the org's signing keys (the custody chain
+   *  whole — active, rotated, revoked). */
+  signingKeys: SigningKeyRow[]
   members: MemberRow[]
   requests: JoinRequestRow[]
   activity: OrgEvent[]
@@ -133,6 +152,121 @@ const editParticipantRef = ref('')
 const editContacts = ref<Array<{ name: string; email: string }>>([])
 const confirmDisable = ref(false)
 const confirmRemove = ref(false)
+
+// The signing-key acts (TODO.trust-registry/01): register (the label +
+// the PUBLIC JWK), rotate (the successor), revoke (the terminal act —
+// the row KEEPS its stamps; the at-the-time artifacts stay honest).
+const keyLabel = ref('')
+const keyJwk = ref('')
+const keyRotateKid = ref<string | null>(null)
+const keyRotateLabel = ref('')
+const keyRotateJwk = ref('')
+const keyRevokeKid = ref<string | null>(null)
+
+/** The key status rendered honestly: the revocation stamps terminal,
+ *  the rotation's overlap link, else active. */
+function keyStatus(k: SigningKeyRow): string {
+  if (k.revokedAt) return t('admin.org.keys.statusRevoked', { date: fmtDate(k.revokedAt), by: k.revokedBy ?? '—' })
+  if (k.rotatedAt) return t('admin.org.keys.statusRotated', { date: fmtDate(k.rotatedAt), by: k.rotatedBy ?? '—', successor: k.successorKid ?? '—' })
+  return t('admin.org.keys.statusActive')
+}
+
+/** The pasted public JWK, parsed honestly (the malformed JSON and the
+ *  private-material leak refuse before the request flies). */
+function parsePublicJwk(raw: string): JsonWebKey | { error: string } {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (e) {
+    return { error: t('admin.org.keys.invalidJwk', { reason: (e as Error).message }) }
+  }
+  const j = parsed as Record<string, unknown>
+  if (!j || typeof j !== 'object' || j.kty !== 'EC' || j.crv !== 'P-256' || typeof j.x !== 'string' || typeof j.y !== 'string') {
+    return { error: t('admin.org.keys.invalidJwk', { reason: 'kty "EC", crv "P-256", x, y' }) }
+  }
+  if ('d' in j) return { error: t('admin.org.keys.privateRefusal') }
+  return j as JsonWebKey
+}
+
+async function registerKey() {
+  if (acting.value) return
+  const jwk = parsePublicJwk(keyJwk.value)
+  if ('error' in jwk && typeof jwk.error === 'string') { error.value = jwk.error; return }
+  acting.value = 'key-register'
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api('/api/op/org-keys', {
+      method: 'POST',
+      body: JSON.stringify({ org_id: orgId.value, label: keyLabel.value.trim(), public_jwk: jwk }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `The key registration failed (${res.status}).`
+      return
+    }
+    notice.value = t('admin.org.keys.registered', { label: keyLabel.value.trim() })
+    keyLabel.value = ''
+    keyJwk.value = ''
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+async function rotateKey(k: SigningKeyRow) {
+  if (acting.value) return
+  const jwk = parsePublicJwk(keyRotateJwk.value)
+  if ('error' in jwk && typeof jwk.error === 'string') { error.value = jwk.error; return }
+  acting.value = `key-rotate-${k.kid}`
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/org-keys/${encodeURIComponent(orgId.value)}/${encodeURIComponent(k.kid)}/rotate`, {
+      method: 'POST',
+      body: JSON.stringify({ label: keyRotateLabel.value.trim(), public_jwk: jwk }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `The key rotation failed (${res.status}).`
+      return
+    }
+    notice.value = t('admin.org.keys.rotated', { label: keyRotateLabel.value.trim() })
+    keyRotateKid.value = null
+    keyRotateLabel.value = ''
+    keyRotateJwk.value = ''
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+async function revokeKey(k: SigningKeyRow) {
+  if (acting.value) return
+  acting.value = `key-revoke-${k.kid}`
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/org-keys/${encodeURIComponent(orgId.value)}/${encodeURIComponent(k.kid)}/revoke`, { method: 'POST' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `The key revocation failed (${res.status}).`
+      keyRevokeKid.value = null
+      return
+    }
+    notice.value = t('admin.org.keys.revoked', { label: k.label })
+    keyRevokeKid.value = null
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
 
 const KIND_OPTIONS = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'manufacturer'] as const
 
@@ -179,6 +313,9 @@ function actionLabel(e: OrgEvent): string {
     case 'organization.removed': return t('admin.org.activity.action.organization.removed')
     case 'organization.endorsed': return t('admin.org.activity.action.organization.endorsed', { ia: String(meta.ia_org_name ?? meta.ia_org_id ?? '') })
     case 'organization.endorsement_revoked': return t('admin.org.activity.action.organization.endorsement_revoked', { ia: String(meta.ia_org_name ?? meta.ia_org_id ?? '') })
+    case 'organization.key_registered': return t('admin.org.activity.action.organization.key_registered', { kid: String(meta.kid ?? ''), label: String(meta.label ?? '') })
+    case 'organization.key_rotated': return t('admin.org.activity.action.organization.key_rotated', { kid: String(meta.kid ?? ''), successor: String(meta.successor_kid ?? '') })
+    case 'organization.key_revoked': return t('admin.org.activity.action.organization.key_revoked', { kid: String(meta.kid ?? '') })
     default: return e.action
   }
 }
@@ -612,6 +749,110 @@ onMounted(async () => {
             <p v-if="e.note" class="text-slate-500 dark:text-slate-400 mt-0.5">“{{ e.note }}”</p>
           </li>
         </ul>
+      </section>
+
+      <!-- The org's signing keys (TODO.trust-registry/01): the custody
+           chain whole — the PUBLIC halves, the rotation overlap links,
+           the revocation stamps. The private material stays with the
+           organization; this service publishes the public halves at the
+           anonymous key-resolution endpoint (/op/keys/<org-id>.json). -->
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-org-keys">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.org.keys.title') }}</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">{{ t('admin.org.keys.description', { url: `/op/keys/${view.org.id}.json` }) }}</p>
+        <p v-if="!view.signingKeys.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-keys-empty">
+          {{ t('admin.org.keys.empty') }}
+        </p>
+        <ul v-else class="space-y-2" data-testid="op-reg-org-keys-list">
+          <li
+            v-for="k in view.signingKeys"
+            :key="k.kid"
+            class="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2"
+            :data-testid="`op-reg-org-key-${k.kid}`"
+          >
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-slate-900 dark:text-white break-words">
+                  {{ k.label }}
+                  <span
+                    v-if="k.revokedAt"
+                    class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                    :data-testid="`op-reg-org-key-revoked-${k.kid}`"
+                  >{{ t('admin.org.keys.badgeRevoked') }}</span>
+                  <span
+                    v-else-if="k.rotatedAt"
+                    class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                    :data-testid="`op-reg-org-key-rotated-${k.kid}`"
+                  >{{ t('admin.org.keys.badgeRotated') }}</span>
+                  <span
+                    v-else
+                    class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                    :data-testid="`op-reg-org-key-active-${k.kid}`"
+                  >{{ t('admin.org.keys.badgeActive') }}</span>
+                </p>
+                <p class="text-[11px] font-mono text-slate-400 dark:text-slate-500 break-all" :data-testid="`op-reg-org-key-kid-${k.kid}`">kid {{ k.kid }}</p>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400" :data-testid="`op-reg-org-key-stamps-${k.kid}`">
+                  {{ t('admin.org.keys.item', { date: fmtDate(k.createdAt), by: k.createdBy ?? '—' }) }} · {{ keyStatus(k) }}
+                </p>
+              </div>
+              <div class="shrink-0 flex items-center gap-3 text-xs font-medium">
+                <button
+                  v-if="!k.revokedAt && !k.rotatedAt && view.org.state === 'active'"
+                  :data-testid="`op-reg-org-key-rotate-${k.kid}`"
+                  :disabled="acting !== null"
+                  class="text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
+                  @click="keyRotateKid = keyRotateKid === k.kid ? null : k.kid; keyRotateLabel = ''; keyRotateJwk = ''; keyRevokeKid = null"
+                >{{ keyRotateKid === k.kid ? t('admin.user.memberships.rolesClose') : t('admin.org.keys.rotate') }}</button>
+                <button
+                  v-if="!k.revokedAt"
+                  :data-testid="`op-reg-org-key-revoke-${k.kid}`"
+                  :disabled="acting !== null"
+                  class="text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                  @click="keyRevokeKid = keyRevokeKid === k.kid ? null : k.kid; keyRotateKid = null"
+                >{{ t('admin.org.keys.revoke') }}</button>
+              </div>
+            </div>
+
+            <!-- The rotation form (the successor's PUBLIC half; the
+                 predecessor keeps its row with the overlap stamps). -->
+            <div v-if="keyRotateKid === k.kid" class="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2" :data-testid="`op-reg-org-key-rotate-form-${k.kid}`">
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">{{ t('admin.org.keys.rotateNote') }}</p>
+              <input v-model="keyRotateLabel" type="text" :data-testid="`op-reg-org-key-rotate-label-${k.kid}`" :placeholder="t('admin.org.keys.fieldLabel')" class="mb-2 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <textarea v-model="keyRotateJwk" rows="3" :data-testid="`op-reg-org-key-rotate-jwk-${k.kid}`" :placeholder="t('admin.org.keys.fieldJwk')" class="mb-2 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <button
+                :disabled="acting !== null || !keyRotateLabel.trim() || !keyRotateJwk.trim()"
+                :data-testid="`op-reg-org-key-rotate-submit-${k.kid}`"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                @click="rotateKey(k)"
+              >{{ acting === `key-rotate-${k.kid}` ? t('admin.org.keys.rotateBusy') : t('admin.org.keys.rotateSubmit') }}</button>
+            </div>
+
+            <!-- The revocation confirmation (the terminal act — the row
+                 KEEPS its stamps; the at-the-time artifacts stay honest). -->
+            <div v-if="keyRevokeKid === k.kid" class="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2" :data-testid="`op-reg-org-key-revoke-confirm-${k.kid}`">
+              <p class="text-xs text-slate-600 dark:text-slate-300 mb-2">{{ t('admin.org.keys.revokeNote') }}</p>
+              <button
+                :disabled="acting !== null"
+                :data-testid="`op-reg-org-key-revoke-submit-${k.kid}`"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                @click="revokeKey(k)"
+              >{{ acting === `key-revoke-${k.kid}` ? t('admin.org.keys.revokeBusy') : t('admin.org.keys.revokeConfirm') }}</button>
+            </div>
+          </li>
+        </ul>
+
+        <!-- The register form (the org admin manages theirs; the estate
+             admin sees all). -->
+        <div v-if="view.org.state === 'active'" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-org-key-register">
+          <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.org.keys.registerTitle') }}</h3>
+          <input v-model="keyLabel" type="text" data-testid="op-reg-org-key-label" :placeholder="t('admin.org.keys.fieldLabel')" class="mb-2 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <textarea v-model="keyJwk" rows="3" data-testid="op-reg-org-key-jwk" :placeholder="t('admin.org.keys.fieldJwk')" class="mb-2 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <button
+            :disabled="acting !== null || !keyLabel.trim() || !keyJwk.trim()"
+            data-testid="op-reg-org-key-register-submit"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+            @click="registerKey"
+          >{{ acting === 'key-register' ? t('admin.org.keys.registerBusy') : t('admin.org.keys.registerSubmit') }}</button>
+        </div>
       </section>
 
       <!-- The members: the memberships with their per-org role sets. -->
