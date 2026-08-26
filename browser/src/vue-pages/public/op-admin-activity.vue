@@ -11,7 +11,6 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref, watch } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
-import OpAdminNav from '../../components/OpAdminNav.vue'
 import { useBranding } from '../../branding'
 
 interface AuditEvent {
@@ -176,7 +175,6 @@ onMounted(async () => {
         title="Registry activity"
         :description="`Every administrative act on ${branding.productName}, and the sign-in events — newest first.`"
       />
-      <OpAdminNav current="activity" />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-act-error">{{ error }}</p>
@@ -194,7 +192,7 @@ onMounted(async () => {
           <select
             v-model="category"
             data-testid="op-act-category"
-            class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            class="max-w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">every category</option>
             <option v-for="c in CATEGORIES" :key="c.key" :value="c.key" :data-testid="`op-act-category-${c.key}`">{{ c.label }}</option>

@@ -1,16 +1,25 @@
 ---
 // ═══════════════════════════════════════════════════════════════════
 // IdShell — the identity service's own minimal shell (the wave-02a
-// identity-native frontend). NO platform chrome on this host: no
+// identity-native frontend; the console chrome reimplemented in
+// TODO.identity-features/07). NO platform chrome on this host: no
 // federation nav, no platform consoles, no app PWA manifest. The house
 // design tokens + blueprint arrive through ../styles/app.css (the
-// @oimlsmart/site-shell CSS contract); the chrome is the identity
-// brand's slim header bar (the account context on the right when a
-// session exists), the page island, and the one-line footer with the
-// status link.
+// @oimlsmart/site-shell CSS contract); the chrome is ONE integrated
+// header bar (the brand, the current-section label + the nav
+// disclosure toggle at phone widths, the theme toggle, the account
+// chip), the console's section navigation as a LEFT RAIL at desktop
+// widths / a disclosure sheet at phone widths (components/
+// ConsoleChrome.vue — never a second bar stacked under the header),
+// the page island, and the one-line footer with the status link.
 //
 // bare: the sign-in page (/) — no header (the page centers the brand
 // block itself), the footer stays.
+//
+// The console areas (the home launcher, the account console, the admin
+// console) mount the ConsoleChrome island; the flow pages (join, setup,
+// consent, email-change) stay centered single-column surfaces with the
+// header but no rail.
 //
 // DARK MODE follows the house shell's class pattern (the package's
 // tokens.css @custom-variant + the oiml-theme localStorage key the
@@ -20,6 +29,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import IdPage from '../astro/IdPage.vue'
 import AccountChip from '../components/AccountChip.vue'
+import ConsoleChrome from '../components/ConsoleChrome.vue'
 import ThemeToggle from '@oimlsmart/site-shell/components/ThemeToggle.vue'
 import '../styles/app.css'
 
@@ -31,6 +41,31 @@ interface Props {
   bare?: boolean
 }
 const { title = 'OIML SMART Identity', page, bare = false } = Astro.props
+
+// The page key decides the console chrome: the area (home / account /
+// admin — the flow pages get none) and the admin rail's current entry
+// (the registry detail pages highlight their parent surface, the same
+// mapping the pre-07 per-page OpAdminNav carried).
+type ConsoleArea = 'home' | 'account' | 'admin'
+const ADMIN_CURRENT: Record<string, string> = {
+  'public/op-admin-overview': 'overview',
+  'public/op-admin-registry': 'registry',
+  'public/op-admin-registry-user': 'registry',
+  'public/op-admin-registry-org': 'organizations',
+  'public/op-admin-organizations': 'organizations',
+  'public/op-admin-sessions': 'sessions',
+  'public/op-admin-clients': 'clients',
+  'public/op-admin-activity': 'activity',
+  'public/op-admin-providers': 'providers',
+  'public/op-admin-security': 'security',
+  'public/op-admin-users': 'users',
+}
+const consoleArea: ConsoleArea | null =
+  page === 'home' ? 'home'
+  : page === 'account' ? 'account'
+  : page in ADMIN_CURRENT ? 'admin'
+  : null
+const adminCurrent = ADMIN_CURRENT[page]
 ---
 
 <!doctype html>
@@ -50,13 +85,20 @@ const { title = 'OIML SMART Identity', page, bare = false } = Astro.props
   <body class="bg-cream dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased min-h-screen flex flex-col">
     {!bare && (
       <header class="border-b border-slate-200 dark:border-slate-700">
-        <div class="max-w-5xl mx-auto px-6 h-12 flex items-center justify-between">
-          <a href="/" class="flex items-center gap-2 no-underline text-inherit" data-testid="shell-brand">
+        {/* ONE integrated header: the brand (the wordmark yields to the
+            mark alone at phone widths — the wrapped two-line brand was
+            the 07 audit's phone-header defect), the ConsoleChrome's
+            teleported slot (the disclosure toggle + the current-section
+            label on the console pages), the theme toggle, the account
+            chip. Never a second bar under it. */}
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-12 flex items-center gap-3">
+          <a href="/" class="flex items-center gap-2 no-underline text-inherit shrink-0 min-w-0" data-testid="shell-brand">
             <img src="/oiml-logo-light.svg" alt="The OIML SMART logo" class="h-6 w-auto dark:hidden" />
             <img src="/oiml-logo-dark.svg" alt="" class="h-6 w-auto hidden dark:block" aria-hidden="true" />
-            <span class="font-serif text-sm font-semibold tracking-tight">OIML SMART Identity</span>
+            <span class="hidden sm:inline font-serif text-sm font-semibold tracking-tight whitespace-nowrap">OIML SMART Identity</span>
           </a>
-          <div class="flex items-center gap-3 min-w-0">
+          <span id="shell-chrome-slot" class="flex items-center gap-2 min-w-0 flex-1"></span>
+          <div class="flex items-center gap-3 min-w-0 shrink-0">
             <ThemeToggle client:load />
             <AccountChip client:only="vue" />
           </div>
@@ -66,13 +108,25 @@ const { title = 'OIML SMART Identity', page, bare = false } = Astro.props
     <main class="flex-1 flex flex-col">
       {/* The single shell kind IS the app shell here — the data-layout
           landmark the moved legs' settle waits read (the monorepo's App
-          layout's contract), wrapping the page island. */}
-      <div data-layout="app">
-        <IdPage page={page} client:only="vue" />
-      </div>
+          layout's contract), wrapping the page island. The console
+          areas get the rail + the content column (min-w-0 so a wide
+          page child can never push the page sideways); the flow pages
+          keep their centered single column. */}
+      {consoleArea ? (
+        <div class="max-w-6xl mx-auto w-full flex-1 flex items-start lg:gap-8 lg:px-6">
+          <ConsoleChrome area={consoleArea} current={adminCurrent} client:only="vue" />
+          <div data-layout="app" class="flex-1 min-w-0">
+            <IdPage page={page} client:only="vue" />
+          </div>
+        </div>
+      ) : (
+        <div data-layout="app">
+          <IdPage page={page} client:only="vue" />
+        </div>
+      )}
     </main>
     <footer class="border-t border-slate-200 dark:border-slate-700 mt-8">
-      <div class="max-w-5xl mx-auto px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
         <span>OIML SMART Identity: the single sign-on service for the oimlsmart.org estate</span>
         <span class="flex items-center gap-3">
           <a href="/api/health" class="hover:underline" data-testid="shell-status">Service status</a>

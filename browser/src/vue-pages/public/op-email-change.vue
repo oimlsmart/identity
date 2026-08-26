@@ -95,10 +95,10 @@ async function confirm() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center px-6 py-12">
+  <div class="flex items-center justify-center px-6 py-12">
     <div class="w-full max-w-md">
       <div class="flex justify-center mb-8">
-        <BrandLogo />
+        <BrandLogo class="h-10 w-auto" />
       </div>
 
       <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-8" data-testid="op-email-change">

@@ -259,7 +259,7 @@ export const en = {
   "admin.nav.registry": "Registry",
   "admin.nav.security": "Security",
   "admin.nav.sessions": "Sessions",
-  "admin.nav.users": "Organizations",
+  "admin.nav.users": "Users",
   "admin.org.activity.action.organization.added": "added the organization",
   "admin.org.activity.action.organization.disabled": "disabled the organization ({count} membership(s) disabled with it)",
   "admin.org.activity.action.organization.endorsement_revoked": "withdrew {ia}’s endorsement of the manufacturer",
@@ -607,6 +607,11 @@ export const en = {
   "mail.verifyEmail.preheader": "Confirm your new {product} email address.",
   "mail.verifyEmail.subject": "Confirm your new {product} email address",
   "mail.verifyEmail.why": "You are receiving this because your {product} account is moving to this email address.",
+  "shell.nav.admin": "Administration",
+  "shell.nav.areas": "Consoles",
+  "shell.nav.close": "Close the menu",
+  "shell.nav.menu": "Open the menu",
+  "shell.nav.sections": "Sections",
 }
 
 export type MessageKey = keyof typeof en

@@ -261,7 +261,7 @@ export const fr: Record<MessageKey, string> = {
   "admin.nav.registry": "Registre",
   "admin.nav.security": "Sécurité",
   "admin.nav.sessions": "Sessions",
-  "admin.nav.users": "Organisations",
+  "admin.nav.users": "Utilisateurs",
   "admin.org.activity.action.organization.added": "a ajouté l’organisation",
   "admin.org.activity.action.organization.disabled": "a désactivé l’organisation ({count} adhésion(s) désactivée(s) avec elle)",
   "admin.org.activity.action.organization.endorsement_revoked": "a retiré la confirmation de {ia} pour le fabricant",
@@ -609,4 +609,9 @@ export const fr: Record<MessageKey, string> = {
   "mail.verifyEmail.preheader": "Confirmez votre nouvelle adresse e-mail {product}.",
   "mail.verifyEmail.subject": "Confirmez votre nouvelle adresse e-mail {product}",
   "mail.verifyEmail.why": "Vous recevez ce message parce que votre compte {product} change pour cette adresse e-mail.",
+  "shell.nav.admin": "Administration",
+  "shell.nav.areas": "Consoles",
+  "shell.nav.close": "Fermer le menu",
+  "shell.nav.menu": "Ouvrir le menu",
+  "shell.nav.sections": "Sections",
 }
