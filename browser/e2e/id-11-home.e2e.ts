@@ -400,7 +400,7 @@ describe('the SSO home', () => {
       })
       await registerClient(stack!.apiBase, adminCookie, {
         client_id: 'pubs-assistant',
-        name: 'OIML Publications Assistant',
+        name: 'OIML SMART AI',
         redirect_uris: ['https://ai.oimlsmart.org/auth/callback'],
         launch: { url: 'https://ai.oimlsmart.org/auth/login', icon: 'chat', description: 'Ask the OIML library.', visibility: 'open' },
       })

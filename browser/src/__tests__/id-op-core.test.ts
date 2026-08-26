@@ -632,7 +632,7 @@ describe('the public avatar route (GET /op/avatar/:id)', () => {
 describe('the picture claim (the per-client family)', () => {
   const PICTURE_RP = {
     client_id: 'rag-instance',
-    name: 'The Publications Assistant',
+    name: 'OIML SMART AI',
     redirect_uris: ['https://rag.example/callback'],
   }
 
