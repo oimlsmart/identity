@@ -124,6 +124,7 @@ import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getStore, type AuthUserPayload, type OrgRegistryContact, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, type RegistryOrg } from '../auth/org-registry'
+import { listOrgSigningKeys } from '../auth/org-signing-keys'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
@@ -861,6 +862,22 @@ export function createOpRegistryRouter(): Hono {
         createdAt: e.createdAt,
         createdBy: e.createdBy,
       }))
+    // The org's signing keys (TODO.trust-registry/01): the custody chain
+    // WHOLE — active, rotated, revoked rows with their stamps and the
+    // actor on each act (the administrator sees the chain honestly; the
+    // PUBLIC endpoint /op/keys/<org-id>.json carries the dates only).
+    const signingKeys = (await listOrgSigningKeys(store, orgId)).map(k => ({
+      kid: k.kid,
+      label: k.label,
+      publicJwk: k.publicJwk,
+      createdAt: k.createdAt,
+      createdBy: k.createdBy,
+      rotatedAt: k.rotatedAt,
+      rotatedBy: k.rotatedBy,
+      successorKid: k.successorKid,
+      revokedAt: k.revokedAt,
+      revokedBy: k.revokedBy,
+    }))
     // The org's own audit slice: its lifecycle acts (entity_type
     // 'organization'), the membership + join-request + org-invite acts
     // NAMING the org (the metadata's org_id).
@@ -895,6 +912,7 @@ export function createOpRegistryRouter(): Hono {
         disabledBy: org.disabledBy,
       },
       endorsements,
+      signingKeys,
       members: memberships.map(m => {
         const account = byId.get(m.userId) ?? null
         return {
