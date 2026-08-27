@@ -123,6 +123,13 @@ export default defineConfig({
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
           },
+          // The whoami beacon (the static properties' account chips):
+          // the OP session's minimal projection, CORS-gated — fetched
+          // cross-origin with credentials.
+          '/op/whoami': {
+            target: process.env.API_ORIGIN || 'http://localhost:3190',
+            headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
+          },
           '/op/upstream': {
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
