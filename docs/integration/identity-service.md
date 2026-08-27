@@ -43,9 +43,10 @@ Issuer: `https://id.oimlsmart.org`
 | Discovery (RFC 8414) | `GET {issuer}/.well-known/openid-configuration` |
 | JWKS (the signing keys) | `GET {issuer}/jwks.json` (the discovery document's `jwks_uri` is authoritative) |
 | Authorization endpoint | `{issuer}/op/authorize` |
-| Token endpoint | `{issuer}/op/token` (authorization_code ONLY) |
+| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the DEVICE class only — §9) |
 | UserInfo | `{issuer}/op/userinfo` |
 | Avatar (the `picture` claim's target; public, no session) | `{issuer}/op/avatar/<account id>` |
+| Whoami (the account-chip beacon for the static properties: the OP session's minimal projection, CORS-gated on the registered clients' origins) | `GET {issuer}/op/whoami` |
 | Org signing keys (TODO.trust-registry/01 — an org's PUBLIC key set + its standing, for artifact verifiers; anonymous, `Cache-Control: public, max-age=60`, CORS-open) | `{issuer}/op/keys/<org id>.json` |
 | Account console (your users manage their own profile, linked identities, password, avatar there) | `{issuer}/op/account` |
 
@@ -83,6 +84,37 @@ Your service needs a client registration on the OP. One entry:
 - Rotation and disable: a client can be disabled without deleting its
   audit trail; a disabled client's tokens stop at issuance (existing
   sessions at your service die at YOUR session lifetime — see §8).
+
+### The device class (the machine cone)
+
+A **device client** is a NON-HUMAN client registered PER DEVICE (the
+SMART Measuring Instruments' twins — the estate register, docs/future/07
+Part I.3 item 2). It speaks `client_credentials` at the token endpoint
+ONLY — no authorization-code flow, no redirect URIs, no refresh, no
+launch card, no user claims — and it is always confidential (the secret
+IS the device's credential; the console's re-key rotates it, the disable
+revokes it). One entry:
+
+```json
+{
+  "client_id": "device-acme-lc500-0001",
+  "name": "ACME LC-500 sn 0001 (the twin)",
+  "class": "device",
+  "device": {
+    "id": "acme-lc500-0001",
+    "org": "mfr-acme",
+    "instrument_model": "acme-lc500@2021"
+  },
+  "generate_secret": true
+}
+```
+
+The `device` block binds the identity the token carries: the device id
+(the twin's name), its org (must resolve on the OP's organization
+registry), and the instrument model reference (the product-reference
+package id). The class is fixed at registration — an application never
+becomes a device nor the reverse; register a fresh client. See §9 for
+the token's exact claim contract.
 
 ## 4. The claims contract (what the ID token carries)
 
@@ -275,18 +307,56 @@ spans them:
   sessions. The redirect pattern above IS the mechanism; the shared
   cookie is the anti-pattern.
 - **Static properties** (the www site and the minisites) stay public —
-  no fake login buttons. If one ever needs identity, it uses the OP's
-  public-client PKCE flow (§3's public client kind) entirely in the
-  browser: no server, no shared cookie, tokens in memory.
+  no fake login buttons. The account CHIP on a static property rides the
+  OP's whoami beacon: `GET {issuer}/op/whoami` with
+  `credentials: 'include'` (the OP session cookie is same-site on
+  id.oimlsmart.org, so it rides; CORS admits exactly the origins the
+  registered clients declare — never `*`). Signed out it answers
+  `{ "signedIn": false }` (cheap, `Cache-Control: public, max-age=60`);
+  signed in it answers `{ signedIn: true, name, picture, admin }` —
+  `picture` is the public avatar URL (null without an upload: render the
+  initials fallback), `admin` marks the administration consoles — NEVER
+  emails, roles, or orgs (the chip needs a face, not a dossier). A
+  static property that needs REAL identity (protected content, acts)
+  uses the OP's public-client PKCE flow (§3's public client kind)
+  entirely in the browser: no server, no shared cookie, tokens in
+  memory.
 
-## 9. Machine callers (today's honest gap)
+## 9. Machine callers (the device cone; the general gap honestly open)
 
-The OP serves authorization code + PKCE ONLY. There is no
-`client_credentials` grant today: non-human callers (agent pipelines,
-MCP servers) are NOT served yet. The gap is recorded and sized in
-`TODO.identity-ops/07` (service accounts as confidential clients with
-no redirect URIs, audience-bound tokens, scoped claims). If your
-integration needs machine tokens, say so — that is the trigger that
+The OP's machine cone is the **device class** (§3): per-device
+credentials for the SMART Measuring Instruments' twins. A device client
+presents `grant_type=client_credentials` with its secret
+(client_secret_basic or post) at `{issuer}/op/token` and receives a
+SELF-CONTAINED ES256 JWT access token (validate it against the OP's
+JWKS — no call-back):
+
+```json
+{
+  "iss": "{issuer}",
+  "sub": "<the device id>",
+  "aud": "<the client id>",
+  "iat": …, "exp": …,
+  "org": "<the device's org (the identity registry's org id)>",
+  "instrument_model": "<the instrument model reference>"
+}
+```
+
+That is the WHOLE claim set: never an ID token, never a refresh token,
+never a user claim (no name/email/roles/groups/picture/amr — there is no
+account behind a device token). The token lifetime is the OP's access
+token TTL; an expired token re-authenticates (the secret is the
+credential). Revocation is the client's disable: in-flight tokens die at
+their `exp`, new mints refuse at once. The grant is NOT advertised in
+the discovery document (`grant_types_supported` stays
+`authorization_code`): the device cone is an estate-internal class, not
+an RP flow — application clients asking `client_credentials` get the
+plain `unsupported_grant_type` refusal.
+
+The GENERAL machine-caller gap (agent pipelines, MCP servers — service
+accounts with audience-bound, scoped tokens) remains honestly open and
+sized in `TODO.identity-ops/07`. If your integration needs machine
+tokens beyond the device cone, say so — that is the trigger that
 schedules it. Do NOT work around it by embedding a human's credentials.
 
 ## 10. What your service inherits

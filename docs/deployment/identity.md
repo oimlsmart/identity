@@ -451,6 +451,12 @@ from the `OP_CLIENT_SEED` env (a JSON array of
 `{ client_id, name, secret?, redirect_uris, claims_policy? }`,
 upserted at boot — secrets hashed PBKDF2 before they touch the
 database; declare the seed as a Worker secret when it carries them).
+The DEVICE class (the machine cone — the SMI twins' per-device
+credentials, `docs/integration/identity-service.md` §3/§9) seeds as
+`{ client_id, name, class: "device", secret, device: { id, org,
+instrument_model } }` — the secret is required (a device client is
+always confidential), and redirect_uris / a launch card / a claims
+policy are refused honestly at the boot.
 
 ### The signing keys
 
