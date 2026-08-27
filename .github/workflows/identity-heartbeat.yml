@@ -39,24 +39,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The platform-server kernel checkout (the file: dependency
-      # target) — the ci.yml doctrine.
-      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
-        uses: actions/checkout@v4
-        with:
-          repository: oimlsmart/smart
-          ref: v2
-          path: x/oimlsmart/smart
-          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
-          persist-credentials: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Install the platform-server kernel package
-        working-directory: x/oimlsmart/smart/packages/platform-server
-        run: npm ci --no-audit --no-fund
 
       - name: Install dependencies (the probe's tsx is a dev dep)
         working-directory: browser

@@ -9,8 +9,9 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     fs: {
-      // The file:-linked kernel resolves to its realpath under
-      // ../x/oimlsmart/smart — one level up from this project root.
+      // Two levels up: the e2e fixtures + temp stacks the suites boot
+      // outside the project root (the kernel itself comes from npm as a
+      // plain node_modules directory — TODO.repos/01).
       allow: ['..', '../..'],
     },
   },

@@ -20,11 +20,6 @@ This repository carries the OP half of the identity contract only:
 - the OP routers (`browser/server/routes/op*.ts` — the protocol, the accounts, the upstream providers, the join intake, the memberships, the registry) plus the factor registry's console API
   (`routes/op-factors.ts`) and the sign-in's second-factor + passwordless
   half (`routes/op-mfa.ts`),
-- the D1 migrations (`browser/server/db/migrations/`), byte-identical
-  with the monorepo's set: the live account registry
-  (`oiml-smart-platform-identity`, D1) never moves, and wrangler keys
-  migration bookkeeping on filenames, so the set appends expand-only
-  and never renumbers,
 - the OP pages (sign-in, consent, enrollment, the account console, the
   admin consoles) under `browser/src/pages/` + `browser/src/vue-pages/`,
 - the OP-side unit suites and e2e legs (`browser/src/__tests__/`,
@@ -33,23 +28,20 @@ This repository carries the OP half of the identity contract only:
   workflows (deploy gate, heartbeat, access review).
 
 What it deliberately does NOT carry: the store implementations, the
-profile/RBAC/OIDC-client machinery. Those are the published kernel
-package `@oimlsmart/platform-server` (owned by the smart monorepo). While
-the first npm publish is pending, this repo consumes it through the
-sibling-checkout `file:` dependency the CI declares at
-`x/oimlsmart/smart` (the same `x/` doctrine smart's CI uses for the
-SST positions).
+profile/RBAC/OIDC-client machinery, and the D1 migration set. Those are
+the published kernel package `@oimlsmart/platform-server` (its own
+repository, `oimlsmart/platform-server`; TODO.repos/01 in smart),
+consumed from npm by semver — the version pin is the contract. The live
+account registry (`oiml-smart-platform-identity`, D1) never moves, and
+wrangler keys migration bookkeeping on filenames, so the package's set
+appends expand-only and never renumbers.
 
 ## Develop
 
 ```sh
-# the kernel checkout (until @oimlsmart/platform-server is on npm):
-git clone --branch v2 git@github.com:oimlsmart/smart.git x/oimlsmart/smart
-npm --prefix x/oimlsmart/smart/packages/platform-server ci --no-audit --no-fund
-
 cd browser
-npm ci
-npm run dev        # astro on :5190 + the node API on :3190
+npm ci           # the kernel comes from npm
+npm run dev      # astro on :5190 + the node API on :3190
 ```
 
 ## The gates (CI runs all of them)

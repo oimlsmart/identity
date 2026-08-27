@@ -16,30 +16,12 @@ import vue from '@astrojs/vue'
 import node from '@astrojs/node'
 import cloudflare from '@astrojs/cloudflare'
 import tailwindcss from '@tailwindcss/vite'
-import { searchForWorkspaceRoot } from 'vite'
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 const isCloudflare = process.env.ADAPTER === 'cloudflare'
 
-// fs.allow widening for the file:-linked kernel: vite resolves the
-// @oimlsmart/platform-server symlink to its realpath under
-// ../x/oimlsmart/smart — INSIDE the workspace root on a normal
-// checkout, so the default allow list already covers it; when the
-// checkout lives elsewhere (KERNEL_REPO pointing outside the repo) the
-// realpath is added explicitly.
-const browserRoot = fileURLToPath(new URL('.', import.meta.url))
-const workspaceRoot = path.resolve(searchForWorkspaceRoot(browserRoot))
-const devFsAllow = [workspaceRoot]
-try {
-  const kernelReal = path.resolve(fs.realpathSync(path.join(browserRoot, 'node_modules', '@oimlsmart', 'platform-server')))
-  if (kernelReal !== workspaceRoot && !kernelReal.startsWith(workspaceRoot + path.sep)) {
-    devFsAllow.push(kernelReal)
-  }
-} catch {
-  // No kernel link yet (pre-install) — nothing to widen.
-}
+// The kernel comes from npm (TODO.repos/01): a real directory inside
+// node_modules, so no fs.allow widening for a file:-linked realpath is
+// needed anymore.
 
 export default defineConfig({
   // Hybrid rendering: every shell carries `export const prerender =
@@ -81,7 +63,6 @@ export default defineConfig({
     plugins: [tailwindcss()],
     server: {
       strictPort: true,
-      fs: { allow: devFsAllow },
       // The node posture's dev proxy: the OP/API paths → the tsx API
       // server. The Cloudflare posture serves them from INSIDE the
       // worker (the endpoint shims), so no proxy is installed there.

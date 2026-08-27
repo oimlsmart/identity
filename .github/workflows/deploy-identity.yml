@@ -26,8 +26,8 @@ name: deploy-identity
 # identity-deploy.md → "One-time setup"):
 #   Secrets (on BOTH environments): CLOUDFLARE_API_TOKEN,
 #   CLOUDFLARE_ACCOUNT_ID (the same token posture as the monorepo's
-#   deploy-cloudflare). The kernel checkout rides the repo-level
-#   SMART_CHECKOUT_TOKEN (the ci.yml doctrine).
+#   deploy-cloudflare). The kernel comes from npm
+#   (@oimlsmart/platform-server, TODO.repos/01) — no checkout token.
 #   Worker secrets (per env, `wrangler secret put --env identity[-preview]`):
 #   OP_SIGNING_KEY (the ES256 private JWK — never the repo, never the
 #   logs; the rotation ceremony is browser/scripts/op-key-rotate.ts).
@@ -61,22 +61,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
-        uses: actions/checkout@v4
-        with:
-          repository: oimlsmart/smart
-          ref: v2
-          path: x/oimlsmart/smart
-          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
-          persist-credentials: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Install the platform-server kernel package
-        working-directory: x/oimlsmart/smart/packages/platform-server
-        run: npm ci --no-audit --no-fund
 
       - name: Install dependencies
         working-directory: browser
@@ -96,15 +83,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
-        uses: actions/checkout@v4
-        with:
-          repository: oimlsmart/smart
-          ref: v2
-          path: x/oimlsmart/smart
-          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
-          persist-credentials: false
-
       # The same reclaim as ci.yml's e2e job (the 2026-08-23 "Free space
       # left: 1 MB" lesson): npm ci's + a Chrome + the dev stacks'
       # caches ride the ever-growing ubuntu-latest image.
@@ -118,10 +96,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Install the platform-server kernel package
-        working-directory: x/oimlsmart/smart/packages/platform-server
-        run: npm ci --no-audit --no-fund
 
       - name: Install dependencies
         working-directory: browser
@@ -168,22 +142,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: "Checkout the smart monorepo (the platform-server kernel's home)"
-        uses: actions/checkout@v4
-        with:
-          repository: oimlsmart/smart
-          ref: v2
-          path: x/oimlsmart/smart
-          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
-          persist-credentials: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Install the platform-server kernel package
-        working-directory: x/oimlsmart/smart/packages/platform-server
-        run: npm ci --no-audit --no-fund
 
       - name: Install dependencies
         working-directory: browser
@@ -210,15 +171,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: "Checkout the smart monorepo (the platform-server kernel's home — npm ci needs the file: dependency target)"
-        uses: actions/checkout@v4
-        with:
-          repository: oimlsmart/smart
-          ref: v2
-          path: x/oimlsmart/smart
-          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
-          persist-credentials: false
-
       - uses: actions/download-artifact@v4
         with:
           name: identity-dist
@@ -231,10 +183,6 @@ jobs:
       - name: Install dependencies (wrangler + the probe's tsx are dev deps)
         working-directory: browser
         run: npm ci
-
-      - name: Install the platform-server kernel package
-        working-directory: x/oimlsmart/smart/packages/platform-server
-        run: npm ci --no-audit --no-fund
 
       - name: Guard — the preview posture is declared
         working-directory: browser
@@ -298,15 +246,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: "Checkout the smart monorepo (the platform-server kernel's home — npm ci needs the file: dependency target)"
-        uses: actions/checkout@v4
-        with:
-          repository: oimlsmart/smart
-          ref: v2
-          path: x/oimlsmart/smart
-          token: ${{ secrets.SMART_CHECKOUT_TOKEN || secrets.METANORMA_CI_PAT_TOKEN }}
-          persist-credentials: false
-
       - uses: actions/download-artifact@v4
         with:
           name: identity-dist
@@ -320,17 +259,15 @@ jobs:
         working-directory: browser
         run: npm ci
 
-      - name: Install the platform-server kernel package
-        working-directory: x/oimlsmart/smart/packages/platform-server
-        run: npm ci --no-audit --no-fund
-
-      # The wave-03 cutover's tripwire (the extraction map's risk 1):
-      # the migration set is byte-identical with the monorepo-built
-      # deployment's, so the apply MUST be a no-op on the live registry.
-      # List first; any pending file means the copies drifted — ABORT
-      # (never let a drifted set touch the live tables). (No --json on
-      # `d1 migrations list`: the guard counts migration filenames in the
-      # output — zero is the only pass.)
+      # The cutover's tripwire, re-founded on the kernel package
+      # (TODO.repos/01): the pinned @oimlsmart/platform-server version
+      # carries the ONE canonical migration set, so the apply MUST be a
+      # no-op on the live registry (its journal already holds every
+      # filename). List first; any pending file means the pin carries a
+      # set the registry has never seen — ABORT (never let an unproven
+      # set touch the live tables). (No --json on `d1 migrations list`:
+      # the guard counts migration filenames in the output — zero is
+      # the only pass.)
       - name: Guard — zero pending migrations on the live registry
         working-directory: browser
         env:
@@ -341,7 +278,7 @@ jobs:
           echo "$LIST"
           PENDING=$(echo "$LIST" | grep -cE '[0-9]{4}_.*\.sql' || true)
           if [ "$PENDING" != "0" ]; then
-            echo "::error::the live registry shows $PENDING unapplied migration(s) — the byte-identical copies drifted. ABORT (the cutover plan's tripwire, docs/deployment/identity-deploy.md)."
+            echo "::error::the live registry shows $PENDING unapplied migration(s) — the pinned kernel carries a set the registry has never seen. ABORT (the tripwire, docs/deployment/identity-deploy.md)."
             exit 1
           fi
           echo "zero pending migrations — the apply below is a no-op"
