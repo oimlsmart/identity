@@ -64,7 +64,7 @@ async function demoLogin(email: string): Promise<string> {
   return res.headers.get('set-cookie')!.split(';')[0]!
 }
 
-function whoami(init?: { cookie?: string; origin?: string }): Promise<Response> {
+function whoami(init?: { cookie?: string; origin?: string }) {
   const headers: Record<string, string> = {}
   if (init?.cookie) headers.cookie = init.cookie
   if (init?.origin) headers.origin = init.origin
