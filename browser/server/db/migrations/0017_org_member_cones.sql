@@ -1,0 +1,28 @@
+-- Migration 0017 — the org-member DATA CONE (TODO.identity-features/09,
+-- wave A). Every org membership gains a nullable cone: the org
+-- administrator's answer to "what can this member see and do" —
+-- org-wide (the default; every existing membership keeps it SILENTLY,
+-- NULL reads as org-wide) / assigned (the member sees the org's rows
+-- only where NAMED — the operator on the test run, the assignment's
+-- performer, the engagement's inquirer) / read-only (the orthogonal
+-- modifier, composable: the member reads per the scope, the write gate
+-- refuses them). The canonical spellings: NULL | 'assigned' |
+-- 'read-only' | 'assigned+read-only' (the kernel's parseOrgMemberCone
+-- owns the grammar; a malformed cell fails CLOSED — the narrowest cone,
+-- never a silent re-widen).
+--
+-- EXPAND-ONLY, as every file in this set: a new nullable column, never
+-- a renumber, never a rewrite — wrangler keys the live registry's
+-- bookkeeping on the file name.
+--
+-- THE MONOREPO MIRROR: this file is authored HERE (this repo owns the
+-- live D1 since the wave-03 cutover); the byte-identical mirror in the
+-- smart monorepo's browser/server/db/migrations/ + the kernel's
+-- schema.sql end-state land as the coordinator's follow-up in the
+-- kernel-extraction wave (agent-585's re-home of packages/platform-
+-- server). Until then the kernel's defensive ensures (the
+-- migrateAuthTables / ensureMembershipSupport posture) grow the column
+-- on the platform's dev/test stores, and the byte-identity tripwire
+-- (src/__tests__/id-migrations-ssot.test.ts) carries this file as a
+-- dated, wave-referenced local-only allowance.
+ALTER TABLE org_memberships ADD COLUMN cone TEXT;

@@ -32,6 +32,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import type { OidcClientClaimsPolicy } from '@oimlsmart/platform-server/store'
+import { encodeOrgMemberCone, type OrgMemberCone } from '@oimlsmart/platform-server/store'
 
 /** The account's OP-side role set (the federation-wide default): the
  *  full assigned set when present, else the primary role. */
@@ -121,10 +122,21 @@ export function pictureClaimForClient(
  *  of the raw account row. The CLAIM SHAPE never changes: `org` is the
  *  active org, `roles`/`groups` carry its set — an EMPTY context set
  *  omits the role claims (never an empty array on the wire — an account
- *  whose primary membership is invited/disabled emits none). */
+ *  whose primary membership is invited/disabled emits none).
+ *
+ *  TODO.identity-features/09 — the `cone` claim (the membership's data
+ *  cone, the canonical spelling — 'org-wide' when the column is NULL):
+ *  a per-client privilege like the role claims, emitted ONLY when the
+ *  client's claims policy names 'cone' AND the context resolved an org
+ *  with a membership cone. The platform enforces from its own session
+ *  resolution; the claim lets a relying party learn the posture without
+ *  a callback. The discovery document does NOT advertise it (the
+ *  wave-A sidecar posture: the OP surface contract — the committed
+ *  golden — stays byte-clean; a client that wants the cone names it in
+ *  its claims policy). */
 export function roleClaimsForContext(
   assigned: string[] | null,
-  context: { orgId: string | null; roles: string[] },
+  context: { orgId: string | null; roles: string[]; cone?: OrgMemberCone | null },
   policy: OidcClientClaimsPolicy | null,
 ): Record<string, unknown> {
   const gate = new Set(policy?.claims ?? [])
@@ -135,5 +147,8 @@ export function roleClaimsForContext(
     if (gate.has('groups')) out.groups = roles
   }
   if (gate.has('org') && context.orgId) out.org = context.orgId
+  if (gate.has('cone') && context.orgId && context.cone) {
+    out.cone = encodeOrgMemberCone(context.cone) ?? 'org-wide'
+  }
   return out
 }

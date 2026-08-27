@@ -21,6 +21,7 @@
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
+import { t } from '../../i18n'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
 
 interface JoinRequestRow {
@@ -75,12 +76,28 @@ interface MemberRow {
   accountActive: boolean
   orgId: string
   roles: string[]
+  /** TODO.identity-features/09 — the member's data cone (the parsed
+   *  posture; the membership row carries the canonical string). */
+  cone: { scope: 'org-wide' | 'assigned'; readOnly: boolean }
   state: 'invited' | 'active' | 'disabled'
   isPrimary: boolean
   invitedBy: string | null
   createdAt: string
   disabledAt: string | null
   disabledBy: string | null
+}
+
+/** The org's own audit slice row (GET /api/op/org-memberships/activity,
+ *  TODO.identity-features/09): the membership/cone/join/invite acts
+ *  naming the org, newest first. */
+interface OrgActivityRow {
+  id: string
+  timestamp: string
+  entity_type: string
+  entity_id: string
+  action: string
+  user_name?: string
+  metadata?: Record<string, unknown>
 }
 
 // ── TODO.identity/03 — the identity registry (the wide grant's surface) ──
@@ -141,6 +158,12 @@ const members = ref<MemberRow[]>([])
 /** The per-member roles editor: userId → the checked roles. */
 const memberRolesOpen = ref<string | null>(null)
 const memberRoleDrafts = ref<Record<string, string[]>>({})
+/** TODO.identity-features/09 — the per-member DATA CONE editor: userId →
+ *  the picked posture (the canonical spelling). The org's own audit
+ *  slice (the membership/cone/join acts) rides along. */
+const memberConeOpen = ref<string | null>(null)
+const memberConeDrafts = ref<Record<string, string>>({})
+const orgActivity = ref<OrgActivityRow[]>([])
 /** The "add an existing account" form (the membership invite — the
  *  holder accepts from their account console). */
 const addEmail = ref('')
@@ -252,6 +275,11 @@ async function load(): Promise<void> {
   if (grant.value === 'org') {
     const membersRes = await api('/api/op/org-memberships')
     if (membersRes.ok) members.value = ((await membersRes.json()) as { members: MemberRow[] }).members
+    // TODO.identity-features/09 — the org's own audit slice (the
+    // membership/cone/join/invite acts; the server gates it on the same
+    // org.users.manage grant).
+    const activityRes = await api('/api/op/org-memberships/activity')
+    if (activityRes.ok) orgActivity.value = ((await activityRes.json()) as { activity: OrgActivityRow[] }).activity
   }
 
   if (isWide.value) {
@@ -724,6 +752,91 @@ async function saveMemberRoles(m: MemberRow) {
   }
 }
 
+// ── TODO.identity-features/09 — the member's DATA CONE (the org
+//    administrator's answer to "what can this member see and do"). The
+//    cone only NARROWS what the roles grant — the server enforces the
+//    act (routes/op-memberships.ts's cone route), the audit slice below
+//    records it. ──
+
+/** The member's cone as the canonical spelling (the picker's value; the
+ *  parsed posture encodes — 'org-wide' is the NULL default). */
+function conePostureOf(m: MemberRow): string {
+  if (m.cone.scope === 'assigned') return m.cone.readOnly ? 'assigned+read-only' : 'assigned'
+  return m.cone.readOnly ? 'read-only' : 'org-wide'
+}
+
+/** The picker's three postures (TODO.identity-features/09 — each with
+ *  the plain-language implication; the typed catalog keys). */
+const CONE_OPTIONS = [
+  { value: 'org-wide', labelKey: 'admin.orgUsers.cone.opt.orgWide.label', hintKey: 'admin.orgUsers.cone.opt.orgWide.hint' },
+  { value: 'assigned', labelKey: 'admin.orgUsers.cone.opt.assigned.label', hintKey: 'admin.orgUsers.cone.opt.assigned.hint' },
+  { value: 'read-only', labelKey: 'admin.orgUsers.cone.opt.readOnly.label', hintKey: 'admin.orgUsers.cone.opt.readOnly.hint' },
+] as const
+
+/** The badge's i18n key for a posture spelling. */
+const CONE_BADGE_KEYS = {
+  'org-wide': 'admin.orgUsers.cone.badge.orgWide',
+  'assigned': 'admin.orgUsers.cone.badge.assigned',
+  'read-only': 'admin.orgUsers.cone.badge.readOnly',
+  'assigned+read-only': 'admin.orgUsers.cone.badge.assignedReadOnly',
+} as const
+
+function coneBadgeKey(m: MemberRow): (typeof CONE_BADGE_KEYS)[keyof typeof CONE_BADGE_KEYS] {
+  return CONE_BADGE_KEYS[conePostureOf(m) as keyof typeof CONE_BADGE_KEYS] ?? CONE_BADGE_KEYS['org-wide']
+}
+
+function openMemberCone(m: MemberRow) {
+  memberConeOpen.value = memberConeOpen.value === m.userId ? null : m.userId
+  memberConeDrafts.value[m.userId] = conePostureOf(m)
+}
+
+async function saveMemberCone(m: MemberRow) {
+  if (acting.value) return
+  acting.value = m.userId
+  error.value = null
+  notice.value = null
+  try {
+    const cone = memberConeDrafts.value[m.userId] ?? 'org-wide'
+    const res = await api(`/api/op/org-memberships/${encodeURIComponent(m.userId)}/${encodeURIComponent(m.orgId)}/cone`, {
+      method: 'PUT',
+      body: JSON.stringify({ cone }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `The data-cone update failed (${res.status}).`
+      return
+    }
+    const badgeKey = CONE_BADGE_KEYS[cone as keyof typeof CONE_BADGE_KEYS] ?? CONE_BADGE_KEYS['org-wide']
+    notice.value = t('admin.orgUsers.cone.saved', { name: m.name, cone: t(badgeKey) })
+    memberConeOpen.value = null
+    await load()
+  } catch {
+    error.value = 'Network error. Is the server running?'
+  } finally {
+    acting.value = null
+  }
+}
+
+/** The org activity slice's row label: the membership/cone acts in
+ *  words; anything else falls back to the action id (honestly). */
+function orgActivityLabel(e: OrgActivityRow): string {
+  const meta = e.metadata ?? {}
+  const email = String(meta.email ?? '')
+  switch (e.action) {
+    case 'membership.invited': return t('admin.orgUsers.activity.action.membership.invited', { email })
+    case 'membership.roles': return t('admin.orgUsers.activity.action.membership.roles', { email, roles: Array.isArray(meta.roles) ? (meta.roles as string[]).join(', ') : '' })
+    case 'membership.cone': return t('admin.orgUsers.activity.action.membership.cone', { email, cone: String(meta.cone ?? ''), previous: String(meta.previous ?? '') })
+    case 'membership.activated': return t('admin.orgUsers.activity.action.membership.activated', { email })
+    case 'membership.disabled': return t('admin.orgUsers.activity.action.membership.disabled', { email })
+    default: return e.action
+  }
+}
+
+function orgActivityWhen(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
 async function setMemberState(m: MemberRow, state: 'active' | 'disabled') {
   if (acting.value) return
   acting.value = m.userId
@@ -981,6 +1094,11 @@ onMounted(async () => {
                 </div>
                 <div class="shrink-0 flex items-center gap-3 text-xs font-medium">
                   <span
+                    class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                    :data-testid="`org-user-cone-${m.userId}`"
+                    :title="t('admin.orgUsers.cone.editorTitle')"
+                  >{{ t(coneBadgeKey(m)) }}</span>
+                  <span
                     v-if="m.state === 'invited'"
                     class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
                     :data-testid="`org-user-invited-${m.userId}`"
@@ -996,6 +1114,12 @@ onMounted(async () => {
                     class="text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
                     @click="openMemberRoles(m)"
                   >{{ memberRolesOpen === m.userId ? 'Close' : 'Roles' }}</button>
+                  <button
+                    :data-testid="`org-user-cone-edit-${m.userId}`"
+                    :disabled="acting === m.userId"
+                    class="text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
+                    @click="openMemberCone(m)"
+                  >{{ memberConeOpen === m.userId ? t('admin.orgUsers.cone.close') : t('admin.orgUsers.cone.button') }}</button>
                   <button
                     v-if="m.state !== 'invited' && m.userId !== account?.id"
                     :data-testid="`org-user-membership-toggle-${m.userId}`"
@@ -1027,6 +1151,40 @@ onMounted(async () => {
                   class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                   @click="saveMemberRoles(m)"
                 >Save the roles</button>
+              </div>
+              <!-- The data-cone editor (TODO.identity-features/09): the
+                   three postures with what each implies, honestly. The
+                   cone only narrows what the roles grant; the server
+                   re-checks the act. -->
+              <div v-if="memberConeOpen === m.userId" class="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2" :data-testid="`org-user-cone-editor-${m.userId}`">
+                <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.orgUsers.cone.editorTitle') }}</p>
+                <div class="space-y-2 mb-2">
+                  <label
+                    v-for="opt in CONE_OPTIONS"
+                    :key="opt.value"
+                    class="flex items-start gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 cursor-pointer"
+                    :class="memberConeDrafts[m.userId] === opt.value ? 'ring-1 ring-brand-500' : ''"
+                  >
+                    <input
+                      type="radio"
+                      :value="opt.value"
+                      v-model="memberConeDrafts[m.userId]"
+                      :data-testid="`org-user-cone-opt-${m.userId}-${opt.value}`"
+                      class="mt-0.5 border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500"
+                    />
+                    <span>
+                      <span class="block text-xs font-medium text-slate-800 dark:text-slate-200">{{ t(opt.labelKey) }}</span>
+                      <span class="block text-[11px] text-slate-500 dark:text-slate-400">{{ t(opt.hintKey) }}</span>
+                    </span>
+                  </label>
+                </div>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-2">{{ t('admin.orgUsers.cone.neverWidens') }}</p>
+                <button
+                  :disabled="acting === m.userId || memberConeDrafts[m.userId] === conePostureOf(m)"
+                  :data-testid="`org-user-cone-save-${m.userId}`"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                  @click="saveMemberCone(m)"
+                >{{ t('admin.orgUsers.cone.save') }}</button>
               </div>
             </li>
           </ul>
@@ -1108,6 +1266,32 @@ onMounted(async () => {
               organization — the server enforces both.
             </p>
           </div>
+        </section>
+
+        <!-- ═══ TODO.identity-features/09 — the org's own audit slice:
+             the membership / data-cone / join-queue acts naming the
+             organization (the org.users.manage grant's read, the server
+             pins it to the caller's org — never the whole journal) ═══ -->
+        <section v-if="grant === 'org'" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="org-activity">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+            {{ t('admin.orgUsers.activity.title') }} — {{ grantOrgName ?? '' }}
+          </h2>
+          <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.orgUsers.activity.intro') }}</p>
+          <p v-if="!orgActivity.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="org-activity-empty">
+            {{ t('admin.orgUsers.activity.empty') }}
+          </p>
+          <ul v-else class="space-y-1" data-testid="org-activity-list">
+            <li
+              v-for="e in orgActivity"
+              :key="e.id"
+              class="text-xs text-slate-600 dark:text-slate-300"
+              :data-testid="`org-activity-${e.id}`"
+            >
+              <span class="text-slate-400 dark:text-slate-500">{{ orgActivityWhen(e.timestamp) }}</span>
+              · <span class="font-medium">{{ e.user_name ?? '—' }}</span>
+              {{ orgActivityLabel(e) }}
+            </li>
+          </ul>
         </section>
 
         <!-- ═══ TODO.identity/03 — the identity registry (the scheme

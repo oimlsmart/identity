@@ -126,6 +126,7 @@ import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, type RegistryOrg } from '../auth/org-registry'
 import { listOrgSigningKeys } from '../auth/org-signing-keys'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
+import { orgAuditSlice } from '../auth/op/org-audit'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
 /** The audit actions the registry's activity feed surfaces: the identity
@@ -846,11 +847,16 @@ export function createOpRegistryRouter(): Hono {
     if (!org) {
       return c.json({ error: `organization '${orgId}' is not on the organization registry` }, 404)
     }
-    const [memberships, users, requests, auditRows] = await Promise.all([
+    const [memberships, users, requests, activity] = await Promise.all([
       store.listOrgMembers(orgId),
       store.listUsers(),
       store.listOrgJoinRequests({ scope: 'org', orgId }),
-      store.listEntities('auditEvents'),
+      // The org's own audit slice (TODO.identity-features/09 — the one
+      // computation the org admin's grant-gated slice shares,
+      // auth/op/org-audit.ts): the lifecycle acts + the membership
+      // (roles, lifecycle, CONE) + join-request + org-invite acts naming
+      // the org, newest first, 50 deep.
+      orgAuditSlice(store, orgId),
     ])
     const byId = new Map(users.map(u => [u.id, u]))
     // The manufacturer standing's endorsements (TODO.register/01): the
@@ -882,18 +888,9 @@ export function createOpRegistryRouter(): Hono {
       revokedAt: k.revokedAt,
       revokedBy: k.revokedBy,
     }))
-    // The org's own audit slice: its lifecycle acts (entity_type
-    // 'organization'), the membership + join-request + org-invite acts
-    // NAMING the org (the metadata's org_id).
-    const activity = auditRows
-      .map(row => parseAuditEvent(row.data))
-      .filter((e): e is AuditEvent => !!e && (
-        (e.entity_type === 'organization' && e.entity_id === orgId)
-        || ((e.entity_type === 'org_memberships' || e.entity_type === 'org_join_requests' || e.action.startsWith('org_invite.'))
-          && e.metadata?.org_id === orgId)
-      ))
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-      .slice(0, 50)
+    // The org's own audit slice (auth/op/org-audit.ts — computed in the
+    // Promise.all above; the org administrator's grant-gated endpoint
+    // answers the SAME slice, routes/op-memberships.ts).
     return c.json({
       org: {
         id: org.id,
@@ -927,6 +924,7 @@ export function createOpRegistryRouter(): Hono {
           accountActive: account?.active ?? false,
           orgId: m.orgId,
           roles: m.roles,
+          cone: m.cone,
           state: m.state,
           isPrimary: m.isPrimary,
           invitedBy: m.invitedBy,
