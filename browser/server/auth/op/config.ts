@@ -28,7 +28,11 @@
 //                         never registers it.
 //   OP_CLIENT_SEED        the client registry's bootstrap: a JSON array
 //                         of { client_id, name, secret?, redirect_uris,
-//                         claims_policy? } upserted at boot (registry.ts).
+//                         claims_policy? } upserted at boot (registry.ts);
+//                         the DEVICE class (the machine cone,
+//                         auth/op/device-clients.ts) seeds as
+//                         { client_id, name, class: "device", secret,
+//                         device: { id, org, instrument_model } }.
 //                         Admin-managed afterwards (03 fleshes the UI
 //                         out); a Worker secret when it carries secrets.
 //

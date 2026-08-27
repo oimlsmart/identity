@@ -115,11 +115,21 @@ function describe(event: AuditEvent): string {
     case 'upstream_unlink': return `unlinked ${String(meta.provider ?? '')}`
     case 'upstream_refused': return `a ${String(meta.provider ?? '')} sign-in was refused (${String(meta.reason ?? '')}): ${String(meta.handle ?? '')}`
     case 'upstream_link_conflict': return `a ${String(meta.provider ?? '')} link hit a conflict: ${String(meta.handle ?? '')}`
-    case 'client.registered': return `registered the relying party ${event.entity_id} (${meta.confidential ? 'confidential' : 'public'}; claims: ${(meta.claims as string[] ?? []).join(', ') || 'profile + email'})`
-    case 'client.token_issued': return `the token endpoint issued tokens for ${event.entity_id} (scope ${String(meta.scope ?? '')})`
+    case 'client.registered': {
+      if (meta.class === 'device') {
+        const device = (meta.device ?? {}) as Record<string, unknown>
+        return `registered the device client ${event.entity_id} (device ${String(device.id ?? '')}, org ${String(device.org ?? '')}, model ${String(device.instrument_model ?? '')})`
+      }
+      return `registered the relying party ${event.entity_id} (${meta.confidential ? 'confidential' : 'public'}; claims: ${(meta.claims as string[] ?? []).join(', ') || 'profile + email'})`
+    }
+    case 'client.token_issued': return meta.class === 'device'
+      ? `the token endpoint minted the device token for ${event.entity_id} (device ${String((meta.device as string | undefined) ?? '')}, org ${String((meta.org as string | undefined) ?? '')})`
+      : `the token endpoint issued tokens for ${event.entity_id} (scope ${String(meta.scope ?? '')})`
     case 'client.token_refused': return `the token endpoint refused ${event.entity_id} (${String(meta.error ?? '')})`
-    case 'client.updated': return `updated the relying party ${event.entity_id}${meta.rekeyed ? ' (re-keyed)' : ''}${meta.made_public ? ' (made public)' : ''}`
-    case 'client.status': return `set the relying party ${event.entity_id} to ${String(meta.status ?? '')}`
+    case 'client.updated': return meta.class === 'device'
+      ? `updated the device client ${event.entity_id}${meta.rekeyed ? ' (the secret rotated — the old one stops working at once)' : ''}`
+      : `updated the relying party ${event.entity_id}${meta.rekeyed ? ' (re-keyed)' : ''}${meta.made_public ? ' (made public)' : ''}`
+    case 'client.status': return `set ${meta.class === 'device' ? 'the device client' : 'the relying party'} ${event.entity_id} to ${String(meta.status ?? '')}`
     case 'provider.registered': return `registered the sign-in provider ${event.entity_id}`
     case 'provider.updated': return `updated the sign-in provider ${event.entity_id}`
     case 'provider.status': return `${meta.enabled ? 'enabled' : 'disabled'} the sign-in provider ${event.entity_id}`

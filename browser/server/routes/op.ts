@@ -27,6 +27,13 @@
 //                                            code + PKCE verify + the
 //                                            client's secret → the signed
 //                                            ES256 ID token + access token;
+//                                            ALSO the device class's cone
+//                                            (grant_type=client_credentials,
+//                                            device-class clients only → the
+//                                            self-contained device JWT —
+//                                            auth/op/device-clients.ts; the
+//                                            RP-facing wire is unchanged —
+//                                            the contract golden holds);
 //   GET  /op/userinfo                      — the access token's claims;
 //   GET  /op/avatar/<account id>           — the PUBLIC avatar serve (no
 //                                            session — the `picture`
@@ -56,6 +63,11 @@ import { claimsContextFor } from '../auth/op/memberships'
 import { avatarKeys, AVATAR_PUBLIC_CACHE, initialsAvatarSvg } from '../auth/op/avatars'
 import { getBlobStore } from '../blobs'
 import { validateLaunch, type LaunchInput } from '../auth/op/launch'
+import {
+  DEVICE_CLASS, deviceClassOf, deviceTokenClaims, validateDeviceBlock,
+  type DeviceClientClaims, type OpClientPolicy,
+} from '../auth/op/device-clients'
+import { resolveRegistryOrg } from '../auth/org-registry'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
 import { SESSION_COOKIE, sessionUser } from '@oimlsmart/platform-server/session'
 import { getCookie } from 'hono/cookie'
@@ -226,6 +238,14 @@ export function createOpRouter(): Hono {
     const client = await getStore().getOidcClient(clientId)
     if (!client || client.status !== 'active') {
       return authorizeRefusal(c, 'Cannot authorize this request', `The client <code>${escapeHtml(clientId)}</code> is not registered on this identity provider (or is disabled).`)
+    }
+
+    // 1b. The device class (the machine cone, auth/op/device-clients.ts)
+    //     never enters a sign-in flow: it speaks client_credentials at the
+    //     token endpoint, nothing here. Refused IN PLACE — a device has no
+    //     registered redirect URI, so no error redirect could ever be safe.
+    if (deviceClassOf(client.claimsPolicy)) {
+      return authorizeRefusal(c, 'Cannot authorize this request', `The client <code>${escapeHtml(clientId)}</code> is a device client — it authenticates with its secret at the token endpoint (client_credentials), never through a sign-in flow.`)
     }
 
     // 2. The redirect URI must be registered EXACTLY — an unregistered
@@ -413,10 +433,11 @@ export function createOpRouter(): Hono {
 
   // ── token ────────────────────────────────────────────────────────
 
-  /** The token endpoint's client authentication: HTTP Basic
-   *  (client_secret_basic) or the form's client_secret (post). Public
-   *  clients (no registered secret) authenticate by client_id + PKCE. */
-  async function authenticateClient(c: Context, form: URLSearchParams): Promise<{ client: OidcClient | null; error: Response | null }> {
+  /** The PRESENTED client credentials (never verified here): HTTP Basic
+   *  (client_secret_basic) or the form's pair. The token endpoint reads
+   *  the client id BEFORE the grant dispatch (the device class's cone is
+   *  decided per client); the secret verify stays per path. */
+  function presentedClientCredentials(c: Context, form: URLSearchParams): { clientId: string; secret: string | null; error: Response | null } {
     let clientId = form.get('client_id') ?? ''
     let secret = form.get('client_secret')
     const basic = c.req.header('authorization')
@@ -425,7 +446,7 @@ export function createOpRouter(): Hono {
       try {
         decoded = atob(basic.slice(6))
       } catch {
-        return { client: null, error: oidcError(c, 401, 'invalid_client', 'the Authorization header is not valid Basic') }
+        return { clientId: '', secret: null, error: oidcError(c, 401, 'invalid_client', 'the Authorization header is not valid Basic') }
       }
       const idx = decoded.indexOf(':')
       clientId = decodeURIComponent(decoded.slice(0, idx))
@@ -433,6 +454,16 @@ export function createOpRouter(): Hono {
       // The RP sends the secret percent-encoded per RFC 6749 §2.3.1.
       try { secret = decodeURIComponent(secret) } catch { /* a literal secret stands */ }
     }
+    return { clientId, secret, error: null }
+  }
+
+  /** The token endpoint's client authentication: HTTP Basic
+   *  (client_secret_basic) or the form's client_secret (post). Public
+   *  clients (no registered secret) authenticate by client_id + PKCE. */
+  async function authenticateClient(c: Context, form: URLSearchParams): Promise<{ client: OidcClient | null; error: Response | null }> {
+    const creds = presentedClientCredentials(c, form)
+    if (creds.error) return { client: null, error: creds.error }
+    const { clientId, secret } = creds
     if (!clientId) {
       return { client: null, error: oidcError(c, 401, 'invalid_client', 'no client authentication (client_secret_basic or a public client_id) presented') }
     }
@@ -469,7 +500,65 @@ export function createOpRouter(): Hono {
       return oidcError(c, 400, 'invalid_request', 'the token endpoint speaks application/x-www-form-urlencoded')
     }
     const form = new URLSearchParams(await c.req.raw.text())
-    if (form.get('grant_type') !== 'authorization_code') {
+    const grantType = form.get('grant_type')
+
+    // ── the machine cone: client_credentials, the device class ONLY ──
+    // (auth/op/device-clients.ts). The OIDC wire the RPs pin is UNCHANGED:
+    // a request naming no client, an unknown client, or an APPLICATION
+    // client gets the pre-device answer (unsupported_grant_type /
+    // invalid_client exactly as before — the contract gate's golden holds
+    // byte-identical). Only a registered, active DEVICE client presenting
+    // its secret mints: a self-contained ES256 JWT access token (the twin
+    // endpoints validate it against the OP's JWKS — no call-back), the
+    // device claims exactly, never an ID token, never a user claim.
+    if (grantType === 'client_credentials') {
+      const creds = presentedClientCredentials(c, form)
+      if (creds.error) {
+        await audit('client.token_refused', 'unauthenticated', {}, { error: 'invalid_client' })
+        return creds.error
+      }
+      if (!creds.clientId) {
+        return refuseToken(400, 'unsupported_grant_type', 'authorization_code only')
+      }
+      const deviceClient = await store.getOidcClient(creds.clientId)
+      if (!deviceClient || deviceClient.status !== 'active') {
+        await audit('client.token_refused', creds.clientId, {}, { error: 'invalid_client' })
+        return oidcError(c, 401, 'invalid_client', 'unknown or disabled client')
+      }
+      const device = deviceClassOf(deviceClient.claimsPolicy)
+      if (!device) {
+        return refuseToken(400, 'unsupported_grant_type', 'authorization_code only (client_credentials is the device class’s cone)', deviceClient.clientId)
+      }
+      // The device authenticates with its secret — the class is always
+      // confidential (the registry refuses a public device at write), so a
+      // secret-less row here is a hand-edit: refused, never guessed.
+      if (!deviceClient.secretHash || !creds.secret || !(await verifyClientSecret(creds.secret, deviceClient.secretHash))) {
+        await audit('client.token_refused', deviceClient.clientId, {}, { error: 'invalid_client', class: DEVICE_CLASS })
+        return oidcError(c, 401, 'invalid_client', 'the client secret does not verify')
+      }
+      const deviceKey = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+      // The first-use registration rides the SAME gate as the auth-code
+      // path (identity#7): a generated development key never enters the
+      // keyset on a declared-issuer deployment.
+      if (maySelfRegisterOpKey(deviceKey, config)) {
+        await ensureOpKeyRegistered(store, deviceKey)
+      } else {
+        warnDevKeyRegistrationSkipped('/op/token', deviceKey)
+      }
+      const deviceToken = await signOpIdToken(deviceKey, deviceTokenClaims(deviceClient.clientId, device, config))
+      // The issuance lands on the audit chain, naming the DEVICE (never
+      // the token value, never the secret).
+      await audit('client.token_issued', deviceClient.clientId, {}, {
+        class: DEVICE_CLASS, device: device.id, org: device.org, instrument_model: device.instrument_model,
+      })
+      return c.json({
+        access_token: deviceToken,
+        token_type: 'Bearer',
+        expires_in: config.accessTokenTtlMs / 1000,
+      })
+    }
+
+    if (grantType !== 'authorization_code') {
       return refuseToken(400, 'unsupported_grant_type', 'authorization_code only', form.get('client_id') ?? undefined)
     }
 
@@ -477,6 +566,14 @@ export function createOpRouter(): Hono {
     if (error) {
       await audit('client.token_refused', form.get('client_id')?.trim() || 'unauthenticated', {}, { error: 'invalid_client' })
       return error
+    }
+
+    // A device client never redeems an authorization code (the class
+    // speaks client_credentials only) — refused BEFORE the one-time code
+    // is consumed, so a confused-deputy mixup never burns another flow's
+    // code.
+    if (deviceClassOf(client!.claimsPolicy)) {
+      return refuseToken(400, 'unsupported_grant_type', 'the device class speaks client_credentials only — never an authorization code', client!.clientId)
     }
 
     // The one-time code — consumed ATOMICALLY here, so whatever fails
@@ -706,15 +803,20 @@ export function createOpRouter(): Hono {
     return { user, error: null }
   }
 
-  /** A registry row's PUBLIC view (never the secret hash). */
+  /** A registry row's PUBLIC view (never the secret hash). The device
+   *  class (the machine cone) reads honestly: `class` + the bound device
+   *  block derive from the stored policy. */
   function clientView(client: OidcClient) {
+    const device = deviceClassOf(client.claimsPolicy)
     return {
       clientId: client.clientId,
       name: client.name,
+      class: device ? DEVICE_CLASS : 'application',
+      device,
       redirectUris: client.redirectUris,
       claimsPolicy: client.claimsPolicy,
       // The SSO home's launch card (null = the client is not on the
-      // launcher).
+      // launcher — the device class NEVER is).
       launch: client.launch,
       confidential: !!client.secretHash,
       status: client.status,
@@ -737,6 +839,16 @@ export function createOpRouter(): Hono {
   // `generate_secret: true` (TODO.identity/07's wizard) mints the secret
   // server-side instead: the plaintext rides the response ONCE, only its
   // hash is stored; the two secret postures never mix in one call.
+  //
+  // THE DEVICE CLASS (the machine cone, auth/op/device-clients.ts):
+  // `class: "device"` registers a NON-HUMAN, per-device client —
+  // client_credentials only, always confidential, no redirect_uris, no
+  // launch card, no user claims, binding `device: { id, org,
+  // instrument_model }` (the org must resolve on the organization
+  // registry — the token's org claim names an org this OP knows). The
+  // class is FIXED AT REGISTRATION: an edit never declares a class the
+  // stored row does not carry (an application row refuses `class:
+  // "device"`; a device row's edit omits `class` and stays device).
   op.post('/api/op/clients', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error || !gate.user) return gate.error!
@@ -748,6 +860,8 @@ export function createOpRouter(): Hono {
       redirect_uris?: string[]
       claims_policy?: { claims?: unknown; roles?: unknown } | null
       launch?: LaunchInput | null
+      class?: unknown
+      device?: unknown
     }>().catch(() => null)
     if (!body || typeof body.client_id !== 'string' || !body.client_id.trim()) {
       return c.json({ error: 'client_id is required' }, 400)
@@ -755,11 +869,62 @@ export function createOpRouter(): Hono {
     if (typeof body.name !== 'string' || !body.name.trim()) {
       return c.json({ error: 'name is required' }, 400)
     }
-    if (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0 || body.redirect_uris.some(u => typeof u !== 'string' || !u)) {
-      return c.json({ error: 'redirect_uris must be a non-empty list of exact URIs' }, 400)
+
+    // The class resolution (fixed at registration): the stored row's
+    // class wins on an edit; a create takes the body's declaration.
+    const existing = await getStore().getOidcClient(body.client_id.trim())
+    const existingDevice = deviceClassOf(existing?.claimsPolicy ?? null)
+    if (body.class !== undefined && body.class !== DEVICE_CLASS) {
+      return c.json({ error: `class must be "${DEVICE_CLASS}" when declared (absent = the application class)` }, 400)
     }
-    for (const uri of body.redirect_uris) {
-      try { new URL(uri) } catch { return c.json({ error: `redirect_uris entry ${JSON.stringify(uri)} is not an absolute URI` }, 400) }
+    if (existing && !existingDevice && body.class === DEVICE_CLASS) {
+      return c.json({ error: `the client class is fixed at registration — ${existing.clientId} is the application class; register a fresh client for the device` }, 400)
+    }
+    const isDevice = existing ? existingDevice !== null : body.class === DEVICE_CLASS
+
+    // THE DEVICE CLASS's shape (the registry enforces it at write — the
+    // token endpoint then trusts the class).
+    let deviceBlock: DeviceClientClaims | null = null
+    if (isDevice) {
+      if (body.device !== undefined) {
+        const { device, error } = validateDeviceBlock(body.device)
+        if (error) return c.json({ error }, 400)
+        deviceBlock = device
+      } else {
+        deviceBlock = existingDevice // the edit keeps the stored binding
+      }
+      if (!deviceBlock) {
+        return c.json({ error: 'the device class binds a device: device: { id, org, instrument_model } is required' }, 400)
+      }
+      // The org claim the twin endpoints consume names an org this OP
+      // actually knows — resolved against the organization registry.
+      if (!(await resolveRegistryOrg(getStore(), deviceBlock.org))) {
+        return c.json({ error: `device.org '${deviceBlock.org}' is not on the organization registry — the device token's org claim must name an org this OP knows` }, 400)
+      }
+      if (body.redirect_uris !== undefined && (!Array.isArray(body.redirect_uris) || body.redirect_uris.length > 0)) {
+        return c.json({ error: 'the device class carries no redirect_uris (nothing redirects — client_credentials only)' }, 400)
+      }
+      if (body.launch) {
+        return c.json({ error: 'a device client never joins the SSO home (the launcher is a human surface) — no launch card' }, 400)
+      }
+      const deviceClaims = body.claims_policy?.claims
+      if ((Array.isArray(deviceClaims) && deviceClaims.length > 0) || body.claims_policy?.roles !== undefined) {
+        return c.json({ error: 'the device class’s claims are fixed by the class (the device id, its org, its instrument model) — the policy never carries user claims' }, 400)
+      }
+      if (body.secret === null) {
+        return c.json({ error: 'a device client is confidential — it never goes public (the secret is the device’s credential)' }, 400)
+      }
+      if (!existing && body.generate_secret !== true && !(typeof body.secret === 'string' && body.secret)) {
+        return c.json({ error: 'a device client is confidential — pass generate_secret (the server mints it, shown once) or secret' }, 400)
+      }
+    } else {
+      // THE APPLICATION CLASS (the relying-party posture — unchanged).
+      if (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0 || body.redirect_uris.some(u => typeof u !== 'string' || !u)) {
+        return c.json({ error: 'redirect_uris must be a non-empty list of exact URIs' }, 400)
+      }
+      for (const uri of body.redirect_uris) {
+        try { new URL(uri) } catch { return c.json({ error: `redirect_uris entry ${JSON.stringify(uri)} is not an absolute URI` }, 400) }
+      }
     }
     if (body.claims_policy != null && (!Array.isArray(body.claims_policy?.claims) || body.claims_policy.claims.some(x => typeof x !== 'string'))) {
       return c.json({ error: 'claims_policy.claims must be a list of claim names (roles, groups, org, picture)' }, 400)
@@ -767,7 +932,8 @@ export function createOpRouter(): Hono {
     // TODO.identity/03 — the optional role allowlist: the closed set of
     // roles the ID token may carry for this client. A role outside the
     // platform vocabulary is a configuration bug, refused loudly (the OP
-    // would never emit it anyway — better to fail at write time).
+    // would never emit it anyway — better to fail at write time). The
+    // device class never names it (the class check above already refused).
     const policyRoles = body.claims_policy?.roles
     if (policyRoles !== undefined) {
       if (!Array.isArray(policyRoles) || policyRoles.some(r => typeof r !== 'string')) {
@@ -784,7 +950,8 @@ export function createOpRouter(): Hono {
     // The SSO home's launch card (OPTIONAL): absent leaves the stored
     // metadata untouched (the protocol fields edit never disturbs the
     // launcher); null takes the client OFF the launcher; an object sets
-    // the card, validated like the seed (auth/op/launch.ts).
+    // the card, validated like the seed (auth/op/launch.ts). The device
+    // class refused the card above.
     let launchWrite: OidcClientLaunch | null | undefined = undefined
     if (body.launch === null) launchWrite = null
     else if (body.launch !== undefined) {
@@ -793,7 +960,6 @@ export function createOpRouter(): Hono {
       launchWrite = launch
     }
 
-    const existing = await getStore().getOidcClient(body.client_id.trim())
     const generatedSecret = body.generate_secret === true ? opRandomToken() : null
     const secretHash = generatedSecret
       ? await hashClientSecret(generatedSecret)
@@ -802,17 +968,22 @@ export function createOpRouter(): Hono {
         : body.secret === null
           ? null
           : existing?.secretHash ?? null
-    const client = await getStore().upsertOidcClient({
-      clientId: body.client_id.trim(),
-      name: body.name.trim(),
-      secretHash,
-      redirectUris: body.redirect_uris,
-      claimsPolicy: body.claims_policy
+    // The device class marker + block ride the policy JSON (the store seam
+    // round-trips it opaquely — the data-level extension).
+    const policy: OpClientPolicy | null = isDevice
+      ? { claims: [], class: DEVICE_CLASS, device: deviceBlock! }
+      : body.claims_policy
         ? {
             claims: body.claims_policy.claims as string[],
             ...(policyRoles ? { roles: policyRoles as string[] } : {}),
           }
-        : null,
+        : null
+    const client = await getStore().upsertOidcClient({
+      clientId: body.client_id.trim(),
+      name: body.name.trim(),
+      secretHash,
+      redirectUris: isDevice ? [] : body.redirect_uris!,
+      claimsPolicy: policy,
       createdBy: gate.user.email,
     })
     // The launch card rides its own write (the upsert never touches the
@@ -822,6 +993,10 @@ export function createOpRouter(): Hono {
       : (await getStore().setOidcClientLaunch(client.clientId, launchWrite))!
     await audit(existing ? 'client.updated' : 'client.registered', client.clientId, { userId: gate.user.id, userName: gate.user.name }, {
       name: client.name,
+      class: isDevice ? DEVICE_CLASS : 'application',
+      // The device act names the device (register / rotate-secret /
+      // revoke all read off the same chain).
+      ...(isDevice && deviceBlock ? { device: deviceBlock } : {}),
       confidential: !!client.secretHash,
       rekeyed: !!generatedSecret || typeof body.secret === 'string',
       made_public: body.secret === null,
@@ -839,6 +1014,8 @@ export function createOpRouter(): Hono {
 
   // POST /api/op/clients/:id/status — enable/disable. A disabled client
   // is refused at authorize AND token, its rows kept (the audit trail).
+  // On a device client the disable IS the revocation (the machine cone
+  // has no other lifecycle act — the chain names the class honestly).
   op.post('/api/op/clients/:id/status', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error || !gate.user) return gate.error!
@@ -848,7 +1025,12 @@ export function createOpRouter(): Hono {
     }
     const client = await getStore().setOidcClientStatus(c.req.param('id'), body.status)
     if (!client) return c.json({ error: 'not found' }, 404)
-    await audit('client.status', client.clientId, { userId: gate.user.id, userName: gate.user.name }, { status: client.status })
+    const device = deviceClassOf(client.claimsPolicy)
+    await audit('client.status', client.clientId, { userId: gate.user.id, userName: gate.user.name }, {
+      status: client.status,
+      class: device ? DEVICE_CLASS : 'application',
+      ...(device ? { device: device.id, org: device.org } : {}),
+    })
     return c.json(clientView(client))
   })
 

@@ -32,6 +32,7 @@ import { createOpKeysRouter } from './routes/op-keys'
 import { createOpRegistryRouter } from './routes/op-registry'
 import { createOpDashboardRouter } from './routes/op-dashboard'
 import { createOpHomeRouter } from './routes/op-home'
+import { createOpWhoamiRouter } from './routes/op-whoami'
 import { createUsersRouter } from './routes/users'
 import { createAuthLeanRouter, opDemoAccountsEnabled } from './routes/auth-lean'
 import { createOpRateLimiter } from './rate-limit'
@@ -128,6 +129,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // visibility computed on the client registry's launch metadata) and
   // the request-access intake.
   app.route('/', createOpHomeRouter())
+  // The whoami beacon (the estate's SSO-UX last mile): the static
+  // properties' account chips read the OP session's minimal projection,
+  // CORS-gated on the registered clients' declared origins.
+  app.route('/', createOpWhoamiRouter())
   // The users surface (TODO.identity/10's org-scoped grant): the
   // org-admin consoles' data source. The router is the monorepo's
   // routes/users.ts moved byte-identical — its instance-wide half
