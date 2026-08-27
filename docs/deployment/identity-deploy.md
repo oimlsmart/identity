@@ -137,8 +137,9 @@ exactly; the registry is untouched either way and live sessions survive
 unchanged, and `OP_SIGNING_KEY` is account-side Worker state no deploy
 disturbs).
 
-**The migration contract**: migrations under
-`browser/server/db/migrations/` are expand-only (new tables, new
+**The migration contract**: the migration set ships in the kernel
+package (`node_modules/@oimlsmart/platform-server/migrations/`) and is
+expand-only (new tables, new
 columns with defaults, never a drop or a narrowing rename) and anything
 destructive waits for a two-release overlap, so a rollback never meets
 a schema it cannot read. The workflow applies migrations forward only;
@@ -149,10 +150,10 @@ the production gate refuses a deploy while the live registry shows an
 unapplied file, so a change carrying a migration lands in two deliberate
 steps:
 
-1. Merge the change. The migration file rides the repo set (kept
-   byte-identical with the smart monorepo's set — wrangler keys the
-   bookkeeping on filenames, so the set appends expand-only and never
-   renumbers).
+1. Merge the change. The migration file rides the KERNEL package's set
+   (oimlsmart/platform-server's `migrations/`, released as a version
+   bump this repo pins — wrangler keys the bookkeeping on filenames, so
+   the set appends expand-only and never renumbers).
 2. Apply it to the live registry OUT OF BAND, before tagging:
 
    ```bash

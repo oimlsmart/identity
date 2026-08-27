@@ -12,12 +12,13 @@ identity contract lives here; the RP half stays with the platform (every
 platform instance is an RP of this OP).
 
 The shared server machinery (the store seam, the instance profile, the
-mailer, RBAC, the OIDC/OAuth client cones, the role vocabulary) is the
-kernel package `@oimlsmart/platform-server`, owned by the smart
-monorepo. Until its first npm publish lands, this repo consumes it
-through the sibling checkout at `x/oimlsmart/smart` (the `x/` doctrine:
-the dependency is a declared `file:` position, never a probe); CI checks
-it out at the same path. ZERO store-implementation code lives here.
+mailer, RBAC, the OIDC/OAuth client cones, the role vocabulary, and the
+canonical D1 migration set) is the kernel package
+`@oimlsmart/platform-server`, owned by its own repository
+(`oimlsmart/platform-server`, extracted from the smart monorepo in
+TODO.repos/01 with the package's history) and consumed from npm by
+semver (`^0.1.0`): the version pin IS the contract between the repos.
+ZERO store-implementation code lives here.
 
 ## Command gates (all must stay green)
 
@@ -42,10 +43,13 @@ before it can reach a relying party.
 - **The account registry never moves.** The live D1
   (`oiml-smart-platform-identity`) is owned by THIS repo's deployment
   since the wave-03 cutover (2026-08-24, tag `id-v2026.08.24-1`); the
-  monorepo's OP code is inert pending the wave-04 retirement.
-  `browser/server/db/migrations/` is byte-identical with the
-  monorepo's set and wrangler keys the bookkeeping on filenames: future
-  files append expand-only, never renumber.
+  monorepo's OP code is inert pending the wave-04 retirement. The
+  migration set ships in the kernel package
+  (`node_modules/@oimlsmart/platform-server/migrations`, the
+  `migrations_dir` in `browser/wrangler.toml`) and wrangler keys the
+  bookkeeping on filenames: future files append expand-only in the
+  KERNEL repo, never renumber, and a kernel bump lands here as a normal
+  dependency PR.
 - **The issuer is load-bearing.** `OP_ISSUER=https://id.oimlsmart.org`
   in production: every RP's `OIDC_ISSUER` and every token's `iss` name
   it. Never repoint it outside the cutover plan.
@@ -53,9 +57,10 @@ before it can reach a relying party.
   deploy-identity.yml (contract gate, the identity e2e legs, the preview
   environment, then production on required reviewers). Never add a
   branch-push deploy trigger.
-- **The kernel is consumed, never vendored.** Changes that need
-  store/profile/mailer machinery land in the smart monorepo's
-  `packages/platform-server`, never as copies here.
+- **The kernel is consumed by semver, never vendored.** Changes that
+  need store/profile/mailer machinery land in
+  `oimlsmart/platform-server` and arrive here as a version bump, never
+  as copies here.
 - **No secrets in the repo.** `OP_SIGNING_KEY`, `MAIL_PROVIDER_KEY`,
   the upstream-provider client pairs: Worker secrets, declared with
   `wrangler secret put`. The runbooks name them; the code never carries

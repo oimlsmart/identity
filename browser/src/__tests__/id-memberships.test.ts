@@ -25,10 +25,10 @@
 
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { MIGRATIONS_DIR } from '@oimlsmart/platform-server/store/sqlite'
 
 // The store's DB path is read at module evaluation — set it before any
 // import below touches @oimlsmart/platform-server/store/sqlite (the imports are dynamic).
@@ -58,8 +58,6 @@ const CLIENT_CONE = {
   claims_policy: { claims: ['roles', 'groups', 'org', 'cone'] },
 }
 process.env.OP_CLIENT_SEED = JSON.stringify([CLIENT, CLIENT_CONE])
-
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'server', 'db', 'migrations')
 
 let app: import('hono').Hono
 let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>

@@ -1,7 +1,5 @@
-# The sibling checkouts (the x/ doctrine): the platform-server kernel
-# resolves through x/oimlsmart/smart until the first npm publish. Never
-# committed; CI checks it out at the same declared path.
-x/
+# (The x/ sibling-checkout doctrine retired with TODO.repos/01: the
+# platform-server kernel resolves from npm. Nothing to ignore.)
 
 # OS files
 .DS_Store
