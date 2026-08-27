@@ -126,6 +126,15 @@ families:
 - `roles` — the account's estate role codes (see §6 for the vocabulary).
 - `groups` — the account's group memberships.
 - `org` — the account's registered organization affiliation.
+- `cone` — the active-org membership's **data cone**
+  (TODO.identity-features/09): the org administrator's per-member
+  posture — `org-wide` (the default), `assigned` (the member sees the
+  org's rows only where named), `read-only` or `assigned+read-only`
+  (writes refused). The claim appears only when your client's policy
+  names the family AND the context resolved an org membership; the
+  platform instances enforce from their own session resolution (the
+  claim lets any RP learn the posture without a callback). The
+  discovery document deliberately does not advertise it in wave A.
 - `picture`: the absolute URL of the account's avatar under the issuer
   (`{issuer}/op/avatar/<sub>`). The serve is PUBLIC (no session; the
   GitHub-avatars convention), so your UI can load it from a plain
