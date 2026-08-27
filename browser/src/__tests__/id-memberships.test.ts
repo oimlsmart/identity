@@ -39,7 +39,10 @@ const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
 // The registry's bootstrap seed: one confidential client carrying the
-// role-claim policy (org included — the claims proof's reader).
+// role-claim policy (org included — the claims proof's reader), and a
+// SECOND client whose policy names 'cone' (TODO.identity-features/09 —
+// the cone claim's presence proof; the first client's policy never names
+// it — the absence proof, the golden's byte-clean posture).
 const CLIENT = {
   client_id: 'fixture-rp',
   name: 'The membership fixture RP',
@@ -47,7 +50,14 @@ const CLIENT = {
   redirect_uris: ['http://rp.example/callback'],
   claims_policy: { claims: ['roles', 'groups', 'org'] },
 }
-process.env.OP_CLIENT_SEED = JSON.stringify([CLIENT])
+const CLIENT_CONE = {
+  client_id: 'fixture-rp-cone',
+  name: 'The cone-gated fixture RP',
+  secret: 'fixture-rp-cone-secret',
+  redirect_uris: ['http://rp-cone.example/callback'],
+  claims_policy: { claims: ['roles', 'groups', 'org', 'cone'] },
+}
+process.env.OP_CLIENT_SEED = JSON.stringify([CLIENT, CLIENT_CONE])
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'server', 'db', 'migrations')
 
@@ -101,14 +111,15 @@ function decodePayload(idToken: string): Record<string, unknown> {
 }
 
 /** Drive authorize → consent → decide → the code exchange; answers the
- *  ID token's claims + userinfo. THE CLAIMS PROOF's drive. */
-async function roundTrip(cookie: string): Promise<{ idToken: Record<string, unknown>; userinfo: Record<string, unknown>; consent: Record<string, unknown> }> {
+ *  ID token's claims + userinfo. THE CLAIMS PROOF's drive. The client
+ *  parameterizes (the cone-gated second fixture rides the same flow). */
+async function roundTrip(cookie: string, client = CLIENT): Promise<{ idToken: Record<string, unknown>; userinfo: Record<string, unknown>; consent: Record<string, unknown> }> {
   const verifier = 'membership-verifier-9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f'
   const challenge = Buffer.from(
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)),
   ).toString('base64url')
   const authorize = await app.request(`${ISSUER}/op/authorize?${new URLSearchParams({
-    response_type: 'code', client_id: CLIENT.client_id, redirect_uri: CLIENT.redirect_uris[0]!,
+    response_type: 'code', client_id: client.client_id, redirect_uri: client.redirect_uris[0]!,
     scope: 'openid profile email', state: 'st', nonce: 'nn',
     code_challenge: challenge, code_challenge_method: 'S256',
   })}`, { headers: { cookie }, redirect: 'manual' } as never)
@@ -128,11 +139,11 @@ async function roundTrip(cookie: string): Promise<{ idToken: Record<string, unkn
     method: 'POST',
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
-      authorization: `Basic ${btoa(`${encodeURIComponent(CLIENT.client_id)}:${encodeURIComponent(CLIENT.secret)}`)}`,
+      authorization: `Basic ${btoa(`${encodeURIComponent(client.client_id)}:${encodeURIComponent(client.secret)}`)}`,
     },
     body: new URLSearchParams({
-      grant_type: 'authorization_code', code, redirect_uri: CLIENT.redirect_uris[0]!,
-      client_id: CLIENT.client_id, code_verifier: verifier,
+      grant_type: 'authorization_code', code, redirect_uri: client.redirect_uris[0]!,
+      client_id: client.client_id, code_verifier: verifier,
     }),
   })
   const tokens = await json(exchange, 200)
@@ -227,9 +238,12 @@ afterAll(() => {
 describe('the migration backfill (0011)', () => {
   it('creates every org-bound account\'s PRIMARY membership from the legacy columns', () => {
     // The pre-0011 state on a scratch database, then the real files.
+    // The memberships FAMILY (0011's table + 0017's cone column,
+    // TODO.identity-features/09) is the post-state — both stay out of
+    // the pre-batch (0017's ALTER names the 0011 table).
     const scratch = new Database(':memory:')
     const files = readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort()
-    for (const f of files.filter(f => !f.startsWith('0011'))) scratch.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf-8'))
+    for (const f of files.filter(f => !f.startsWith('0011') && !f.startsWith('0017'))) scratch.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf-8'))
     scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-ia', 'ia@x.example.org', 'IA', 'password', 'ia_officer', '[\"ia_officer\"]', 'EX1')").run()
     scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-legacy', 'legacy@x.example.org', 'Legacy', 'password', 'viewer', NULL, 'ut-nmi-nl')").run()
     scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-free', 'free@x.example.org', 'Free', 'password', 'admin', '[\"admin\"]', NULL)").run()
@@ -239,6 +253,14 @@ describe('the migration backfill (0011)', () => {
       { user_id: 'u-ia', org_id: 'EX1', roles: '["ia_officer"]', state: 'active', is_primary: 1 },
       { user_id: 'u-legacy', org_id: 'ut-nmi-nl', roles: '["viewer"]', state: 'active', is_primary: 1 },
     ])
+    // 0017 (TODO.identity-features/09): the cone column lands expand-only
+    // — every backfilled membership's cone is NULL (org-wide, silently).
+    scratch.exec(readFileSync(join(MIGRATIONS_DIR, '0017_org_member_cones.sql'), 'utf-8'))
+    const cols = scratch.prepare('PRAGMA table_info(org_memberships)').all() as Array<{ name: string }>
+    expect(cols.some(c => c.name === 'cone')).toBe(true)
+    const cones = scratch.prepare('SELECT cone FROM org_memberships').all() as Array<{ cone: string | null }>
+    expect(cones.length).toBe(2)
+    expect(cones.every(r => r.cone === null)).toBe(true)
     scratch.close()
   })
 
@@ -553,5 +575,104 @@ describe('the registry surfaces', () => {
     const byOrg = new Map((detail.memberships as any[]).map(m => [m.orgId, m]))
     expect(byOrg.get('EX1')).toMatchObject({ state: 'active', isPrimary: true, roles: ['ia_officer'] })
     expect(byOrg.get('ut-nmi-nl')).toMatchObject({ state: 'active', isPrimary: false, orgName: 'Example Metrology Authority (Netherlands)' })
+  })
+})
+
+// ── the member data cone (TODO.identity-features/09, wave A) ─────────
+
+describe('the org-member cone', () => {
+  it('the org admin sets the cone; the claims carry it for the cone-gated client ONLY; the audit slice records every act', async () => {
+    const adminCookie = await demoLogin('admin@nmi.example.org')
+    const officerCookie = await demoLogin('ia@oiml.org')
+    const officer = (await store.findUserByEmail('ia@oiml.org'))!
+    const nlAdmin = (await store.findUserByEmail('admin@nmi.example.org'))!
+
+    // The member's posture starts org-wide (NULL — the silent default).
+    const listed = await json(await app.request(`${ISSUER}/api/op/org-memberships?org_id=ut-nmi-nl`, { headers: { cookie: adminCookie } }), 200)
+    const row = (listed.members as any[]).find(m => m.userId === officer.id && m.orgId === 'ut-nmi-nl')
+    expect(row.cone).toEqual({ scope: 'org-wide', readOnly: false })
+
+    // The cone act (the org grant, its own org)…
+    const set = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+      method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'assigned' }),
+    })
+    const narrowed = await json(set, 200)
+    expect(narrowed.cone).toEqual({ scope: 'assigned', readOnly: false })
+    expect(narrowed.roles).toEqual(row.roles) // the cone NEVER touches the role set
+
+    // …the switch into the org, then THE CLAIMS: the cone-gated client
+    // learns the posture; the plain client never does.
+    await json(await app.request(`${ISSUER}/api/op/account/active-org`, {
+      method: 'POST', headers: jsonHeaders(officerCookie), body: JSON.stringify({ org_id: 'ut-nmi-nl' }),
+    }), 200)
+    const gated = await roundTrip(officerCookie, CLIENT_CONE)
+    expect(gated.idToken.org).toBe('ut-nmi-nl')
+    expect(gated.idToken.cone).toBe('assigned')
+    expect(gated.userinfo.cone).toBe('assigned')
+    const plain = await roundTrip(officerCookie, CLIENT)
+    expect(plain.idToken.cone).toBeUndefined()
+    expect(plain.userinfo.cone).toBeUndefined()
+
+    // The orthogonal read-only modifier composes.
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+      method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'assigned+read-only' }),
+    }), 200)
+    const composed = await roundTrip(officerCookie, CLIENT_CONE)
+    expect(composed.idToken.cone).toBe('assigned+read-only')
+
+    // Back to org-wide — the column clears (the claim says the default).
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+      method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'org-wide' }),
+    }), 200)
+    expect((await store.getOrgMembership(officer.id, 'ut-nmi-nl'))?.cone).toEqual({ scope: 'org-wide', readOnly: false })
+    const restored = await roundTrip(officerCookie, CLIENT_CONE)
+    expect(restored.idToken.cone).toBe('org-wide')
+
+    // The audit slice records EVERY act, with the postures named.
+    const activityRes = await app.request(`${ISSUER}/api/op/org-memberships/activity?org_id=ut-nmi-nl`, { headers: { cookie: adminCookie } })
+    const activity = await json(activityRes, 200)
+    const coneActs = (activity.activity as any[]).filter(e => e.action === 'membership.cone' && e.entity_id === officer.id)
+    expect(coneActs.length).toBe(3)
+    expect(coneActs[0]).toMatchObject({ user_id: nlAdmin.id, metadata: { cone: 'org-wide', previous: 'assigned+read-only' } })
+
+    // The bounds: a member WITHOUT the grant never sets a cone…
+    const noGrant = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+      method: 'PUT', headers: jsonHeaders(officerCookie), body: JSON.stringify({ cone: 'assigned' }),
+    })
+    expect(noGrant.status).toBe(403)
+    // …the org grant never reaches another org's row (not found, never wider)…
+    const crossOrg = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/EX1/cone`, {
+      method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'assigned' }),
+    })
+    expect(crossOrg.status).toBe(404)
+    // …never touches an org_admin membership…
+    const adminRow = await app.request(`${ISSUER}/api/op/org-memberships/${nlAdmin.id}/ut-nmi-nl/cone`, {
+      method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'read-only' }),
+    })
+    expect(adminRow.status).toBe(403)
+    // …and junk is the honest 400 (the store-side fail-closed parse is
+    // the backstop; the route refuses to WRITE it).
+    const junk = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+      method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'everything' }),
+    })
+    expect(junk.status).toBe(400)
+
+    // The audit slice's gate: the grantless member gets the honest 403;
+    // the org admin's slice never widens to another org.
+    const refused = await app.request(`${ISSUER}/api/op/org-memberships/activity?org_id=ut-nmi-nl`, { headers: { cookie: officerCookie } })
+    expect(refused.status).toBe(403)
+    const widened = await app.request(`${ISSUER}/api/op/org-memberships/activity?org_id=EX1`, { headers: { cookie: adminCookie } })
+    expect(widened.status).toBe(403)
+
+    // The identity admin's per-org view carries the cone honestly.
+    const wideCookie = await demoLogin('admin@oiml.org')
+    const view = await json(await app.request(`${ISSUER}/api/op/registry/orgs/ut-nmi-nl`, { headers: { cookie: wideCookie } }), 200)
+    const viewRow = (view.members as any[]).find(m => m.userId === officer.id && m.orgId === 'ut-nmi-nl')
+    expect(viewRow.cone).toEqual({ scope: 'org-wide', readOnly: false })
+
+    // Leave the fixture as found (the primary context).
+    await json(await app.request(`${ISSUER}/api/op/account/active-org`, {
+      method: 'POST', headers: jsonHeaders(officerCookie), body: JSON.stringify({ org_id: null }),
+    }), 200)
   })
 })

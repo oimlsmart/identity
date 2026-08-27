@@ -32,11 +32,12 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload, type OrgMembership, type ServerStore } from '@oimlsmart/platform-server/store'
+import { getStore, encodeOrgMemberCone, parseOrgMemberCone, type AuthUserPayload, type OrgMembership, type ServerStore } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
 import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
 import { orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
+import { orgAuditSlice } from '../auth/op/org-audit'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
 /** The caller's grant over these routes: 'wide' (the identity admin) or
@@ -49,7 +50,9 @@ interface MembershipGrant {
 }
 
 /** A member row for the consoles: the membership + the account's
- *  display fields (never credential material). */
+ *  display fields (never credential material). The cone rides as the
+ *  parsed posture (TODO.identity-features/09) — the membership's own
+ *  row carries the canonical string; the console renders the posture. */
 async function memberView(store: ServerStore, membership: OrgMembership) {
   const account = (await store.listUsers()).find(u => u.id === membership.userId) ?? null
   return {
@@ -60,6 +63,7 @@ async function memberView(store: ServerStore, membership: OrgMembership) {
     accountActive: account?.active ?? false,
     orgId: membership.orgId,
     roles: membership.roles,
+    cone: membership.cone,
     state: membership.state,
     isPrimary: membership.isPrimary,
     invitedBy: membership.invitedBy,
@@ -305,6 +309,65 @@ export function createOpMembershipsRouter(): Hono {
     await store.setOrgMembershipRoles(membership.userId, membership.orgId, roles)
     await audit(user, g, membership.userId, 'membership.roles', { org_id: membership.orgId, roles, previous })
     return c.json(await memberView(store, (await store.getOrgMembership(membership.userId, membership.orgId))!))
+  })
+
+  // GET /api/op/org-memberships/activity?org_id= — the org admin's audit
+  // slice (TODO.identity-features/09): their org's membership + cone +
+  // join/invite + lifecycle acts, newest first, 50 deep — the SAME
+  // computation the identity admin's per-org aggregate reads
+  // (auth/op/org-audit.ts). The org grant's slice is pinned to its own
+  // org, never wider (the scopeOrg rule). REGISTERED before the
+  // '/:userId/…' routes — a static segment never falls into the param
+  // bucket.
+  router.get('/api/op/org-memberships/activity', async (c) => {
+    const gate = await grant(c)
+    if ('error' in gate) return gate.error
+    const scoped = scopeOrg(c, gate.grant, c.req.query('org_id')?.trim() || null)
+    if ('error' in scoped) return scoped.error
+    const store = getStore()
+    const org = await resolveRegistryOrg(store, scoped.orgId)
+    if (!org) return c.json({ error: `organization '${scoped.orgId}' is not on the organization registry` }, 404)
+    return c.json({ org: { id: org.id, name: org.name }, activity: await orgAuditSlice(store, scoped.orgId) })
+  })
+
+  // PUT /api/op/org-memberships/:userId/:orgId/cone — the member's data
+  // cone (TODO.identity-features/09): { cone: 'org-wide' | 'assigned' |
+  // 'read-only' | 'assigned+read-only' | null }. The org admin's answer
+  // to "what can this member see and do" — a NARROWING posture only: the
+  // cone intersects the role set's grants, never widens them, and never
+  // touches the roles (the kind bound stays the rolesRefusal's, above).
+  // The org grant never touches an org_admin membership (the same
+  // targetRefusal as the role act).
+  router.put('/api/op/org-memberships/:userId/:orgId/cone', async (c) => {
+    const gate = await grant(c)
+    if ('error' in gate) return gate.error
+    const { user, grant: g } = gate
+    const body = await c.req.json<{ cone?: unknown }>().catch(() => null)
+    if (!body || (body.cone !== null && typeof body.cone !== 'string')) {
+      return c.json({ error: 'cone must be one of "org-wide", "assigned", "read-only", "assigned+read-only" — or null (the org-wide default)' }, 400)
+    }
+    const CANONICAL = new Set(['org-wide', 'assigned', 'read-only', 'assigned+read-only'])
+    if (typeof body.cone === 'string' && !CANONICAL.has(body.cone)) {
+      return c.json({ error: `unknown cone '${body.cone}' — the postures are "org-wide", "assigned", "read-only", "assigned+read-only"` }, 400)
+    }
+    const found = await targetMembership(c, g)
+    if ('error' in found) return found.error
+    const membership = found.membership
+    const store = getStore()
+    // The canonical column spelling: NULL for the org-wide default (the
+    // column stays NULL — the expand-only posture), else the encoding.
+    const canonical = body.cone === null || body.cone === 'org-wide'
+      ? null
+      : encodeOrgMemberCone(parseOrgMemberCone(body.cone))
+    const previous = encodeOrgMemberCone(membership.cone)
+    const updated = await store.setOrgMembershipCone(membership.userId, membership.orgId, canonical)
+    await audit(user, g, membership.userId, 'membership.cone', {
+      org_id: membership.orgId,
+      email: (await store.listUsers()).find(u => u.id === membership.userId)?.email ?? null,
+      cone: canonical ?? 'org-wide',
+      previous: previous ?? 'org-wide',
+    })
+    return c.json(await memberView(store, updated!))
   })
 
   // POST /api/op/org-memberships/:userId/:orgId/state — the lifecycle
