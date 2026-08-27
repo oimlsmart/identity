@@ -25,10 +25,10 @@
 
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { createRequire } from 'node:module'
 import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { MIGRATIONS_DIR } from '@oimlsmart/platform-server/store/sqlite'
 
 // The store's DB path is read at module evaluation — set it before any
 // import below touches @oimlsmart/platform-server/store/sqlite (the imports are dynamic).
@@ -58,6 +58,14 @@ const CLIENT_CONE = {
   claims_policy: { claims: ['roles', 'groups', 'org', 'cone'] },
 }
 process.env.OP_CLIENT_SEED = JSON.stringify([CLIENT, CLIENT_CONE])
+
+// The kernel package's canonical migration set (TODO.repos/01), resolved
+// WITHOUT evaluating the store module — its DB path binds at import time
+// and must see the env set above. createRequire resolves, never loads.
+const MIGRATIONS_DIR = join(
+  dirname(createRequire(import.meta.url).resolve('@oimlsmart/platform-server/package.json')),
+  'migrations',
+)
 
 let app: import('hono').Hono
 let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
