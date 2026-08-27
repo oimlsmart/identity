@@ -511,6 +511,34 @@ describe('the registry activity feed', () => {
     const viewer = await demoLogin('viewer@oiml.org')
     expect((await app.request('/api/op/registry/activity', { headers: { cookie: viewer } })).status).toBe(403)
   })
+
+  it('the global feed surfaces the join-request decisions (the org_join_request.* spelling, never the bare org_join. prefix)', async () => {
+    const admin = await demoLogin('admin@oiml.org')
+    // A decision row in the writer's own shape (routes/op-join.ts's audit:
+    // entity_type org_join_requests, the action family org_join_request.*).
+    const id = crypto.randomUUID()
+    await store.putEntity('auditEvents', id, null, JSON.stringify({
+      id,
+      timestamp: new Date().toISOString(),
+      standard_id: '',
+      entity_type: 'org_join_requests',
+      entity_id: 'jr-feed-pin',
+      action: 'org_join_request.approved',
+      user_id: 'admin',
+      user_name: 'The Administrator',
+      metadata: { email: 'joiner@example.org', org_id: 'EX1', requested_role: 'applicant' },
+    }))
+
+    const feed = await (await app.request('/api/op/registry/activity', { headers: { cookie: admin } }))
+      .json() as Array<{ action: string; entity_id: string }>
+    expect(feed.some(e => e.action === 'org_join_request.approved' && e.entity_id === 'jr-feed-pin'),
+      'the join decision lands on the GLOBAL feed (the per-org slice always carried it via entity_type)').toBe(true)
+
+    // The text filter finds it the same way (the feed's q covers the action).
+    const filtered = await (await app.request('/api/op/registry/activity?q=org_join_request', { headers: { cookie: admin } }))
+      .json() as Array<{ action: string }>
+    expect(filtered.some(e => e.action === 'org_join_request.approved')).toBe(true)
+  })
 })
 
 // ── the detail aggregate's admin view (the heavy rebuild) ────────────

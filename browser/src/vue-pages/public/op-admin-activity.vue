@@ -41,7 +41,7 @@ const CATEGORIES: Array<{ key: string; label: string; match: (e: AuditEvent) => 
   { key: 'signins', label: 'Sign-ins and refusals', match: e => e.action.startsWith('upstream_sign_in') || e.action.startsWith('upstream_refused') },
   { key: 'clients', label: 'Relying parties (the client registry)', match: e => e.action.startsWith('client.') },
   { key: 'providers', label: 'Sign-in providers', match: e => e.action.startsWith('provider.') },
-  { key: 'organizations', label: 'Organization administration', match: e => e.action.startsWith('org_invite.') || e.action.startsWith('org_join.') },
+  { key: 'organizations', label: 'Organization administration', match: e => e.action.startsWith('org_invite.') || e.action.startsWith('org_join_request.') },
 ]
 
 const visible = computed(() =>
