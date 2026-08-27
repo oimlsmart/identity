@@ -158,9 +158,11 @@ gives the operational separation without losing that lockstep proof.
 
 The extraction trigger: the first external operator needing to run or
 audit the identity service standalone, or a maintainer split. Then it
-is a planned extraction (the OP code plus its migrations into its own
-repository, consuming a published platform-server kernel package, the
-federation contract as the seam), never an improvisation.
+is a planned extraction (the OP code into its own repository,
+consuming the published platform-server kernel package, the
+federation contract as the seam), never an improvisation. (Done:
+TODO.identity-extract; the kernel's own extraction followed in
+TODO.repos/01.)
 
 ## Downstream services
 

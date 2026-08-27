@@ -235,7 +235,7 @@ what actually happened.
 
 The reference implementation (copy it; ~300 lines, zero dependencies,
 WebCrypto + fetch only, runs on Node ≥ 18 and edge runtimes):
-`@oimlsmart/platform-server/oidc` in `oimlsmart/smart` — discovery, PKCE,
+`@oimlsmart/platform-server/oidc` in `oimlsmart/platform-server` — discovery, PKCE,
 the exchange, the validation, the logout URL, and the error taxonomy.
 
 ## 7. Who declares what actions are allowed (the authorization division)
