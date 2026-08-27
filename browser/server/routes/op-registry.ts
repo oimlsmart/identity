@@ -134,7 +134,11 @@ import { sessionUser } from '@oimlsmart/platform-server/session'
  *  features/05) the organization lifecycle). Other workflow stores
  *  write auditEvents too; the feed keeps the identity slice. */
 const REGISTRY_ENTITY_TYPES = new Set(['account', 'users', 'auth', 'client', 'provider', 'organization'])
-const REGISTRY_ACTION_PREFIXES = ['org_invite.', 'org_join.']
+// The join-request acts are spelled org_join_request.* (routes/op-join.ts)
+// — the bare 'org_join.' prefix never matched a real action, so the global
+// feed never surfaced the join decisions (the per-org slice did, via
+// entity_type). The prefix names the WRITER's spelling, never a guess.
+const REGISTRY_ACTION_PREFIXES = ['org_invite.', 'org_join_request.']
 
 /** The account trail's page size (the detail aggregate's embedded first
  *  page + the paged endpoint's default). */
