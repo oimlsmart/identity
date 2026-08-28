@@ -203,7 +203,7 @@ export function createOpJoinRouter(): Hono {
       const org = await resolveRegistryOrg(getStore(), orgId)
       if (!org || !admitsJoinFlow(org)) {
         return c.json({
-          error: 'that organization is not an active participant on the identity service’s organization registry and not an active manufacturer organization either — account requests file only for those; if your organization is not listed, use the "not listed" path so BIML can verify its participation',
+          error: 'that organization is not an active participant on the identity service’s organization registry and not an active manufacturer or OIML member organization either — account requests file only for those; if your organization is not listed, use the "not listed" path so BIML can verify its participation',
         }, 400)
       }
       const role = body.requested_role ?? ''
@@ -387,7 +387,7 @@ export function createOpJoinRouter(): Hono {
     const org = await resolveRegistryOrg(store, orgId)
     if (!org || !admitsJoinFlow(org)) {
       return c.json({
-        error: `organization '${orgId}' is not an active participant on the organization registry and not an active manufacturer organization either — accounts are created only for those (PD-03 / B 18:2025 §10.2 for the participant kinds; TODO.register/01 for the manufacturer); the identity administrator adds/activates it on the Organizations surface first`,
+        error: `organization '${orgId}' is not an active participant on the organization registry and not an active manufacturer or OIML member organization either — accounts are created only for those (PD-03 / B 18:2025 §10.2 for the participant kinds; TODO.register/01 for the manufacturer; TODO.identity-features/10 for the member category); the identity administrator adds/activates it on the Organizations surface first`,
       }, 400)
     }
     if (role !== 'org_admin' && !orgAssignableRoles(org).includes(role)) {

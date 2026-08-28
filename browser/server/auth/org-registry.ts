@@ -166,19 +166,20 @@ export async function validateOrgLinks(store: ServerStore, input: OrgLinkFields)
   const proposedBy = input.proposedBy ?? null
   const csStatus = input.csStatus ?? null
   const rule = kind ? ORG_LINK_RULES[kind] : undefined
+  const article = (s: string) => (/^[aeiou]/i.test(s) ? 'an' : 'a')
 
   if (designatedBy && rule?.field !== 'designatedBy') {
     return kind
-      ? `a ${kind} organization carries no designated_by link — the designated bodies (a utilizer, an associate, a test laboratory) carry it; a member state or corresponding member DESIGNATES, it is never designated`
+      ? `the ${kind} kind carries no designated_by link — the designated bodies (a utilizer, an associate, a test laboratory) carry it; a member state or corresponding member DESIGNATES, it is never designated`
       : 'a non-participant organization carries no designation links'
   }
   if (proposedBy && rule?.field !== 'proposedBy') {
     return kind
-      ? `a ${kind} organization carries no proposed_by link — an issuing authority's proposing member state carries it; a member state PROPOSES, it is never proposed`
+      ? `the ${kind} kind carries no proposed_by link — an issuing authority's proposing member state carries it; a member state PROPOSES, it is never proposed`
       : 'a non-participant organization carries no designation links'
   }
   if (csStatus && kind !== 'utilizer' && kind !== 'associate') {
-    return `the CS status facet rides the designated bodies only (a utilizer or an associate's Declaration standing) — a ${kind ?? 'non-participant'} organization never carries it`
+    return `the CS status facet rides the designated bodies only (a utilizer or an associate's Declaration standing) — the ${kind ?? 'non-participant'} kind never carries it`
   }
   if (csStatus && !CS_STATUSES.has(csStatus)) {
     return `cs_status must be one of signed-active, suspended, withdrawn (the Declaration's standing)`
@@ -194,7 +195,7 @@ export async function validateOrgLinks(store: ServerStore, input: OrgLinkFields)
           ? `the ${what} '${targetId}' is not on the organization registry — add the ${rule.targetKind} organization first (the chain never names a dangling row)`
           : target.state !== 'active'
             ? `the ${what} '${targetId}' is disabled — a designation names an active ${rule.targetKind} organization`
-            : `a ${kind}'s ${what} is a ${rule.targetKind} organization — '${targetId}' is ${targetKnown ?? 'a non-participant organization'}`
+            : `the ${what} of the ${kind} row must be ${article(rule.targetKind)} ${rule.targetKind} organization — '${targetId}' is ${targetKnown ? `${article(targetKnown)} ${targetKnown}` : 'a non-participant organization'}`
       }
     }
   }
