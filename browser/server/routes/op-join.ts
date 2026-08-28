@@ -68,6 +68,7 @@ import {
   emailDomainHint,
   listRegistryOrganizations,
   mintManufacturerOrgId,
+  onJoinSelector,
   orgAssignableRoles,
   resolveRegistryOrg,
 } from '../auth/org-registry'
@@ -137,13 +138,19 @@ export function createOpJoinRouter(): Hono {
 
   // ── the public selector feed ───────────────────────────────────────
 
-  // GET /api/op/organizations — the REGISTERED participant orgs, each
-  // with the account roles its kind bounds (the join page's selector
-  // + role options). The register is public scheme data (B 18 §10.2);
-  // an UNREGISTERED org is never offered (the not-listed path covers it).
+  // GET /api/op/organizations — the REGISTERED participant orgs plus the
+  // active OIML MEMBER orgs (TODO.identity-features/10 — the member
+  // state's / corresponding member's personnel ask against their member
+  // org on this same intake), each with the account roles its kind
+  // bounds (the join page's selector + role options; the member kinds
+  // bound the read/access posture only — the plain member's viewer,
+  // never a workflow role). The register is public scheme data (B 18
+  // §10.2); an UNREGISTERED org is never offered (the not-listed path
+  // covers it), and a manufacturer org neither (its self-registration
+  // path declares it).
   router.get('/api/op/organizations', async (c) => {
     const orgs = await listRegistryOrganizations(getStore())
-    return c.json(orgs.filter(o => o.registered).map(o => ({
+    return c.json(orgs.filter(onJoinSelector).map(o => ({
       id: o.id,
       name: o.name,
       shortName: o.shortName,
