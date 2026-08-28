@@ -123,7 +123,7 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getStore, type AuthUserPayload, type OrgRegistryContact, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, type RegistryOrg } from '../auth/org-registry'
+import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, validateOrgLinks, type RegistryOrg, type RegistryOrgKind } from '../auth/org-registry'
 import { listOrgSigningKeys } from '../auth/org-signing-keys'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
 import { orgAuditSlice } from '../auth/op/org-audit'
@@ -582,6 +582,9 @@ export function createOpRegistryRouter(): Hono {
     country?: string | null
     contacts?: OrgRegistryContact[]
     participantRef?: string | null
+    designatedBy?: string | null
+    proposedBy?: string | null
+    csStatus?: string | null
   }
 
   /** The add/edit payloads' shared validation: answers the validated
@@ -613,7 +616,7 @@ export function createOpRegistryRouter(): Hono {
     } else if (requireAll) {
       return { error: c.json({ error: 'name is required — the organization’s display name' }, 400) }
     }
-    for (const [key, target] of [['short_name', 'shortName'], ['country', 'country'], ['participant_ref', 'participantRef']] as const) {
+    for (const [key, target] of [['short_name', 'shortName'], ['country', 'country'], ['participant_ref', 'participantRef'], ['designated_by', 'designatedBy'], ['proposed_by', 'proposedBy'], ['cs_status', 'csStatus']] as const) {
       if (body[key] === undefined) continue
       if (body[key] !== null && typeof body[key] !== 'string') {
         return { error: c.json({ error: `${key} must be a string (or null to clear)` }, 400) }
@@ -623,7 +626,7 @@ export function createOpRegistryRouter(): Hono {
     }
     if (body.kind !== undefined) {
       if (body.kind !== null && !isRegistryOrgKind(body.kind)) {
-        return { error: c.json({ error: `kind must be one of issuing-authority, test-laboratory, utilizer, associate, manufacturer (or null for a non-participant organization)` }, 400) }
+        return { error: c.json({ error: `kind must be one of member-state, corresponding-member, issuing-authority, test-laboratory, utilizer, associate, manufacturer (or null for a non-participant organization)` }, 400) }
       }
       fields.kind = body.kind === null ? null : (body.kind as string)
     }
@@ -648,9 +651,11 @@ export function createOpRegistryRouter(): Hono {
   // GET /api/op/registry/orgs — the Organizations list: every registry
   // org (every state, name-ordered) with its ACTIVE member count, its
   // organization administrators (the active org_admin memberships), the
-  // lifecycle state, and the per-kind STANDING (TODO.register/01: a
+  // lifecycle state, the per-kind STANDING (TODO.register/01: a
   // manufacturer row says what it is — declared / ia-endorsed — never
-  // the participant posture).
+  // the participant posture), and the designation chain's facets
+  // (TODO.identity-features/10: the row's own links + the reverse
+  // counts — proposed IAs, designated bodies, associated TLs).
   registry.get('/api/op/registry/orgs', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
@@ -668,9 +673,21 @@ export function createOpRegistryRouter(): Hono {
         kind: org.kind,
         country: org.country,
         participantRef: org.participantRef,
+        designatedBy: org.designatedBy,
+        proposedBy: org.proposedBy,
+        csStatus: org.csStatus,
         state: org.state,
         standing: org.standing,
         endorsedBy: org.endorsedBy,
+        // The designation chain's reverse (TODO.identity-features/10):
+        // the orgs THIS org proposes/designates/associates, counted by
+        // link class — the list renders "proposes 1 · designates 2"
+        // honestly without resolving names (the per-org page resolves).
+        chain: {
+          proposedIas: orgs.filter(o => o.proposedBy === org.id).length,
+          designatedBodies: orgs.filter(o => o.designatedBy === org.id && (o.kind === 'utilizer' || o.kind === 'associate')).length,
+          associatedTls: orgs.filter(o => o.designatedBy === org.id && o.kind === 'test-laboratory').length,
+        },
         members: {
           active: active.length,
           invited: memberships.filter(m => m.state === 'invited').length,
@@ -691,9 +708,13 @@ export function createOpRegistryRouter(): Hono {
   })
 
   // POST /api/op/registry/orgs — the add act: { id, name, short_name?,
-  // kind?, country?, contacts?, participant_ref? }. The id is forever
-  // (the stable slug — never editable later); the id conflict is the
-  // honest 409.
+  // kind?, country?, contacts?, participant_ref?, designated_by?,
+  // proposed_by?, cs_status? }. The id is forever (the stable slug —
+  // never editable later); the id conflict is the honest 409. The
+  // designation links + the CS status facet validate against the KIND
+  // (TODO.identity-features/10 — a utilizer's designator is a member
+  // state, an associate's a corresponding member, a TL's its IA, an
+  // IA's proposer a member state; everything else refuses).
   registry.post('/api/op/registry/orgs', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error || !gate.user) return gate.error!
@@ -702,6 +723,13 @@ export function createOpRegistryRouter(): Hono {
     if ('error' in parsed) return parsed.error
     const { id, name, ...rest } = parsed.fields
     const store = getStore()
+    const linkError = await validateOrgLinks(store, {
+      kind: (rest.kind ?? null) as RegistryOrgKind | null,
+      designatedBy: rest.designatedBy,
+      proposedBy: rest.proposedBy,
+      csStatus: rest.csStatus,
+    })
+    if (linkError) return c.json({ error: linkError }, 400)
     const created = await store.createOrgRegistryOrg({ id: id!, name: name!, ...rest, createdBy: gate.user!.email })
     if (!created) {
       return c.json({ error: `the id '${id}' is taken — the organization already exists (open it to edit)` }, 409)
@@ -710,12 +738,17 @@ export function createOpRegistryRouter(): Hono {
       name: created.name,
       kind: created.kind,
       participant_ref: created.participantRef,
+      designated_by: created.designatedBy,
+      proposed_by: created.proposedBy,
     }, 'organization')
     return c.json(created, 201)
   })
 
   // PUT /api/op/registry/orgs/:orgId — the edit act: the display data +
-  // the participant_ref annotation. The id never moves (a rename is a
+  // the participant_ref annotation + the designation links / the CS
+  // status facet (TODO.identity-features/10 — validated against the
+  // MERGED row's kind: a kind change and a link change meet the same
+  // rule). The id never moves (a rename is a
   // new org); present fields set, null clears, absent fields stand.
   registry.put('/api/op/registry/orgs/:orgId', async (c) => {
     const gate = await requireAdmin(c)
@@ -735,6 +768,15 @@ export function createOpRegistryRouter(): Hono {
     if (Object.keys(fields).length === 0) {
       return c.json({ error: 'nothing to update — name the fields to change' }, 400)
     }
+    const linkError = await validateOrgLinks(store, {
+      kind: fields.kind !== undefined
+        ? (fields.kind as RegistryOrgKind | null)
+        : (isRegistryOrgKind(org.kind) ? org.kind : null),
+      designatedBy: fields.designatedBy !== undefined ? fields.designatedBy : org.designatedBy,
+      proposedBy: fields.proposedBy !== undefined ? fields.proposedBy : org.proposedBy,
+      csStatus: fields.csStatus !== undefined ? fields.csStatus : org.csStatus,
+    })
+    if (linkError) return c.json({ error: linkError }, 400)
     const updated = await store.updateOrgRegistryOrg(orgId, fields, gate.user!.email)
     await audit('organization.updated', orgId, { userId: gate.user!.id, userName: gate.user!.name }, {
       name: updated!.name,
@@ -829,7 +871,12 @@ export function createOpRegistryRouter(): Hono {
   // the multi-org model; TODO.identity-features/05 extends it to the
   // first-class org): the registry org's FULL row (the display data, the
   // contacts, the participant_ref annotation, the lifecycle stamps, the
-  // per-kind STANDING — TODO.register/01), the manufacturer standing's
+  // per-kind STANDING — TODO.register/01), the DESIGNATION CHAIN both
+  // directions (TODO.identity-features/10 — the row's own designated_by/
+  // proposed_by resolved to display names, the orgs naming THIS org as
+  // their designator/proposer, and the edit form's eligible link
+  // targets), the designated bodies' CS STATUS facet, the manufacturer
+  // standing's
   // ACTIVE endorsements (the endorsing IAs, names resolved), its
   // MEMBERSHIPS (the members with their per-org role sets + lifecycle
   // states — the org_admins among them marked by the role), its
@@ -862,7 +909,37 @@ export function createOpRegistryRouter(): Hono {
     // The manufacturer standing's endorsements (TODO.register/01): the
     // ACTIVE rows with the endorsing IA's display name resolved (the
     // revocations stay on the audit slice below — the history, honestly).
-    const orgNames = new Map((await listRegistryOrganizations(store)).map(o => [o.id, o.name]))
+    const allOrgs = await listRegistryOrganizations(store)
+    const orgNames = new Map(allOrgs.map(o => [o.id, o.name]))
+    // The designation chain (TODO.identity-features/10), BOTH directions,
+    // honestly: the row's own links RESOLVED (the designating/proposing
+    // org's display name; a set link whose target left the registry
+    // renders its raw id — the write path's validation keeps that from
+    // landing, a disable after the fact stays honest), and the REVERSE
+    // chain — the orgs naming THIS org as their designator/proposer
+    // (the member's row reads "proposes: <IA>; designates: <Utilizer>",
+    // the IA's "associated test laboratories: <TL>"). A legal body
+    // holding several roles reads as its separate LINKED rows, never
+    // merged.
+    const resolveLink = (id: string | null) =>
+      id ? { id, name: orgNames.get(id) ?? id } : null
+    const linkedBy = allOrgs
+      .filter(o => o.id !== org.id && (o.designatedBy === org.id || o.proposedBy === org.id))
+      .map(o => ({
+        id: o.id,
+        name: o.name,
+        kind: o.kind,
+        via: (o.proposedBy === org.id ? 'proposed_by' : 'designated_by') as 'proposed_by' | 'designated_by',
+      }))
+    // The edit form's eligible link targets (the write path re-checks):
+    // the ACTIVE orgs of each link-target kind.
+    const activeOf = (kind: string) =>
+      allOrgs.filter(o => o.kind === kind && o.state === 'active').map(o => ({ id: o.id, name: o.name }))
+    const linkTargets = {
+      memberStates: activeOf('member-state'),
+      correspondingMembers: activeOf('corresponding-member'),
+      issuingAuthorities: activeOf('issuing-authority'),
+    }
     const endorsements = (await listOrgEndorsements(store, orgId))
       .filter(e => !e.revokedAt)
       .map(e => ({
@@ -900,6 +977,9 @@ export function createOpRegistryRouter(): Hono {
         country: org.country,
         contacts: org.contacts,
         participantRef: org.participantRef,
+        designatedBy: org.designatedBy,
+        proposedBy: org.proposedBy,
+        csStatus: org.csStatus,
         state: org.state,
         registered: org.registered,
         standing: org.standing,
@@ -912,6 +992,12 @@ export function createOpRegistryRouter(): Hono {
         disabledAt: org.disabledAt,
         disabledBy: org.disabledBy,
       },
+      links: {
+        designatedBy: resolveLink(org.designatedBy),
+        proposedBy: resolveLink(org.proposedBy),
+      },
+      linkedBy,
+      linkTargets,
       endorsements,
       signingKeys,
       members: memberships.map(m => {
