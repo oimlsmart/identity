@@ -17,7 +17,7 @@ canonical D1 migration set) is the kernel package
 `@oimlsmart/platform-server`, owned by its own repository
 (`oimlsmart/platform-server`, extracted from the smart monorepo in
 TODO.repos/01 with the package's history) and consumed from npm by
-semver (`^0.1.0`): the version pin IS the contract between the repos.
+semver (`^0.1.2`): the version pin IS the contract between the repos.
 ZERO store-implementation code lives here.
 
 ## Command gates (all must stay green)
