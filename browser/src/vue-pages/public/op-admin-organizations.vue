@@ -29,9 +29,18 @@ interface OrgRow {
   kind: string | null
   country: string | null
   participantRef: string | null
+  /** The designation links + the CS status facet
+   *  (TODO.identity-features/10). */
+  designatedBy: string | null
+  proposedBy: string | null
+  csStatus: string | null
+  /** The chain's reverse counts: the orgs this row proposes /
+   *  designates / associates. */
+  chain: { proposedIas: number; designatedBodies: number; associatedTls: number }
   state: 'active' | 'disabled'
-  /** The per-kind standing (TODO.register/01): 'participant' |
-   *  'declared' | 'ia-endorsed' | 'non-participant'. */
+  /** The per-kind standing (TODO.register/01 + the member category):
+   *  'participant' | 'member' | 'declared' | 'ia-endorsed' |
+   *  'non-participant'. */
   standing: string
   /** The active endorsing IA org ids (the manufacturer kind only). */
   endorsedBy: string[]
@@ -64,7 +73,7 @@ const addParticipantRef = ref('')
 const addContacts = ref<Array<{ name: string; email: string }>>([{ name: '', email: '' }])
 const adding = ref(false)
 
-const KIND_OPTIONS = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'manufacturer'] as const
+const KIND_OPTIONS = ['member-state', 'corresponding-member', 'issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'manufacturer'] as const
 
 /** The honest per-kind standing line for the list (TODO.register/01):
  *  a manufacturer row says what it is (declared / IA-endorsed, never a
@@ -74,6 +83,21 @@ function standingSuffix(row: OrgRow): string {
   return row.standing === 'ia-endorsed'
     ? ` · ${t('admin.orgs.standingIaEndorsed', { ias: row.endorsedBy.join(', ') })}`
     : ` · ${t('admin.orgs.standingDeclared')}`
+}
+
+/** The designation chain's summary (TODO.identity-features/10): the
+ *  member's "proposes N · designates M", the IA's "TLs N", and the
+ *  designated body's CS status — the list reads the chain's shape
+ *  without resolving names (the org's page carries the links). */
+function chainSuffix(row: OrgRow): string {
+  const parts: string[] = []
+  if (row.chain?.proposedIas) parts.push(t('admin.orgs.chainProposes', { count: row.chain.proposedIas }))
+  if (row.chain?.designatedBodies) parts.push(t('admin.orgs.chainDesignates', { count: row.chain.designatedBodies }))
+  if (row.chain?.associatedTls) parts.push(t('admin.orgs.chainTls', { count: row.chain.associatedTls }))
+  if (row.csStatus === 'signed-active') parts.push(t('admin.org.csStatus.signedActive'))
+  else if (row.csStatus === 'suspended') parts.push(t('admin.org.csStatus.suspended'))
+  else if (row.csStatus === 'withdrawn') parts.push(t('admin.org.csStatus.withdrawn'))
+  return parts.length ? ` · ${parts.join(' · ')}` : ''
 }
 
 async function api(path: string, init?: RequestInit): Promise<Response> {
@@ -320,7 +344,7 @@ onMounted(async () => {
                   <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`op-orgs-kind-${row.id}`">
                     {{ row.kind ?? t('admin.orgs.kindNone') }}<template v-if="row.country"> · {{ row.country }}</template>
                     <template v-if="row.participantRef"> · ⛓ {{ row.participantRef }}</template>
-                    {{ standingSuffix(row) }}
+                    {{ standingSuffix(row) }}{{ chainSuffix(row) }}
                   </p>
                 </td>
                 <td class="py-2 pr-3 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-orgs-members-${row.id}`">

@@ -14,19 +14,62 @@
 # bodies), extracted from the monorepo's demonstration data at the
 # wave-02 move.
 #
-# Shape: five collections, one per entity store the register resolver
+# Shape: six collections, one per entity store the register resolver
 # (server/auth/org-registry.ts) reads. Each row is stored verbatim as
 # the entity's JSON data.
 #
 #   organizations             IAs + TLs (kind: issuing-authority |
 #                             test-laboratory)
-#   utilizers / associates    the acceptance participants
+#   members                   the OIML Member category (kind:
+#                             member-state | corresponding-member) —
+#                             TODO.identity-features/10: NEVER a status
+#                             on a utilizer; the member is its own org
+#                             row, the designated bodies LINK to it
+#   utilizers / associates    the acceptance participants (the
+#                             DESIGNATED BODIES — their own orgs signing
+#                             the Declaration per PD-08; designated_by
+#                             links the designating member)
 #   participantDeclarations   a signed Declaration registers its
 #                             participant (IAs, Utilizers, Associates)
 #   participantApplications   a participation case at ACTIVE registers
 #                             the TL (its admission is the case, never
 #                             a Declaration of its own)
+#
+# The designation chain (TODO.identity-features/10), authored on the
+# rows: EX1 carries proposed_by → ms-example (its proposing member
+# state), the TL "21" carries designated_by → EX1 (its IA association),
+# the utilizers/associate carry designated_by → their member org. The
+# seed projects all of it into the org registry
+# (server/seed-org-register.ts).
 # ═══════════════════════════════════════════════════════════════════
+
+members:
+  # The layered demonstration member (the e2e's chain proof): the member
+  # state PROPOSES its issuing authority (EX1) and DESIGNATES a utilizer
+  # (ut-emsa) — its engagement is the layered, honest kind.
+  - id: ms-example
+    kind: member-state
+    name: "Example Member Body"
+    short_name: "EMB"
+    country: "Example Member State"
+    contact: { person: "Ms. Ingrid Halvorsen", email: "oiml@emb.example.org", phone: "+100 555 0110" }
+  # The second member state (the legacy-shaped utilizer's designator —
+  # the demonstration that a member's engagement may be a designation
+  # alone, never a conflation of the two rows).
+  - id: ms-nl
+    kind: member-state
+    name: "Member Body of the Netherlands (demonstration)"
+    short_name: "MB-NL"
+    country: "Netherlands"
+    contact: { person: "Mr. Pieter Jansen", email: "oiml@mb-nl.example.org", phone: "+31 15 269 0101" }
+  # The corresponding member: the countries/economies not yet members —
+  # it participates by DESIGNATING an associate (as-demo).
+  - id: cm-demo
+    kind: corresponding-member
+    name: "Demo Corresponding Member Institute"
+    short_name: "DCMI"
+    country: "Demo Corresponding Economy"
+    contact: { person: "Ms. Amara Diallo", email: "contact@dcmi.example.org", phone: "+200 555 0120" }
 
 organizations:
   - id: EX1
@@ -34,6 +77,9 @@ organizations:
     name: "Example Issuing Authority"
     short_name: "EIA"
     oiml_code: EX1
+    # The proposing member state (TODO.identity-features/10): the member
+    # participates in the OIML-CS by PROPOSING its IA.
+    proposed_by: ms-example
     country: "Example Member State"
     address: { street: "1 Scheme Avenue", city: "Demoville", country: "Example Member State", postal_code: "DL-100" }
     contact: { person: "Ms. Emily Irving", email: "office@eia.example.org", phone: "+100 555 0101" }
@@ -50,6 +96,10 @@ organizations:
     lab_kind: independent
     oiml_id: 21
     parent_oiml_code: EX1
+    # The IA association (TODO.identity-features/10): the TL is
+    # designated by its issuing authority (the participants model's
+    # designated_by: issuing_authority).
+    designated_by: EX1
     country: "Example Member State"
     address: { street: "2 Metrology Way", city: "Demoville", country: "Example Member State", postal_code: "DL-102" }
     contact: { person: "Mr. Martin Berger", email: "lab@etl.example.org", phone: "+100 555 0102" }
@@ -82,10 +132,30 @@ utilizers:
     name: "Example Metrology Authority (Netherlands)"
     short_name: "EMA-NL"
     country: "Netherlands"
+    # The designating member state (TODO.identity-features/10).
+    designated_by: ms-nl
     contact: { person: "Sanne de Vries", email: "oiml-cs@nmi.example.org", phone: "+31 15 269 0100" }
     declaration_id: decl-ut-nl
+  # The layered member's designated utilizer (the e2e's chain proof):
+  # the member state ms-example DESIGNATES it in its country.
+  - id: ut-emsa
+    name: "Example Market Surveillance Authority"
+    short_name: "EMSA"
+    country: "Example Member State"
+    designated_by: ms-example
+    contact: { person: "Mr. Tomas Reyes", email: "oiml-cs@emsa.example.org", phone: "+100 555 0111" }
+    declaration_id: decl-ut-emsa
 
-associates: []
+associates:
+  # The corresponding member's designated associate (PD-08: it signs the
+  # Declaration to accept the OIML Certificates/reports).
+  - id: as-demo
+    name: "Demo Inspection Body"
+    short_name: "DIB"
+    country: "Demo Corresponding Economy"
+    designated_by: cm-demo
+    contact: { person: "Ms. Amara Diallo", email: "oiml-cs@dib.example.org", phone: "+200 555 0121" }
+    declaration_id: decl-as-demo
 
 participantDeclarations:
   - id: decl-ia-ex1
@@ -111,6 +181,22 @@ participantDeclarations:
     scope:
       - { category: load-cells, schemes: [scheme_a, scheme_b] }
     signed_at: "2024-03-01"
+  - id: decl-ut-emsa
+    kind: utilizer_declaration
+    participant_kind: utilizer
+    participant_id: ut-emsa
+    status: signed
+    scope:
+      - { category: load-cells, schemes: [scheme_a] }
+    signed_at: "2024-06-01"
+  - id: decl-as-demo
+    kind: associate_declaration
+    participant_kind: associate
+    participant_id: as-demo
+    status: signed
+    scope:
+      - { category: load-cells, schemes: [scheme_a] }
+    signed_at: "2025-01-15"
 
 participantApplications:
   # The TL's admission is the PD-04 participation case at ACTIVE (its
