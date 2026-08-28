@@ -17,7 +17,7 @@
 // registry console's gate). The org admin's own people console is
 // /op/admin/users (the org-scoped grant).
 // ═══════════════════════════════════════════════════════════════════
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
@@ -31,10 +31,16 @@ interface OrgInfo {
   country: string
   contacts: Array<{ name: string | null; email: string }>
   participantRef: string | null
+  /** The designation links + the CS status facet
+   *  (TODO.identity-features/10): the designated bodies' designating
+   *  org, the IA's proposing member state, the Declaration's standing. */
+  designatedBy: string | null
+  proposedBy: string | null
+  csStatus: 'signed-active' | 'suspended' | 'withdrawn' | null
   state: 'active' | 'disabled'
   registered: boolean
-  /** The per-kind standing (TODO.register/01). */
-  standing: 'participant' | 'declared' | 'ia-endorsed' | 'non-participant'
+  /** The per-kind standing (TODO.register/01 + the member category). */
+  standing: 'participant' | 'member' | 'declared' | 'ia-endorsed' | 'non-participant'
   endorsedBy: string[]
   roles: string[]
   createdAt: string
@@ -43,6 +49,21 @@ interface OrgInfo {
   updatedBy: string | null
   disabledAt: string | null
   disabledBy: string | null
+}
+
+/** A resolved chain link (the org id + its display name). */
+interface LinkTarget {
+  id: string
+  name: string
+}
+
+/** The chain's REVERSE direction (TODO.identity-features/10): an org
+ *  naming THIS org as its designator or proposer. */
+interface LinkedOrg {
+  id: string
+  name: string
+  kind: string | null
+  via: 'designated_by' | 'proposed_by'
 }
 
 /** The manufacturer standing's ACTIVE endorsement (TODO.register/01) —
@@ -111,6 +132,15 @@ interface OrgEvent {
 
 interface OrgView {
   org: OrgInfo
+  /** The designation chain (TODO.identity-features/10), both
+   *  directions + the edit form's eligible link targets. */
+  links: { designatedBy: LinkTarget | null; proposedBy: LinkTarget | null }
+  linkedBy: LinkedOrg[]
+  linkTargets: {
+    memberStates: LinkTarget[]
+    correspondingMembers: LinkTarget[]
+    issuingAuthorities: LinkTarget[]
+  }
   endorsements: EndorsementRow[]
   /** TODO.trust-registry/01: the org's signing keys (the custody chain
    *  whole — active, rotated, revoked). */
@@ -149,6 +179,17 @@ const editKind = ref('')
 const editCountry = ref('')
 const editParticipantRef = ref('')
 const editContacts = ref<Array<{ name: string; email: string }>>([])
+// The designation links + the CS status facet (TODO.identity-features/10).
+const editDesignatedBy = ref('')
+const editProposedBy = ref('')
+const editCsStatus = ref('')
+// A kind change drops the links that kind cannot carry (the form never
+// sends a stale link; the server re-checks regardless).
+watch(editKind, kind => {
+  if (LINK_FIELD[kind] !== 'designatedBy') editDesignatedBy.value = ''
+  if (LINK_FIELD[kind] !== 'proposedBy') editProposedBy.value = ''
+  if (kind !== 'utilizer' && kind !== 'associate') editCsStatus.value = ''
+})
 const confirmDisable = ref(false)
 const confirmRemove = ref(false)
 
@@ -267,7 +308,75 @@ async function revokeKey(k: SigningKeyRow) {
   }
 }
 
-const KIND_OPTIONS = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'manufacturer'] as const
+const KIND_OPTIONS = ['member-state', 'corresponding-member', 'issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'manufacturer'] as const
+
+/** The kind rendered honestly (TODO.identity-features/10): the OIML
+ *  Member category's kinds read as the category + the kind, never a
+ *  bare token; the participant kinds keep their registry token. */
+function kindText(kind: string | null): string {
+  if (kind === 'member-state') return t('admin.org.kind.memberState')
+  if (kind === 'corresponding-member') return t('admin.org.kind.correspondingMember')
+  return kind ?? t('admin.org.details.kindNone')
+}
+
+/** The designation-link field a kind carries (the server's
+ *  ORG_LINK_RULES mirrored for the edit form — the server re-checks):
+ *  the designated bodies + the TL carry designated_by, the IA carries
+ *  proposed_by, the member/manufacturer kinds carry NO link. */
+const LINK_FIELD: Record<string, 'designatedBy' | 'proposedBy' | null> = {
+  utilizer: 'designatedBy',
+  associate: 'designatedBy',
+  'test-laboratory': 'designatedBy',
+  'issuing-authority': 'proposedBy',
+}
+
+/** The eligible link targets for the edit form's current kind (the
+ *  link's target kind is fixed by the rule: a utilizer's designator is
+ *  a member state, an associate's a corresponding member, a TL's its
+ *  IA, an IA's proposer a member state). */
+const linkTargetOptions = computed<LinkTarget[]>(() => {
+  const view0 = view.value
+  if (!view0) return []
+  switch (editKind.value) {
+    case 'utilizer': return view0.linkTargets.memberStates
+    case 'associate': return view0.linkTargets.correspondingMembers
+    case 'test-laboratory': return view0.linkTargets.issuingAuthorities
+    case 'issuing-authority': return view0.linkTargets.memberStates
+    default: return []
+  }
+})
+
+/** The designated bodies' CS status facet (the utilizer/associate
+ *  kinds only). */
+const csStatusEditable = computed(() => editKind.value === 'utilizer' || editKind.value === 'associate')
+
+/** The chain's reverse, grouped for the honest read (TODO.identity-
+ *  features/10): the member's row reads "proposes / designates", the
+ *  IA's "associated test laboratories". */
+const proposedIas = computed(() => view.value?.linkedBy.filter(o => o.via === 'proposed_by') ?? [])
+const designatedBodies = computed(() => view.value?.linkedBy.filter(o => o.via === 'designated_by' && (o.kind === 'utilizer' || o.kind === 'associate')) ?? [])
+const associatedTls = computed(() => view.value?.linkedBy.filter(o => o.via === 'designated_by' && o.kind === 'test-laboratory') ?? [])
+
+/** The row's own link lines (the resolved name; the honest "not
+ *  recorded" when the kind carries a link but none is set). */
+const designatedByText = computed(() => {
+  const view0 = view.value
+  if (!view0) return ''
+  return view0.links.designatedBy?.name ?? t('admin.org.chain.notRecorded')
+})
+const proposedByText = computed(() => {
+  const view0 = view.value
+  if (!view0) return ''
+  return view0.links.proposedBy?.name ?? t('admin.org.chain.notRecorded')
+})
+const csStatusText = computed(() => {
+  switch (view.value?.org.csStatus) {
+    case 'signed-active': return t('admin.org.csStatus.signedActive')
+    case 'suspended': return t('admin.org.csStatus.suspended')
+    case 'withdrawn': return t('admin.org.csStatus.withdrawn')
+    default: return t('admin.org.csStatus.none')
+  }
+})
 
 /** The per-kind standing rendered honestly (TODO.register/01): the
  *  scheme's registration for a participant kind; the declared /
@@ -278,6 +387,7 @@ const standingText = computed(() => {
   if (!org) return ''
   switch (org.standing) {
     case 'participant': return t('admin.org.standing.participant')
+    case 'member': return t('admin.org.standing.member')
     case 'declared': return t('admin.org.standing.declared')
     case 'ia-endorsed': return t('admin.org.standing.iaEndorsed', { ias: org.endorsedBy.join(', ') })
     default: return t('admin.org.standing.nonParticipant')
@@ -448,6 +558,9 @@ function openEdit() {
   editKind.value = org.kind ?? ''
   editCountry.value = org.country
   editParticipantRef.value = org.participantRef ?? ''
+  editDesignatedBy.value = org.designatedBy ?? ''
+  editProposedBy.value = org.proposedBy ?? ''
+  editCsStatus.value = org.csStatus ?? ''
   editContacts.value = org.contacts.length
     ? org.contacts.map(ct => ({ name: ct.name ?? '', email: ct.email }))
     : [{ name: '', email: '' }]
@@ -470,6 +583,9 @@ async function saveEdit() {
         kind: editKind.value || null,
         country: editCountry.value.trim() || null,
         participant_ref: editParticipantRef.value.trim() || null,
+        designated_by: editDesignatedBy.value || null,
+        proposed_by: editProposedBy.value || null,
+        cs_status: editCsStatus.value || null,
         contacts,
       }),
     })
@@ -587,7 +703,7 @@ onMounted(async () => {
       <PageHeader :title="view.org.name" title-test-id="op-reg-org-name">
         <template #description>
           <span data-testid="op-reg-org-context">
-            {{ view.org.kind ?? t('admin.org.details.kindNone') }}<template v-if="view.org.country"> · {{ view.org.country }}</template>
+            {{ kindText(view.org.kind) }}<template v-if="view.org.country"> · {{ view.org.country }}</template>
             <span
               class="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
               :class="view.org.state === 'active' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'"
@@ -647,7 +763,7 @@ onMounted(async () => {
 
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs" data-testid="op-reg-org-details">
           <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.idLabel') }}</dt><dd class="font-mono text-slate-700 dark:text-slate-300" data-testid="op-reg-org-id">{{ view.org.id }}</dd></div>
-          <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.kindLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-kind">{{ view.org.kind ?? t('admin.org.details.kindNone') }}</dd></div>
+          <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.kindLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-kind">{{ kindText(view.org.kind) }}</dd></div>
           <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.countryLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300">{{ view.org.country || '—' }}</dd></div>
           <div class="flex gap-2"><dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.stateLabel') }}</dt><dd class="text-slate-700 dark:text-slate-300">{{ view.org.state === 'active' ? t('admin.orgs.stateActive') : t('admin.orgs.stateDisabled') }}<template v-if="view.org.state === 'disabled' && view.org.disabledAt"> ({{ t('admin.org.details.disabledBy', { date: fmtDate(view.org.disabledAt), by: view.org.disabledBy ?? '—' }) }})</template></dd></div>
           <div class="flex gap-2 sm:col-span-2">
@@ -657,6 +773,28 @@ onMounted(async () => {
           <div class="flex gap-2 sm:col-span-2">
             <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.participantRefLabel') }}</dt>
             <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-participant">{{ view.org.participantRef ?? t('admin.org.details.participantRefNone') }}</dd>
+          </div>
+          <!-- The designation links + the CS status facet
+               (TODO.identity-features/10): the row's OWN chain position,
+               honestly — the "not recorded" read for a linkless
+               designated body, never a conflation with the member. -->
+          <div v-if="LINK_FIELD[view.org.kind ?? ''] === 'designatedBy'" class="flex gap-2 sm:col-span-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.chain.designatedByLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-designated-by">
+              <router-link v-if="view.links.designatedBy" :to="`/op/admin/registry/orgs/${view.links.designatedBy.id}`" class="text-brand-600 dark:text-brand-300 hover:underline">{{ view.links.designatedBy.name }}</router-link>
+              <span v-else class="text-slate-400 dark:text-slate-500">{{ designatedByText }}</span>
+            </dd>
+          </div>
+          <div v-if="LINK_FIELD[view.org.kind ?? ''] === 'proposedBy'" class="flex gap-2 sm:col-span-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.chain.proposedByLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-proposed-by">
+              <router-link v-if="view.links.proposedBy" :to="`/op/admin/registry/orgs/${view.links.proposedBy.id}`" class="text-brand-600 dark:text-brand-300 hover:underline">{{ view.links.proposedBy.name }}</router-link>
+              <span v-else class="text-slate-400 dark:text-slate-500">{{ proposedByText }}</span>
+            </dd>
+          </div>
+          <div v-if="view.org.kind === 'utilizer' || view.org.kind === 'associate'" class="flex gap-2 sm:col-span-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.csStatusLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-cs-status">{{ csStatusText }}</dd>
           </div>
           <div class="flex gap-2 sm:col-span-2">
             <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.contactsLabel') }}</dt>
@@ -683,6 +821,26 @@ onMounted(async () => {
             </select>
             <input v-model="editCountry" type="text" data-testid="op-reg-org-edit-country" :placeholder="t('admin.orgs.field.country')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
             <input v-model="editParticipantRef" type="text" data-testid="op-reg-org-edit-participant-ref" :placeholder="t('admin.orgs.field.participantRef')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 sm:col-span-2" />
+            <!-- The designation link (TODO.identity-features/10): the
+                 selector's options are the rule's eligible targets (a
+                 utilizer's designator is a member state, an associate's
+                 a corresponding member, a TL's its IA); the IA's
+                 proposer select lists the member states. The server
+                 re-checks the kind enforcement. -->
+            <select v-if="LINK_FIELD[editKind] === 'designatedBy'" v-model="editDesignatedBy" data-testid="op-reg-org-edit-designated-by" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 sm:col-span-2">
+              <option value="">{{ t('admin.org.chain.notRecorded') }}</option>
+              <option v-for="target in linkTargetOptions" :key="target.id" :value="target.id">{{ t('admin.org.chain.designatedByOption', { name: target.name, id: target.id }) }}</option>
+            </select>
+            <select v-if="LINK_FIELD[editKind] === 'proposedBy'" v-model="editProposedBy" data-testid="op-reg-org-edit-proposed-by" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 sm:col-span-2">
+              <option value="">{{ t('admin.org.chain.notRecorded') }}</option>
+              <option v-for="target in linkTargetOptions" :key="target.id" :value="target.id">{{ t('admin.org.chain.proposedByOption', { name: target.name, id: target.id }) }}</option>
+            </select>
+            <select v-if="csStatusEditable" v-model="editCsStatus" data-testid="op-reg-org-edit-cs-status" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 sm:col-span-2">
+              <option value="">{{ t('admin.org.csStatus.none') }}</option>
+              <option value="signed-active">{{ t('admin.org.csStatus.signedActive') }}</option>
+              <option value="suspended">{{ t('admin.org.csStatus.suspended') }}</option>
+              <option value="withdrawn">{{ t('admin.org.csStatus.withdrawn') }}</option>
+            </select>
           </div>
           <div class="mt-3">
             <p class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.orgs.field.contacts') }}</p>
@@ -726,6 +884,51 @@ onMounted(async () => {
           >{{ t('admin.org.acts.removeConfirm') }}</button>
         </div>
       </section>
+
+      <!-- The designation chain (TODO.identity-features/10): the orgs
+           naming THIS org as their designator/proposer — the member's
+           "proposes / designates", the IA's associated test
+           laboratories. A member holding NO CS participation reads so
+           honestly (a plain member is a legitimate, honest state);
+           a legal body holding several roles reads as its separate
+           LINKED rows, never merged. -->
+      <section
+        v-if="view.org.kind === 'member-state' || view.org.kind === 'corresponding-member' || view.org.kind === 'issuing-authority' || view.linkedBy.length"
+        class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6"
+        data-testid="op-reg-org-chain"
+      >
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.org.chain.title') }}</h2>
+        <dl class="grid grid-cols-1 gap-y-1 text-xs">
+          <div v-if="view.org.kind === 'member-state' || proposedIas.length" class="flex gap-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.chain.proposesLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-chain-proposes">
+              <template v-if="proposedIas.length">
+                <router-link v-for="o in proposedIas" :key="o.id" :to="`/op/admin/registry/orgs/${o.id}`" class="inline-block mr-3 text-brand-600 dark:text-brand-300 hover:underline">{{ o.name }}</router-link>
+              </template>
+              <span v-else class="text-slate-400 dark:text-slate-500">{{ t('admin.org.chain.proposesNone') }}</span>
+            </dd>
+          </div>
+          <div v-if="view.org.kind === 'member-state' || view.org.kind === 'corresponding-member' || designatedBodies.length" class="flex gap-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.chain.designatesLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-chain-designates">
+              <template v-if="designatedBodies.length">
+                <router-link v-for="o in designatedBodies" :key="o.id" :to="`/op/admin/registry/orgs/${o.id}`" class="inline-block mr-3 text-brand-600 dark:text-brand-300 hover:underline">{{ o.name }} ({{ o.kind }})</router-link>
+              </template>
+              <span v-else class="text-slate-400 dark:text-slate-500">{{ t('admin.org.chain.designatesNone') }}</span>
+            </dd>
+          </div>
+          <div v-if="view.org.kind === 'issuing-authority' || associatedTls.length" class="flex gap-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.chain.associatedTlsLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-chain-tls">
+              <template v-if="associatedTls.length">
+                <router-link v-for="o in associatedTls" :key="o.id" :to="`/op/admin/registry/orgs/${o.id}`" class="inline-block mr-3 text-brand-600 dark:text-brand-300 hover:underline">{{ o.name }}</router-link>
+              </template>
+              <span v-else class="text-slate-400 dark:text-slate-500">{{ t('admin.org.chain.associatedTlsNone') }}</span>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
 
       <!-- The manufacturer standing's endorsements (TODO.register/01):
            the ACTIVE IA confirmations, honestly — a manufacturer is

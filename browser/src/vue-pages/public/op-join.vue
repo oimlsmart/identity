@@ -34,7 +34,7 @@ interface SelectorOrg {
   id: string
   name: string
   shortName: string
-  kind: 'issuing-authority' | 'test-laboratory' | 'utilizer' | 'associate'
+  kind: 'member-state' | 'corresponding-member' | 'issuing-authority' | 'test-laboratory' | 'utilizer' | 'associate'
   country: string
   roles: string[]
 }
@@ -65,6 +65,10 @@ const error = ref<string | null>(null)
 const filed = ref<{ queue: 'org' | 'biml' | 'manufacturer'; orgName: string; orgCreated?: boolean } | null>(null)
 
 const KIND_LABELS: Record<SelectorOrg['kind'], string> = {
+  // The OIML Member category (TODO.identity-features/10): the member's
+  // personnel join on the read/access posture, never a workflow role.
+  'member-state': 'OIML Member — Member State',
+  'corresponding-member': 'OIML Member — Corresponding Member',
   'issuing-authority': 'Issuing Authority',
   'test-laboratory': 'Test Laboratory',
   utilizer: 'Utilizer',

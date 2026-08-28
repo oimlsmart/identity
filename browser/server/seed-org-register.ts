@@ -37,6 +37,7 @@ const SNAPSHOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'or
 
 interface OrgRegisterSnapshot {
   organizations?: Array<Record<string, unknown>>
+  members?: Array<Record<string, unknown>>
   utilizers?: Array<Record<string, unknown>>
   associates?: Array<Record<string, unknown>>
   participantDeclarations?: Array<Record<string, unknown>>
@@ -84,8 +85,15 @@ const DEMO_MANUFACTURER_ORGS = [
  *  (TODO.identity-features/05): one org_registry row per register
  *  organization, the scheme-side admission mapped to the lifecycle
  *  (registered → active; mid-pipeline → disabled), plus the demo cast's
- *  manufacturer binding (TODO.register/01). Idempotent (create-then-
- *  update). Answers the count for the caller's log line. */
+ *  manufacturer binding (TODO.register/01). TODO.identity-features/10
+ *  (the OIML Member category): the MEMBERS collection seeds the
+ *  member-state / corresponding-member rows — the OIML membership is a
+ *  fact, never a CS admission pipeline, so a member row seeds ACTIVE
+ *  (the registered-participant rule never touches it); the IA/TL/
+ *  utilizer/associate rows carry their designation LINKS (proposed_by /
+ *  designated_by), and the designated bodies' CS STATUS projects from
+ *  the Declaration's standing. Idempotent (create-then-update). Answers
+ *  the count for the caller's log line. */
 export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<number> {
   const snapshot = parseYaml(readFileSync(SNAPSHOT, 'utf-8')) as OrgRegisterSnapshot
 
@@ -100,9 +108,23 @@ export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<n
     if (a.status === 'ACTIVE' && typeof a.applicant_organization_id === 'string') registered.add(a.applicant_organization_id)
   }
 
+  // The CS status facet's projection (TODO.identity-features/10): the
+  // designated body's Declaration standing, by declaration id.
+  const declarationStatus = new Map<string, string>()
+  for (const d of snapshot.participantDeclarations ?? []) {
+    if (typeof d.id === 'string' && typeof d.status === 'string') declarationStatus.set(d.id, d.status)
+  }
+  const csStatusOf = (row: Record<string, unknown>): string | null => {
+    const status = typeof row.declaration_id === 'string' ? declarationStatus.get(row.declaration_id) : undefined
+    if (status === 'signed') return 'signed-active'
+    if (status === 'suspended' || status === 'withdrawn') return status
+    return null
+  }
+
   let n = 0
   const rows: Array<[Array<Record<string, unknown>> | undefined, string]> = [
     [snapshot.organizations, ''],
+    [snapshot.members, ''],
     [snapshot.utilizers, 'utilizer'],
     [snapshot.associates, 'associate'],
   ]
@@ -111,12 +133,13 @@ export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<n
       const id = String(row.id ?? '')
       const name = typeof row.name === 'string' ? row.name : ''
       if (!id || !name) continue
+      const kind = fixedKind || (typeof row.kind === 'string' ? row.kind : null)
       const contact = (row.contact ?? {}) as SnapshotContact
       const input = {
         id,
         name,
         shortName: typeof row.short_name === 'string' ? row.short_name : null,
-        kind: fixedKind || (typeof row.kind === 'string' ? row.kind : null),
+        kind,
         country: typeof row.country === 'string' ? row.country : null,
         contacts: typeof contact.email === 'string' && contact.email
           ? [{ name: typeof contact.person === 'string' ? contact.person : null, email: contact.email }]
@@ -124,11 +147,20 @@ export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<n
         // §4: the participant org's id IS its code; participant_ref
         // documents the participant record the row mirrors.
         participantRef: id,
+        // The designation links + the CS status facet
+        // (TODO.identity-features/10): authored on the snapshot rows.
+        designatedBy: typeof row.designated_by === 'string' ? row.designated_by : null,
+        proposedBy: typeof row.proposed_by === 'string' ? row.proposed_by : null,
+        csStatus: kind === 'utilizer' || kind === 'associate' ? csStatusOf(row) : null,
         createdBy: 'the demonstration seed',
       }
       const created = await store.createOrgRegistryOrg(input)
       if (!created) await store.updateOrgRegistryOrg(id, input, 'the demonstration seed')
-      if (!registered.has(id)) {
+      // The lifecycle mapping touches the PARTICIPANT rows only: the
+      // OIML membership (the member kinds) is a fact — a member row
+      // seeds ACTIVE, never gated on a Declaration.
+      const isMember = kind === 'member-state' || kind === 'corresponding-member'
+      if (!isMember && !registered.has(id)) {
         await store.setOrgRegistryOrgState(id, 'disabled', 'the demonstration seed')
       }
       n += 1
