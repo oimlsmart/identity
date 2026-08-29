@@ -150,6 +150,7 @@ jobs:
             e2e/id-21-member-category.e2e.ts \
             e2e/id-22-explainer.e2e.ts \
             e2e/id-23-service-clients.e2e.ts \
+            e2e/id-24-personal-tokens.e2e.ts \
             e2e/id-surface.e2e.ts \
             e2e/op-surface-contract.e2e.ts \
             e2e/op-key-rotate.e2e.ts

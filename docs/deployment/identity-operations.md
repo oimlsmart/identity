@@ -80,7 +80,12 @@ has passed, never automatically mid-flight.
   preserving the audit trail; delete is the erasure path and
   anonymizes. On the account page the lighter act sits between the
   two: "end all sessions" signs the account out everywhere without
-  touching its ability to sign in again.
+  touching its ability to sign in again. The account's developer
+  tokens (TODO.identity-features/08 — the personal access tokens)
+  follow the same line: a disabled account's tokens refuse at the
+  exchange (reversible — a re-activation restores them), and the
+  erasure removes the token rows outright (the hashes die with the
+  account).
   RP-side: existing sessions expire at their own lifetime;
   sensitive acts re-check (the approval queues already do). At the
   ORGANIZATION level (the multi-org membership model), the org's
