@@ -308,8 +308,8 @@ describe('TODO.identity-features/09 (wave B) — the effective-permission explai
     expect(panelText).toContain('Writes: as the roles above grant.')
     expect(panelText).toContain('The read gate narrows this member')
     const appsRow = await page.$eval(`[data-testid="org-user-explain-vis-${memberId}-applications"]`, el => el.textContent ?? '')
-    expect(appsRow).toContain('the organization's row: visible')
-    expect(appsRow).toContain('another organization's row: hidden')
+    expect(appsRow).toContain("the organization's row: visible")
+    expect(appsRow).toContain("another organization's row: hidden")
 
     // The cone picker moves the member to 'assigned' — the OPEN panel
     // re-asks and answers the narrowed reality.
@@ -318,7 +318,7 @@ describe('TODO.identity-features/09 (wave B) — the effective-permission explai
     await page.evaluate(id => (document.querySelector(`[data-testid="org-user-cone-opt-${id}-assigned"]`) as HTMLElement).click(), memberId)
     await page.evaluate(id => (document.querySelector(`[data-testid="org-user-cone-save-${id}"]`) as HTMLElement).click(), memberId)
     await page.waitForFunction(
-      id => document.querySelector(`[data-testid="org-user-explain-vis-${id}-applications"]`)?.textContent?.includes('the organization's row: hidden'),
+      id => document.querySelector(`[data-testid="org-user-explain-vis-${id}-applications"]`)?.textContent?.includes("the organization's row: hidden"),
       { timeout: SETTLE, polling: 500 },
       memberId,
     )
@@ -327,7 +327,7 @@ describe('TODO.identity-features/09 (wave B) — the effective-permission explai
     const narrowedRuns = await page.$eval(`[data-testid="org-user-explain-vis-${memberId}-testRuns"]`, el => el.textContent ?? '')
     expect(narrowedRuns).toContain('…naming the member: visible')
     const narrowedPanel = await page.$eval(`[data-testid="org-user-explain-panel-${memberId}"]`, el => el.textContent ?? '')
-    expect(narrowedPanel).toContain('Reads: only the organization's rows that name them.')
+    expect(narrowedPanel).toContain("Reads: only the organization's rows that name them.")
     expect(narrowedPanel).toContain('in effect — over the rows naming them only')
 
     // ── leg 3: THE READ-ONLY MODIFIER — every act suspends; the restore ──
