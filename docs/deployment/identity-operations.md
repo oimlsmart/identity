@@ -88,6 +88,48 @@ has passed, never automatically mid-flight.
   and exportable — the scheme's peer-assessment habit makes the OP's
   own admin log audit evidence.
 
+## The participant registry's bootstrap (TODO.identity-features/10)
+
+The organization registry's production population is the authoritative
+OIML directory: `browser/data/org-registry.bootstrap.yaml` (217 rows —
+63 member states, 66 corresponding members, 14 issuing authorities, 32
+test-laboratory associations, 31 utilizers, 11 associates — fetched from
+oiml.org 2026-08-29, the per-row provenance in the file). The importer
+(`browser/server/import-org-registry.ts`, driven by
+`browser/scripts/import-org-registry.ts`) upserts through the server's
+own designation-link validation; it never deletes a row, never touches
+curated contacts, and never resurrects a disabled org.
+
+The apply is a deliberate act (the coordinator reviews the dataset
+first). The rehearsal + apply, from `browser/`:
+
+```sh
+# 1. the rehearsal on a scratch SQLite (no Cloudflare anything)
+npx tsx scripts/import-org-registry.ts --db .cache/bootstrap-proof/identity.db
+npx tsx scripts/import-org-registry.ts --db .cache/bootstrap-proof/identity.db --execute
+npx tsx scripts/import-org-registry.ts --db .cache/bootstrap-proof/identity.db   # the re-plan: 217 unchanged
+
+# 2. the plan against the LIVE registry (read-only) + the apply SQL
+npx tsx scripts/import-org-registry.ts --remote            # prints the plan, emits the SQL (default .cache/org-registry.bootstrap.sql)
+#    — review the printed plan (217 create on a fresh registry) and the
+#    emitted SQL; both name every row they touch.
+
+# 3. the apply (the deliberate act; the same D1 the deploy gates name)
+npx wrangler d1 execute oiml-smart-platform-identity --remote --config wrangler.toml --env identity --file .cache/org-registry.bootstrap.sql
+
+# 4. the verification (read-only)
+npx wrangler d1 execute oiml-smart-platform-identity --remote --config wrangler.toml --env identity --json \
+  --command "SELECT kind, COUNT(*) AS n FROM org_registry GROUP BY kind ORDER BY kind"
+#    expect: associate 11, corresponding-member 66, issuing-authority 14,
+#    member-state 63, test-laboratory 32, utilizer 31
+```
+
+Re-runnable by construction: the re-import's plan is all-`unchanged`
+when the registry already carries the dataset. A directory refresh
+re-edits the YAML (never the rows by hand for the bootstrap-managed
+fields) and re-runs the same commands; the plan's update list IS the
+review of what changed.
+
 ## Availability and monitoring
 
 - The heartbeat, independent of the platform: a scheduled probe hitting
