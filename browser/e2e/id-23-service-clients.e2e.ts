@@ -33,8 +33,8 @@
 //          service + the audience.
 //
 // SELF-CONTAINED: the suite's shared stack (E2E_BASE_URL) is untouched —
-// the identity instance boots on its own ports (API 10601 / astro
-// 10602) with its own SQLite file.
+// the identity instance boots on its own ports (API 10603 / astro
+// 10604) with its own SQLite file.
 // ═══════════════════════════════════════════════════════════════════
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -48,12 +48,12 @@ import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
-const DB_DIR = join(BROWSER_DIR, '.cache', 'id-22')
+const DB_DIR = join(BROWSER_DIR, '.cache', 'id-23')
 
-// Port-isolated: above every declared e2e stack (…10600 is id-21's) and
-// the local dev loops.
-const ID_API = 10601
-const ID_WEB = 10602
+// Port-isolated: above every declared e2e stack (…10600 is id-21's,
+// 10601/10602 id-22's — the explainer) and the local dev loops.
+const ID_API = 10603
+const ID_WEB = 10604
 
 const ADMIN_EMAIL = 'admin@oiml.org'
 
