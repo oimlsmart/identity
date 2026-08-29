@@ -143,7 +143,11 @@ jobs:
             e2e/id-16-selfhost.e2e.ts \
             e2e/id-17-manufacturer-kind.e2e.ts \
             e2e/id-18-org-signing-keys.e2e.ts \
+            e2e/id-12-admin-dashboard.e2e.ts \
+            e2e/id-13-org-memberships.e2e.ts \
             e2e/id-19-device-clients.e2e.ts \
+            e2e/id-20-org-member-cones.e2e.ts \
+            e2e/id-21-member-category.e2e.ts \
             e2e/id-22-explainer.e2e.ts \
             e2e/id-23-service-clients.e2e.ts \
             e2e/id-surface.e2e.ts \
