@@ -43,7 +43,7 @@ Issuer: `https://id.oimlsmart.org`
 | Discovery (RFC 8414) | `GET {issuer}/.well-known/openid-configuration` |
 | JWKS (the signing keys) | `GET {issuer}/jwks.json` (the discovery document's `jwks_uri` is authoritative) |
 | Authorization endpoint | `{issuer}/op/authorize` |
-| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the machine classes — device + service, §9) |
+| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the machine classes — device + service, §9; the RFC 8693 token exchange for the developer cone's personal access tokens — §9a) |
 | UserInfo | `{issuer}/op/userinfo` |
 | Avatar (the `picture` claim's target; public, no session) | `{issuer}/op/avatar/<account id>` |
 | Whoami (the account-chip beacon for the static properties: the OP session's minimal projection, CORS-gated on the registered clients' origins) | `GET {issuer}/op/whoami` |
@@ -429,6 +429,81 @@ grant (the RFC 8693 exchange is the PAT surface's, TODO.identity-
 features/08) — never mint a service token as a user impersonation. If
 your integration needs that, say so. Do NOT work around any of this by
 embedding a human's credentials.
+
+## 9a. The developer cone (the personal access tokens, TODO.identity-features/08)
+
+A **personal access token (PAT)** is a PERSON's programmatic credential
+— the lab CLI, the script, the agent pipeline acting AS the account
+(TODO.identity-ops/07's people half). The device cone covers machines;
+this cone never does: org-level automation speaks the org's registered
+clients, never a person's token.
+
+The shape (the GitHub fine-grained pattern):
+
+- The account mints the PAT on the account console (`{issuer}/op/account`,
+  the developer-tokens section): a name, the scope set, the expiration.
+  **The plaintext shows ONCE** — the OP stores only its SHA-256; a lost
+  token is revoked and re-minted, never recovered.
+- **The PAT never rides a request directly.** It exchanges at the token
+  endpoint (RFC 8693) for a short-lived OP JWT — your service keeps
+  validating the ONE token shape (§6, the OP's JWT against the JWKS):
+
+  ```
+  POST {issuer}/op/token
+  Content-Type: application/x-www-form-urlencoded
+
+  grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+  &subject_token_type=urn:oimlsmart:params:oauth:token-type:pat
+  &subject_token=ospt_…
+  [&scope=hub-instance:read]     ← an OPTIONAL per-exchange narrowing
+                                   (a subset of the PAT's pinned set,
+                                   never wider — invalid_scope otherwise)
+  ```
+
+  The answer carries `access_token` (the JWT), `issued_token_type:
+  urn:ietf:params:oauth:token-type:access_token`, `token_type: Bearer`,
+  `expires_in`, and `scope` (the granted set — the pinned set re-judged
+  against the account's CURRENT standing, so it may honestly shrink; a
+  scope the account lost since the mint falls away, and the audit chain
+  names the drop).
+- **Expiration is mandatory** (90 days the default, one year the
+  ceiling) — the fine-grained lesson. A live token inside its final week
+  emails the holder once (the notice rides the exchange — the in-use
+  token's owner learns while the automation still works).
+- **A token only ever narrows the account.** The scope grammar is
+  `<service>:<action-class>` — the service is a registered,
+  application-class client id (§3; the estate's service registry IS the
+  OP's client registry — a device client is never a PAT's service); the
+  action class is ordinal (`admin ⊃ write ⊃ read`). The OP enforces the
+  bound at mint AND at exchange: `read` needs the account to enter the
+  service with roles at all; `write` needs those roles to hold a
+  workflow permission; `admin` needs an administration-class one. A
+  disabled or erased account's tokens die with it.
+- **The exchanged JWT's claims**: `iss`, `sub` (the account id), `aud`
+  (the scope set's services — check your client id is IN it), `iat`,
+  `exp`, `scope` (the granted set), `name`, `email`, `org` + `cone` (the
+  active-org context, absent for an org-free context), `service_roles`
+  (the account's roles PER SERVICE — your RBAC map reads your own entry,
+  never a callback), and `pat` (the credential's row id — log it for the
+  revocation correlation). Never an ID token, never a refresh, never
+  `amr` (the exchange is not an authentication ceremony).
+
+Your service's bearer gate (the at-use half): validate the JWT per §6,
+then enforce the scope cone — the request's act must fit a granted
+`<service>:<action>` scope (the kernel's `patScopeCovers` is the one
+check, `@oimlsmart/platform-server/store`), AND the role check your
+routes already run stands on the token's `service_roles` entry for your
+client id. Both narrow; neither grants. The OP-side bound is the
+approximation; your own map is the final word — that is deliberate (§7's
+division).
+
+Revocation + rotation: the account revokes on the console (the exchange
+refuses from that instant — `invalid_grant`; an already-exchanged JWT
+lives out its short `exp`, the same posture as the device cone). The
+audit chain carries mint / exchange (a throttled heartbeat, never
+per-request) / revoke. The grant is NOT advertised in the discovery
+document (the device cone's precedent — the estate-internal cone; the
+OIDC surface the golden pins is byte-identical).
 
 ## 10. What your service inherits
 
