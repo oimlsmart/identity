@@ -43,7 +43,7 @@ Issuer: `https://id.oimlsmart.org`
 | Discovery (RFC 8414) | `GET {issuer}/.well-known/openid-configuration` |
 | JWKS (the signing keys) | `GET {issuer}/jwks.json` (the discovery document's `jwks_uri` is authoritative) |
 | Authorization endpoint | `{issuer}/op/authorize` |
-| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the DEVICE class only — §9) |
+| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the machine classes — device + service, §9) |
 | UserInfo | `{issuer}/op/userinfo` |
 | Avatar (the `picture` claim's target; public, no session) | `{issuer}/op/avatar/<account id>` |
 | Whoami (the account-chip beacon for the static properties: the OP session's minimal projection, CORS-gated on the registered clients' origins) | `GET {issuer}/op/whoami` |
@@ -115,6 +115,40 @@ registry), and the instrument model reference (the product-reference
 package id). The class is fixed at registration — an application never
 becomes a device nor the reverse; register a fresh client. See §9 for
 the token's exact claim contract.
+
+### The service class (the machine cone's general half)
+
+A **service client** is a NON-HUMAN client registered PER SERVICE
+ACCOUNT (TODO.identity-ops/07): the general machine caller — the agent
+pipelines, the MCP servers, the scheduled jobs — that the device class
+never covers. The class rules are the device class's: `client_credentials`
+ONLY (no authorization-code flow, no redirect URIs, no refresh, no launch
+card, no user claims), always confidential (the secret IS the service
+account's credential), the class fixed at registration. One entry:
+
+```json
+{
+  "client_id": "svc-rag-mcp-ingest",
+  "name": "The RAG's MCP ingest pipeline",
+  "class": "service",
+  "service": {
+    "id": "rag-mcp-ingest",
+    "org": "mfr-acme",
+    "audience": "oiml-rag-mcp",
+    "scopes": ["documents:read", "ingest:write"]
+  },
+  "generate_secret": true
+}
+```
+
+The `service` block binds the identity the token carries: the service id
+(the account name — the token's `sub`), its org (must resolve on the
+OP's organization registry), the **audience** the token is bound to (the
+called service's own identifier — the token's `aud`; the device class
+pins `aud` to the client id, the service class carries the declared
+audience), and the **scope allowlist** (the closed, non-empty set the
+token's `scope` claim may carry — least privilege at write). See §9 for
+the token contract and the per-request scope narrowing.
 
 ## 4. The claims contract (what the ID token carries)
 
@@ -331,14 +365,17 @@ spans them:
   entirely in the browser: no server, no shared cookie, tokens in
   memory.
 
-## 9. Machine callers (the device cone; the general gap honestly open)
+## 9. Machine callers (the device + service cones)
 
-The OP's machine cone is the **device class** (§3): per-device
-credentials for the SMART Measuring Instruments' twins. A device client
-presents `grant_type=client_credentials` with its secret
-(client_secret_basic or post) at `{issuer}/op/token` and receives a
-SELF-CONTAINED ES256 JWT access token (validate it against the OP's
-JWKS — no call-back):
+The OP's machine cone has two classes (§3): the **device class** —
+per-device credentials for the SMART Measuring Instruments' twins — and
+the **service class** — the general machine caller (agent pipelines,
+MCP servers, scheduled jobs). Both present `grant_type=client_credentials`
+with their secret (client_secret_basic or post) at `{issuer}/op/token`
+and receive a SELF-CONTAINED ES256 JWT access token (validate it against
+the OP's JWKS — no call-back).
+
+The device class's token:
 
 ```json
 {
@@ -351,22 +388,47 @@ JWKS — no call-back):
 }
 ```
 
-That is the WHOLE claim set: never an ID token, never a refresh token,
-never a user claim (no name/email/roles/groups/picture/amr — there is no
-account behind a device token). The token lifetime is the OP's access
-token TTL; an expired token re-authenticates (the secret is the
-credential). Revocation is the client's disable: in-flight tokens die at
-their `exp`, new mints refuse at once. The grant is NOT advertised in
-the discovery document (`grant_types_supported` stays
-`authorization_code`): the device cone is an estate-internal class, not
+The service class's token — the audience binding + the scoped claims:
+
+```json
+{
+  "iss": "{issuer}",
+  "sub": "<the service id>",
+  "aud": "<the DECLARED audience (the called service's identifier)>",
+  "client_id": "<the client id>",
+  "iat": …, "exp": …,
+  "org": "<the service's org (the identity registry's org id)>",
+  "scope": "<the effective scopes, space-separated>"
+}
+```
+
+The service grant accepts the RFC 6749 §4.4 `scope` parameter: the
+request may name a SUBSET of the registered allowlist (the token carries
+exactly that subset, and the response's `scope` field states it); a
+scope beyond the allowlist refuses `invalid_scope` — never a silent
+drop, never a mint beyond the registered set. An absent parameter
+carries the full allowlist. Your service validates `aud` (it MUST name
+your identifier — a token for another audience is not for you) and
+enforces from `scope`; the fine-grained "which document" policy stays
+yours (§7's division).
+
+Those are the WHOLE claim sets: never an ID token, never a refresh
+token, never a user claim (no name/email/roles/groups/picture/amr —
+there is no account behind a machine token). The token lifetime is the
+OP's access token TTL; an expired token re-authenticates (the secret is
+the credential). Revocation is the client's disable: in-flight tokens
+die at their `exp`, new mints refuse at once. The grant is NOT
+advertised in the discovery document (`grant_types_supported` stays
+`authorization_code`): the machine cone is an estate-internal class, not
 an RP flow — application clients asking `client_credentials` get the
 plain `unsupported_grant_type` refusal.
 
-The GENERAL machine-caller gap (agent pipelines, MCP servers — service
-accounts with audience-bound, scoped tokens) remains honestly open and
-sized in `TODO.identity-ops/07`. If your integration needs machine
-tokens beyond the device cone, say so — that is the trigger that
-schedules it. Do NOT work around it by embedding a human's credentials.
+The deliberately-unserved remainder: tokens where a machine acts ON
+BEHALF OF a signed-in user (the delegated-user flow) are a different
+grant (the RFC 8693 exchange is the PAT surface's, TODO.identity-
+features/08) — never mint a service token as a user impersonation. If
+your integration needs that, say so. Do NOT work around any of this by
+embedding a human's credentials.
 
 ## 10. What your service inherits
 

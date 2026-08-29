@@ -8,15 +8,16 @@
 // shown exactly ONCE (only its hash survives); the copy affordance is
 // the handover.
 //
-// THE DEVICE CLASS (the machine cone — server/auth/op/device-clients.ts)
-// renders HONESTLY: a device client is a non-human, per-device client
-// (client_credentials only) — no launch card, no redirect URIs, no
-// user-facing claims policy; the row carries the device badge and the
-// bound device's line instead, and the form's device mode swaps the
-// human-cone fieldsets for the device binding (the id, its org, the
-// instrument model reference). The class is fixed at registration (the
-// picker locks in edit mode); a device is always confidential (the
-// secret is the device's credential — the re-key is the rotation).
+// THE MACHINE CLASSES (the machine cone — server/auth/op/device-clients.ts
+// + service-clients.ts) render HONESTLY: a machine client is a non-human
+// client (client_credentials only) — no launch card, no redirect URIs, no
+// user-facing claims policy; the row carries the class badge and the
+// bound caller's line instead, and the form's machine modes swap the
+// human-cone fieldsets for the binding (the device: the id, its org, the
+// instrument model reference; the service account: the id, its org, the
+// audience, the scope allowlist). The class is fixed at registration (the
+// picker locks in edit mode); a machine client is always confidential
+// (the secret is the caller's credential — the re-key is the rotation).
 //
 // Every rule is SERVER-ENFORCED (routes/op.ts's registry surface); this
 // page only renders what the API answers. The secret never appears in a
@@ -31,11 +32,16 @@ interface ClientRow {
   clientId: string
   name: string
   /** The machine cone: 'device' = the per-device, non-human class;
+   *  'service' = the per-service-account class (TODO.identity-ops/07);
    *  'application' = the relying-party posture. */
-  class: 'device' | 'application'
+  class: 'device' | 'service' | 'application'
   /** The bound device (the device class only): the id (the token's
    *  sub), its org, the instrument model reference. */
   device: { id: string; org: string; instrument_model: string } | null
+  /** The bound service account (the service class only): the id (the
+   *  token's sub), its org, the audience the token binds, the scope
+   *  allowlist. */
+  service: { id: string; org: string; audience: string; scopes: string[] } | null
   redirectUris: string[]
   claimsPolicy: { claims: string[]; roles?: string[] } | null
   /** The SSO home's launch card (null = not on the launcher). */
@@ -82,7 +88,7 @@ const saving = ref(false)
 /** The role vocabulary for the claims policy's role allowlist
  *  (TODO.identity/03): the instance map's keys. */
 const roleOptions = ref<string[]>([])
-/** The organization registry's orgs (the device binding's org select —
+/** The organization registry's orgs (the machine bindings' org select —
  *  the token's org claim must name an org the OP knows; the server
  *  re-validates at write). */
 const orgOptions = ref<Array<{ id: string; name: string }>>([])
@@ -106,12 +112,18 @@ const form = ref({
   launch_description: '',
   launch_icon: 'external',
   launch_visibility: 'roles' as 'roles' | 'request' | 'open',
-  /** The machine cone: ON registers the device class (fixed at
-   *  registration — the picker locks in edit mode). */
-  classDevice: false,
+  /** The machine cone: the client class (fixed at registration — the
+   *  picker locks in edit mode). 'device' and 'service' are the
+   *  non-human classes (client_credentials only). */
+  classKind: 'application' as 'application' | 'device' | 'service',
   device_id: '',
   device_org: '',
   device_model: '',
+  service_id: '',
+  service_org: '',
+  service_audience: '',
+  /** The service's scope allowlist (space- or comma-separated). */
+  service_scopes: '',
 })
 const editing = ref<string | null>(null)
 /** The re-key decision in edit mode: off keeps the stored secret hash. */
@@ -127,7 +139,8 @@ function resetForm() {
   form.value = {
     client_id: '', name: '', redirect_uris: '', claims: [], roles: [], confidential: true,
     launchOn: false, launch_url: '', launch_description: '', launch_icon: 'external', launch_visibility: 'roles',
-    classDevice: false, device_id: '', device_org: '', device_model: '',
+    classKind: 'application', device_id: '', device_org: '', device_model: '',
+    service_id: '', service_org: '', service_audience: '', service_scopes: '',
   }
 }
 
@@ -147,10 +160,14 @@ function editRow(row: ClientRow) {
     launch_description: row.launch?.description ?? '',
     launch_icon: row.launch?.icon ?? 'external',
     launch_visibility: row.launch?.visibility ?? 'roles',
-    classDevice: row.class === 'device',
+    classKind: row.class,
     device_id: row.device?.id ?? '',
     device_org: row.device?.org ?? '',
     device_model: row.device?.instrument_model ?? '',
+    service_id: row.service?.id ?? '',
+    service_org: row.service?.org ?? '',
+    service_audience: row.service?.audience ?? '',
+    service_scopes: row.service?.scopes.join(' ') ?? '',
   }
 }
 
@@ -196,11 +213,11 @@ function activityLine(clientId: string): string {
 }
 
 /** The form's URI list, validated inline (persistent): every line must
- *  be an absolute URI. The device class skips this — it never carries
+ *  be an absolute URI. The machine classes skip this — they never carry
  *  redirect URIs (the server enforces it). */
 const uriProblems = ref<string[]>([])
 function validateUris(): string[] {
-  if (form.value.classDevice) {
+  if (form.value.classKind !== 'application') {
     uriProblems.value = []
     return []
   }
@@ -220,13 +237,34 @@ function validateUris(): string[] {
 const deviceProblems = ref<string[]>([])
 function validateDeviceForm(): string[] {
   const problems: string[] = []
-  if (form.value.classDevice) {
+  if (form.value.classKind === 'device') {
     if (!form.value.device_id.trim()) problems.push(t('admin.clients.deviceIdRequired'))
     if (!form.value.device_org.trim()) problems.push(t('admin.clients.deviceOrgRequired'))
     if (!form.value.device_model.trim()) problems.push(t('admin.clients.deviceModelRequired'))
   }
   deviceProblems.value = problems
   return problems
+}
+
+/** The service binding's inline validation (the server re-validates at
+ *  write — the org must resolve on the registry; this keeps the honest
+ *  refusal next to the field). */
+const serviceProblems = ref<string[]>([])
+function validateServiceForm(): string[] {
+  const problems: string[] = []
+  if (form.value.classKind === 'service') {
+    if (!form.value.service_id.trim()) problems.push(t('admin.clients.serviceIdRequired'))
+    if (!form.value.service_org.trim()) problems.push(t('admin.clients.serviceOrgRequired'))
+    if (!form.value.service_audience.trim()) problems.push(t('admin.clients.serviceAudienceRequired'))
+    if (!serviceScopesList().length) problems.push(t('admin.clients.serviceScopesRequired'))
+  }
+  serviceProblems.value = problems
+  return problems
+}
+
+/** The service scopes field, parsed (space- or comma-separated, deduped). */
+function serviceScopesList(): string[] {
+  return [...new Set(form.value.service_scopes.split(/[\s,]+/).map(s => s.trim()).filter(Boolean))]
 }
 
 /** The launch card's inline validation (the server re-validates at
@@ -253,20 +291,21 @@ async function save() {
   error.value = null
   notice.value = null
   lastSecret.value = null
-  if (validateUris().length || validateLaunchForm().length || validateDeviceForm().length) return
+  if (validateUris().length || validateLaunchForm().length || validateDeviceForm().length || validateServiceForm().length) return
   saving.value = true
   try {
     // The secret posture: a NEW confidential client (or a re-key) asks the
     // server to GENERATE the secret (shown once, in the response); an
     // edit without re-key keeps the stored hash; a switch to public makes
-    // the client secret-less. The DEVICE class is always confidential (the
-    // secret is the device's credential) — never the public switch.
-    const wantsSecret = (form.value.confidential || form.value.classDevice) && (!editing.value || rekey.value)
-    const payload: Record<string, unknown> = form.value.classDevice
+    // the client secret-less. The MACHINE classes are always confidential
+    // (the secret is the caller's credential) — never the public switch.
+    const machine = form.value.classKind !== 'application'
+    const wantsSecret = (form.value.confidential || machine) && (!editing.value || rekey.value)
+    const payload: Record<string, unknown> = form.value.classKind === 'device'
       ? {
-          // The machine cone: the class + the device binding; never
-          // redirect URIs, never a claims policy, never a launch card
-          // (the server refuses them on the class — honestly).
+          // The machine cone, the device class: the class + the device
+          // binding; never redirect URIs, never a claims policy, never a
+          // launch card (the server refuses them on the class — honestly).
           client_id: form.value.client_id.trim(),
           name: form.value.name.trim(),
           class: 'device',
@@ -276,25 +315,40 @@ async function save() {
             instrument_model: form.value.device_model.trim(),
           },
         }
-      : {
-          client_id: form.value.client_id.trim(),
-          name: form.value.name.trim(),
-          redirect_uris: form.value.redirect_uris.split('\n').map(u => u.trim()).filter(Boolean),
-          // The role allowlist rides along only when a role claim is checked
-          // and the set is non-empty; otherwise the policy does not bound the
-          // role set (TODO.identity/03's semantics).
-          claims_policy: {
-            claims: form.value.claims,
-            ...(form.value.claims.includes('roles') || form.value.claims.includes('groups')
-              ? (form.value.roles.length ? { roles: form.value.roles } : {})
-              : {}),
-          },
-        }
+      : form.value.classKind === 'service'
+        ? {
+            // The machine cone, the service class (TODO.identity-ops/07):
+            // the class + the service binding (the id, its org, the
+            // audience, the scope allowlist) — the same refusal posture.
+            client_id: form.value.client_id.trim(),
+            name: form.value.name.trim(),
+            class: 'service',
+            service: {
+              id: form.value.service_id.trim(),
+              org: form.value.service_org.trim(),
+              audience: form.value.service_audience.trim(),
+              scopes: serviceScopesList(),
+            },
+          }
+        : {
+            client_id: form.value.client_id.trim(),
+            name: form.value.name.trim(),
+            redirect_uris: form.value.redirect_uris.split('\n').map(u => u.trim()).filter(Boolean),
+            // The role allowlist rides along only when a role claim is checked
+            // and the set is non-empty; otherwise the policy does not bound the
+            // role set (TODO.identity/03's semantics).
+            claims_policy: {
+              claims: form.value.claims,
+              ...(form.value.claims.includes('roles') || form.value.claims.includes('groups')
+                ? (form.value.roles.length ? { roles: form.value.roles } : {})
+                : {}),
+            },
+          }
     // The launch card: on = the card as declared; an edit with the card
     // off takes the client OFF the launcher (null — idempotent); a fresh
     // registration with the card off omits the field (the row defaults
-    // off the launcher). The device class never carries one.
-    if (!form.value.classDevice) {
+    // off the launcher). The machine classes never carry one.
+    if (!machine) {
       if (form.value.launchOn) {
         payload.launch = {
           url: form.value.launch_url.trim(),
@@ -307,7 +361,7 @@ async function save() {
       }
     }
     if (wantsSecret) payload.generate_secret = true
-    else if (!form.value.confidential && !form.value.classDevice) payload.secret = null
+    else if (!form.value.confidential && !machine) payload.secret = null
     const res = await api('/api/op/clients', { method: 'POST', body: JSON.stringify(payload) })
     const body = await res.json().catch(() => ({})) as { error?: string; secret?: string; clientId?: string }
     if (!res.ok) {
@@ -370,7 +424,7 @@ onMounted(async () => {
     }
     const rolesRes = await api('/api/users/roles')
     if (rolesRes.ok) roleOptions.value = Object.keys(await rolesRes.json() as Record<string, string[]>)
-    // The device binding's org select rides the organization registry
+    // The machine bindings' org select rides the organization registry
     // (the admin surface's own list — the server re-validates at write).
     const orgsRes = await api('/api/op/registry/orgs')
     if (orgsRes.ok) {
@@ -450,17 +504,23 @@ onMounted(async () => {
                   {{ row.name }}
                   <span v-if="row.class === 'device'" class="ml-1 text-[10px] px-1.5 py-0.5 rounded font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
                     :data-testid="`op-client-class-${row.clientId}`">{{ t('admin.clients.deviceBadge') }}</span>
+                  <span v-else-if="row.class === 'service'" class="ml-1 text-[10px] px-1.5 py-0.5 rounded font-semibold bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
+                    :data-testid="`op-client-class-${row.clientId}`">{{ t('admin.clients.serviceBadge') }}</span>
                   <span v-else class="ml-1 text-[10px] px-1.5 py-0.5 rounded font-semibold"
                     :class="row.confidential ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' : 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300'"
                     :data-testid="`op-client-kind-${row.clientId}`">{{ row.confidential ? 'confidential' : 'public' }}</span>
                   <span v-if="row.status !== 'active'" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold">disabled</span>
                 </p>
-                <!-- The device class's line: the bound device's claims (the
-                     twin endpoints consume exactly these) — never the
-                     human-cone metadata (no claims policy, no launch card,
-                     no redirect URIs). -->
+                <!-- The machine classes' line: the bound caller's claims
+                     (the consumers read exactly these) — never the
+                     human-cone metadata (no claims policy, no launch
+                     card, no redirect URIs). -->
                 <p v-if="row.device" class="text-[11px] text-slate-500 dark:text-slate-400" :data-testid="`op-client-device-${row.clientId}`">
                   {{ row.clientId }} · {{ t('admin.clients.deviceLine', { id: row.device.id, org: row.device.org, model: row.device.instrument_model }) }}
+                  <template v-if="row.createdBy"> · registered by {{ row.createdBy }}</template>
+                </p>
+                <p v-else-if="row.service" class="text-[11px] text-slate-500 dark:text-slate-400" :data-testid="`op-client-service-${row.clientId}`">
+                  {{ row.clientId }} · {{ t('admin.clients.serviceLine', { id: row.service.id, org: row.service.org, audience: row.service.audience, scopes: row.service.scopes.join(' ') }) }}
                   <template v-if="row.createdBy"> · registered by {{ row.createdBy }}</template>
                 </p>
                 <p v-else class="text-[11px] text-slate-400 dark:text-slate-500">
@@ -468,7 +528,7 @@ onMounted(async () => {
                   · claims: {{ row.claimsPolicy?.claims.join(', ') || 'profile + email only' }}<template v-if="row.claimsPolicy?.roles?.length"> (roles limited to: {{ row.claimsPolicy.roles.join(', ') }})</template>
                   <template v-if="row.createdBy"> · registered by {{ row.createdBy }}</template>
                 </p>
-                <p v-if="row.class !== 'device'" class="text-[11px]" :class="row.launch ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-500'" :data-testid="`op-client-launch-${row.clientId}`">
+                <p v-if="row.class === 'application'" class="text-[11px]" :class="row.launch ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-500'" :data-testid="`op-client-launch-${row.clientId}`">
                   <template v-if="row.launch">on the SSO home ({{ row.launch.visibility }}): {{ row.launch.url }}</template>
                   <template v-else>not on the SSO home</template>
                 </p>
@@ -525,20 +585,20 @@ onMounted(async () => {
           <div class="sm:col-span-2">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.classLegend') }}</label>
             <select
-              :value="form.classDevice ? 'device' : 'application'"
+              v-model="form.classKind"
               :disabled="!!editing"
               data-testid="op-client-field-class"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white disabled:opacity-60"
-              @change="form.classDevice = ($event.target as HTMLSelectElement).value === 'device'"
             >
               <option value="application" data-testid="op-client-class-application">{{ t('admin.clients.classApp') }}</option>
               <option value="device" data-testid="op-client-class-device">{{ t('admin.clients.classDevice') }}</option>
+              <option value="service" data-testid="op-client-class-service">{{ t('admin.clients.classService') }}</option>
             </select>
           </div>
           <!-- The machine cone's binding (the device class only): the id,
                the org, the instrument model reference — the claims the
                twin endpoints consume. -->
-          <fieldset v-if="form.classDevice" class="sm:col-span-2" data-testid="op-client-field-device">
+          <fieldset v-if="form.classKind === 'device'" class="sm:col-span-2" data-testid="op-client-field-device">
             <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.deviceLegend') }}</legend>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
@@ -585,7 +645,68 @@ onMounted(async () => {
               <li v-for="problem in deviceProblems" :key="problem">{{ problem }}</li>
             </ul>
           </fieldset>
-          <div v-if="!form.classDevice" class="sm:col-span-2">
+          <!-- The machine cone's binding (the service class only): the id,
+               the org, the audience, the scope allowlist — the claims the
+               called service consumes. -->
+          <fieldset v-if="form.classKind === 'service'" class="sm:col-span-2" data-testid="op-client-field-service">
+            <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.serviceLegend') }}</legend>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.serviceId') }}</label>
+                <input
+                  v-model="form.service_id"
+                  data-testid="op-client-field-service-id"
+                  placeholder="rag-mcp-ingest"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                  @blur="validateServiceForm"
+                  @input="validateServiceForm"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.serviceOrg') }}</label>
+                <select
+                  v-model="form.service_org"
+                  data-testid="op-client-field-service-org"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  @blur="validateServiceForm"
+                  @change="validateServiceForm"
+                >
+                  <option value="" disabled>—</option>
+                  <option v-for="org in orgOptions" :key="org.id" :value="org.id" :data-testid="`op-client-service-org-${org.id}`">{{ org.name }} ({{ org.id }})</option>
+                  <!-- The honest edit edge: a stored binding whose org left
+                       the registry still names it (the server decides the
+                       re-write). -->
+                  <option v-if="form.service_org && !orgOptions.some(o => o.id === form.service_org)" :value="form.service_org">{{ form.service_org }}</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.serviceAudience') }}</label>
+                <input
+                  v-model="form.service_audience"
+                  data-testid="op-client-field-service-audience"
+                  placeholder="oiml-rag-mcp"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                  @blur="validateServiceForm"
+                  @input="validateServiceForm"
+                />
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.serviceScopes') }}</label>
+                <input
+                  v-model="form.service_scopes"
+                  data-testid="op-client-field-service-scopes"
+                  placeholder="documents:read ingest:write"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                  @blur="validateServiceForm"
+                  @input="validateServiceForm"
+                />
+              </div>
+            </div>
+            <ul v-if="serviceProblems.length" class="mt-1 list-disc list-inside text-xs text-red-600 dark:text-red-400" data-testid="op-client-service-problems">
+              <li v-for="problem in serviceProblems" :key="problem">{{ problem }}</li>
+            </ul>
+          </fieldset>
+          <div v-if="form.classKind === 'application'" class="sm:col-span-2">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">redirect URIs (exact, one per line — an unregistered one is refused, never redirected to)</label>
             <textarea
               v-model="form.redirect_uris"
@@ -601,7 +722,7 @@ onMounted(async () => {
               <li v-for="problem in uriProblems" :key="problem">{{ problem }}</li>
             </ul>
           </div>
-          <fieldset v-if="!form.classDevice" class="sm:col-span-2">
+          <fieldset v-if="form.classKind === 'application'" class="sm:col-span-2">
             <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">claims policy (the claims this instance’s ID tokens may carry)</legend>
             <div class="flex flex-wrap gap-x-4 gap-y-1" data-testid="op-client-field-claims">
               <label v-for="claim in CLAIM_OPTIONS" :key="claim" class="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
@@ -625,7 +746,7 @@ onMounted(async () => {
               </div>
             </div>
           </fieldset>
-          <fieldset v-if="!form.classDevice" class="sm:col-span-2">
+          <fieldset v-if="form.classKind === 'application'" class="sm:col-span-2">
             <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">SSO home (the launcher card a signed-in account meets after sign-in)</legend>
             <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input v-model="form.launchOn" type="checkbox" data-testid="op-client-field-launch-on" class="rounded border-slate-300" />
@@ -675,17 +796,20 @@ onMounted(async () => {
             </div>
           </fieldset>
           <div class="sm:col-span-2 space-y-1">
-            <!-- The device class is ALWAYS confidential (the secret is the
-                 device's credential) — the toggle never offers a public
-                 device; the note states the rule honestly. -->
-            <p v-if="form.classDevice" class="text-sm text-slate-700 dark:text-slate-300" data-testid="op-client-field-device-confidential">
+            <!-- The machine classes are ALWAYS confidential (the secret is
+                 the caller's credential) — the toggle never offers a
+                 public machine client; the note states the rule honestly. -->
+            <p v-if="form.classKind === 'device'" class="text-sm text-slate-700 dark:text-slate-300" data-testid="op-client-field-device-confidential">
               {{ t('admin.clients.deviceSecretNote') }}
+            </p>
+            <p v-else-if="form.classKind === 'service'" class="text-sm text-slate-700 dark:text-slate-300" data-testid="op-client-field-service-confidential">
+              {{ t('admin.clients.serviceSecretNote') }}
             </p>
             <label v-else class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input v-model="form.confidential" type="checkbox" data-testid="op-client-field-confidential" class="rounded border-slate-300" />
               Confidential client (holds a secret; the server generates it and shows it once)
             </label>
-            <label v-if="editing && (form.confidential || form.classDevice)" class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <label v-if="editing && (form.confidential || form.classKind !== 'application')" class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input v-model="rekey" type="checkbox" data-testid="op-client-field-rekey" class="rounded border-slate-300" />
               Re-key: generate a new secret (the old one stops working at once)
             </label>
