@@ -145,6 +145,7 @@ jobs:
             e2e/id-18-org-signing-keys.e2e.ts \
             e2e/id-19-device-clients.e2e.ts \
             e2e/id-22-explainer.e2e.ts \
+            e2e/id-23-service-clients.e2e.ts \
             e2e/id-surface.e2e.ts \
             e2e/op-surface-contract.e2e.ts \
             e2e/op-key-rotate.e2e.ts
