@@ -70,7 +70,10 @@ before it can reach a relying party.
 
 ## The ops doctrine
 
-- Operations runbook: `docs/deployment/identity-operations.md`.
+- Operations runbook: `docs/deployment/identity-operations.md`
+  (incl. the DR restore-drill section — the proven D1 export/restore).
+- The published SLO (99.9% monthly, the heartbeat as the instrument):
+  `docs/deployment/identity-slo.md`.
 - Deploy runbook (the staged rollout, the one-time setup, rollback):
   `docs/deployment/identity-deploy.md`.
 - Self-host runbook (posture b: a third party's own OP on their domain,
