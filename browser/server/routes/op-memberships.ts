@@ -38,6 +38,7 @@ import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
 import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
 import { orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { orgAuditSlice } from '../auth/op/org-audit'
+import { explainAccountOf, explainOrgMember } from '../auth/op/explain'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
 /** The caller's grant over these routes: 'wide' (the identity admin) or
@@ -328,6 +329,38 @@ export function createOpMembershipsRouter(): Hono {
     const org = await resolveRegistryOrg(store, scoped.orgId)
     if (!org) return c.json({ error: `organization '${scoped.orgId}' is not on the organization registry` }, 404)
     return c.json({ org: { id: org.id, name: org.name }, activity: await orgAuditSlice(store, scoped.orgId) })
+  })
+
+  // GET /api/op/org-memberships/:userId/:orgId/explain — the effective-
+  // permission explainer (TODO.identity-features/09, wave B): "explain
+  // member X" answered with the COMPUTED effective set — the roles held
+  // (attributed to their source: the membership's set, the account
+  // layer), the permissions they grant (each named with the role it came
+  // from), the cone's effect on the read/write action classes, and the
+  // data-visibility dry-run over synthesized rows (auth/op/explain.ts —
+  // a PURE composition of the kernel's resolution functions; this route
+  // only gathers the rows). A READ: the org grant explains any member of
+  // its own org INCLUDING the org_admin row — the people list already
+  // shows it; the org_admin refusal on the mutation routes guards ACTS,
+  // never this read.
+  router.get('/api/op/org-memberships/:userId/:orgId/explain', async (c) => {
+    const gate = await grant(c)
+    if ('error' in gate) return gate.error
+    const g = gate.grant
+    const orgId = c.req.param('orgId')!
+    if (g.kind === 'org' && orgId !== g.orgId) {
+      return c.json({ error: 'not found' }, 404) // a cross-org row is not found, never wider
+    }
+    const store = getStore()
+    const membership = await store.getOrgMembership(c.req.param('userId')!, orgId)
+    if (!membership) return c.json({ error: 'not found' }, 404)
+    const org = await resolveRegistryOrg(store, orgId)
+    if (!org) return c.json({ error: `organization '${orgId}' is not on the organization registry` }, 404)
+    const account = explainAccountOf((await store.listUsers()).find(u => u.id === membership.userId) ?? null)
+    if (!account) return c.json({ error: 'not found' }, 404) // the membership names an erased account — nothing to explain
+    const primary = account.orgId ? await store.getOrgMembership(account.id, account.orgId) : null
+    const map = effectiveRbacMap(runtimeEnv(c) as Record<string, string | undefined>)
+    return c.json(explainOrgMember({ org, account, membership, primary, map }))
   })
 
   // PUT /api/op/org-memberships/:userId/:orgId/cone — the member's data

@@ -22,6 +22,7 @@ import { computed, onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
+import type { MessageKey } from '../../i18n/en'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
 
 interface JoinRequestRow {
@@ -745,6 +746,8 @@ async function saveMemberRoles(m: MemberRow) {
     notice.value = `${m.name}'s roles in ${orgNameOf(m.orgId)} updated.`
     memberRolesOpen.value = null
     await load()
+    // The explainer's answer changed with the roles — re-ask if open.
+    if (explainOpen.value === m.userId) void fetchExplain(m)
   } catch {
     error.value = 'Network error. Is the server running?'
   } finally {
@@ -810,6 +813,8 @@ async function saveMemberCone(m: MemberRow) {
     notice.value = t('admin.orgUsers.cone.saved', { name: m.name, cone: t(badgeKey) })
     memberConeOpen.value = null
     await load()
+    // The explainer's answer changed with the cone — re-ask if open.
+    if (explainOpen.value === m.userId) void fetchExplain(m)
   } catch {
     error.value = 'Network error. Is the server running?'
   } finally {
@@ -829,6 +834,109 @@ function orgActivityLabel(e: OrgActivityRow): string {
     case 'membership.activated': return t('admin.orgUsers.activity.action.membership.activated', { email })
     case 'membership.disabled': return t('admin.orgUsers.activity.action.membership.disabled', { email })
     default: return e.action
+  }
+}
+
+// ── TODO.identity-features/09 (wave B) — the effective-permission
+//    explainer: "what can this member see and do", computed SERVER-SIDE
+//    from the same resolution the sessions and the sign-in claims run
+//    (GET …/explain); this panel only renders what the API answers. ──
+
+/** The explanation's payload (GET …/explain), trimmed to what the panel
+ *  renders. The verdict `reason` codes are the server's closed
+ *  vocabulary (EXPLAIN_REASON_KEYS maps them to the catalogs). */
+interface ExplainVerdict { visible: boolean; reason: string; field?: string }
+interface ExplainPayload {
+  member: { userId: string; name: string; state: string; accountActive: boolean }
+  org: { id: string; name: string; kind: string | null }
+  acting: boolean
+  stateNote: 'active' | 'membership-invited' | 'membership-disabled' | 'account-deactivated'
+  context: { orgId: string | null; cone: { scope: 'org-wide' | 'assigned'; readOnly: boolean } | null }
+  roles: Array<{ id: string; source: 'membership' | 'account'; known: boolean; permissions: Array<{ id: string; label: string }> }>
+  permissions: Array<{ id: string; label: string; fromRoles: string[]; effective: boolean; effect: 'held' | 'scoped-to-named-rows' | 'read-only-refused' }>
+  kindBound: { assignable: string[]; orgAdminRow: boolean; outside: string[] }
+  cone: { posture: string; read: { scope: string; effect: 'org-rows' | 'named-rows-only' }; write: { refused: boolean; effect: 'role-set' | 'read-only-refused' } }
+  visibility: {
+    orgBound: boolean
+    classes: Array<{
+      store: string
+      class: 'org-scoped' | 'shared-catalog' | 'shared-reference'
+      orgFields: string[]
+      personKey: string | null
+      ownOrg: ExplainVerdict
+      named: ExplainVerdict | null
+      foreignOrg: ExplainVerdict
+    }>
+  }
+}
+
+/** The dry-run verdicts' reason codes → the catalog keys. */
+const EXPLAIN_REASON_KEYS: Record<string, MessageKey> = {
+  'oversight': 'admin.orgUsers.explain.reason.oversight',
+  'shared': 'admin.orgUsers.explain.reason.shared',
+  'catalog': 'admin.orgUsers.explain.reason.catalog',
+  'org-field': 'admin.orgUsers.explain.reason.orgField',
+  'org-field-miss': 'admin.orgUsers.explain.reason.orgFieldMiss',
+  'assigned-miss': 'admin.orgUsers.explain.reason.assignedMiss',
+  'assigned-no-key': 'admin.orgUsers.explain.reason.assignedNoKey',
+  'assigned-hit': 'admin.orgUsers.explain.reason.assignedHit',
+}
+
+const explainOpen = ref<string | null>(null)
+const explainData = ref<Record<string, ExplainPayload>>({})
+const explainLoading = ref<string | null>(null)
+
+/** The (re)fetch: the explanation is computed live, so a cone/role act
+ *  with the panel open re-asks (never a stale answer). */
+async function fetchExplain(m: MemberRow): Promise<void> {
+  explainLoading.value = m.userId
+  error.value = null
+  try {
+    const res = await api(`/api/op/org-memberships/${encodeURIComponent(m.userId)}/${encodeURIComponent(m.orgId)}/explain`)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `The explanation failed (${res.status}).`
+      explainOpen.value = null
+      return
+    }
+    explainData.value = { ...explainData.value, [m.userId]: (await res.json()) as ExplainPayload }
+  } catch {
+    error.value = 'Network error. Is the server running?'
+    explainOpen.value = null
+  } finally {
+    explainLoading.value = null
+  }
+}
+
+function openExplain(m: MemberRow) {
+  if (explainOpen.value === m.userId) {
+    explainOpen.value = null
+    return
+  }
+  explainOpen.value = m.userId
+  if (!explainData.value[m.userId]) void fetchExplain(m)
+}
+
+/** The panel's payload for a member (undefined while the fetch runs). */
+function explainFor(m: MemberRow): ExplainPayload | undefined {
+  return explainData.value[m.userId]
+}
+
+/** A verdict's honest reason (the codes are the server's vocabulary; an
+ *  unknown code renders itself, never a crash). */
+function explainReason(v: ExplainVerdict, personKey?: string | null): string {
+  const key = EXPLAIN_REASON_KEYS[v.reason]
+  return key ? t(key, { field: v.field ?? '', key: personKey ?? '' }) : v.reason
+}
+
+/** The not-acting note (the explainer's stateNote; 'active' never
+ *  reaches it — the panel renders the note only when !acting). */
+function explainStateNote(x: ExplainPayload): string {
+  switch (x.stateNote) {
+    case 'membership-invited': return t('admin.orgUsers.explain.notActive.membership-invited')
+    case 'membership-disabled': return t('admin.orgUsers.explain.notActive.membership-disabled')
+    case 'account-deactivated': return t('admin.orgUsers.explain.notActive.account-deactivated')
+    default: return ''
   }
 }
 
@@ -1121,6 +1229,12 @@ onMounted(async () => {
                     @click="openMemberCone(m)"
                   >{{ memberConeOpen === m.userId ? t('admin.orgUsers.cone.close') : t('admin.orgUsers.cone.button') }}</button>
                   <button
+                    :data-testid="`org-user-explain-${m.userId}`"
+                    :disabled="acting === m.userId"
+                    class="text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
+                    @click="openExplain(m)"
+                  >{{ explainOpen === m.userId ? t('admin.orgUsers.explain.close') : t('admin.orgUsers.explain.button') }}</button>
+                  <button
                     v-if="m.state !== 'invited' && m.userId !== account?.id"
                     :data-testid="`org-user-membership-toggle-${m.userId}`"
                     :disabled="acting === m.userId"
@@ -1185,6 +1299,97 @@ onMounted(async () => {
                   class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                   @click="saveMemberCone(m)"
                 >{{ t('admin.orgUsers.cone.save') }}</button>
+              </div>
+              <!-- The effective-permission explainer (TODO.identity-features/09,
+                   wave B): the member's COMPUTED effective set — the roles
+                   held, the permissions they grant, the cone's effect, and
+                   the data-visibility dry-run. The server composes the same
+                   resolution the sessions and the claims run; this panel
+                   renders, never computes. -->
+              <div v-if="explainOpen === m.userId" class="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2" :data-testid="`org-user-explain-panel-${m.userId}`">
+                <p v-if="explainLoading === m.userId" class="text-[11px] text-slate-400 dark:text-slate-500">…</p>
+                <template v-else-if="explainFor(m)">
+                  <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1" :data-testid="`org-user-explain-title-${m.userId}`">
+                    {{ t('admin.orgUsers.explain.title', { name: explainFor(m)!.member.name }) }}
+                  </p>
+                  <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-2">{{ t('admin.orgUsers.explain.computed') }}</p>
+                  <p
+                    v-if="!explainFor(m)!.acting"
+                    class="mb-2 px-2 py-1.5 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300"
+                    :data-testid="`org-user-explain-inactive-${m.userId}`"
+                  >{{ explainStateNote(explainFor(m)!) }}</p>
+                  <template v-else>
+                    <!-- The roles held, attributed to their source -->
+                    <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-2 mb-0.5">{{ t('admin.orgUsers.explain.roles.title') }}</p>
+                    <p v-if="!explainFor(m)!.roles.length" class="text-[11px] text-slate-500 dark:text-slate-400">{{ t('admin.orgUsers.explain.roles.empty') }}</p>
+                    <ul v-else class="space-y-0.5 mb-1" :data-testid="`org-user-explain-roles-${m.userId}`">
+                      <li v-for="r in explainFor(m)!.roles" :key="r.id" class="text-[11px] text-slate-600 dark:text-slate-300">
+                        <span class="font-mono font-medium">{{ r.id }}</span>
+                        <span class="text-slate-400 dark:text-slate-500"> · {{ t(`admin.orgUsers.explain.roleSource.${r.source}`) }}</span>
+                        <span v-if="!r.known" class="text-amber-600 dark:text-amber-400"> — {{ t('admin.orgUsers.explain.roleUnknown') }}</span>
+                        <span v-else class="text-slate-400 dark:text-slate-500"> — {{ r.permissions.map(p => p.id).join(', ') || t('admin.orgUsers.explain.roleNoPerms') }}</span>
+                      </li>
+                    </ul>
+                    <!-- The permissions they grant, each named with the role it came from -->
+                    <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-2 mb-0.5">{{ t('admin.orgUsers.explain.perms.title') }}</p>
+                    <p v-if="!explainFor(m)!.permissions.length" class="text-[11px] text-slate-500 dark:text-slate-400" :data-testid="`org-user-explain-perms-empty-${m.userId}`">{{ t('admin.orgUsers.explain.perms.empty') }}</p>
+                    <ul v-else class="space-y-1 mb-1" :data-testid="`org-user-explain-perms-${m.userId}`">
+                      <li v-for="p in explainFor(m)!.permissions" :key="p.id" class="text-[11px] text-slate-600 dark:text-slate-300" :data-testid="`org-user-explain-perm-${m.userId}-${p.id}`">
+                        <span class="font-mono font-medium">{{ p.id }}</span>
+                        <span
+                          class="ml-1 px-1 py-0.5 rounded text-[10px] font-semibold"
+                          :class="p.effective
+                            ? (p.effect === 'scoped-to-named-rows' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300')
+                            : 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'"
+                        >{{ t(`admin.orgUsers.explain.effect.${p.effect === 'scoped-to-named-rows' ? 'scoped' : p.effect === 'read-only-refused' ? 'refused' : 'held'}`) }}</span>
+                        <span class="block text-slate-500 dark:text-slate-400">{{ p.label }}</span>
+                        <span class="block text-slate-400 dark:text-slate-500">{{ t('admin.orgUsers.explain.perms.from', { roles: p.fromRoles.join(', ') }) }}</span>
+                      </li>
+                    </ul>
+                    <!-- The cone's effect on the read / write classes -->
+                    <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-2 mb-0.5">{{ t('admin.orgUsers.explain.cone.title') }}</p>
+                    <ul class="space-y-0.5 mb-1" :data-testid="`org-user-explain-cone-${m.userId}`">
+                      <li class="text-[11px] text-slate-600 dark:text-slate-300">{{ t(explainFor(m)!.cone.read.effect === 'org-rows' ? 'admin.orgUsers.explain.cone.read.orgWide' : 'admin.orgUsers.explain.cone.read.assigned') }}</li>
+                      <li class="text-[11px] text-slate-600 dark:text-slate-300">{{ t(explainFor(m)!.cone.write.refused ? 'admin.orgUsers.explain.cone.write.refused' : 'admin.orgUsers.explain.cone.write.roleSet') }}</li>
+                    </ul>
+                    <!-- The kind bound's honesty -->
+                    <p v-if="explainFor(m)!.kindBound.orgAdminRow" class="text-[11px] text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.orgUsers.explain.kind.orgAdmin') }}</p>
+                    <p v-if="explainFor(m)!.kindBound.outside.length" class="text-[11px] text-amber-600 dark:text-amber-400 mb-1" :data-testid="`org-user-explain-outside-${m.userId}`">
+                      {{ t('admin.orgUsers.explain.kind.outside', { roles: explainFor(m)!.kindBound.outside.join(', ') }) }}
+                    </p>
+                    <!-- The data-visibility dry-run -->
+                    <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-2 mb-0.5">{{ t('admin.orgUsers.explain.vis.title') }}</p>
+                    <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-1" :data-testid="`org-user-explain-visposture-${m.userId}`">
+                      {{ t(explainFor(m)!.visibility.orgBound ? 'admin.orgUsers.explain.vis.orgBound' : 'admin.orgUsers.explain.vis.oversight') }}
+                    </p>
+                    <ul class="space-y-1" :data-testid="`org-user-explain-vis-${m.userId}`">
+                      <li v-for="c in explainFor(m)!.visibility.classes" :key="c.store" class="text-[11px] text-slate-600 dark:text-slate-300" :data-testid="`org-user-explain-vis-${m.userId}-${c.store.replace(/[^a-z0-9]+/gi, '-')}`">
+                        <span class="font-mono">{{ c.store }}</span>
+                        <template v-if="c.class === 'org-scoped'">
+                          <span
+                            class="ml-1"
+                            :class="c.ownOrg.visible ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'"
+                          >{{ t('admin.orgUsers.explain.vis.ownOrg') }}: {{ t(c.ownOrg.visible ? 'admin.orgUsers.explain.vis.visible' : 'admin.orgUsers.explain.vis.hidden') }}</span>
+                          <span class="text-slate-400 dark:text-slate-500"> ({{ explainReason(c.ownOrg) }})</span>
+                          <template v-if="c.named">
+                            · <span
+                              :class="c.named.visible ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'"
+                            >{{ t('admin.orgUsers.explain.vis.named') }}: {{ t(c.named.visible ? 'admin.orgUsers.explain.vis.visible' : 'admin.orgUsers.explain.vis.hidden') }}</span>
+                            <span class="text-slate-400 dark:text-slate-500"> ({{ explainReason(c.named, c.personKey) }})</span>
+                          </template>
+                          · <span
+                            :class="c.foreignOrg.visible ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'"
+                          >{{ t('admin.orgUsers.explain.vis.foreign') }}: {{ t(c.foreignOrg.visible ? 'admin.orgUsers.explain.vis.visible' : 'admin.orgUsers.explain.vis.hidden') }}</span>
+                          <span class="text-slate-400 dark:text-slate-500"> ({{ explainReason(c.foreignOrg) }})</span>
+                        </template>
+                        <template v-else>
+                          <span class="ml-1 text-emerald-600 dark:text-emerald-400">{{ t('admin.orgUsers.explain.vis.visible') }}</span>
+                          <span class="text-slate-400 dark:text-slate-500"> ({{ explainReason(c.ownOrg) }})</span>
+                        </template>
+                      </li>
+                    </ul>
+                  </template>
+                </template>
               </div>
             </li>
           </ul>
