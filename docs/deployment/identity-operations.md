@@ -109,7 +109,10 @@ npx tsx scripts/import-org-registry.ts --db .cache/bootstrap-proof/identity.db
 npx tsx scripts/import-org-registry.ts --db .cache/bootstrap-proof/identity.db --execute
 npx tsx scripts/import-org-registry.ts --db .cache/bootstrap-proof/identity.db   # the re-plan: 217 unchanged
 
-# 2. the plan against the LIVE registry (read-only) + the apply SQL
+# 2. the plan against the LIVE registry (read-only) + the apply SQL.
+#    The operator's wrangler credentials ride the environment; with more
+#    than one account on the token, name the estate's account:
+export CLOUDFLARE_ACCOUNT_ID=<the OIML SMART account id>   # `npx wrangler whoami` lists them
 npx tsx scripts/import-org-registry.ts --remote            # prints the plan, emits the SQL (default .cache/org-registry.bootstrap.sql)
 #    — review the printed plan (217 create on a fresh registry) and the
 #    emitted SQL; both name every row they touch.
