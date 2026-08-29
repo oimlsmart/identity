@@ -17,6 +17,12 @@
 //   mfa_locked    the second-factor lockout notice (TODO.identity-sso/03:
 //                 a burned sign-in attempt surfaces to the account by
 //                 email — the hard-throttle rule's other half).
+//   pat_minted    the developer-token mint notice (TODO.identity-features/
+//                 08: every mint surfaces to the account holder — the
+//                 security notification posture);
+//   pat_expiring  the token's expiry-soon notice (the same wave: the
+//                 lazy sweep — the notice rides the exchange path, once
+//                 per token, while the automation still works).
 //
 // The copy lives in the i18n catalogs (src/i18n/en.ts + fr.ts, the
 // mail.* namespace) so the EN/FR lockstep rule covers the outbound mail;
@@ -48,7 +54,7 @@ import { fr } from '../../../src/i18n/fr'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { mailerFor, type MailEnv, type MailPosture } from '@oimlsmart/platform-server/mailer'
 
-export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'mfa_locked'
+export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
 
 /** The DEFAULT mail brand mark: the self-hosted globe, referenced by its
  *  absolute production URL (email clients need an ABSOLUTE public image
@@ -96,6 +102,11 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   // TODO.identity-sso/03: the second-factor lockout notice — a pure
   // notification like signin (no link, no expiry).
   mfa_locked: { subject: 'mail.mfaLocked.subject', preheader: 'mail.mfaLocked.preheader', heading: 'mail.mfaLocked.heading', body: 'mail.mfaLocked.body', why: 'mail.mfaLocked.why', link: false },
+  // TODO.identity-features/08: the developer-token notices — pure
+  // notifications (the console's developer-tokens section is named in
+  // the prose, never a deep link).
+  pat_minted: { subject: 'mail.patMinted.subject', preheader: 'mail.patMinted.preheader', heading: 'mail.patMinted.heading', body: 'mail.patMinted.body', why: 'mail.patMinted.why', link: false },
+  pat_expiring: { subject: 'mail.patExpiring.subject', preheader: 'mail.patExpiring.preheader', heading: 'mail.patExpiring.heading', body: 'mail.patExpiring.body', why: 'mail.patExpiring.why', link: false },
 }
 
 export type MailLocale = 'en' | 'fr'

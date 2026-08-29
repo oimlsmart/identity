@@ -35,7 +35,15 @@
 //                                            device-clients.ts +
 //                                            service-clients.ts; the
 //                                            RP-facing wire is unchanged —
-//                                            the contract golden holds);
+//                                            the contract golden holds) AND
+//                                            the developer cone (TODO.
+//                                            identity-features/08: the RFC
+//                                            8693 token exchange of a
+//                                            personal access token → the
+//                                            short-lived scoped OP JWT —
+//                                            auth/op/tokens.ts; the same
+//                                            estate-internal posture, the
+//                                            golden byte-identical);
 //   GET  /op/userinfo                      — the access token's claims;
 //   GET  /op/avatar/<account id>           — the PUBLIC avatar serve (no
 //                                            session — the `picture`
@@ -54,7 +62,7 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload, type OidcClient, type OidcClientLaunch } from '@oimlsmart/platform-server/store'
+import { getStore, normalizePatScopes, type AuthUserPayload, type OidcClient, type OidcClientLaunch, type PatScope } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/config'
 import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, type OpSigningKey } from '../auth/op/keys'
@@ -73,6 +81,13 @@ import {
   SERVICE_CLASS, narrowServiceScopes, serviceClassOf, serviceTokenClaims, validateServiceBlock,
   type OpServicePolicy, type ServiceClientClaims,
 } from '../auth/op/service-clients'
+import {
+  auditPat, hashPat, narrowPatScopesParam, patExchangeBeatDue, patExpiryNoticeDue,
+  patPlausible, patTokenClaims, resolvePatScopesForAccount,
+  PAT_EXCHANGE_GRANT, PAT_EXCHANGE_HEARTBEAT_MS, PAT_TOKEN_TYPE,
+} from '../auth/op/tokens'
+import { sendOpMail } from '../auth/op/mail'
+import type { MailEnv } from '@oimlsmart/platform-server/mailer'
 import { resolveRegistryOrg } from '../auth/org-registry'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
 import { SESSION_COOKIE, sessionUser } from '@oimlsmart/platform-server/session'
@@ -586,6 +601,127 @@ export function createOpRouter(): Hono {
         // The effective scopes ride the service class's answer (RFC 6749
         // §5.1's explicitness — the caller reads what it actually got).
         ...(service ? { scope: serviceScopes.join(' ') } : {}),
+      })
+    }
+
+    // ── the developer cone: the RFC 8693 token exchange, the PAT class
+    // ONLY (TODO.identity-features/08 — auth/op/tokens.ts). The device
+    // class's precedent holds: the discovery document keeps advertising
+    // the RP contract alone (the exchange grant is an estate-internal
+    // cone, not an RP flow — the contract golden stays byte-identical),
+    // and the exchanged token is the OP's ONE token shape (a
+    // self-contained ES256 JWT the RPs validate against the JWKS, no
+    // call-back). The subject_token IS the credential (no client auth —
+    // the PAT names its account).
+    if (grantType === PAT_EXCHANGE_GRANT) {
+      const subjectTokenType = form.get('subject_token_type') ?? ''
+      if (subjectTokenType !== PAT_TOKEN_TYPE) {
+        await auditPat('account.pat_exchange_refused', 'unauthenticated', {}, { error: 'invalid_request' })
+        return oidcError(c, 400, 'invalid_request', `the token-exchange grant speaks subject_token_type ${PAT_TOKEN_TYPE} only`)
+      }
+      const presented = form.get('subject_token') ?? ''
+      const pat = patPlausible(presented) ? await store.findPersonalAccessTokenByHash(await hashPat(presented)) : null
+      // The refusal is ONE answer for the whole lattice — unknown /
+      // expired / revoked / wrong-standing are deliberately
+      // indistinguishable on the wire (the enrollment doctrine); the
+      // audit chain names the leg. NEVER the token value.
+      const refuseExchange = async (reason: string, patId?: string, userId?: string): Promise<Response> => {
+        await auditPat('account.pat_exchange_refused', userId ?? 'unauthenticated', {}, { error: 'invalid_grant', reason, ...(patId ? { pat: patId } : {}) })
+        return oidcError(c, 400, 'invalid_grant', 'the subject token is unknown, expired, revoked, or its account no longer stands')
+      }
+      if (!pat) return refuseExchange('unknown')
+      if (pat.revokedAt) return refuseExchange('revoked', pat.id, pat.userId)
+      if (new Date(pat.expiresAt).getTime() <= Date.now()) return refuseExchange('expired', pat.id, pat.userId)
+      // The account's standing (a deactivated or erased account's tokens
+      // die with it): the registry row carries the active flag.
+      const accountRow = (await store.listUsers()).find(u => u.id === pat.userId)
+      const account = await store.getUserById(pat.userId)
+      if (!accountRow || !account || !accountRow.active || accountRow.provider === 'erased') {
+        return refuseExchange('account_standing', pat.id, pat.userId)
+      }
+      // The pinned org context, re-judged against the LIVE membership
+      // (the token endpoint's own doctrine: a membership disabled since
+      // the mint falls back to the primary context, never a dead org's
+      // claims).
+      const context = await claimsContextFor(store, account, pat.orgContext)
+      const pinned = normalizePatScopes(pat.scopes) ?? []
+      // The optional per-exchange narrowing (RFC 8693's scope parameter:
+      // a subset of the pinned set, never wider).
+      const narrowing = narrowPatScopesParam(form.get('scope'), pinned)
+      if (narrowing.error) {
+        await auditPat('account.pat_exchange_refused', pat.userId, {}, { error: 'invalid_scope', pat: pat.id })
+        return oidcError(c, 400, 'invalid_scope', narrowing.error)
+      }
+      // The standing re-judgment, per scope: what the account lost since
+      // the mint falls away (the audit names the dropped scopes); a
+      // token whose WHOLE set fell away refuses.
+      const granted: PatScope[] = []
+      const serviceRoles: Record<string, string[]> = {}
+      const dropped: string[] = []
+      for (const scope of narrowing.scopes ?? pinned) {
+        const verdict = await resolvePatScopesForAccount(store, account, context, [scope], runtimeEnv<EnvLike>(c))
+        if (verdict.ok) {
+          granted.push(scope)
+          Object.assign(serviceRoles, verdict.serviceRoles)
+        } else {
+          dropped.push(`${scope.service}:${scope.action}`)
+        }
+      }
+      if (!granted.length) {
+        return refuseExchange('scope_standing', pat.id, pat.userId)
+      }
+      const patKey = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+      // The first-use registration rides the SAME gate as the other
+      // grants (identity#7).
+      if (maySelfRegisterOpKey(patKey, config)) {
+        await ensureOpKeyRegistered(store, patKey)
+      } else {
+        warnDevKeyRegistrationSkipped('/op/token', patKey)
+      }
+      const exchanged = await signOpIdToken(patKey, patTokenClaims(pat, account, context, granted, serviceRoles, config))
+      // The throttled heartbeat (never a per-request write): the use
+      // stamp + the audit beat share the one-hour window.
+      const nowMs = Date.now()
+      const nowIso = new Date(nowMs).toISOString()
+      const useStale = !pat.lastUsedAt || nowMs - new Date(pat.lastUsedAt).getTime() >= PAT_EXCHANGE_HEARTBEAT_MS
+      const beatDue = patExchangeBeatDue(pat, nowMs)
+      if (useStale || beatDue) {
+        await store.stampPersonalAccessTokenUse(pat.id, { usedAt: nowIso, ...(beatDue ? { auditAt: nowIso } : {}) })
+      }
+      if (beatDue) {
+        await auditPat('account.pat_exchange', pat.userId, {}, {
+          pat: pat.id,
+          name: pat.name,
+          scopes: granted.map(s => `${s.service}:${s.action}`),
+          ...(dropped.length ? { dropped } : {}),
+        })
+      } else if (dropped.length) {
+        // A narrowing between beats still lands on the chain.
+        await auditPat('account.pat_exchange_narrowed', pat.userId, {}, { pat: pat.id, name: pat.name, dropped })
+      }
+      // The expiry-soon notice rides the use (the lazy sweep — no
+      // scheduler on this deployment shape): the in-use token's owner
+      // learns while the automation still works, ONCE per token. The
+      // one-shot mark lands when the send resolved (or honestly logged —
+      // the console posture); a transient provider failure retries on
+      // the next exchange.
+      if (patExpiryNoticeDue(pat, nowMs)) {
+        const mail = await sendOpMail(runtimeEnv<MailEnv>(c), {
+          to: account.email,
+          template: 'pat_expiring',
+          issuer: config.issuer,
+          params: { name: account.name, tokenName: pat.name, expires: pat.expiresAt.slice(0, 10) },
+        })
+        if (mail.sent || mail.posture === 'console') {
+          await store.stampPersonalAccessTokenUse(pat.id, { usedAt: nowIso, expiryNotifiedAt: nowIso })
+        }
+      }
+      return c.json({
+        access_token: exchanged,
+        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        token_type: 'Bearer',
+        expires_in: config.accessTokenTtlMs / 1000,
+        scope: granted.map(s => `${s.service}:${s.action}`).join(' '),
       })
     }
 

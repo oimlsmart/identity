@@ -109,6 +109,24 @@ interface MemberRow {
   disabledBy: string | null
 }
 
+/** The org's token inventory row (TODO.identity-features/08): a member's
+ *  developer token, the METADATA only — the plaintext is never stored
+ *  and the hash never leaves the server. The holder resolves to the
+ *  account (an erased member reads honestly). */
+interface MemberTokenRow {
+  id: string
+  name: string
+  prefix: string
+  scopes: string[]
+  orgContext: string | null
+  createdAt: string
+  expiresAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+  state: 'active' | 'expired' | 'revoked'
+  holder: { userId: string; name: string; email: string | null }
+}
+
 interface JoinRequestRow {
   id: string
   name: string
@@ -147,6 +165,9 @@ interface OrgView {
   signingKeys: SigningKeyRow[]
   members: MemberRow[]
   requests: JoinRequestRow[]
+  /** TODO.identity-features/08: the org's token inventory (the members'
+   *  developer tokens, metadata only — never the plaintext). */
+  tokens: MemberTokenRow[]
   activity: OrgEvent[]
 }
 
@@ -1200,6 +1221,44 @@ onMounted(async () => {
           The decisions happen on the
           <router-link to="/op/admin/users" class="text-brand-600 dark:text-brand-300 hover:underline">organization administration console</router-link>.
         </p>
+      </section>
+
+      <!-- The developer-token inventory (TODO.identity-features/08): the
+           members' personal access tokens, the metadata only — never the
+           plaintext, never the hash. A member's token is never an org
+           credential (org automation speaks the registered clients). -->
+      <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-org-tokens">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.org.tokens.title') }}</h2>
+        <p class="mb-3 text-[11px] text-slate-400 dark:text-slate-500">{{ t('admin.org.tokens.description') }}</p>
+        <p v-if="!view.tokens.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-org-tokens-empty">
+          {{ t('admin.org.tokens.empty') }}
+        </p>
+        <ul v-else class="space-y-2" data-testid="op-reg-org-tokens-list">
+          <li
+            v-for="token in view.tokens"
+            :key="token.id"
+            class="rounded-lg border border-slate-100 dark:border-slate-700/60 px-3 py-2"
+            :data-testid="`op-reg-org-token-${token.id}`"
+          >
+            <p class="text-sm font-medium text-slate-900 dark:text-white break-words">
+              <span :data-testid="`op-reg-org-token-${token.id}-name`">{{ token.name }}</span>
+              <span class="ml-2 font-mono text-xs text-slate-400 dark:text-slate-500">{{ token.prefix }}…</span>
+              <span
+                class="ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+                :class="token.state === 'active'
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                  : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'"
+                :data-testid="`op-reg-org-token-${token.id}-state`"
+              >{{ token.state }}</span>
+            </p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-mono break-all">{{ token.scopes.join('  ') }}</p>
+            <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`op-reg-org-token-${token.id}-holder`">
+              {{ t('admin.org.tokens.by', { name: token.holder.name, email: token.holder.email ?? '—' }) }}
+              · {{ t('admin.org.tokens.expires', { date: fmtDate(token.expiresAt) }) }}
+              · {{ token.lastUsedAt ? t('admin.org.tokens.lastUsed', { date: fmtDate(token.lastUsedAt) }) : t('admin.org.tokens.neverUsed') }}
+            </p>
+          </li>
+        </ul>
       </section>
 
       <!-- The organization's own audit slice (TODO.identity-features/05):
