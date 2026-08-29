@@ -70,8 +70,12 @@ has passed, never automatically mid-flight.
 
 ## The account registry's data lifecycle
 
-- Backups: a scheduled D1 export to an R2 bucket with retention, and a
-  quarterly restore drill — an untested backup is a hope, not a backup.
+- Backups: the restore path is a PROVEN drill (the DR section below) —
+  the live registry exports on demand and restores byte-clean. The
+  scheduled export to an R2 bucket with retention is the open half;
+  until it lands, the drill's own export is the latest known-good
+  snapshot, and the drill cadence (quarterly + before any
+  migration-carrying deploy) bounds the data-loss window honestly.
 - Offboarding: disable revokes sessions and blocks issuance while
   preserving the audit trail; delete is the erasure path and
   anonymizes. On the account page the lighter act sits between the
@@ -87,6 +91,78 @@ has passed, never automatically mid-flight.
 - The admin audit log (every grant, rotation, offboarding) is retained
   and exportable — the scheme's peer-assessment habit makes the OP's
   own admin log audit evidence.
+
+### Disaster recovery: the restore drill
+
+An untested backup is a hope, not a backup. The drill restores the live
+registry into a scratch D1 and proves the restore byte-clean — last run
+2026-08-27: 35 tables on both sides, zero missing/extra, zero row-count
+mismatches (173 rows each side). Cadence: quarterly, plus before any
+migration-carrying deploy.
+
+The credentials posture: the Cloudflare pilot token
+(`source ~/.cloudflare-credentials-oimlsmart`), with
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` exported explicitly
+(the credentials file's account id alone is not picked up
+non-interactively). The live database is `oiml-smart-platform-identity`
+(D1 id 6d24ab5f-f275-472f-82b1-fd0e3ca6ed96, the `identity` env in
+`browser/wrangler.toml`).
+
+```bash
+cd browser
+source ~/.cloudflare-credentials-oimlsmart
+export CLOUDFLARE_ACCOUNT_ID=06cad8ae9a017c856ab496c6bca9a9d8
+export CLOUDFLARE_API_TOKEN="$API_TOKEN"
+STAMP=$(date +%Y%m%d)          # the drill's scratch namespace
+SCRATCH="identity-dr-drill-$STAMP"
+
+# 1. Export the live registry (a consistent snapshot, SQL text). This
+#    file IS the backup artifact — keep it until the next drill.
+npx wrangler d1 export oiml-smart-platform-identity --remote --env identity \
+  --output "/tmp/id-dr-$STAMP.sql"
+
+# 2. Create the scratch database (a throwaway — NEVER the live one) and
+#    restore the export into it.
+npx wrangler d1 create "$SCRATCH"
+npx wrangler d1 execute "$SCRATCH" --remote --file "/tmp/id-dr-$STAMP.sql"
+
+# 3. Compare: the table SET, then the per-table ROW COUNTS — one
+#    "name<TAB>count" line per table per side; the diff must be EMPTY.
+#    (The internal sqlite_%/_cf_% tables are excluded; d1_migrations IS
+#    compared — schema parity is part of the proof.)
+snapshot() { # $1 = the database name, $2 = the output file
+  local db="$1" out="$2"
+  local args=(--remote --json)
+  [ "$db" = oiml-smart-platform-identity ] && args+=(--env identity)
+  local tables
+  tables=$(npx wrangler d1 execute "$db" "${args[@]}" \
+    --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite\_%' AND name NOT LIKE '\_cf\_%' ORDER BY name" \
+    | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results.map(r=>r.name).join("\n"))')
+  : > "$out"
+  while IFS= read -r t; do
+    local n
+    n=$(npx wrangler d1 execute "$db" "${args[@]}" \
+      --command "SELECT COUNT(*) AS n FROM \"$t\"" \
+      | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results[0].n)')
+    printf '%s\t%s\n' "$t" "$n" >> "$out"
+  done <<< "$tables"
+}
+snapshot oiml-smart-platform-identity "/tmp/id-dr-$STAMP-live.txt"
+snapshot "$SCRATCH"                         "/tmp/id-dr-$STAMP-restored.txt"
+diff "/tmp/id-dr-$STAMP-live.txt" "/tmp/id-dr-$STAMP-restored.txt" \
+  && echo "DRILL GREEN: table set + row counts identical"
+
+# 4. Destroy the scratch and clean the workspace. The drill leaves
+#    NOTHING behind but the kept export.
+npx wrangler d1 delete "$SCRATCH" --skip-confirmation
+rm -f "/tmp/id-dr-$STAMP-live.txt" "/tmp/id-dr-$STAMP-restored.txt"
+```
+
+The comparison in step 3 is a per-table row-count diff, not a spot
+check: every table on the live side exists on the scratch with the same
+count, and no extra table appears. A mismatch fails the drill and is an
+incident — the restore path is broken and the next migration-carrying
+deploy does NOT proceed on an unproven backup.
 
 ## The participant registry's bootstrap (TODO.identity-features/10)
 
@@ -142,7 +218,10 @@ review of what changed.
   does not mean logged out); new logins fail honestly on a plain status
   page; the demo instances' local demo accounts stay available as the
   clearly-marked development posture.
-- The stated SLO: 99.9% monthly, measured by the heartbeat.
+- The stated SLO: 99.9% monthly, measured by the heartbeat. The
+  published statement is `identity-slo.md` (next to this runbook); the
+  public read is https://status.oimlsmart.org, and the admin dashboard's
+  SLO panel reads the heartbeat workflow's own run history.
 
 ## The admin dashboard
 
