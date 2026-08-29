@@ -55,6 +55,11 @@
 #   - The FORCE laboratories' cities lost their ø glyph in the TL
 #     summary's text layer ("Brondby"/"Horsholm"); the spellings here
 #     (Brøndby, Hørsholm) follow FORCE's own site.
+#   - Three member_body values (the informational field only) carry the
+#     source pages' own artifacts, restored: Monaco's page literally
+#     serves "l?Equipement" (the É lost upstream), Trinidad and
+#     Tobago's block names the TTBS's Legal Metrology Inspectorate
+#     without an institute line, Ukraine's doubles its quotes.
 #
 # THE CONVENTIONS:
 #   - ids: ms-<cc> / cm-<cc> for the members (the OIML site code), the
@@ -745,7 +750,7 @@ members:
     name: "Monaco"
     short_name: "MC"
     country: "Monaco"
-    member_body: "Département de l?Equipement, de l'Environnement et de l'Urbanisme"
+    member_body: "Département de l’Équipement, de l’Environnement et de l’Urbanisme"
     provenance:
       source: "https://www.oiml.org/en/structure/members/member-states"
       detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=142&section=contacts"
@@ -1114,7 +1119,7 @@ members:
     name: "Trinidad and Tobago"
     short_name: "TT"
     country: "Trinidad and Tobago"
-    member_body: "(TTBS-LMI)"
+    member_body: "Trinidad and Tobago Bureau of Standards (TTBS-LMI)"
     provenance:
       source: "https://www.oiml.org/en/structure/members/corresponding-members"
       detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=215&section=contacts"
@@ -1150,7 +1155,7 @@ members:
     name: "Ukraine"
     short_name: "UA"
     country: "Ukraine"
-    member_body: "SE ““Ukrmetrteststandart”” (UKRCSM)"
+    member_body: "SE “Ukrmetrteststandart” (UKRCSM)"
     provenance:
       source: "https://www.oiml.org/en/structure/members/member-states"
       detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=222&section=contacts"
