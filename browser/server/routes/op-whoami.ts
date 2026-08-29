@@ -29,7 +29,7 @@
 // allow-credentials; a request naming a FOREIGN origin gets NO CORS
 // headers (the browser blocks the read; the answer itself stays a plain
 // 200 — curl and same-origin callers read it without an Origin header).
-// The device class contributes nothing (no launch card, no redirect
+// The machine classes contribute nothing (no launch card, no redirect
 // URIs — the machine cone is never a chip surface).
 //
 // Profile-gated like every OP route (a non-identity deployment answers

@@ -230,12 +230,17 @@ The onboarding checklist (the RAG service is the reference):
 4. It inherits the OP's offboarding semantics: a disabled account dies
    at the RP at the session lifetime; sensitive acts re-check.
 
-The recorded gap: the OP speaks authorization code + PKCE only; there
-is no client_credentials grant today. Human users do not need it;
-machine callers (the RAG's planned MCP server for the agent ecosystem)
-do — service accounts as confidential clients with no redirect URIs,
-audience-bound tokens, and scoped claims. Sized as a feature, not an
-architecture change.
+The machine callers: the OP's machine cone carries two non-human client
+classes on `client_credentials` — the DEVICE class (per-device
+credentials for the SMART Measuring Instruments' twins, identity#35) and
+the SERVICE class (the general caller — agent pipelines, MCP servers,
+scheduled jobs): a confidential client with no redirect URIs, an
+audience-bound token (`aud` is the declared called service, never just
+the client id), and a scoped claim set (the registered allowlist,
+narrowed per request, never exceeded). The claim contract and the
+onboarding shape are the integration guide's §3/§9; machine tokens never
+carry a user claim, and a machine acting on behalf of a user is the PAT
+surface's exchange (TODO.identity-features/08), never a service token.
 
 ## The SSO home (the post-login launcher)
 

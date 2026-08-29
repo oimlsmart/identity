@@ -50,6 +50,28 @@
 // fixes the claim set: the device id, its org, its instrument model
 // reference — never user claims).
 //
+// THE SERVICE CLASS (the machine cone's general half — auth/op/
+// service-clients.ts, TODO.identity-ops/07): a non-human client
+// registered PER SERVICE ACCOUNT (the agent pipelines / MCP servers
+// beyond the device cone). The seed entry:
+//   {
+//     "client_id": "svc-rag-mcp-ingest",
+//     "name": "The RAG's MCP ingest pipeline",
+//     "class": "service",
+//     "service": { "id": "rag-mcp-ingest", "org": "oimlsmart",
+//                  "audience": "oiml-rag-mcp",
+//                  "scopes": ["documents:read", "ingest:write"] },
+//     "secret": "…"                        // REQUIRED — the machine
+//                                          // classes are confidential
+//                                          // (client_credentials at
+//                                          // /op/token)
+//   }
+// A service entry carries NO redirect_uris, NO launch card, and NO
+// claims_policy (the class fixes the claim set: the service id, its org,
+// the declared audience, the narrowed scope allowlist — never user
+// claims). The machine classes' rules are identical here; only the
+// binding block differs.
+//
 // The plaintext seed secret is hashed (PBKDF2, secrets.ts) before it
 // touches the database; the env itself rides a Worker secret when it
 // carries secrets. A seeded client's UPDATE on re-seed keeps the row's
@@ -62,6 +84,7 @@ import type { ServerStore } from '@oimlsmart/platform-server/store'
 import { hashClientSecret } from './secrets'
 import { validateLaunch, type LaunchInput } from './launch'
 import { DEVICE_CLASS, validateDeviceBlock, type DeviceClientClaims, type OpClientPolicy } from './device-clients'
+import { SERVICE_CLASS, validateServiceBlock, type OpServicePolicy, type ServiceClientClaims } from './service-clients'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -70,21 +93,25 @@ export interface OpClientSeedEntry {
   name: string
   secret?: string
   /** The application class (absent `class`): the exact redirect URIs.
-   *  The device class never carries them (nothing redirects) — absent
+   *  The machine classes never carry them (nothing redirects) — absent
    *  or an empty list. */
   redirect_uris?: string[]
   claims_policy?: { claims: string[]; roles?: string[] }
   /** The SSO home's launch card (OPTIONAL — absent leaves the stored
    *  metadata to the admin's edits; the client may never join the
-   *  launcher). The device class NEVER carries one. */
+   *  launcher). The machine classes NEVER carry one. */
   launch?: LaunchInput
-  /** The machine cone (auth/op/device-clients.ts): 'device' registers a
-   *  non-human, per-device client (client_credentials only, always
-   *  confidential). ABSENT = the application class. */
-  class?: typeof DEVICE_CLASS
+  /** The machine cone (auth/op/device-clients.ts + service-clients.ts):
+   *  'device' registers a non-human, per-device client; 'service' a
+   *  non-human, per-service-account client (both client_credentials
+   *  only, always confidential). ABSENT = the application class. */
+  class?: typeof DEVICE_CLASS | typeof SERVICE_CLASS
   /** The device identity the client binds (REQUIRED with class
    *  'device', refused otherwise). */
   device?: DeviceClientClaims
+  /** The service identity the client binds (REQUIRED with class
+   *  'service', refused otherwise). */
+  service?: ServiceClientClaims
 }
 
 /** Parse + validate the seed declaration. Throws honestly on a malformed
@@ -96,22 +123,24 @@ export function parseOpClientSeed(raw: string): OpClientSeedEntry[] {
     const rec = entry as Record<string, unknown>
     if (typeof rec?.client_id !== 'string' || !rec.client_id) throw new Error(`OP_CLIENT_SEED[${i}]: client_id is required`)
     if (typeof rec.name !== 'string' || !rec.name) throw new Error(`OP_CLIENT_SEED[${i}]: name is required`)
-    if (rec.class !== undefined && rec.class !== DEVICE_CLASS) {
-      throw new Error(`OP_CLIENT_SEED[${i}]: class must be "${DEVICE_CLASS}" when declared (absent = the application class)`)
+    if (rec.class !== undefined && rec.class !== DEVICE_CLASS && rec.class !== SERVICE_CLASS) {
+      throw new Error(`OP_CLIENT_SEED[${i}]: class must be "${DEVICE_CLASS}" or "${SERVICE_CLASS}" when declared (absent = the application class)`)
     }
     const isDevice = rec.class === DEVICE_CLASS
+    const isService = rec.class === SERVICE_CLASS
+    const isMachine = isDevice || isService
     if (rec.redirect_uris !== undefined && (!Array.isArray(rec.redirect_uris) || rec.redirect_uris.some(u => typeof u !== 'string'))) {
       throw new Error(`OP_CLIENT_SEED[${i}]: redirect_uris must be a list of strings`)
     }
-    if (!isDevice && rec.redirect_uris === undefined) {
+    if (!isMachine && rec.redirect_uris === undefined) {
       throw new Error(`OP_CLIENT_SEED[${i}]: redirect_uris is required (the application class's exact URIs)`)
     }
-    if (isDevice && (rec.redirect_uris?.length ?? 0) > 0) {
-      throw new Error(`OP_CLIENT_SEED[${i}]: the device class carries no redirect_uris (nothing redirects — client_credentials only)`)
+    if (isMachine && (rec.redirect_uris?.length ?? 0) > 0) {
+      throw new Error(`OP_CLIENT_SEED[${i}]: the ${rec.class} class carries no redirect_uris (nothing redirects — client_credentials only)`)
     }
     if (rec.secret !== undefined && typeof rec.secret !== 'string') throw new Error(`OP_CLIENT_SEED[${i}]: secret must be a string`)
-    if (isDevice && typeof rec.secret !== 'string') {
-      throw new Error(`OP_CLIENT_SEED[${i}]: the device class is confidential — secret is required (the device authenticates with it)`)
+    if (isMachine && typeof rec.secret !== 'string') {
+      throw new Error(`OP_CLIENT_SEED[${i}]: the ${rec.class} class is confidential — secret is required (the machine caller authenticates with it)`)
     }
     const policy = rec.claims_policy as { claims?: unknown; roles?: unknown } | undefined
     if (policy !== undefined && (!Array.isArray(policy?.claims) || policy.claims.some(c => typeof c !== 'string'))) {
@@ -125,6 +154,9 @@ export function parseOpClientSeed(raw: string): OpClientSeedEntry[] {
     if (isDevice && policy !== undefined) {
       throw new Error(`OP_CLIENT_SEED[${i}]: the device class's claims are fixed by the class (the device id, its org, its instrument model) — claims_policy never applies`)
     }
+    if (isService && policy !== undefined) {
+      throw new Error(`OP_CLIENT_SEED[${i}]: the service class's claims are fixed by the class (the service id, its org, the audience, the scope allowlist) — claims_policy never applies`)
+    }
     if (isDevice) {
       const { device, error } = validateDeviceBlock(rec.device)
       if (error) throw new Error(`OP_CLIENT_SEED[${i}]: ${error}`)
@@ -132,10 +164,17 @@ export function parseOpClientSeed(raw: string): OpClientSeedEntry[] {
     } else if (rec.device !== undefined) {
       throw new Error(`OP_CLIENT_SEED[${i}]: the device block rides class "${DEVICE_CLASS}" — declare the class, or drop the block`)
     }
+    if (isService) {
+      const { service, error } = validateServiceBlock(rec.service)
+      if (error) throw new Error(`OP_CLIENT_SEED[${i}]: ${error}`)
+      rec.service = service
+    } else if (rec.service !== undefined) {
+      throw new Error(`OP_CLIENT_SEED[${i}]: the service block rides class "${SERVICE_CLASS}" — declare the class, or drop the block`)
+    }
     // The SSO home's launch card: validated at the seed like every other
     // field — a misdeclared card fails the boot, never renders broken.
     if (rec.launch !== undefined) {
-      if (isDevice) throw new Error(`OP_CLIENT_SEED[${i}]: the device class never joins the SSO home (the launcher is a human surface) — no launch card`)
+      if (isMachine) throw new Error(`OP_CLIENT_SEED[${i}]: the ${rec.class} class never joins the SSO home (the launcher is a human surface) — no launch card`)
       const { error } = validateLaunch(rec.launch as LaunchInput)
       if (error) throw new Error(`OP_CLIENT_SEED[${i}]: ${error}`)
     }
@@ -149,14 +188,17 @@ export async function seedOidcClientsFromEnv(env: EnvLike, store: ServerStore): 
   if (!raw) return []
   const seeded: string[] = []
   for (const entry of parseOpClientSeed(raw)) {
-    // The class marker + the device block ride the policy JSON (the
-    // column round-trips opaquely — the device class is a data-level
-    // extension, auth/op/device-clients.ts's doctrine).
-    const policy: OpClientPolicy | null = entry.class === DEVICE_CLASS
+    // The class marker + the machine block ride the policy JSON (the
+    // column round-trips opaquely — the machine classes are data-level
+    // extensions, auth/op/device-clients.ts's + service-clients.ts's
+    // doctrine).
+    const policy: OpClientPolicy | OpServicePolicy | null = entry.class === DEVICE_CLASS
       ? { claims: [], class: DEVICE_CLASS, device: entry.device! }
-      : entry.claims_policy
-        ? { claims: entry.claims_policy.claims, ...(entry.claims_policy.roles ? { roles: entry.claims_policy.roles } : {}) }
-        : null
+      : entry.class === SERVICE_CLASS
+        ? { claims: [], class: SERVICE_CLASS, service: entry.service! }
+        : entry.claims_policy
+          ? { claims: entry.claims_policy.claims, ...(entry.claims_policy.roles ? { roles: entry.claims_policy.roles } : {}) }
+          : null
     await store.upsertOidcClient({
       clientId: entry.client_id,
       name: entry.name,
