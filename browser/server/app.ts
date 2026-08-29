@@ -24,6 +24,7 @@ import { createOpRouter } from './routes/op'
 import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpFactorsRouter } from './routes/op-factors'
+import { createOpTokensRouter } from './routes/op-tokens'
 import { createOpMfaRouter } from './routes/op-mfa'
 import { createOpJoinRouter } from './routes/op-join'
 import { createOpMembershipsRouter } from './routes/op-memberships'
@@ -96,6 +97,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // The factor registry (TODO.identity-sso/02+03): the console's
   // passkey/TOTP/recovery-code surface.
   app.route('/', createOpFactorsRouter())
+  // The developer tokens (TODO.identity-features/08): the console's
+  // personal-access-token surface (list / mint / revoke); the exchange
+  // grant itself lives on the OP router's /op/token.
+  app.route('/', createOpTokensRouter())
   // The sign-in's second-factor + passwordless half (the same wave).
   app.route('/', createOpMfaRouter())
   // Delegated organization administration: the public "Request an

@@ -127,6 +127,7 @@ import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, reso
 import { listOrgSigningKeys } from '../auth/org-signing-keys'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
 import { orgAuditSlice } from '../auth/op/org-audit'
+import { patListRow } from '../auth/op/tokens'
 import { sessionUser } from '@oimlsmart/platform-server/session'
 
 /** The audit actions the registry's activity feed surfaces: the identity
@@ -894,7 +895,7 @@ export function createOpRegistryRouter(): Hono {
     if (!org) {
       return c.json({ error: `organization '${orgId}' is not on the organization registry` }, 404)
     }
-    const [memberships, users, requests, activity] = await Promise.all([
+    const [memberships, users, requests, activity, orgTokens] = await Promise.all([
       store.listOrgMembers(orgId),
       store.listUsers(),
       store.listOrgJoinRequests({ scope: 'org', orgId }),
@@ -904,6 +905,12 @@ export function createOpRegistryRouter(): Hono {
       // (roles, lifecycle, CONE) + join-request + org-invite acts naming
       // the org, newest first, 50 deep.
       orgAuditSlice(store, orgId),
+      // TODO.identity-features/08: the org's token inventory (the org
+      // detail page's section) — the members' developer tokens, the
+      // METADATA only (never the plaintext, never the hash), EVERY
+      // membership state (a disabled member's live token is exactly
+      // what the oversight surface hunts).
+      store.listOrgPersonalAccessTokens(orgId),
     ])
     const byId = new Map(users.map(u => [u.id, u]))
     // The manufacturer standing's endorsements (TODO.register/01): the
@@ -1000,6 +1007,20 @@ export function createOpRegistryRouter(): Hono {
       linkTargets,
       endorsements,
       signingKeys,
+      // The developer-token inventory (TODO.identity-features/08): the
+      // holder resolved (an erased member reads honestly), the metadata
+      // only.
+      tokens: orgTokens.map(pat => {
+        const holder = byId.get(pat.userId) ?? null
+        return {
+          ...patListRow(pat),
+          holder: {
+            userId: pat.userId,
+            name: holder?.name ?? '(erased account)',
+            email: holder?.email ?? null,
+          },
+        }
+      }),
       members: memberships.map(m => {
         const account = byId.get(m.userId) ?? null
         return {

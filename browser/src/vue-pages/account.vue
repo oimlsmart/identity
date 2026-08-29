@@ -34,6 +34,11 @@
 //   SESSIONS        every live session with created / last-active /
 //                   user agent / IP, revoke one or sign out everywhere
 //                   else;
+//   TOKENS          (TODO.identity-features/08) the developer tokens —
+//                   the personal access tokens' registry, the mint (the
+//                   scope picker bounded by the account's own standing +
+//                   the mandatory expiration + the one-time plaintext),
+//                   the revoke;
 //   ACTIVITY        the account's own sign-in and security events from
 //                   the OP's audit chain, newest first.
 //
@@ -48,6 +53,7 @@ import UpstreamProviderIcon from '../components/UpstreamProviderIcon.vue'
 import AvatarCropDialog from '../components/AvatarCropDialog.vue'
 import { AVATAR_ACCEPT_TYPES } from '../lib/avatar-crop'
 import AccountFactors, { type FactorsPayload } from '../components/AccountFactors.vue'
+import AccountTokens, { type TokensPayload } from '../components/AccountTokens.vue'
 import { t, type MessageKey } from '../i18n'
 
 interface AccountContext {
@@ -173,6 +179,11 @@ const error = ref<string | null>(null)
  *  FACTORS section reads it through the AccountFactors component, and the
  *  sign-in-methods guard counts the passkeys (a passkey is a way in). */
 const factors = ref<FactorsPayload | null>(null)
+
+/** The developer tokens' payload (TODO.identity-features/08): the
+ *  console's TOKENS section reads it through the AccountTokens
+ *  component (the registry rows + the picker's service catalog). */
+const tokens = ref<TokensPayload | null>(null)
 
 // The profile edit.
 const nameEditing = ref(false)
@@ -667,7 +678,7 @@ async function load(quiet = false) {
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     context.value = await res.json() as AccountContext
-    const [linksRes, providersRes, activityRes, orgsRes, factorsRes] = await Promise.all([
+    const [linksRes, providersRes, activityRes, orgsRes, factorsRes, tokensRes] = await Promise.all([
       fetch('/api/op/account/links', { credentials: 'include' }),
       fetch('/api/op/providers/public'),
       fetch('/api/op/account/activity', { credentials: 'include' }),
@@ -675,12 +686,15 @@ async function load(quiet = false) {
       fetch('/api/op/organizations'),
       // TODO.identity-sso/02+03: the factor registry (the console's FACTORS section).
       fetch('/api/op/account/factors', { credentials: 'include' }),
+      // TODO.identity-features/08: the developer tokens (the console's TOKENS section).
+      fetch('/api/op/account/tokens', { credentials: 'include' }),
     ])
     if (linksRes.ok) links.value = await linksRes.json() as LinkRow[]
     providers.value = providersRes.ok ? await providersRes.json() as PublicProvider[] : []
     activity.value = activityRes.ok ? await activityRes.json() as ActivityEvent[] : []
     selectableOrgs.value = orgsRes.ok ? await orgsRes.json() as SelectableOrg[] : []
     factors.value = factorsRes.ok ? await factorsRes.json() as FactorsPayload : null
+    tokens.value = tokensRes.ok ? await tokensRes.json() as TokensPayload : null
     // TODO.trust-registry/01: the org_admin's signing-key surface loads
     // with the context (the ACTIVE org's set only — the server's gate).
     if (keyManagedOrg.value) {
@@ -1475,6 +1489,14 @@ async function revokeOthers() {
           :email-verified="!!context.account.emailVerifiedAt"
           :factors="factors"
           :last-passkey-is-last-method="lastPasskeyIsLastMethod"
+          @changed="loadQuiet"
+        />
+
+        <!-- 3½ · The developer tokens (TODO.identity-features/08): the
+             personal access tokens — mint (the one-time plaintext), the
+             registry, the revoke. -->
+        <AccountTokens
+          :tokens="tokens"
           @changed="loadQuiet"
         />
 
