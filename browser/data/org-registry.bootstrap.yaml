@@ -1,0 +1,2005 @@
+# ═══════════════════════════════════════════════════════════════════
+# THE PRODUCTION PARTICIPANT BOOTSTRAP (TODO.identity-features/10,
+# consequence 5): the authoritative OIML directory as identity-registry
+# rows on the corrected member model. This is the feed the registry's
+# production posture boots from — the registry starts EMPTY (migration
+# 0013's doctrine) and the identity administrator populates it
+# deliberately; THIS dataset is that deliberate act, applied through
+# the importer (server/import-org-registry.ts, driven by
+# scripts/import-org-registry.ts — the runbook section is
+# docs/deployment/identity-operations.md).
+#
+# It is NOT the dev/e2e demonstration register: org-register.snapshot.yaml
+# stays the FICTIONAL cast (Example orgs at example.org) and is untouched.
+#
+# THE MODEL (the corrected member model): the OIML Member category is
+# the member-state / corresponding-member kinds; a member state
+# participates in the OIML-CS by PROPOSING its issuing authorities (the
+# IA row's proposed_by) and DESIGNATING utilizers (the utilizer row's
+# designated_by); a corresponding member designates ASSOCIATES; a test
+# laboratory carries its IA association (designated_by → the IA). The
+# designated bodies (utilizer/associate) carry the CS status facet (the
+# Declaration's standing). The link's kind enforcement is the write
+# path's (validateOrgLinks, server/auth/org-registry.ts) — the importer
+# drives exactly it.
+#
+# THE SOURCES (all fetched 2026-08-29; the per-row provenance.source
+# names each row's primary source):
+#   - the Member States list   https://www.oiml.org/en/structure/members/member-states
+#     (63 rows; the per-country detail pages carry the member body)
+#   - the Corresponding Members https://www.oiml.org/en/structure/members/corresponding-members
+#     (66 rows; ditto)
+#   - the IA summary table      https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf
+#     (dated 2026-08-27; 14 issuing authorities with their OIML codes)
+#   - the TL summary table      https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf
+#     (dated 2026-04-16; 32 test-laboratory associations)
+#   - the Utilizer/Associate    https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf
+#     summary table (dated 2026-05-19; 31 utilizers + 11 associates)
+#
+# THE HONEST GAPS + DISAMBIGUATIONS:
+#   - CONTACTS: the oiml.org detail pages publish contact details behind
+#     a login ("Login to see contact details") — the rows carry NO
+#     contacts, honestly. The identity administrator curates them at the
+#     first verified interaction (the email-domain hint derives then).
+#   - TL COUNTRIES: the TL summary states no country for third-party
+#     laboratories — those rows carry country: null (unrecorded). The
+#     IA-internal laboratories carry the IA's member state.
+#   - RU utilizer: the member page (fetched 2026-08-29) lists
+#     RCAM-Rostest; the 2026-05-19 summary table still lists VNIIMS.
+#     The live page wins; the row's note records the discrepancy.
+#   - IT issuing authority: the 2026-08-27 IA summary lists Tifernogas
+#     as IT2 (the former IT1, the ministry, is no longer listed); the
+#     older TL summary still captions it IT1.
+#   - The 2025-04 OIML Bulletin ("Celebrating 70 years") says 64 Member
+#     States; the live directory lists 63 — the directory wins.
+#   - The FORCE laboratories' cities lost their ø glyph in the TL
+#     summary's text layer ("Brondby"/"Horsholm"); the spellings here
+#     (Brøndby, Hørsholm) follow FORCE's own site.
+#
+# THE CONVENTIONS:
+#   - ids: ms-<cc> / cm-<cc> for the members (the OIML site code), the
+#     OIML code for an IA (the participant org's id IS its code — the
+#     registry's §4 doctrine), tl-<ia>-<slug> for a test laboratory
+#     (TLs carry no public OIML code), ut-<cc> / as-<cc> for the
+#     designated bodies (ut-it-* splits Italy's two utilizers).
+#   - every listed utilizer/associate is a SIGNED, ACTIVE Declaration
+#     holder (the listing IS that fact) — cs_status: signed-active.
+#   - one row per (TL, IA) association: a laboratory associated with
+#     two IAs (Mettler Toledo, Sartorius, Sensus, Endress+Hauser
+#     Flowtec under CH1 and DE1) is two LINKED rows, never merged —
+#     the inclusion is per-IA (PD-04).
+#   - provenance rides every row (source URL + the per-country detail
+#     page); member_body is the informational member-body name from the
+#     country's detail page (never projected into the registry row).
+# ═══════════════════════════════════════════════════════════════════
+
+members:
+  - id: ms-al
+    kind: member-state
+    name: "Albania"
+    short_name: "AL"
+    country: "Albania"
+    member_body: "General Directorate of Metrology (DPM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=2&section=contacts"
+  - id: ms-dz
+    kind: member-state
+    name: "Algeria"
+    short_name: "DZ"
+    country: "Algeria"
+    member_body: "Office National de la Métrologie Légale (ONML)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=3&section=contacts"
+  - id: cm-ao
+    kind: corresponding-member
+    name: "Angola"
+    short_name: "AO"
+    country: "Angola"
+    member_body: "National Institute of Quality Infrastructure (INIQ)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=6&section=contacts"
+  - id: cm-ar
+    kind: corresponding-member
+    name: "Argentina"
+    short_name: "AR"
+    country: "Argentina"
+    member_body: "Instituto Nacional de Tecnologia Industrial (INTI)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=10&section=contacts"
+  - id: cm-am
+    kind: corresponding-member
+    name: "Armenia"
+    short_name: "AM"
+    country: "Armenia"
+    member_body: "National Body for Standards and Metrology (ARMSTANDARD)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=11&section=contacts"
+  - id: ms-au
+    kind: member-state
+    name: "Australia"
+    short_name: "AU"
+    country: "Australia"
+    member_body: "National Measurement Institute, Australia (NMIA)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=13&section=contacts"
+  - id: ms-at
+    kind: member-state
+    name: "Austria"
+    short_name: "AT"
+    country: "Austria"
+    member_body: "Bundesamt fur Eich- und Vermessungswesen (BEV)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=14&section=contacts"
+  - id: cm-az
+    kind: corresponding-member
+    name: "Azerbaijan"
+    short_name: "AZ"
+    country: "Azerbaijan"
+    member_body: "State Agency for Antimonopoly and Consumer Market Control"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=15&section=contacts"
+  - id: cm-bh
+    kind: corresponding-member
+    name: "Bahrain"
+    short_name: "BH"
+    country: "Bahrain"
+    member_body: "Directorate of Testing and Metrology (BSMD)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=17&section=contacts"
+  - id: cm-bd
+    kind: corresponding-member
+    name: "Bangladesh"
+    short_name: "BD"
+    country: "Bangladesh"
+    member_body: "Bangladesh Standards and Testing Institution"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=18&section=contacts"
+  - id: cm-bb
+    kind: corresponding-member
+    name: "Barbados"
+    short_name: "BB"
+    country: "Barbados"
+    member_body: "Barbados National Standards Institution"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=19&section=contacts"
+  - id: ms-by
+    kind: member-state
+    name: "Belarus"
+    short_name: "BY"
+    country: "Belarus"
+    member_body: "State Committee for Standardization of the Republic of Belarus (Gosstandart)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=20&section=contacts"
+  - id: ms-be
+    kind: member-state
+    name: "Belgium"
+    short_name: "BE"
+    country: "Belgium"
+    member_body: "Federal Public Service Economy, S.M.E.s, Self-employed and Energy"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=21&section=contacts"
+  - id: cm-bo
+    kind: corresponding-member
+    name: "Bolivia"
+    short_name: "BO"
+    country: "Bolivia"
+    member_body: "Instituto Boliviano de Metrologia (IBMETRO)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=26&section=contacts"
+  - id: cm-ba
+    kind: corresponding-member
+    name: "Bosnia and Herzegovina"
+    short_name: "BA"
+    country: "Bosnia and Herzegovina"
+    member_body: "Institute of Metrology of Bosnia and Herzegovina (IMBiH)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=27&section=contacts"
+  - id: cm-bw
+    kind: corresponding-member
+    name: "Botswana"
+    short_name: "BW"
+    country: "Botswana"
+    member_body: "Botswana Bureau of Standards"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=28&section=contacts"
+  - id: ms-br
+    kind: member-state
+    name: "Brazil"
+    short_name: "BR"
+    country: "Brazil"
+    member_body: "INMETRO, Instituto Nacional de Metrologia, Qualidade e tecnologia"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=30&section=contacts"
+  - id: ms-bg
+    kind: member-state
+    name: "Bulgaria"
+    short_name: "BG"
+    country: "Bulgaria"
+    member_body: "Bulgarian Institute of Metrology (BIM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=33&section=contacts"
+  - id: cm-bf
+    kind: corresponding-member
+    name: "Burkina Faso"
+    short_name: "BF"
+    country: "Burkina Faso"
+    member_body: "Agence Burkinabé de Normalisation de la Métrologie et de la Qualité (ABNORM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=34&section=contacts"
+  - id: ms-kh
+    kind: member-state
+    name: "Cambodia"
+    short_name: "KH"
+    country: "Cambodia"
+    member_body: "National Metrology Center (NMC)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=36&section=contacts"
+  - id: ms-ca
+    kind: member-state
+    name: "Canada"
+    short_name: "CA"
+    country: "Canada"
+    member_body: "Measurement Canada (MC)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=38&section=contacts"
+  - id: ms-cn
+    kind: member-state
+    name: "China"
+    short_name: "CN"
+    country: "China"
+    member_body: "State Administration for Market Regulation (SAMR)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=44&section=contacts"
+  - id: cm-tw
+    kind: corresponding-member
+    name: "Chinese Taipei"
+    short_name: "TW"
+    country: "Chinese Taipei"
+    member_body: "Bureau of Standards, Metrology and Inspection. (BSMI)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=208&section=contacts"
+  - id: ms-co
+    kind: member-state
+    name: "Colombia"
+    short_name: "CO"
+    country: "Colombia"
+    member_body: "Superintendencia de Industria y Comercio (SIC)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=47&section=contacts"
+  - id: cm-cr
+    kind: corresponding-member
+    name: "Costa Rica"
+    short_name: "CR"
+    country: "Costa Rica"
+    member_body: "Laboratorio Costarricense de Metrologia (LACOMET)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=52&section=contacts"
+  - id: ms-hr
+    kind: member-state
+    name: "Croatia"
+    short_name: "HR"
+    country: "Croatia"
+    member_body: "State Office for Metrology"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=54&section=contacts"
+  - id: ms-cy
+    kind: member-state
+    name: "Cyprus"
+    short_name: "CY"
+    country: "Cyprus"
+    member_body: "Ministry of Energy, Commerce, Industry and Tourism"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=56&section=contacts"
+  - id: ms-cz
+    kind: member-state
+    name: "Czechia"
+    short_name: "CZ"
+    country: "Czechia"
+    member_body: "Czech Metrology Institute (CMI)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=57&section=contacts"
+  - id: ms-dk
+    kind: member-state
+    name: "Denmark"
+    short_name: "DK"
+    country: "Denmark"
+    member_body: "Danish Safety Technology Authority"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=58&section=contacts"
+  - id: cm-dj
+    kind: corresponding-member
+    name: "Djibouti"
+    short_name: "DJ"
+    country: "Djibouti"
+    member_body: "Agence Djiboutienne des Normes et de la Qualité (ADN)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=59&section=contacts"
+  - id: cm-do
+    kind: corresponding-member
+    name: "Dominican Republic"
+    short_name: "DO"
+    country: "Dominican Republic"
+    member_body: "Instituto Dominicano para la Calidad (Indocal) (INDOCAL)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=61&section=contacts"
+  - id: cm-ec
+    kind: corresponding-member
+    name: "Ecuador"
+    short_name: "EC"
+    country: "Ecuador"
+    member_body: "Servicio Ecuatoriano de Normalizacion INEN"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=63&section=contacts"
+  - id: ms-eg
+    kind: member-state
+    name: "Egypt"
+    short_name: "EG"
+    country: "Egypt"
+    member_body: "Ministry of Supply and Internal Trade (MSIT)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=64&section=contacts"
+  - id: cm-ee
+    kind: corresponding-member
+    name: "Estonia"
+    short_name: "EE"
+    country: "Estonia"
+    member_body: "Consumer Protection and Technical Surveillance Authority of Estonia (TTJA)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=68&section=contacts"
+  - id: ms-et
+    kind: member-state
+    name: "Ethiopia"
+    short_name: "ET"
+    country: "Ethiopia"
+    member_body: "Ministry of Trade and Regional Integration (MoTRI)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=69&section=contacts"
+  - id: cm-fj
+    kind: corresponding-member
+    name: "Fiji"
+    short_name: "FJ"
+    country: "Fiji"
+    member_body: "Ministry of Industry and Trade"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=72&section=contacts"
+  - id: ms-fi
+    kind: member-state
+    name: "Finland"
+    short_name: "FI"
+    country: "Finland"
+    member_body: "Finnish Safety and Chemicals Agency (TUKES)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=73&section=contacts"
+  - id: ms-fr
+    kind: member-state
+    name: "France"
+    short_name: "FR"
+    country: "France"
+    member_body: "Ministere de l Economie, des Finances et de la Souveraineté Industrielle et Numérique"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=74&section=contacts"
+  - id: cm-ga
+    kind: corresponding-member
+    name: "Gabon"
+    short_name: "GA"
+    country: "Gabon"
+    member_body: "Agence Gabonaise de Normalisation (AGANOR)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=78&section=contacts"
+  - id: cm-ge
+    kind: corresponding-member
+    name: "Georgia"
+    short_name: "GE"
+    country: "Georgia"
+    member_body: "National Agency for Standards, Technical Regulations and Metrology"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=80&section=contacts"
+  - id: ms-de
+    kind: member-state
+    name: "Germany"
+    short_name: "DE"
+    country: "Germany"
+    member_body: "Physikalisch-Technische Bundesanstalt (PTB)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=81&section=contacts"
+  - id: cm-gh
+    kind: corresponding-member
+    name: "Ghana"
+    short_name: "GH"
+    country: "Ghana"
+    member_body: "Ghana Standards Authority (GSA)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=82&section=contacts"
+  - id: ms-gr
+    kind: member-state
+    name: "Greece"
+    short_name: "GR"
+    country: "Greece"
+    member_body: "Ministry of Development and Investments"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=84&section=contacts"
+  - id: cm-gt
+    kind: corresponding-member
+    name: "Guatemala"
+    short_name: "GT"
+    country: "Guatemala"
+    member_body: "Ministerio de Economia (CENAME)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=89&section=contacts"
+  - id: cm-gn
+    kind: corresponding-member
+    name: "Guinea"
+    short_name: "GN"
+    country: "Guinea"
+    member_body: "Institut Guinéen de Normalisation et de Métrologie (IGNM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=90&section=contacts"
+  - id: cm-gy
+    kind: corresponding-member
+    name: "Guyana"
+    short_name: "GY"
+    country: "Guyana"
+    member_body: "Guyana National Bureau of Standards"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=92&section=contacts"
+  - id: cm-hk
+    kind: corresponding-member
+    name: "Hong Kong"
+    short_name: "HK"
+    country: "Hong Kong"
+    member_body: "Hong Kong Customs and Excise Department"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=97&section=contacts"
+  - id: ms-hu
+    kind: member-state
+    name: "Hungary"
+    short_name: "HU"
+    country: "Hungary"
+    member_body: "Government Office of the Capital City Budapest (BFKH)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=98&section=contacts"
+  - id: cm-is
+    kind: corresponding-member
+    name: "Iceland"
+    short_name: "IS"
+    country: "Iceland"
+    member_body: "Husnaedis-og mannvirkjastofnun (HMS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=99&section=contacts"
+  - id: ms-in
+    kind: member-state
+    name: "India"
+    short_name: "IN"
+    country: "India"
+    member_body: "Department of Consumer Affairs"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=100&section=contacts"
+  - id: ms-id
+    kind: member-state
+    name: "Indonesia"
+    short_name: "ID"
+    country: "Indonesia"
+    member_body: "Directorate of Metrology, Ministry of Trade"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=101&section=contacts"
+  - id: ms-ir
+    kind: member-state
+    name: "Iran"
+    short_name: "IR"
+    country: "Iran"
+    member_body: "Iran National Standards Organization (INSO)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=102&section=contacts"
+  - id: cm-iq
+    kind: corresponding-member
+    name: "Iraq"
+    short_name: "IQ"
+    country: "Iraq"
+    member_body: "COSQC"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=103&section=contacts"
+  - id: ms-ie
+    kind: member-state
+    name: "Ireland"
+    short_name: "IE"
+    country: "Ireland"
+    member_body: "NSAI Legal Metrology Service"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=104&section=contacts"
+  - id: ms-il
+    kind: member-state
+    name: "Israel"
+    short_name: "IL"
+    country: "Israel"
+    member_body: "Ministry of Economy and Industry"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=105&section=contacts"
+  - id: ms-it
+    kind: member-state
+    name: "Italy"
+    short_name: "IT"
+    country: "Italy"
+    member_body: "Ministero dello Sviluppo Economico - Dir. Gen. per il Mercato, la Conc., i Cons., la Vigil. e la Norm. Tecnica"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=106&section=contacts"
+  - id: ms-jp
+    kind: member-state
+    name: "Japan"
+    short_name: "JP"
+    country: "Japan"
+    member_body: "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology (NMIJ/AIST)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=108&section=contacts"
+  - id: cm-jo
+    kind: corresponding-member
+    name: "Jordan"
+    short_name: "JO"
+    country: "Jordan"
+    member_body: "Jordan Standards and Metrology Organization (JSMO)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=109&section=contacts"
+  - id: ms-kz
+    kind: member-state
+    name: "Kazakhstan"
+    short_name: "KZ"
+    country: "Kazakhstan"
+    member_body: "Committee for Technical Regulation and Metrology of the Ministry of Trade and Innovation (KAZINMETR)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=110&section=contacts"
+  - id: ms-ke
+    kind: member-state
+    name: "Kenya"
+    short_name: "KE"
+    country: "Kenya"
+    member_body: "Weights and Measures Department (W&M)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=111&section=contacts"
+  - id: cm-ki
+    kind: corresponding-member
+    name: "Kiribati"
+    short_name: "KI"
+    country: "Kiribati"
+    member_body: "Ministry of Commerce Industry Co-operative"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=112&section=contacts"
+  - id: ms-kr
+    kind: member-state
+    name: "Korea (R.)"
+    short_name: "KR"
+    country: "Korea (R.)"
+    member_body: "Korean Agency for Technology and Standards (KATS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=114&section=contacts"
+  - id: cm-kg
+    kind: corresponding-member
+    name: "Kyrgyzstan"
+    short_name: "KG"
+    country: "Kyrgyzstan"
+    member_body: "Ministry of Trade and Integration of the Kyrgyz Republic"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=116&section=contacts"
+  - id: cm-lv
+    kind: corresponding-member
+    name: "Latvia"
+    short_name: "LV"
+    country: "Latvia"
+    member_body: "SIA \"Latvian national metrology centre\" Ltd"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=118&section=contacts"
+  - id: cm-lt
+    kind: corresponding-member
+    name: "Lithuania"
+    short_name: "LT"
+    country: "Lithuania"
+    member_body: "Industry and Trade Department"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=124&section=contacts"
+  - id: cm-lu
+    kind: corresponding-member
+    name: "Luxembourg"
+    short_name: "LU"
+    country: "Luxembourg"
+    member_body: "Bureau Luxembourgeois de Métrologie"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=125&section=contacts"
+  - id: cm-mg
+    kind: corresponding-member
+    name: "Madagascar"
+    short_name: "MG"
+    country: "Madagascar"
+    member_body: "Ministère de l'Industrialisation, du Commerce et de l'Artisanat"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=128&section=contacts"
+  - id: cm-mw
+    kind: corresponding-member
+    name: "Malawi"
+    short_name: "MW"
+    country: "Malawi"
+    member_body: "Malawi Bureau of Standards (MBS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=129&section=contacts"
+  - id: cm-my
+    kind: corresponding-member
+    name: "Malaysia"
+    short_name: "MY"
+    country: "Malaysia"
+    member_body: "National Metrology Laboratory (SIRIM Berhad)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=130&section=contacts"
+  - id: cm-ml
+    kind: corresponding-member
+    name: "Mali"
+    short_name: "ML"
+    country: "Mali"
+    member_body: "Agence Malienne de Métrologie (AMAM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=132&section=contacts"
+  - id: cm-mt
+    kind: corresponding-member
+    name: "Malta"
+    short_name: "MT"
+    country: "Malta"
+    member_body: "Malta Competition and Consumer Affairs Authority"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=133&section=contacts"
+  - id: cm-mu
+    kind: corresponding-member
+    name: "Mauritius"
+    short_name: "MU"
+    country: "Mauritius"
+    member_body: "Ministry of Commerce and Consumer Protectiom"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=137&section=contacts"
+  - id: cm-mx
+    kind: corresponding-member
+    name: "Mexico"
+    short_name: "MX"
+    country: "Mexico"
+    member_body: "Centro Nacional de Metrologica (CENAM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=139&section=contacts"
+  - id: cm-md
+    kind: corresponding-member
+    name: "Moldova"
+    short_name: "MD"
+    country: "Moldova"
+    member_body: "National Institute of Metrology (INM-MD)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=141&section=contacts"
+  - id: ms-mc
+    kind: member-state
+    name: "Monaco"
+    short_name: "MC"
+    country: "Monaco"
+    member_body: "Département de l?Equipement, de l'Environnement et de l'Urbanisme"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=142&section=contacts"
+  - id: cm-mn
+    kind: corresponding-member
+    name: "Mongolia"
+    short_name: "MN"
+    country: "Mongolia"
+    member_body: "Mongolian Agency for Standardization and Metrology (MASM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=143&section=contacts"
+  - id: ms-me
+    kind: member-state
+    name: "Montenegro"
+    short_name: "ME"
+    country: "Montenegro"
+    member_body: "Bureau of Metrology"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=31&section=contacts"
+  - id: ms-ma
+    kind: member-state
+    name: "Morocco"
+    short_name: "MA"
+    country: "Morocco"
+    member_body: "Ministère de l'Industrie et du Commerce"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=145&section=contacts"
+  - id: cm-mz
+    kind: corresponding-member
+    name: "Mozambique"
+    short_name: "MZ"
+    country: "Mozambique"
+    member_body: "Instituto Nacional de Normalização e Qualidade (INNOQ)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=146&section=contacts"
+  - id: cm-na
+    kind: corresponding-member
+    name: "Namibia"
+    short_name: "NA"
+    country: "Namibia"
+    member_body: "Namibian Standards Institution (NSI)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=148&section=contacts"
+  - id: cm-np
+    kind: corresponding-member
+    name: "Nepal"
+    short_name: "NP"
+    country: "Nepal"
+    member_body: "Nepal Bureau of Standards and Metrology"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=150&section=contacts"
+  - id: ms-nl
+    kind: member-state
+    name: "Netherlands"
+    short_name: "NL"
+    country: "Netherlands"
+    member_body: "Authority for Digital Infrastructure"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=151&section=contacts"
+  - id: ms-nz
+    kind: member-state
+    name: "New Zealand"
+    short_name: "NZ"
+    country: "New Zealand"
+    member_body: "Ministry of Business, Innovation and Employment (MBIE)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=154&section=contacts"
+  - id: cm-ng
+    kind: corresponding-member
+    name: "Nigeria"
+    short_name: "NG"
+    country: "Nigeria"
+    member_body: "Legal Metrology Department (Weights and Measures) (LMD)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=157&section=contacts"
+  - id: ms-mk
+    kind: member-state
+    name: "North Macedonia"
+    short_name: "MK"
+    country: "North Macedonia"
+    member_body: "Ministry of Energy, Mining and Mineral Resources (BOM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=127&section=contacts"
+  - id: ms-no
+    kind: member-state
+    name: "Norway"
+    short_name: "NO"
+    country: "Norway"
+    member_body: "The Norwegian Metrology Service (Justervesenet)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=161&section=contacts"
+  - id: cm-om
+    kind: corresponding-member
+    name: "Oman"
+    short_name: "OM"
+    country: "Oman"
+    member_body: "Ministry of Commerce, Industry and Investment Promotion"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=162&section=contacts"
+  - id: ms-pk
+    kind: member-state
+    name: "Pakistan"
+    short_name: "PK"
+    country: "Pakistan"
+    member_body: "Pakistan Standards and Quality Control Authority (PSQCA Complex)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=163&section=contacts"
+  - id: cm-pa
+    kind: corresponding-member
+    name: "Panama"
+    short_name: "PA"
+    country: "Panama"
+    member_body: "Centro Nacional de Metrologia de Panama AIP (CENAMEP AI)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=166&section=contacts"
+  - id: cm-pg
+    kind: corresponding-member
+    name: "Papua New Guinea"
+    short_name: "PG"
+    country: "Papua New Guinea"
+    member_body: "National Institute of Standards and Industrial Technology (NISIT)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=167&section=contacts"
+  - id: cm-py
+    kind: corresponding-member
+    name: "Paraguay"
+    short_name: "PY"
+    country: "Paraguay"
+    member_body: "Instituto Nacional de Tecnología, Normalización y Metrologia (INTN)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=168&section=contacts"
+  - id: cm-pe
+    kind: corresponding-member
+    name: "Peru"
+    short_name: "PE"
+    country: "Peru"
+    member_body: "Instituto Nacional de Calidad"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=169&section=contacts"
+  - id: cm-ph
+    kind: corresponding-member
+    name: "Philippines"
+    short_name: "PH"
+    country: "Philippines"
+    member_body: "National Metrology Laboratory"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=170&section=contacts"
+  - id: ms-pl
+    kind: member-state
+    name: "Poland"
+    short_name: "PL"
+    country: "Poland"
+    member_body: "Głowny Urzad Miar GUM Central Office of Measures"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=172&section=contacts"
+  - id: ms-pt
+    kind: member-state
+    name: "Portugal"
+    short_name: "PT"
+    country: "Portugal"
+    member_body: "Instituto Português da Qualidade (IPQ)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=173&section=contacts"
+  - id: cm-qa
+    kind: corresponding-member
+    name: "Qatar"
+    short_name: "QA"
+    country: "Qatar"
+    member_body: "Qatar General Organization for Standardization"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=175&section=contacts"
+  - id: ms-ro
+    kind: member-state
+    name: "Romania"
+    short_name: "RO"
+    country: "Romania"
+    member_body: "Romanian Bureau of Legal Metrology (B.R.M.L.)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=177&section=contacts"
+  - id: ms-ru
+    kind: member-state
+    name: "Russian Federation"
+    short_name: "RU"
+    country: "Russian Federation"
+    member_body: "Federal Agency on Technical Regulating and Metrology (Rosstandart )"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=178&section=contacts"
+  - id: cm-rw
+    kind: corresponding-member
+    name: "Rwanda"
+    short_name: "RW"
+    country: "Rwanda"
+    member_body: "Rwanda Standards Board (RSB)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=179&section=contacts"
+  - id: cm-lc
+    kind: corresponding-member
+    name: "Saint Lucia"
+    short_name: "LC"
+    country: "Saint Lucia"
+    member_body: "Saint Lucia Bureau of Standards (SLBS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=182&section=contacts"
+  - id: ms-sa
+    kind: member-state
+    name: "Saudi Arabia"
+    short_name: "SA"
+    country: "Saudi Arabia"
+    member_body: "Saudi Standards, Metrology and Quality Organization (SASO)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=188&section=contacts"
+  - id: ms-rs
+    kind: member-state
+    name: "Serbia"
+    short_name: "RS"
+    country: "Serbia"
+    member_body: "Directorate of Measures and Precious Metals (DMDM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=238&section=contacts"
+  - id: cm-sc
+    kind: corresponding-member
+    name: "Seychelles"
+    short_name: "SC"
+    country: "Seychelles"
+    member_body: "Seychelles Bureau of Standards (SBS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=190&section=contacts"
+  - id: cm-sl
+    kind: corresponding-member
+    name: "Sierra Leone"
+    short_name: "SL"
+    country: "Sierra Leone"
+    member_body: "Ministry of Industry and Trade"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=191&section=contacts"
+  - id: cm-sg
+    kind: corresponding-member
+    name: "Singapore"
+    short_name: "SG"
+    country: "Singapore"
+    member_body: "Consumer Product Safety, Weights & Measures Office"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=192&section=contacts"
+  - id: ms-sk
+    kind: member-state
+    name: "Slovakia"
+    short_name: "SK"
+    country: "Slovakia"
+    member_body: "Slovak Office of Standards, Metrology and Testing (UNMS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=193&section=contacts"
+  - id: ms-si
+    kind: member-state
+    name: "Slovenia"
+    short_name: "SI"
+    country: "Slovenia"
+    member_body: "Metrology Institute of the Republic of Slovenia (MIRS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=194&section=contacts"
+  - id: ms-za
+    kind: member-state
+    name: "South Africa"
+    short_name: "ZA"
+    country: "South Africa"
+    member_body: "National Regulator for Compulsory Specifications, Legal Metrology Department (NRCS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=197&section=contacts"
+  - id: ms-es
+    kind: member-state
+    name: "Spain"
+    short_name: "ES"
+    country: "Spain"
+    member_body: "Centro Espanol de Metrologia (CEM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=199&section=contacts"
+  - id: ms-lk
+    kind: member-state
+    name: "Sri Lanka"
+    short_name: "LK"
+    country: "Sri Lanka"
+    member_body: "Department of Measurement Units, Standards and Services"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=200&section=contacts"
+  - id: cm-sd
+    kind: corresponding-member
+    name: "Sudan"
+    short_name: "SD"
+    country: "Sudan"
+    member_body: "Sudanese Standards & Metrology Organization (SSMO)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=201&section=contacts"
+  - id: ms-se
+    kind: member-state
+    name: "Sweden"
+    short_name: "SE"
+    country: "Sweden"
+    member_body: "Swedac"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=205&section=contacts"
+  - id: ms-ch
+    kind: member-state
+    name: "Switzerland"
+    short_name: "CH"
+    country: "Switzerland"
+    member_body: "Federal Institute of Metrology (METAS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=206&section=contacts"
+  - id: ms-tz
+    kind: member-state
+    name: "Tanzania"
+    short_name: "TZ"
+    country: "Tanzania"
+    member_body: "Weights and Measures Agency (WMA)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=210&section=contacts"
+  - id: ms-th
+    kind: member-state
+    name: "Thailand"
+    short_name: "TH"
+    country: "Thailand"
+    member_body: "Department of Internal Trade (DIT)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=211&section=contacts"
+  - id: cm-tt
+    kind: corresponding-member
+    name: "Trinidad and Tobago"
+    short_name: "TT"
+    country: "Trinidad and Tobago"
+    member_body: "(TTBS-LMI)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=215&section=contacts"
+  - id: ms-tn
+    kind: member-state
+    name: "Tunisia"
+    short_name: "TN"
+    country: "Tunisia"
+    member_body: "National Agency of Metrology (ANM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=216&section=contacts"
+  - id: ms-tr
+    kind: member-state
+    name: "Turkey"
+    short_name: "TR"
+    country: "Turkey"
+    member_body: "Ministry of Industry and Technology"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=217&section=contacts"
+  - id: cm-ug
+    kind: corresponding-member
+    name: "Uganda"
+    short_name: "UG"
+    country: "Uganda"
+    member_body: "Uganda National Bureau of Standards (UNBS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=221&section=contacts"
+  - id: ms-ua
+    kind: member-state
+    name: "Ukraine"
+    short_name: "UA"
+    country: "Ukraine"
+    member_body: "SE ““Ukrmetrteststandart”” (UKRCSM)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=222&section=contacts"
+  - id: cm-ae
+    kind: corresponding-member
+    name: "United Arab Emirates"
+    short_name: "AE"
+    country: "United Arab Emirates"
+    member_body: "UAE Ministry of Industry & Advanced Technology (MoIAT)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=223&section=contacts"
+  - id: ms-gb
+    kind: member-state
+    name: "United Kingdom"
+    short_name: "GB"
+    country: "United Kingdom"
+    member_body: "Office for Product Safety and Standards (OPSS)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=224&section=contacts"
+  - id: ms-us
+    kind: member-state
+    name: "United States"
+    short_name: "US"
+    country: "United States"
+    member_body: "National Institute of Standards and Technology (NIST)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=225&section=contacts"
+  - id: cm-uy
+    kind: corresponding-member
+    name: "Uruguay"
+    short_name: "UY"
+    country: "Uruguay"
+    member_body: "Laboratorio Tecnológico del Uruguay (LATU)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=227&section=contacts"
+  - id: cm-uz
+    kind: corresponding-member
+    name: "Uzbekistan"
+    short_name: "UZ"
+    country: "Uzbekistan"
+    member_body: "Uzbek Agency for Technical Regulation under the Cabinet of Ministers of the Republic of Uzbekistan (O'zTTSA)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=228&section=contacts"
+  - id: cm-ve
+    kind: corresponding-member
+    name: "Venezuela"
+    short_name: "VE"
+    country: "Venezuela"
+    member_body: "Servicio Desconcentrado de Normalización, Calidad, Metrología y Reglamentos Tecnicos (SENCAMER)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=231&section=contacts"
+  - id: ms-vn
+    kind: member-state
+    name: "Viet Nam"
+    short_name: "VN"
+    country: "Viet Nam"
+    member_body: "Commission for Standards, Metrology and Quality (STAMEQ)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=232&section=contacts"
+  - id: ms-zm
+    kind: member-state
+    name: "Zambia"
+    short_name: "ZM"
+    country: "Zambia"
+    member_body: "Zambia Metrology Agency (ZMA)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/member-states"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=240&section=contacts"
+  - id: cm-zw
+    kind: corresponding-member
+    name: "Zimbabwe"
+    short_name: "ZW"
+    country: "Zimbabwe"
+    member_body: "Ministry of Industry and Commerce - Trade Measures Department (MIC-TMD)"
+    provenance:
+      source: "https://www.oiml.org/en/structure/members/corresponding-members"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=241&section=contacts"
+
+organizations:
+  - id: "AU1"
+    kind: issuing-authority
+    name: "National Measurement Institute, Australia"
+    short_name: "NMIA"
+    country: "Australia"
+    proposed_by: ms-au
+    participant_ref: "AU1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=13&section=contacts"
+  - id: "CH1"
+    kind: issuing-authority
+    name: "Federal Institute of Metrology"
+    short_name: "METAS"
+    country: "Switzerland"
+    proposed_by: ms-ch
+    participant_ref: "CH1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=206&section=contacts"
+  - id: "CN2"
+    kind: issuing-authority
+    name: "National Institute of Metrology, China"
+    short_name: "NIM"
+    country: "China"
+    proposed_by: ms-cn
+    participant_ref: "CN2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=44&section=contacts"
+  - id: "CZ1"
+    kind: issuing-authority
+    name: "Czech Metrology Institute"
+    short_name: "CMI"
+    country: "Czechia"
+    proposed_by: ms-cz
+    participant_ref: "CZ1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=57&section=contacts"
+  - id: "DE1"
+    kind: issuing-authority
+    name: "Physikalisch-Technische Bundesanstalt"
+    short_name: "PTB"
+    country: "Germany"
+    proposed_by: ms-de
+    participant_ref: "DE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=81&section=contacts"
+  - id: "DK2"
+    kind: issuing-authority
+    name: "FORCE Certification A/S"
+    short_name: "FORCE"
+    country: "Denmark"
+    proposed_by: ms-dk
+    participant_ref: "DK2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=58&section=contacts"
+  - id: "FR2"
+    kind: issuing-authority
+    name: "Laboratoire National de Métrologie et d’Essais"
+    short_name: "LNE"
+    country: "France"
+    proposed_by: ms-fr
+    participant_ref: "FR2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=74&section=contacts"
+  - id: "IN1"
+    kind: issuing-authority
+    name: "Legal Metrology Division, Department of Consumer Affairs"
+    short_name: "LMD, DoCA"
+    country: "India"
+    proposed_by: ms-in
+    participant_ref: "IN1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=100&section=contacts"
+  - id: "IT2"
+    kind: issuing-authority
+    name: "Tifernogas s.r.l."
+    short_name: "Tifernogas"
+    country: "Italy"
+    proposed_by: ms-it
+    participant_ref: "IT2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=106&section=contacts"
+      note: "The 2026-08-27 IA summary lists Tifernogas as IT2 (IT1 was the ministry, no longer listed); the older TL summary (2026-04-16) still captions it IT1."
+  - id: "JP1"
+    kind: issuing-authority
+    name: "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology"
+    short_name: "NMIJ/AIST"
+    country: "Japan"
+    proposed_by: ms-jp
+    participant_ref: "JP1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=108&section=contacts"
+  - id: "NL1"
+    kind: issuing-authority
+    name: "NMi Certin B.V."
+    short_name: "NMi"
+    country: "Netherlands"
+    proposed_by: ms-nl
+    participant_ref: "NL1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=151&section=contacts"
+  - id: "NL3"
+    kind: issuing-authority
+    name: "KEMA B.V."
+    short_name: "KEMA"
+    country: "Netherlands"
+    proposed_by: ms-nl
+    participant_ref: "NL3"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=151&section=contacts"
+  - id: "SE1"
+    kind: issuing-authority
+    name: "Research Institutes of Sweden AB"
+    short_name: "RISE"
+    country: "Sweden"
+    proposed_by: ms-se
+    participant_ref: "SE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=205&section=contacts"
+  - id: "SK1"
+    kind: issuing-authority
+    name: "Slovenská legálna metrológia, n. o."
+    short_name: "SLM"
+    country: "Slovakia"
+    proposed_by: ms-sk
+    participant_ref: "SK1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-ia-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=193&section=contacts"
+  - id: tl-au1-nmia
+    kind: test-laboratory
+    name: "National Measurement Institute Australia (NMIA)"
+    country: "Australia"
+    designated_by: "AU1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-ch1-metas
+    kind: test-laboratory
+    name: "Federal Institute of Metrology (METAS)"
+    country: "Switzerland"
+    designated_by: "CH1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-ch1-mettler-toledo
+    kind: test-laboratory
+    name: "Mettler Toledo"
+    designated_by: "CH1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-ch1-sartorius
+    kind: test-laboratory
+    name: "Sartorius"
+    designated_by: "CH1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-ch1-endress-hauser-flowtec
+    kind: test-laboratory
+    name: "Endress + Hauser Flowtec AG"
+    designated_by: "CH1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-ch1-sensus
+    kind: test-laboratory
+    name: "Sensus GmbH"
+    designated_by: "CH1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-cn2-nim
+    kind: test-laboratory
+    name: "National Institute of Metrology, China (NIM)"
+    country: "China"
+    designated_by: "CN2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-cn2-simt
+    kind: test-laboratory
+    name: "Shanghai Institute of Measurement and Testing Technology (SIMT)"
+    designated_by: "CN2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-cn2-zqs
+    kind: test-laboratory
+    name: "Zhejiang Institute of Quality Sciences (ZQS)"
+    designated_by: "CN2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-cz1-cmi
+    kind: test-laboratory
+    name: "CMI Testing Laboratory"
+    country: "Czechia"
+    designated_by: "CZ1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-de1-ptb
+    kind: test-laboratory
+    name: "Physikalisch-Technische Bundesanstalt (PTB)"
+    country: "Germany"
+    designated_by: "DE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-de1-endress-hauser-flowtec
+    kind: test-laboratory
+    name: "Endress + Hauser Flowtec AG"
+    designated_by: "DE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-de1-mettler-toledo
+    kind: test-laboratory
+    name: "Mettler Toledo"
+    designated_by: "DE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-de1-sartorius
+    kind: test-laboratory
+    name: "Sartorius"
+    designated_by: "DE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-de1-sensus
+    kind: test-laboratory
+    name: "Sensus GmbH"
+    designated_by: "DE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-de1-awtx
+    kind: test-laboratory
+    name: "AWTX"
+    designated_by: "DE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-dk2-force-brondby
+    kind: test-laboratory
+    name: "FORCE (Brøndby)"
+    country: "Denmark"
+    designated_by: "DK2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-dk2-force-horsholm
+    kind: test-laboratory
+    name: "FORCE (Hørsholm)"
+    country: "Denmark"
+    designated_by: "DK2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-dk2-force-vejen
+    kind: test-laboratory
+    name: "FORCE (Vejen)"
+    country: "Denmark"
+    designated_by: "DK2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-dk2-esit-elektronik
+    kind: test-laboratory
+    name: "Esit Elektronik A.Ş."
+    designated_by: "DK2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-dk2-siemens
+    kind: test-laboratory
+    name: "Siemens SAS"
+    designated_by: "DK2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-fr2-lne
+    kind: test-laboratory
+    name: "Laboratoire National de Métrologie et d’Essais (LNE)"
+    country: "France"
+    designated_by: "FR2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-fr2-diehl-metering-gmbh
+    kind: test-laboratory
+    name: "Diehl Metering GmbH"
+    designated_by: "FR2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-fr2-diehl-metering-sas
+    kind: test-laboratory
+    name: "Diehl Metering SAS"
+    designated_by: "FR2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-fr2-precia-molen
+    kind: test-laboratory
+    name: "Precia Molen SA"
+    designated_by: "FR2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the TL summary states no country for third-party laboratories — unrecorded, honestly"
+  - id: tl-in1-rrsla
+    kind: test-laboratory
+    name: "Regional Reference Standard Laboratory, Ahmedabad (RRSLA)"
+    country: "India"
+    designated_by: "IN1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-it2-tifernogas
+    kind: test-laboratory
+    name: "Tifernogas s.r.l."
+    country: "Italy"
+    designated_by: "IT2"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-jp1-nmij-aist
+    kind: test-laboratory
+    name: "NMIJ/AIST"
+    country: "Japan"
+    designated_by: "JP1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-nl1-nmi
+    kind: test-laboratory
+    name: "NMi Certin B.V."
+    country: "Netherlands"
+    designated_by: "NL1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-nl3-kema
+    kind: test-laboratory
+    name: "KEMA B.V."
+    country: "Netherlands"
+    designated_by: "NL3"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-se1-rise
+    kind: test-laboratory
+    name: "RISE"
+    country: "Sweden"
+    designated_by: "SE1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+  - id: tl-sk1-slm
+    kind: test-laboratory
+    name: "Slovak Legal Metrology (SLM)"
+    country: "Slovakia"
+    designated_by: "SK1"
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/tl-summary-table.pdf"
+      note: "the IA’s own (internal) test laboratory"
+
+utilizers:
+  - id: ut-au
+    name: "National Measurement Institute, Australia"
+    short_name: "NMIA"
+    country: "Australia"
+    designated_by: ms-au
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=13&section=contacts"
+  - id: ut-be
+    name: "Federal Public Service Economy, S.M.E.s, Self-employed and Energy"
+    short_name: "FPS Economy"
+    country: "Belgium"
+    designated_by: ms-be
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=21&section=contacts"
+  - id: ut-ca
+    name: "Measurement Canada"
+    short_name: "MC"
+    country: "Canada"
+    designated_by: ms-ca
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=38&section=contacts"
+  - id: ut-ch
+    name: "Federal Institute of Metrology"
+    short_name: "METAS"
+    country: "Switzerland"
+    designated_by: ms-ch
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=206&section=contacts"
+  - id: ut-cn
+    name: "State Administration for Market Regulation"
+    short_name: "SAMR"
+    country: "China"
+    designated_by: ms-cn
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=44&section=contacts"
+  - id: ut-co
+    name: "Superintendencia de Industria y Comercio"
+    short_name: "SIC"
+    country: "Colombia"
+    designated_by: ms-co
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=47&section=contacts"
+  - id: ut-cz
+    name: "Czech Metrology Institute"
+    short_name: "CMI"
+    country: "Czechia"
+    designated_by: ms-cz
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=57&section=contacts"
+  - id: ut-de
+    name: "Physikalisch-Technische Bundesanstalt"
+    short_name: "PTB"
+    country: "Germany"
+    designated_by: ms-de
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=81&section=contacts"
+  - id: ut-dk
+    name: "FORCE Certification A/S"
+    short_name: "FORCE"
+    country: "Denmark"
+    designated_by: ms-dk
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=58&section=contacts"
+  - id: ut-et
+    name: "Ministry of Trade and Regional Integration"
+    short_name: "MoTRI"
+    country: "Ethiopia"
+    designated_by: ms-et
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=69&section=contacts"
+  - id: ut-fr
+    name: "Laboratoire National de Métrologie et d’Essais"
+    short_name: "LNE"
+    country: "France"
+    designated_by: ms-fr
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=74&section=contacts"
+  - id: ut-gb
+    name: "Office for Product Safety and Standards"
+    short_name: "OPSS"
+    country: "United Kingdom"
+    designated_by: ms-gb
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=224&section=contacts"
+  - id: ut-in
+    name: "Department of Consumer Affairs"
+    short_name: "DoCA"
+    country: "India"
+    designated_by: ms-in
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=100&section=contacts"
+      note: "The member page names the Department of Consumer Affairs; the summary table names its Legal Metrology Division (the IA IN1 is the same Division) — two designations within one ministry, kept as named."
+  - id: ut-ir
+    name: "Iran National Standards Organization"
+    short_name: "INSO"
+    country: "Iran"
+    designated_by: ms-ir
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=102&section=contacts"
+  - id: ut-it-tifernogas
+    name: "Tifernogas s.r.l."
+    short_name: "Tifernogas"
+    country: "Italy"
+    designated_by: ms-it
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=106&section=contacts"
+  - id: ut-it-giordano
+    name: "Istituto Giordano SPA"
+    short_name: "Istituto Giordano"
+    country: "Italy"
+    designated_by: ms-it
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=106&section=contacts"
+  - id: ut-jp
+    name: "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology"
+    short_name: "NMIJ/AIST"
+    country: "Japan"
+    designated_by: ms-jp
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=108&section=contacts"
+  - id: ut-ke
+    name: "Weights and Measures Department"
+    short_name: "W&M"
+    country: "Kenya"
+    designated_by: ms-ke
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=111&section=contacts"
+  - id: ut-kh
+    name: "National Metrology Center"
+    short_name: "NMC"
+    country: "Cambodia"
+    designated_by: ms-kh
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=36&section=contacts"
+  - id: ut-kr
+    name: "Korea Testing Certification"
+    short_name: "KTC"
+    country: "Korea (R.)"
+    designated_by: ms-kr
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=114&section=contacts"
+  - id: ut-nl
+    name: "NMi Certin B.V."
+    short_name: "NMi"
+    country: "Netherlands"
+    designated_by: ms-nl
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=151&section=contacts"
+  - id: ut-nz
+    name: "Ministry of Business, Innovation and Employment (Trading Standards)"
+    short_name: "MBIE"
+    country: "New Zealand"
+    designated_by: ms-nz
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=154&section=contacts"
+  - id: ut-ru
+    name: "Federal Budgetary Institution “Research Centre for Applied Metrology” (RCAM-Rostest)"
+    short_name: "RCAM-Rostest"
+    country: "Russian Federation"
+    designated_by: ms-ru
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=178&section=contacts"
+      note: "The member page (fetched 2026-08-29) lists RCAM-Rostest; the 2026-05-19 summary table still lists VNIIMS — the live page wins."
+  - id: ut-sa
+    name: "Saudi Standards, Metrology and Quality Organization"
+    short_name: "SASO"
+    country: "Saudi Arabia"
+    designated_by: ms-sa
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=188&section=contacts"
+  - id: ut-se
+    name: "RISE Research Institutes of Sweden AB"
+    short_name: "RISE"
+    country: "Sweden"
+    designated_by: ms-se
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=205&section=contacts"
+  - id: ut-sk
+    name: "Slovak Legal Metrology"
+    short_name: "SLM"
+    country: "Slovakia"
+    designated_by: ms-sk
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=193&section=contacts"
+  - id: ut-th
+    name: "Department of Internal Trade"
+    short_name: "DIT"
+    country: "Thailand"
+    designated_by: ms-th
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=211&section=contacts"
+  - id: ut-tn
+    name: "National Agency of Metrology"
+    short_name: "ANM"
+    country: "Tunisia"
+    designated_by: ms-tn
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=216&section=contacts"
+  - id: ut-us
+    name: "National Council on Weights and Measures"
+    short_name: "NCWM"
+    country: "United States"
+    designated_by: ms-us
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=225&section=contacts"
+  - id: ut-za
+    name: "National Regulator for Compulsory Specifications, Legal Metrology Department"
+    short_name: "NRCS"
+    country: "South Africa"
+    designated_by: ms-za
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=197&section=contacts"
+  - id: ut-zm
+    name: "Zambia Metrology Agency"
+    short_name: "ZMA"
+    country: "Zambia"
+    designated_by: ms-zm
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=240&section=contacts"
+
+associates:
+  - id: as-ae
+    name: "UAE Ministry of Industry & Advanced Technology"
+    short_name: "MoIAT"
+    country: "United Arab Emirates"
+    designated_by: cm-ae
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=223&section=contacts"
+  - id: as-ao
+    name: "National Institute of Quality Infrastructure"
+    short_name: "INIQ"
+    country: "Angola"
+    designated_by: cm-ao
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=6&section=contacts"
+  - id: as-ki
+    name: "Ministry of Commerce Industry Co-operative"
+    short_name: "MCIC"
+    country: "Kiribati"
+    designated_by: cm-ki
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=112&section=contacts"
+  - id: as-lv
+    name: "LNMC Metrology Bureau"
+    short_name: "LATMB"
+    country: "Latvia"
+    designated_by: cm-lv
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=118&section=contacts"
+  - id: as-mw
+    name: "Malawi Bureau of Standards"
+    short_name: "MBS"
+    country: "Malawi"
+    designated_by: cm-mw
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=129&section=contacts"
+  - id: as-mz
+    name: "Instituto Nacional de Normalização e Qualidade"
+    short_name: "INNOQ"
+    country: "Mozambique"
+    designated_by: cm-mz
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=146&section=contacts"
+  - id: as-na
+    name: "Namibian Standards Institution"
+    short_name: "NSI"
+    country: "Namibia"
+    designated_by: cm-na
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=148&section=contacts"
+  - id: as-om
+    name: "Directorate General for Standards and Metrology"
+    short_name: "DGSM"
+    country: "Oman"
+    designated_by: cm-om
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=162&section=contacts"
+      note: "The member page gives the acronym DGSM; the summary table renders DSGM — the live page wins."
+  - id: as-ph
+    name: "National Metrology Laboratory"
+    short_name: "NML"
+    country: "Philippines"
+    designated_by: cm-ph
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=170&section=contacts"
+  - id: as-rw
+    name: "Rwanda Standards Board"
+    short_name: "RSB"
+    country: "Rwanda"
+    designated_by: cm-rw
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=179&section=contacts"
+  - id: as-ug
+    name: "Uganda National Bureau of Standards"
+    short_name: "UNBS"
+    country: "Uganda"
+    designated_by: cm-ug
+    cs_status: signed-active
+    provenance:
+      source: "https://www.oiml.org/en/oiml-cs/docs/oiml-util-and-assoc-summary-table.pdf"
+      detail: "https://www.oiml.org/en/structure/members/contactmember_view?IDCountry=221&section=contacts"
