@@ -22,6 +22,10 @@ defineProps<{
   <div class="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="shell-footer">
     <span>{{ t('shell.footer.tagline') }}</span>
     <span class="flex items-center gap-3">
+      <!-- The estate's legal pages (the ISO-benchmark quick win, item 2):
+           plain links to the www site's own pages. -->
+      <a href="https://www.oimlsmart.org/privacy/" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-privacy">{{ t('shell.footer.privacy') }}</a>
+      <a href="https://www.oimlsmart.org/terms/" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-terms">{{ t('shell.footer.terms') }}</a>
       <a href="/api/health" class="hover:underline" data-testid="shell-status">{{ t('shell.footer.status') }}</a>
       <LocaleSwitch />
       <ThemeToggle v-if="bare" />
