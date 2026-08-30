@@ -815,6 +815,7 @@ export const fr: Record<MessageKey, string> = {
   "mail.verifyEmail.why": "Vous recevez ce message parce que votre compte {product} change pour cette adresse e-mail.",
   "shell.footer.privacy": "Confidentialité",
   "shell.footer.status": "État du service",
+  "shell.footer.supportPrompt": "Besoin d’aide ?",
   "shell.footer.tagline": "OIML SMART Identity : le service d’authentification unique de l’écosystème oimlsmart.org",
   "shell.footer.terms": "Conditions",
   "shell.locale.label": "Langue",

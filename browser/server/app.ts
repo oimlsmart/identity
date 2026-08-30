@@ -172,6 +172,12 @@ export function createApiApp(options: ApiAppOptions): Hono {
       branding: {
         productName: instanceProfile.branding.name,
         shortName: instanceProfile.branding.name,
+        // The support affordance (the ISO-benchmark quick win, smart's
+        // TODO.identity-features/11 item 6): the deployment's
+        // SUPPORT_URL, rendered as a plain "Need help?" link — never a
+        // third-party widget on the credential surface. Undeclared: no
+        // link renders.
+        ...(env.SUPPORT_URL?.trim() ? { supportUrl: env.SUPPORT_URL.trim() } : {}),
       },
       modules: projectModuleToggles(instanceProfile),
       rbac: { map: effectiveRbacMap(env) },
