@@ -813,6 +813,7 @@ export const en = {
   "mail.verifyEmail.why": "You are receiving this because your {product} account is moving to this email address.",
   "shell.footer.privacy": "Privacy",
   "shell.footer.status": "Service status",
+  "shell.footer.supportPrompt": "Need help?",
   "shell.footer.tagline": "OIML SMART Identity: the single sign-on service for the oimlsmart.org estate",
   "shell.footer.terms": "Terms",
   "shell.locale.label": "Language",

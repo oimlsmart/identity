@@ -115,6 +115,11 @@ bucket_name = "oiml-smart-avatars-identity"
 [env.identity.vars]
 ENTITY_BACKEND = "server"
 OP_ISSUER = "https://id.oimlsmart.org"
+# The support affordance (the ISO-benchmark quick win, item 6): the
+# sign-in page + the shell footer render a plain "Need help?" link —
+# never a third-party widget on the credential surface. The address is
+# the estate's published contact (www.oimlsmart.org/privacy).
+SUPPORT_URL = "mailto:info@oimlsmart.org"
 # TODO.identity/09: the sender identity for both mail postures. Inert
 # until a provider is configured (see the commented blocks above).
 EMAIL_FROM = "OIML SMART Identity <no-reply@oimlsmart.org>"
@@ -153,6 +158,7 @@ migrations_dir = "node_modules/@oimlsmart/platform-server/migrations"
 [env.identity-preview.vars]
 ENTITY_BACKEND = "server"
 OP_ISSUER = "https://id-preview.oimlsmart.org"
+SUPPORT_URL = "mailto:info@oimlsmart.org"
 EMAIL_FROM = "OIML SMART Identity <no-reply@oimlsmart.org>"
 INSTANCE_PROFILE_YAML = '''
 identity:
