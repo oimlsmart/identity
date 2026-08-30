@@ -20,6 +20,10 @@
 // enhancement, and the SECOND-FACTOR step when the account holds factors
 // (the TOTP code, the passkey assertion, or a recovery code — the user's
 // choice; routes/op-mfa.ts's pending challenge carries it).
+//
+// The page's copy lives in the i18n catalogs (login.* — EN/FR lockstep;
+// the ISO-benchmark quick win, smart's TODO.identity-features/11 item 3);
+// the locale switch itself is the shell footer's (ShellFooter.vue).
 // ═══════════════════════════════════════════════════════════════════
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -89,27 +93,29 @@ function landSignedIn() {
 // The upstream provider outcomes (server/routes/op-upstream.ts). THE
 // MATCH RULE's refusal is upstream_not_linked: the provider
 // authenticated you, but no OIML SMART account is linked to that
-// identity — we never match by email.
+// identity — we never match by email. The copy lives in the i18n
+// catalogs (login.upstream.*).
 const upstreamError = (key: string, provider: string): string | null => {
   const name = provider || 'the provider'
-  const messages: Record<string, string> = {
-    upstream_unknown: 'That sign-in method is not available on this service. Contact your administrator.',
-    upstream_not_linked: `Your ${name} account is not linked to an OIML SMART account — ask your administrator, or sign in another way and link it from your account page.`,
-    upstream_refused: `${name} did not complete the sign-in (access was declined). Please try again.`,
-    upstream_state: 'Your sign-in session expired or did not match. Please try again.',
-    upstream_config: `${name} sign-in is not configured correctly on this server. Contact your administrator.`,
-    upstream_discovery: `${name} sign-in configuration could not be read. Contact your administrator.`,
-    upstream_issuer_mismatch: `${name} answered with an unexpected identity. Contact your administrator.`,
-    upstream_exchange: `${name} did not complete the sign-in. Please try again — if it keeps failing, contact your administrator.`,
-    upstream_token_malformed: `${name}'s response could not be read. Contact your administrator.`,
-    upstream_token_alg: `${name} signed its response with an unsupported algorithm. Contact your administrator.`,
-    upstream_token_signature: `${name}'s response could not be verified, so the sign-in was refused. Contact your administrator.`,
-    upstream_token_issuer: `${name}'s response came from an unexpected issuer, so the sign-in was refused. Contact your administrator.`,
-    upstream_token_audience: `${name}'s response was not issued for this application, so the sign-in was refused. Contact your administrator.`,
-    upstream_token_expired: `${name}'s response had expired. Please try again.`,
-    upstream_token_nonce: 'The sign-in response did not match the request, so the sign-in was refused. Please try again.',
+  const keys: Record<string, Parameters<typeof t>[0]> = {
+    upstream_unknown: 'login.upstream.unknown',
+    upstream_not_linked: 'login.upstream.notLinked',
+    upstream_refused: 'login.upstream.refused',
+    upstream_state: 'login.upstream.state',
+    upstream_config: 'login.upstream.config',
+    upstream_discovery: 'login.upstream.discovery',
+    upstream_issuer_mismatch: 'login.upstream.issuerMismatch',
+    upstream_exchange: 'login.upstream.exchange',
+    upstream_token_malformed: 'login.upstream.tokenMalformed',
+    upstream_token_alg: 'login.upstream.tokenAlg',
+    upstream_token_signature: 'login.upstream.tokenSignature',
+    upstream_token_issuer: 'login.upstream.tokenIssuer',
+    upstream_token_audience: 'login.upstream.tokenAudience',
+    upstream_token_expired: 'login.upstream.tokenExpired',
+    upstream_token_nonce: 'login.upstream.tokenNonce',
   }
-  return messages[key] ?? null
+  const messageKey = keys[key]
+  return messageKey ? t(messageKey, { provider: name }) : null
 }
 
 onMounted(async () => {
@@ -118,7 +124,7 @@ onMounted(async () => {
   if (errorKey && upstreamError(errorKey, upstreamProviderName)) {
     error.value = upstreamError(errorKey, upstreamProviderName)!
   } else if (errorKey) {
-    error.value = 'Sign-in failed. Please try again — if it keeps failing, contact your administrator.'
+    error.value = t('login.failedRetry')
   }
 
   try {
@@ -219,9 +225,9 @@ async function submitOpLogin() {
   if (res.status === 403 && body?.error) {
     error.value = body.error // the deactivated account's honest message
   } else if (res.status === 401) {
-    error.value = 'Invalid email or password.'
+    error.value = t('login.invalidCredentials')
   } else {
-    error.value = body?.error ?? 'Sign-in failed. Please try again.'
+    error.value = body?.error ?? t('login.failed')
   }
 }
 
@@ -231,7 +237,7 @@ async function submitLogin() {
   try {
     await submitOpLogin()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('login.networkError')
   } finally {
     submitting.value = false
   }
@@ -269,7 +275,7 @@ async function submitMfaTotp() {
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('login.networkError')
   } finally {
     mfaBusy.value = false
   }
@@ -291,7 +297,7 @@ async function submitMfaRecovery() {
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('login.networkError')
   } finally {
     mfaBusy.value = false
   }
@@ -329,7 +335,7 @@ async function submitMfaPasskey() {
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('login.networkError')
   } finally {
     mfaBusy.value = false
   }
@@ -382,7 +388,7 @@ async function signInWithPasskey() {
     }
     await finishPasswordless(credential)
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('login.networkError')
   } finally {
     passkeyBusy.value = false
   }
@@ -435,12 +441,12 @@ async function submitReset() {
     })
     const body = await res.json().catch(() => null) as { message?: string; error?: string } | null
     if (res.ok) {
-      resetDone.value = body?.message ?? 'If an account exists for that address, a password reset email is on its way.'
+      resetDone.value = body?.message ?? t('login.resetDoneFallback')
     } else {
-      resetError.value = body?.error ?? 'The reset could not be requested. Please try again.'
+      resetError.value = body?.error ?? t('login.resetFailed')
     }
   } catch {
-    resetError.value = 'Network error. Is the server running?'
+    resetError.value = t('login.networkError')
   } finally {
     resetBusy.value = false
   }
@@ -458,7 +464,7 @@ async function submitReset() {
     <div v-else class="w-full max-w-sm">
       <div class="text-center mb-8">
         <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Sign in to {{ branding.productName }}</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('login.heading', { product: branding.productName }) }}</h1>
         <p v-if="branding.loginTagline" data-testid="login-tagline" class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ branding.loginTagline }}</p>
       </div>
 
@@ -484,7 +490,7 @@ async function submitReset() {
           <svg v-else-if="provider.brandMark === 'apple'" class="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8.98-.2 1.92-.86 3.24-.77 1.58.13 2.76.74 3.53 1.87-3.25 1.94-2.71 6.23.55 7.42-.65 1.69-1.49 3.36-2.4 3.65M12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25"/></svg>
           <svg v-else-if="provider.brandMark === 'microsoft'" class="w-4 h-4" viewBox="0 0 24 24"><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M13 1h10v10H13z"/><path fill="#05a6f0" d="M1 13h10v10H1z"/><path fill="#ffba08" d="M13 13h10v10H13z"/></svg>
           <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-          Sign in with {{ provider.displayName }}
+          {{ t('login.upstreamSignIn', { provider: provider.displayName }) }}
         </button>
       </div>
 
@@ -587,7 +593,7 @@ async function submitReset() {
 
       <form @submit.prevent="submitLogin" class="space-y-3">
         <div>
-          <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
+          <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('login.emailLabel') }}</label>
           <input
             v-model="email"
             type="email"
@@ -595,18 +601,18 @@ async function submitReset() {
             autocomplete="username webauthn"
             data-testid="login-email"
             class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="you@example.org"
+            :placeholder="t('login.emailPlaceholder')"
           />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
+          <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('login.passwordLabel') }}</label>
           <input
             v-model="password"
             type="password"
             required
             data-testid="login-password"
             class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="your account password"
+            :placeholder="t('login.passwordPlaceholder')"
           />
         </div>
         <button
@@ -616,7 +622,7 @@ async function submitReset() {
           class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          {{ submitting ? 'Signing in…' : 'Sign in' }}
+          {{ submitting ? t('login.submitting') : t('login.submit') }}
         </button>
       </form>
 
@@ -629,12 +635,12 @@ async function submitReset() {
             data-testid="login-forgot"
             class="text-xs text-brand-600 dark:text-brand-300 hover:underline"
             @click="resetOpen = true; resetEmail = email; resetDone = null; resetError = null"
-          >Forgot your password?</button>
+          >{{ t('login.forgot') }}</button>
         </p>
         <div v-else class="rounded-lg border border-slate-200 dark:border-slate-700 p-3" data-testid="login-reset">
           <template v-if="!resetDone">
             <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
-              Enter your account's email address; the identity service emails a one-time reset link (24 hours).
+              {{ t('login.resetIntro') }}
             </p>
             <form class="flex items-center gap-2" @submit.prevent="submitReset">
               <input
@@ -643,14 +649,14 @@ async function submitReset() {
                 required
                 data-testid="login-reset-email"
                 class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="you@example.org"
+                :placeholder="t('login.emailPlaceholder')"
               />
               <button
                 type="submit"
                 :disabled="resetBusy"
                 data-testid="login-reset-submit"
                 class="shrink-0 px-3 py-2 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
-              >{{ resetBusy ? 'Sending…' : 'Send the reset email' }}</button>
+              >{{ resetBusy ? t('login.resetSending') : t('login.resetSubmit') }}</button>
             </form>
             <p v-if="resetError" class="mt-2 text-xs text-red-600 dark:text-red-400" data-testid="login-reset-error">{{ resetError }}</p>
           </template>
@@ -662,13 +668,13 @@ async function submitReset() {
            organization from the participants register; approval comes
            from your organization. -->
       <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500" data-testid="login-join">
-        No account yet?
-        <router-link to="/op/join" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-join-link">Request an account</router-link>
-        — approval comes from your organization.
+        {{ t('login.joinPrompt') }}
+        <router-link to="/op/join" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-join-link">{{ t('login.joinLink') }}</router-link>
+        {{ t('login.joinNote') }}
       </p>
 
       <p v-if="branding.supportUrl" class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
-        Need help? <a :href="branding.supportUrl" target="_blank" rel="noopener" data-testid="login-support" class="text-brand-600 dark:text-brand-300 hover:underline">Contact support</a>
+        {{ t('login.supportPrompt') }} <a :href="branding.supportUrl" target="_blank" rel="noopener" data-testid="login-support" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.supportLink') }}</a>
       </p>
       </template>
     </div>

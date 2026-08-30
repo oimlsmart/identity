@@ -7,6 +7,7 @@
 // sign-in page is /).
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
+import { setLocaleUser } from '../i18n'
 
 interface SessionUser {
   id: string
@@ -21,7 +22,15 @@ const initial = computed(() => (user.value?.name ?? '?').charAt(0).toUpperCase()
 onMounted(async () => {
   try {
     const res = await fetch('/api/auth/session', { credentials: 'include' })
-    if (res.ok) user.value = (await res.json()) as SessionUser
+    if (res.ok) {
+      user.value = (await res.json()) as SessionUser
+      // The locale preference's scope: the signed-in account carries its
+      // own persisted choice (i18n/index.ts); signed-out browsing uses
+      // the unscoped key.
+      setLocaleUser(user.value.email)
+    } else {
+      setLocaleUser(null)
+    }
   } catch { /* signed out or offline — the chip stays empty */ }
 })
 

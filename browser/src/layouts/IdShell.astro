@@ -30,6 +30,7 @@
 import IdPage from '../astro/IdPage.vue'
 import AccountChip from '../components/AccountChip.vue'
 import ConsoleChrome from '../components/ConsoleChrome.vue'
+import ShellFooter from '../components/ShellFooter.vue'
 import ThemeToggle from '@oimlsmart/site-shell/components/ThemeToggle.vue'
 import '../styles/app.css'
 
@@ -126,21 +127,23 @@ const adminCurrent = ADMIN_CURRENT[page]
       )}
     </main>
     <footer class="border-t border-slate-200 dark:border-slate-700 mt-8">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-        <span>OIML SMART Identity: the single sign-on service for the oimlsmart.org estate</span>
-        <span class="flex items-center gap-3">
-          <a href="/api/health" class="hover:underline" data-testid="shell-status">Service status</a>
-          {/* The bare posture (the sign-in page) has no header: the
-              theme toggle rides the footer there. */}
-          {bare && <ThemeToggle client:load />}
-        </span>
-      </div>
+      {/* The footer is an island: it follows the locale (the item-3
+          switcher lives there) — the bare posture's theme toggle rides
+          inside it. */}
+      <ShellFooter bare={bare} client:load />
     </footer>
     <script is:inline>
       var stored = localStorage.getItem('oiml-theme')
       var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       if (stored === 'dark' || (!stored && prefersDark)) {
         document.documentElement.classList.add('dark')
+      }
+      // The anonymous locale choice, applied pre-paint (the signed-in
+      // scope resolves on hydration — i18n/index.ts's setLocaleUser):
+      // <html lang> must never lag the switch.
+      var storedLocale = localStorage.getItem('oiml-smart-locale')
+      if (storedLocale === 'en' || storedLocale === 'fr') {
+        document.documentElement.lang = storedLocale
       }
     </script>
   </body>
