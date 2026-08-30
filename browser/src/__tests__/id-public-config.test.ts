@@ -27,6 +27,7 @@ let app: import('hono').Hono
 
 interface PublicConfig {
   branding: { productName: string; shortName: string; supportUrl?: string }
+  environment: { label: string } | null
 }
 
 async function config(): Promise<PublicConfig> {
@@ -60,6 +61,7 @@ afterAll(() => {
 
 afterEach(() => {
   delete process.env.SUPPORT_URL
+  delete process.env.ENVIRONMENT_LABEL
 })
 
 describe('/api/config — the support affordance (item 6)', () => {
@@ -80,5 +82,24 @@ describe('/api/config — the support affordance (item 6)', () => {
     process.env.SUPPORT_URL = '   '
     const cfg = await config()
     expect('supportUrl' in cfg.branding).toBe(false)
+  })
+})
+
+describe('/api/config — the environment ribbon (item 5)', () => {
+  it('undeclared (the production posture): environment is null', async () => {
+    const cfg = await config()
+    expect(cfg.environment).toBeNull()
+  })
+
+  it('declared: ENVIRONMENT_LABEL projects as environment.label', async () => {
+    process.env.ENVIRONMENT_LABEL = 'Preview'
+    const cfg = await config()
+    expect(cfg.environment).toEqual({ label: 'Preview' })
+  })
+
+  it('a blank label is no label', async () => {
+    process.env.ENVIRONMENT_LABEL = '  '
+    const cfg = await config()
+    expect(cfg.environment).toBeNull()
   })
 })

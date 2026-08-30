@@ -813,6 +813,7 @@ export const fr: Record<MessageKey, string> = {
   "mail.verifyEmail.preheader": "Confirmez votre nouvelle adresse e-mail {product}.",
   "mail.verifyEmail.subject": "Confirmez votre nouvelle adresse e-mail {product}",
   "mail.verifyEmail.why": "Vous recevez ce message parce que votre compte {product} change pour cette adresse e-mail.",
+  "shell.environment.note": "ceci n’est pas le service de production",
   "shell.footer.privacy": "Confidentialité",
   "shell.footer.status": "État du service",
   "shell.footer.supportPrompt": "Besoin d’aide ?",

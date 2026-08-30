@@ -30,6 +30,7 @@
 import IdPage from '../astro/IdPage.vue'
 import AccountChip from '../components/AccountChip.vue'
 import ConsoleChrome from '../components/ConsoleChrome.vue'
+import EnvironmentRibbon from '../components/EnvironmentRibbon.vue'
 import ShellFooter from '../components/ShellFooter.vue'
 import ThemeToggle from '@oimlsmart/site-shell/components/ThemeToggle.vue'
 import '../styles/app.css'
@@ -84,6 +85,10 @@ const adminCurrent = ADMIN_CURRENT[page]
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet" />
   </head>
   <body class="bg-cream dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased min-h-screen flex flex-col">
+    {/* The environment ribbon (the ISO-benchmark quick win, item 5): a
+        thin strip on a non-production posture (the deployment declares
+        ENVIRONMENT_LABEL); production shows nothing. */}
+    <EnvironmentRibbon client:load />
     {!bare && (
       <header class="border-b border-slate-200 dark:border-slate-700">
         {/* ONE integrated header: the brand (the wordmark yields to the
