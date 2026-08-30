@@ -112,6 +112,10 @@ name = "EMAIL"
 binding = "BLOBS"
 bucket_name = "oiml-smart-avatars-identity"
 
+# NOTE: production deliberately declares NO ENVIRONMENT_LABEL — the
+# ribbon (the ISO-benchmark quick win, item 5) shows only where a
+# posture names itself (the preview, below).
+
 [env.identity.vars]
 ENTITY_BACKEND = "server"
 OP_ISSUER = "https://id.oimlsmart.org"
@@ -159,6 +163,9 @@ migrations_dir = "node_modules/@oimlsmart/platform-server/migrations"
 ENTITY_BACKEND = "server"
 OP_ISSUER = "https://id-preview.oimlsmart.org"
 SUPPORT_URL = "mailto:info@oimlsmart.org"
+# The environment ribbon (item 5): the preview names itself, so every
+# page carries the thin "Preview" strip; production (above) shows none.
+ENVIRONMENT_LABEL = "Preview"
 EMAIL_FROM = "OIML SMART Identity <no-reply@oimlsmart.org>"
 INSTANCE_PROFILE_YAML = '''
 identity:

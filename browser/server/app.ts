@@ -179,6 +179,13 @@ export function createApiApp(options: ApiAppOptions): Hono {
         // link renders.
         ...(env.SUPPORT_URL?.trim() ? { supportUrl: env.SUPPORT_URL.trim() } : {}),
       },
+      // The environment ribbon (item 5): the deployment declares
+      // ENVIRONMENT_LABEL ("Preview", "Test" — the operator's own word)
+      // and the shell renders it as a thin strip; production declares
+      // nothing and the projection answers null. Public-safe by
+      // construction: the label is the deployment's own name for
+      // itself.
+      environment: env.ENVIRONMENT_LABEL?.trim() ? { label: env.ENVIRONMENT_LABEL.trim() } : null,
       modules: projectModuleToggles(instanceProfile),
       rbac: { map: effectiveRbacMap(env) },
       instanceProfile: publicProfileView(instanceProfile),

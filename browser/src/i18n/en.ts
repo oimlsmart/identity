@@ -811,6 +811,7 @@ export const en = {
   "mail.verifyEmail.preheader": "Confirm your new {product} email address.",
   "mail.verifyEmail.subject": "Confirm your new {product} email address",
   "mail.verifyEmail.why": "You are receiving this because your {product} account is moving to this email address.",
+  "shell.environment.note": "this is not the production service",
   "shell.footer.privacy": "Privacy",
   "shell.footer.status": "Service status",
   "shell.footer.supportPrompt": "Need help?",
