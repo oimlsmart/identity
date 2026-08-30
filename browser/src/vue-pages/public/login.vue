@@ -677,6 +677,14 @@ async function submitReset() {
         {{ t('login.supportPrompt') }} <a :href="branding.supportUrl" target="_blank" rel="noopener" data-testid="login-support" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.supportLink') }}</a>
       </p>
       </template>
+
+      <!-- The legitimacy line (the ISO-benchmark quick win, smart's
+           TODO.identity-features/11 item 2): the institutional standing,
+           stated once, linked to the OIML's own page for the claim,
+           never repeated. -->
+      <p class="mt-8 text-center text-xs leading-relaxed text-slate-400 dark:text-slate-500" data-testid="login-legitimacy">
+        {{ t('login.legitimacy.before') }}<a href="https://www.oiml.org/en/about/what-is-the-oiml" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.legitimacy.link') }}</a>{{ t('login.legitimacy.after') }}
+      </p>
     </div>
   </div>
 </template>
