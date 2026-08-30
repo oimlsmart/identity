@@ -219,19 +219,29 @@ export function createOpRouter(): Hono {
 
   /** The browser-facing refusal for a request we may NEVER redirect
    *  back (unknown client / unregistered redirect_uri): a plain page,
-   *  honest about what happened. The audience is the RP developer. */
+   *  honest about what happened. The audience is the RP developer.
+   *
+   *  The ISO-benchmark error-parity audit (smart's
+   *  TODO.identity-features/11 item 9): this page is deliberately
+   *  server-rendered and dependency-free (a refusal that must never
+   *  depend on the frontend build answering), but it holds the house
+   *  line — the sane viewport (pinch-zoom never disabled; ISO's error
+   *  theme ships user-scalable=no), the color-scheme honesty, plain
+   *  language, and a way back. */
   function authorizeRefusal(c: Context, title: string, detail: string): Response {
     return c.html(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark"><meta name="theme-color" content="#004996">
 <title>${title} — OIML SMART Identity</title>
 <style>
   body { font-family: ui-sans-serif, system-ui, sans-serif; background: #faf8f5; color: #0f172a; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
   main { max-width: 28rem; padding: 2rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 0.75rem; }
   h1 { font-size: 1.125rem; margin: 0 0 0.5rem; } p { font-size: 0.875rem; color: #475569; margin: 0; }
   code { background: #f1f5f9; padding: 0 0.25rem; border-radius: 0.25rem; }
-  @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #fff; } main { background: #1e293b; border-color: #334155; } p { color: #94a3b8; } code { background: #0f172a; } }
+  p.home { margin-top: 1rem; } a { color: #004996; }
+  @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #fff; } main { background: #1e293b; border-color: #334155; } p { color: #94a3b8; } code { background: #0f172a; } a { color: #7cb3ff; } }
 </style></head>
-<body><main><h1 data-testid="op-authorize-error">${title}</h1><p>${detail}</p></main></body></html>`, 400)
+<body><main><h1 data-testid="op-authorize-error">${title}</h1><p>${detail}</p><p class="home"><a href="/" data-testid="op-authorize-error-home">Back to the sign-in page</a></p></main></body></html>`, 400)
   }
 
   /** The redirect-back error (the redirect_uri is validated, so the
