@@ -273,14 +273,38 @@ async function sessionPayload(page: Page): Promise<{ email: string; orgId: strin
 
 /** Drop the session (the cookie is httpOnly — the browser-side delete).
  *  MUST run on the OP's origin: a relative fetch on the RP's origin hits
- *  the stub and the OP cookie survives (the leg-4 lesson). */
+ *  the stub and the OP cookie survives (the leg-4 lesson).
+ *
+ *  After the fetch, settle the browser on the sign-in page: the guarded
+ *  page the browser is leaving can self-redirect when the session dies
+ *  (a still-in-flight load meets the 401 and routes to
+ *  /?redirect=… — the posture every console page carries), and a
+ *  caller's next goto then races that navigation (the id-10 leg-3
+ *  lesson, 2026-08-24; here the id-v2026.08.30-1 deploy + the post-merge
+ *  main CI runs, legs 2/3/6 — leg 3's "Execution context was destroyed"
+ *  is the same race landing INSIDE this fetch, leg 6 a cascade of the
+ *  dead leg 2). The whole sequence — the origin correction (the login
+ *  page's live-session bounce can abort THAT goto), the fetch, the
+ *  settle — carries one retry on exactly that signature. A repeated
+ *  signout POST is harmless (no session left to kill). */
 async function signOut(page: Page, base?: string): Promise<void> {
-  if (base && new URL(page.url()).origin !== base) {
-    await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+  const target = base ?? new URL(page.url()).origin
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (new URL(page.url()).origin !== target) {
+        await page.goto(`${target}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      }
+      await page.evaluate(async () => {
+        await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' })
+      })
+      await page.goto(`${target}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      return
+    } catch (e) {
+      const msg = String(e)
+      if (attempt === 1 || !(msg.includes('ERR_ABORTED') || msg.includes('Execution context was destroyed'))) throw e
+      await delay(600)
+    }
   }
-  await page.evaluate(async () => {
-    await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' })
-  })
 }
 
 /** The registry row's account id for an email on the console page. */
