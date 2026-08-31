@@ -36,6 +36,7 @@ import { createOpHomeRouter } from './routes/op-home'
 import { createOpWhoamiRouter } from './routes/op-whoami'
 import { createUsersRouter } from './routes/users'
 import { createAuthLeanRouter, opDemoAccountsEnabled } from './routes/auth-lean'
+import { createStatusSummaryRouter } from './routes/status-summary'
 import { createOpRateLimiter } from './rate-limit'
 import { getBlobStore } from './blobs'
 import signinPanels from './signin-panels.json'
@@ -160,6 +161,13 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // panel.
   app.get('/api/panels', (c) =>
     c.json(signinPanels, 200, { 'cache-control': 'public, max-age=300' }))
+
+  // The estate status projection (the ISO-benchmark structural item 1):
+  // the sign-in page's incident banner + the footer's live status pill
+  // read this distillation of the estate's own status service. Degrades
+  // honestly: an unreachable upstream or a stale prober answers UNKNOWN,
+  // never a fake green.
+  app.route('/', createStatusSummaryRouter())
 
   // The deployment's public config, identity-service shape. The
   // identity projection is PUBLIC-SAFE and honest about this service:

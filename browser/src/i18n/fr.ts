@@ -748,6 +748,9 @@ export const fr: Record<MessageKey, string> = {
   "login.resetIntro": "Saisissez l’adresse e-mail de votre compte ; le service d’identité envoie un lien de réinitialisation à usage unique (24 heures).",
   "login.resetSending": "Envoi…",
   "login.resetSubmit": "Envoyer l’e-mail de réinitialisation",
+  "login.statusBanner.degraded": "Certains services de l'écosystème signalent des problèmes — votre connexion peut ne pas être affectée.",
+  "login.statusBanner.down": "Un ou plusieurs services de l'écosystème sont indisponibles.",
+  "login.statusBanner.link": "Détails sur la page d'état",
   "login.submit": "Se connecter",
   "login.submitting": "Connexion…",
   "login.supportLink": "Contacter le support",
@@ -827,4 +830,8 @@ export const fr: Record<MessageKey, string> = {
   "shell.nav.close": "Fermer le menu",
   "shell.nav.menu": "Ouvrir le menu",
   "shell.nav.sections": "Sections",
+  "shell.status.degraded": "Certains services dégradés",
+  "shell.status.down": "Perturbation de service",
+  "shell.status.operational": "Tous les services opérationnels",
+  "shell.status.unknown": "État inconnu",
 }

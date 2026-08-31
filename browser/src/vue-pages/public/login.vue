@@ -29,6 +29,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
 import SigninPanelFeed from '../../components/SigninPanelFeed.vue'
+import StatusBanner from '../../components/StatusBanner.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 import {
@@ -463,7 +464,12 @@ async function submitReset() {
        hides; the card carries the lockup itself). The panel is deep
        brand navy in BOTH color schemes — an intentional book-cover, so
        dark mode is correct by construction. -->
-  <div class="flex-1 flex">
+  <div class="flex-1 flex flex-col">
+    <!-- The incident banner (the ISO-benchmark structural item 1's banner
+         posture): a published problem on the estate's own status service
+         surfaces here, dignified; green and unknown render nothing. -->
+    <StatusBanner />
+    <div class="flex-1 flex">
     <aside class="hidden lg:flex lg:w-[45%] xl:w-1/2 flex-col relative overflow-hidden bg-brand-950 text-white" data-testid="login-panel">
       <!-- The estate's globe mark, large and faint, anchored to the
            panel's lower corner — the house's own visual language. -->
@@ -725,6 +731,7 @@ async function submitReset() {
       <p class="mt-8 text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-testid="login-legitimacy">
         {{ t('login.legitimacy.before') }}<a href="https://www.oiml.org/en/about/what-is-the-oiml" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.legitimacy.link') }}</a>{{ t('login.legitimacy.after') }}
       </p>
+    </div>
     </div>
     </div>
   </div>
