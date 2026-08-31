@@ -464,8 +464,8 @@ async function submitReset() {
     <div v-else class="w-full max-w-sm">
       <div class="text-center mb-8">
         <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('login.heading', { product: branding.productName }) }}</h1>
-        <p v-if="branding.loginTagline" data-testid="login-tagline" class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ branding.loginTagline }}</p>
+        <h1 class="text-2xl font-serif font-bold text-slate-900 dark:text-white">{{ t('login.heading', { product: branding.productName }) }}</h1>
+        <p v-if="branding.loginTagline" data-testid="login-tagline" class="mt-2 text-base text-slate-600 dark:text-slate-400">{{ branding.loginTagline }}</p>
       </div>
 
       <!-- Error -->
@@ -483,7 +483,7 @@ async function submitReset() {
           :key="provider.id"
           :data-testid="`upstream-login-${provider.id}`"
           @click="upstreamLogin(provider.id)"
-          class="w-full min-h-11 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
+          class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
         >
           <svg v-if="provider.brandMark === 'github'" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
           <svg v-else-if="provider.brandMark === 'google'" class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"/></svg>
@@ -511,13 +511,13 @@ async function submitReset() {
               maxlength="6"
               data-testid="login-mfa-code"
               :placeholder="t('login.mfa.codePlaceholder')"
-              class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             <button
               type="submit"
               :disabled="mfaBusy || !/^\d{6}$/.test(mfaCode.trim())"
               data-testid="login-mfa-submit"
-              class="shrink-0 min-h-11 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+              class="shrink-0 min-h-11 px-4 py-2 rounded-lg text-base font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
             >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.verify') }}</button>
           </form>
 
@@ -526,7 +526,7 @@ async function submitReset() {
             type="button"
             :disabled="mfaBusy"
             data-testid="login-mfa-passkey"
-            class="w-full min-h-11 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+            class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
             @click="submitMfaPasskey"
           >{{ t('login.mfa.usePasskey') }}</button>
 
@@ -537,7 +537,7 @@ async function submitReset() {
               <button
                 type="button"
                 data-testid="login-mfa-recovery-toggle"
-                class="text-xs text-brand-600 dark:text-brand-300 hover:underline"
+                class="text-sm text-brand-600 dark:text-brand-300 hover:underline"
                 @click="mfaShowRecovery = true"
               >{{ t('login.mfa.useRecovery') }}</button>
             </p>
@@ -547,13 +547,13 @@ async function submitReset() {
                 type="text"
                 data-testid="login-mfa-recovery-code"
                 :placeholder="t('login.mfa.recoveryPlaceholder')"
-                class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <button
                 type="submit"
                 :disabled="mfaBusy"
                 data-testid="login-mfa-recovery-submit"
-                class="shrink-0 min-h-11 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                class="shrink-0 min-h-11 px-4 py-2 rounded-lg text-base font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
               >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.recoverySubmit') }}</button>
             </form>
           </div>
@@ -562,7 +562,7 @@ async function submitReset() {
             <button
               type="button"
               data-testid="login-mfa-cancel"
-              class="text-xs text-slate-400 dark:text-slate-500 hover:underline"
+              class="text-sm text-slate-500 dark:text-slate-400 hover:underline"
               @click="cancelMfa"
             >{{ t('login.mfa.cancel') }}</button>
           </p>
@@ -578,7 +578,7 @@ async function submitReset() {
           type="button"
           :disabled="passkeyBusy"
           data-testid="login-passkey"
-          class="w-full min-h-11 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
           @click="signInWithPasskey"
         >
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
@@ -586,32 +586,32 @@ async function submitReset() {
         </button>
         <div class="flex items-center gap-3 mt-4 mb-1" aria-hidden="true">
           <div class="flex-1 border-t border-slate-200 dark:border-slate-700" />
-          <span class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('login.passkeyOr') }}</span>
+          <span class="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400">{{ t('login.passkeyOr') }}</span>
           <div class="flex-1 border-t border-slate-200 dark:border-slate-700" />
         </div>
       </div>
 
       <form @submit.prevent="submitLogin" class="space-y-3">
         <div>
-          <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('login.emailLabel') }}</label>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('login.emailLabel') }}</label>
           <input
             v-model="email"
             type="email"
             required
             autocomplete="username webauthn"
             data-testid="login-email"
-            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             :placeholder="t('login.emailPlaceholder')"
           />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('login.passwordLabel') }}</label>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('login.passwordLabel') }}</label>
           <input
             v-model="password"
             type="password"
             required
             data-testid="login-password"
-            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             :placeholder="t('login.passwordPlaceholder')"
           />
         </div>
@@ -619,7 +619,7 @@ async function submitReset() {
           type="submit"
           :disabled="submitting"
           data-testid="login-submit"
-          class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          class="w-full min-h-11 py-2 rounded-lg text-base font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           {{ submitting ? t('login.submitting') : t('login.submit') }}
@@ -633,13 +633,13 @@ async function submitReset() {
           <button
             type="button"
             data-testid="login-forgot"
-            class="text-xs text-brand-600 dark:text-brand-300 hover:underline"
+            class="text-sm text-brand-600 dark:text-brand-300 hover:underline"
             @click="resetOpen = true; resetEmail = email; resetDone = null; resetError = null"
           >{{ t('login.forgot') }}</button>
         </p>
         <div v-else class="rounded-lg border border-slate-200 dark:border-slate-700 p-3" data-testid="login-reset">
           <template v-if="!resetDone">
-            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">
               {{ t('login.resetIntro') }}
             </p>
             <form class="flex items-center gap-2" @submit.prevent="submitReset">
@@ -648,32 +648,32 @@ async function submitReset() {
                 type="email"
                 required
                 data-testid="login-reset-email"
-                class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                 :placeholder="t('login.emailPlaceholder')"
               />
               <button
                 type="submit"
                 :disabled="resetBusy"
                 data-testid="login-reset-submit"
-                class="shrink-0 px-3 py-2 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                class="shrink-0 px-3 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
               >{{ resetBusy ? t('login.resetSending') : t('login.resetSubmit') }}</button>
             </form>
-            <p v-if="resetError" class="mt-2 text-xs text-red-600 dark:text-red-400" data-testid="login-reset-error">{{ resetError }}</p>
+            <p v-if="resetError" class="mt-2 text-sm text-red-600 dark:text-red-400" data-testid="login-reset-error">{{ resetError }}</p>
           </template>
-          <p v-else class="text-xs text-green-700 dark:text-green-300" data-testid="login-reset-done">{{ resetDone }}</p>
+          <p v-else class="text-sm text-green-700 dark:text-green-300" data-testid="login-reset-done">{{ resetDone }}</p>
         </div>
       </div>
 
       <!-- The self-service join intake: request an account naming your
            organization from the participants register; approval comes
            from your organization. -->
-      <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500" data-testid="login-join">
+      <p class="mt-4 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-join">
         {{ t('login.joinPrompt') }}
         <router-link to="/op/join" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-join-link">{{ t('login.joinLink') }}</router-link>
         {{ t('login.joinNote') }}
       </p>
 
-      <p v-if="branding.supportUrl" class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
+      <p v-if="branding.supportUrl" class="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">
         {{ t('login.supportPrompt') }} <a :href="branding.supportUrl" target="_blank" rel="noopener" data-testid="login-support" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.supportLink') }}</a>
       </p>
       </template>
@@ -681,8 +681,11 @@ async function submitReset() {
       <!-- The legitimacy line (the ISO-benchmark quick win, smart's
            TODO.identity-features/11 item 2): the institutional standing,
            stated once, linked to the OIML's own page for the claim,
-           never repeated. -->
-      <p class="mt-8 text-center text-xs leading-relaxed text-slate-400 dark:text-slate-500" data-testid="login-legitimacy">
+           never repeated. The type scale fix (the visual-elevation wave):
+           it reads at the secondary-text size in the readable muted tone
+           (≥ 4.5:1 both modes) — a statement of standing, never the tiny
+           apologetic footnote. -->
+      <p class="mt-8 text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-testid="login-legitimacy">
         {{ t('login.legitimacy.before') }}<a href="https://www.oiml.org/en/about/what-is-the-oiml" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.legitimacy.link') }}</a>{{ t('login.legitimacy.after') }}
       </p>
     </div>
