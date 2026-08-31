@@ -746,6 +746,9 @@ export const en = {
   "login.resetIntro": "Enter your account's email address; the identity service emails a one-time reset link (24 hours).",
   "login.resetSending": "Sending…",
   "login.resetSubmit": "Send the reset email",
+  "login.statusBanner.degraded": "Some estate services are reporting problems — your sign-in may be unaffected.",
+  "login.statusBanner.down": "One or more estate services are down.",
+  "login.statusBanner.link": "Details on the status page",
   "login.submit": "Sign in",
   "login.submitting": "Signing in…",
   "login.supportLink": "Contact support",
@@ -825,6 +828,10 @@ export const en = {
   "shell.nav.close": "Close the menu",
   "shell.nav.menu": "Open the menu",
   "shell.nav.sections": "Sections",
+  "shell.status.degraded": "Some services degraded",
+  "shell.status.down": "Service disruption",
+  "shell.status.operational": "All services operational",
+  "shell.status.unknown": "Status unknown",
 }
 
 export type MessageKey = keyof typeof en

@@ -10,6 +10,7 @@
 import { onMounted } from 'vue'
 import ThemeToggle from '@oimlsmart/site-shell/components/ThemeToggle.vue'
 import LocaleSwitch from './LocaleSwitch.vue'
+import StatusPill from './StatusPill.vue'
 import { t } from '../i18n'
 import { resolveBranding, useBranding } from '../branding'
 
@@ -38,7 +39,11 @@ onMounted(() => { void resolveBranding() })
            deployment declares SUPPORT_URL — never a third-party widget
            on the credential surface. -->
       <a v-if="branding.supportUrl" :href="branding.supportUrl" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-support">{{ t('shell.footer.supportPrompt') }}</a>
-      <a href="/api/health" class="hover:underline" data-testid="shell-status">{{ t('shell.footer.status') }}</a>
+      <!-- The live status pill (the ISO-benchmark structural item 1):
+           the estate's own status projection replaces the raw health
+           JSON link — green only on real probe data, "status unknown"
+           honestly when unreachable. -->
+      <StatusPill />
       <LocaleSwitch />
       <ThemeToggle v-if="bare" />
     </span>
