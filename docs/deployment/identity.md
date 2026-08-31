@@ -416,7 +416,7 @@ account model" below); the demo cast rides along in development only
 |---|---|
 | `GET /.well-known/openid-configuration` | The discovery document (the RP's `discoverIssuer` requires the exact issuer match). |
 | `GET /jwks.json` | The public signing keys: ES256, kid'd, with the rotation history (every `active` row of `oidc_keys` is served, so a rotation never strands an in-flight token). |
-| `GET /op/authorize` | The authorization endpoint: validates the client and the EXACT `redirect_uri` against the registry (an unregistered one is refused in place, never redirected to), requires `response_type=code`, the `openid` scope and PKCE S256, then either redirects to the instance's login page (no session — the flow re-enters afterwards) or to the consent page. |
+| `GET /op/authorize` | The authorization endpoint: validates the client and the EXACT `redirect_uri` against the registry (an unregistered one is refused in place, never redirected to), requires `response_type=code`, the `openid` scope and PKCE S256, then either redirects to the instance's login page (no session — the flow re-enters afterwards) or to the consent page. The consent page is SKIPPED when a remembered grant covers the request's scope set (TODO.identity-features/12 — the consent decision's allow records the grant per account+client+scope set; `prompt=consent` in the request always shows the page). |
 | `GET /op/consent` | The consent page (the app's house style): the client name, the scopes, the account being shared, allow/deny. |
 | `POST /op/token` | The code exchange: the one-time code (consumed atomically — a replay always loses with `invalid_grant`), the PKCE verifier, and the client secret (HTTP Basic or form; public clients run on PKCE alone). Answers the signed ES256 ID token (`iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, plus the claims policy's extras) and a Bearer access token. |
 | `GET /op/userinfo` | The access token's claims (the same scope + policy split as the ID token). |
@@ -424,7 +424,9 @@ account model" below); the demo cast rides along in development only
 
 All OP state that must survive Worker isolates lives in D1
 (`oidc_clients`, `oidc_authorizations`, `oidc_codes`,
-`oidc_access_tokens`, `oidc_keys` — schema `0004_oidc_op.sql`);
+`oidc_access_tokens`, `oidc_keys` — schema `0004_oidc_op.sql`;
+`oidc_consent_grants` — `0021_oidc_consent_grants.sql`, the remembered
+consent grants the authorize endpoint's skip reads);
 NOTHING rides a per-process Map (the GitHub-flow lesson). The
 implementation is `browser/server/routes/op.ts` +
 `browser/server/auth/op/`, WebCrypto only.

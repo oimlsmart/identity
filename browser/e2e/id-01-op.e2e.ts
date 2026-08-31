@@ -307,9 +307,13 @@ describe('TODO.identity/01 — the OIDC Provider (the identity profile)', () => 
   })
 
   it('leg 3 — Deny answers the RP with access_denied and no code', { timeout: 600_000 }, async () => {
-    // Still signed in at the OP from leg 2 — the authorize goes straight
-    // to consent (the OP session's whole point).
-    await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    // Still signed in at the OP from leg 2 — and leg 2's allow left a
+    // REMEMBERED GRANT (TODO.identity-features/12), so a plain authorize
+    // would skip the page entirely. The deny path needs the page:
+    // prompt=consent (the OIDC re-consent signal) forces it. The RP's
+    // own authorize URL carries its state/nonce/PKCE registration.
+    const start = await fetch(`${rp.baseUrl}/signin`, { redirect: 'manual' })
+    await page.goto(`${start.headers.get('location')!}&prompt=consent`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-consent-deny"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="op-consent-deny"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="rp-error"]', { timeout: SETTLE, polling: 500 })
@@ -360,6 +364,10 @@ describe('TODO.identity/01 — the OIDC Provider (the identity profile)', () => 
       nonce: 'replay-nonce',
       code_challenge: pkce.challenge,
       code_challenge_method: 'S256',
+      // The leg drives the consent decision API twice — force the page
+      // (TODO.identity-features/12: the first allow's remembered grant
+      // would skip the second).
+      prompt: 'consent',
     })
     const authorize = await fetch(`${stack.base}/op/authorize?${query}`, { headers: { cookie }, redirect: 'manual' })
     expect(authorize.status).toBe(302)

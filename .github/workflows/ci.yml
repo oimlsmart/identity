@@ -153,6 +153,7 @@ jobs:
             e2e/id-24-personal-tokens.e2e.ts \
             e2e/id-25-quickwins.e2e.ts \
             e2e/id-26-visual-elevation.e2e.ts \
+            e2e/id-27-consent-grants.e2e.ts \
             e2e/id-surface.e2e.ts \
             e2e/op-surface-contract.e2e.ts \
             e2e/op-key-rotate.e2e.ts

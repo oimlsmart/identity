@@ -25,6 +25,7 @@ import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpFactorsRouter } from './routes/op-factors'
 import { createOpTokensRouter } from './routes/op-tokens'
+import { createOpGrantsRouter } from './routes/op-grants'
 import { createOpMfaRouter } from './routes/op-mfa'
 import { createOpJoinRouter } from './routes/op-join'
 import { createOpMembershipsRouter } from './routes/op-memberships'
@@ -103,6 +104,9 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // personal-access-token surface (list / mint / revoke); the exchange
   // grant itself lives on the OP router's /op/token.
   app.route('/', createOpTokensRouter())
+  // The remembered consent grants (TODO.identity-features/12): the
+  // console's "apps they can access" (list / revoke).
+  app.route('/', createOpGrantsRouter())
   // The sign-in's second-factor + passwordless half (the same wave).
   app.route('/', createOpMfaRouter())
   // Delegated organization administration: the public "Request an

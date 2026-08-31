@@ -246,7 +246,13 @@ what actually happened.
    (`code_challenge`, S256 — never plain).
 3. The user authenticates at the OP (password and/or a linked upstream
    IdP) and consents; the OP redirects to your `redirect_uri` with
-   `code` + `state`. Verify `state` before anything else.
+   `code` + `state`. Verify `state` before anything else. The consent is
+   REMEMBERED per (account, client, scope set) — a repeat authorization
+   the grant covers skips the consent page and the code arrives directly;
+   send `prompt=consent` when you must re-ask explicitly (the OIDC
+   re-consent signal always shows the page). The account holder revokes
+   the remembered access from the OP's account console (the next
+   authorization re-prompts).
 4. Exchange: `POST {issuer}/op/token` with `grant_type=
    authorization_code`, the code, the same `redirect_uri`, and the PKCE
    `code_verifier` (plus HTTP-Basic client auth for confidential

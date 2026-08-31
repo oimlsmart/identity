@@ -399,9 +399,13 @@ async function opPasswordSignIn(page: Page, email: string, password: string): Pr
 /** The full round trip from the fixture RP's /signin to the OP's consent
  *  page: the RP's real authorization request, the OP's password sign-in
  *  mid-authorize, then the consent. Leaves the browser ON the consent
- *  page (the caller reads the honest claim preview, then clicks allow). */
+ *  page (the caller reads the honest claim preview, then clicks allow).
+ *  TODO.identity-features/12: the page is FORCED (prompt=consent rides the
+ *  authorize URL through the login re-entry) — a caller repeating an
+ *  account+client would otherwise skip it on the remembered grant. */
 async function rpSignInToConsent(page: Page, rp: StubRp, account: { email: string; password: string }): Promise<void> {
-  await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+  const rpStart = await fetch(`${rp.baseUrl}/signin`, { redirect: 'manual' })
+  await page.goto(`${rpStart.headers.get('location')!}&prompt=consent`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
   // The OP's sign-in surface (its own login page, the redirect re-entry).
   await page.waitForFunction(
     (opPort) => window.location.port === opPort && window.location.pathname === '/' && window.location.search.includes('redirect='),
@@ -414,9 +418,12 @@ async function rpSignInToConsent(page: Page, rp: StubRp, account: { email: strin
 
 /** The same arc through the OP's GITHUB upstream button (the registry
  *  row) mid-authorize — the account's linked method carries the
- *  sign-in. Leaves the browser ON the consent page. */
+ *  sign-in. Leaves the browser ON the consent page. prompt=consent rides
+ *  the authorize URL (TODO.identity-features/12 — the remembered grant
+ *  would skip the page on a repeat). */
 async function rpViaGitHubToConsent(page: Page, rp: StubRp, login: string): Promise<void> {
-  await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+  const rpStart = await fetch(`${rp.baseUrl}/signin`, { redirect: 'manual' })
+  await page.goto(`${rpStart.headers.get('location')!}&prompt=consent`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
   await page.waitForFunction(
     (opPort) => window.location.port === opPort && window.location.pathname === '/' && window.location.search.includes('redirect='),
     { timeout: SETTLE, polling: 500 },

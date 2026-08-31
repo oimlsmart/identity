@@ -280,6 +280,9 @@ async function idTokenAmr(base: string, cookieValue: string): Promise<unknown> {
   const authorize = await fetch(`${base}/op/authorize?${new URLSearchParams({
     response_type: 'code', client_id: RP_CLIENT_ID, redirect_uri: RP_REDIRECT_URI,
     scope: 'openid profile email', state: 's', nonce: 'n', code_challenge: s256, code_challenge_method: 'S256',
+    // The consent stop is this helper's contract (TODO.identity-features/12:
+    // a remembered grant would skip it when an account repeats).
+    prompt: 'consent',
   })}`, { headers: { cookie }, redirect: 'manual' })
   expect(authorize.status).toBe(302)
   const authId = new URL(authorize.headers.get('location')!, base).searchParams.get('auth')!

@@ -39,6 +39,11 @@
 //                   scope picker bounded by the account's own standing +
 //                   the mandatory expiration + the one-time plaintext),
 //                   the revoke;
+//   APPS            (TODO.identity-features/12) the remembered consent
+//                   grants — the apps this account allowed in, with the
+//                   scope set each may keep asking for without re-asking,
+//                   and the "Revoke access" act (the next sign-in
+//                   re-prompts);
 //   ACTIVITY        the account's own sign-in and security events from
 //                   the OP's audit chain, newest first.
 //
@@ -54,6 +59,7 @@ import AvatarCropDialog from '../components/AvatarCropDialog.vue'
 import { AVATAR_ACCEPT_TYPES } from '../lib/avatar-crop'
 import AccountFactors, { type FactorsPayload } from '../components/AccountFactors.vue'
 import AccountTokens, { type TokensPayload } from '../components/AccountTokens.vue'
+import AccountApps, { type GrantsPayload } from '../components/AccountApps.vue'
 import { t, type MessageKey } from '../i18n'
 
 interface AccountContext {
@@ -184,6 +190,11 @@ const factors = ref<FactorsPayload | null>(null)
  *  console's TOKENS section reads it through the AccountTokens
  *  component (the registry rows + the picker's service catalog). */
 const tokens = ref<TokensPayload | null>(null)
+
+/** The remembered consent grants' payload (TODO.identity-features/12):
+ *  the console's APPS section reads it through the AccountApps
+ *  component (the "apps they can access" + the revoke). */
+const grants = ref<GrantsPayload | null>(null)
 
 // The profile edit.
 const nameEditing = ref(false)
@@ -678,7 +689,7 @@ async function load(quiet = false) {
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     context.value = await res.json() as AccountContext
-    const [linksRes, providersRes, activityRes, orgsRes, factorsRes, tokensRes] = await Promise.all([
+    const [linksRes, providersRes, activityRes, orgsRes, factorsRes, tokensRes, grantsRes] = await Promise.all([
       fetch('/api/op/account/links', { credentials: 'include' }),
       fetch('/api/op/providers/public'),
       fetch('/api/op/account/activity', { credentials: 'include' }),
@@ -688,6 +699,8 @@ async function load(quiet = false) {
       fetch('/api/op/account/factors', { credentials: 'include' }),
       // TODO.identity-features/08: the developer tokens (the console's TOKENS section).
       fetch('/api/op/account/tokens', { credentials: 'include' }),
+      // TODO.identity-features/12: the remembered consent grants (the console's APPS section).
+      fetch('/api/op/account/grants', { credentials: 'include' }),
     ])
     if (linksRes.ok) links.value = await linksRes.json() as LinkRow[]
     providers.value = providersRes.ok ? await providersRes.json() as PublicProvider[] : []
@@ -695,6 +708,7 @@ async function load(quiet = false) {
     selectableOrgs.value = orgsRes.ok ? await orgsRes.json() as SelectableOrg[] : []
     factors.value = factorsRes.ok ? await factorsRes.json() as FactorsPayload : null
     tokens.value = tokensRes.ok ? await tokensRes.json() as TokensPayload : null
+    grants.value = grantsRes.ok ? await grantsRes.json() as GrantsPayload : null
     // TODO.trust-registry/01: the org_admin's signing-key surface loads
     // with the context (the ACTIVE org's set only — the server's gate).
     if (keyManagedOrg.value) {
@@ -1497,6 +1511,14 @@ async function revokeOthers() {
              registry, the revoke. -->
         <AccountTokens
           :tokens="tokens"
+          @changed="loadQuiet"
+        />
+
+        <!-- 3¾ · The remembered consent grants (TODO.identity-features/12):
+             the apps this account allowed in — the revoke re-prompts the
+             consent page on the next sign-in. -->
+        <AccountApps
+          :grants="grants"
           @changed="loadQuiet"
         />
 

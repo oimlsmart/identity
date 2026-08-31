@@ -19,7 +19,12 @@
 //                                            redirect to the instance's
 //                                            own login page), then the
 //                                            consent page (/op/consent,
-//                                            the Vue island);
+//                                            the Vue island) — SKIPPED
+//                                            when a remembered grant
+//                                            covers the scope set
+//                                            (TODO.identity-features/12;
+//                                            prompt=consent forces the
+//                                            page);
 //   GET  /api/op/consent/:id               — the consent page's context
 //   POST /api/op/consent/:id/decide        — the consent decision → the
 //                                            one-time code back to the RP;
@@ -89,6 +94,7 @@ import {
   delegationScopesParam, delegationTokenClaims,
   DELEGATION_TOKEN_TYPE, PAT_EXCHANGE_GRANT, PAT_EXCHANGE_HEARTBEAT_MS, PAT_TOKEN_TYPE,
 } from '../auth/op/tokens'
+import { auditGrant } from '../auth/op/grants'
 import { sendOpMail } from '../auth/op/mail'
 import type { MailEnv } from '@oimlsmart/platform-server/mailer'
 import { resolveRegistryOrg } from '../auth/org-registry'
@@ -262,8 +268,8 @@ export function createOpRouter(): Hono {
     await ensureSeeded(c)
     const config = configFor(c)
     const q = (name: string) => c.req.query(name)?.trim() || undefined
-    const [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod] =
-      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method'].map(q)
+    const [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt] =
+      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt'].map(q)
 
     // 1. The client must be KNOWN + active — before any redirect logic.
     if (!clientId) {
@@ -315,6 +321,27 @@ export function createOpRouter(): Hono {
       return c.redirect(`/?redirect=${encodeURIComponent(target)}`)
     }
 
+    // 4b. The remembered consent (TODO.identity-features/12): a LIVE
+    //     grant covering this request's scope set skips the consent page
+    //     — the code mints through the flow's ONE mint path (the consent
+    //     decision's allow's own) and the RP's redirect carries it
+    //     directly. prompt=consent in the request (the OIDC re-consent
+    //     signal) ALWAYS shows the page, grant or no grant.
+    const forceConsent = (prompt ?? '').split(/\s+/).includes('consent')
+    if (!forceConsent && (await getStore().getConsentGrant(user.id, client.clientId, scope!))) {
+      const redirect = await mintAuthorizationCode(c, {
+        clientId: client.clientId,
+        redirectUri,
+        scope: scope!,
+        state: state ?? '',
+        nonce: nonce ?? null,
+        codeChallenge: challenge,
+        userId: user.id,
+        amr: user.amr ?? null,
+      })
+      return c.redirect(redirect)
+    }
+
     // 5. The pending authorization (D1 — the consent decision may land
     //    on another isolate), then the consent page.
     const id = opRandomToken()
@@ -333,6 +360,52 @@ export function createOpRouter(): Hono {
   })
 
   // ── consent (the Vue island's API) ───────────────────────────────
+
+  /** The allow's mint, THE ONE PATH (TODO.identity-features/12): the
+   *  consent decision's allow AND the remembered-grant skip both mint
+   *  through here — the one-time code carries the session's stamped
+   *  active-org context (TODO.identity/11) and the session's amr
+   *  provenance (TODO.identity-sso/02+03) exactly as the consent page's
+   *  allow does, and the redirect back to the RP composes the same way
+   *  (the state first, the code last). */
+  async function mintAuthorizationCode(c: Context, input: {
+    clientId: string
+    redirectUri: string
+    scope: string
+    state: string
+    nonce: string | null
+    codeChallenge: string
+    userId: string
+    amr: string[] | null
+  }): Promise<string> {
+    const config = configFor(c)
+    const code = opRandomToken()
+    // TODO.identity/11: the code inherits the session's stamped
+    // active-org context — the token endpoint emits the claims of the
+    // context the account consented IN (re-judged against the live
+    // membership at the exchange).
+    const sessionToken = getCookie(c, SESSION_COOKIE)
+    const contextOrg = sessionToken ? await getStore().getSessionActiveOrg(sessionToken) : null
+    await getStore().createOidcCode({
+      code,
+      clientId: input.clientId,
+      redirectUri: input.redirectUri,
+      scope: input.scope,
+      nonce: input.nonce,
+      codeChallenge: input.codeChallenge,
+      userId: input.userId,
+      contextOrg,
+      // TODO.identity-sso/02+03: the consenting session's authentication
+      // provenance rides the code into the ID token (the session's truth
+      // at the moment of consent — never recomputed later).
+      amr: input.amr,
+      ttlMs: config.codeTtlMs,
+    })
+    const back = new URL(input.redirectUri)
+    if (input.state) back.searchParams.set('state', input.state)
+    back.searchParams.set('code', code)
+    return back.toString()
+  }
 
   /** The pending row for the consent API, or the error response. */
   async function consentRow(c: Context, id: string) {
@@ -442,31 +515,34 @@ export function createOpRouter(): Hono {
       return c.json({ redirect: back.toString() })
     }
 
-    const config = configFor(c)
-    const code = opRandomToken()
-    // TODO.identity/11: the code inherits the session's stamped
-    // active-org context — the token endpoint emits the claims of the
-    // context the account consented IN (re-judged against the live
-    // membership at the exchange).
-    const sessionToken = getCookie(c, SESSION_COOKIE)
-    const contextOrg = sessionToken ? await getStore().getSessionActiveOrg(sessionToken) : null
-    await getStore().createOidcCode({
-      code,
+    // TODO.identity-features/12: the allow is REMEMBERED — the grant per
+    // (account, client, scope set) lets the next authorize skip this page
+    // (the upsert refreshes a live triple, lands fresh over a revoked
+    // one); the audit chain carries the act on the account's own feed
+    // (naming the client's display name, the PAT events' posture).
+    const grant = await getStore().recordConsentGrant({
+      userId: user.id,
+      clientId: decided.clientId,
+      scope: decided.scope,
+    })
+    const grantClient = await getStore().getOidcClient(decided.clientId)
+    await auditGrant('account.consent_granted', user.id, { userId: user.id, userName: user.name }, {
+      grant: grant.id,
+      client: decided.clientId,
+      name: grantClient?.name ?? decided.clientId,
+      scope: grant.scope,
+    })
+    const redirect = await mintAuthorizationCode(c, {
       clientId: decided.clientId,
       redirectUri: decided.redirectUri,
       scope: decided.scope,
+      state: decided.state,
       nonce: decided.nonce,
       codeChallenge: decided.codeChallenge,
       userId: user.id,
-      contextOrg,
-      // TODO.identity-sso/02+03: the consenting session's authentication
-      // provenance rides the code into the ID token (the session's truth
-      // at the moment of consent — never recomputed later).
       amr: user.amr ?? null,
-      ttlMs: config.codeTtlMs,
     })
-    back.searchParams.set('code', code)
-    return c.json({ redirect: back.toString() })
+    return c.json({ redirect })
   })
 
   // ── token ────────────────────────────────────────────────────────

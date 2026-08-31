@@ -929,6 +929,9 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
         response_type: 'code', client_id: clientId, redirect_uri: redirectUri,
         scope: 'openid profile email', state: 'e2e', nonce: 'e2e-nonce',
         code_challenge: challenge, code_challenge_method: 'S256',
+        // The consent stop is this helper's contract (TODO.identity-features/12:
+        // a remembered grant would skip it when a client repeats).
+        prompt: 'consent',
       })}`, { headers: { cookie: caseyCookie }, redirect: 'manual' })
       expect(authorize.status, 'authorize redirects to the consent page').toBe(302)
       const authId = new URL(authorize.headers.get('location')!, stack.base).searchParams.get('auth')!

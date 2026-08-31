@@ -85,6 +85,10 @@ async function driveAuthorize(
     nonce: params.nonce ?? 'nn-1',
     code_challenge: params.challenge,
     code_challenge_method: 'S256',
+    // The consent flow's driver forces the page (TODO.identity-features/12:
+    // a remembered grant would skip it — the grant arc has its own suite,
+    // id-consent-grants.test.ts).
+    prompt: 'consent',
   })
   const authorize = await app.request(`${ISSUER}/op/authorize?${query}`, { headers: { cookie } })
   expect(authorize.status, 'authorize redirects to the consent page').toBe(302)
@@ -482,6 +486,9 @@ describe('the sign-in surface + the consent decision', () => {
     const query = new URLSearchParams({
       response_type: 'code', client_id: CONFIDENTIAL.client_id, redirect_uri: CONFIDENTIAL.redirect_uris[0]!,
       scope: 'openid', state: 's', nonce: 'n', code_challenge: pkce.challenge, code_challenge_method: 'S256',
+      // The consent page must SHOW for the guard to engage (TODO.identity-features/12:
+      // the ia account's earlier allows left a remembered grant covering 'openid').
+      prompt: 'consent',
     })
     const authorize = await app.request(`${ISSUER}/op/authorize?${query}`, { headers: { cookie: ia } })
     const authId = new URL(authorize.headers.get('location')!, ISSUER).searchParams.get('auth')!
