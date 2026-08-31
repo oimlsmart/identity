@@ -28,6 +28,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
+import SigninPanelFeed from '../../components/SigninPanelFeed.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 import {
@@ -477,6 +478,10 @@ async function submitReset() {
         <div class="mt-auto pt-16">
           <h2 class="font-serif text-3xl xl:text-4xl font-bold leading-tight" data-testid="login-panel-welcome">{{ t('login.panel.welcome') }}</h2>
           <p class="mt-3 text-base leading-relaxed text-brand-100/85 max-w-md">{{ t('login.panel.intro') }}</p>
+          <!-- The rotating feed (the ISO-benchmark structural item 4):
+               scheduled + priority-weighted from /api/panels, the bundled
+               document as the offline default. -->
+          <SigninPanelFeed />
         </div>
       </div>
     </aside>

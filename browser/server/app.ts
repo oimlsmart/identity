@@ -38,6 +38,7 @@ import { createUsersRouter } from './routes/users'
 import { createAuthLeanRouter, opDemoAccountsEnabled } from './routes/auth-lean'
 import { createOpRateLimiter } from './rate-limit'
 import { getBlobStore } from './blobs'
+import signinPanels from './signin-panels.json'
 import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
 import { getInstanceProfile, projectModuleToggles, publicProfileView, type InstanceProfile } from '@oimlsmart/platform-server/profile'
 
@@ -147,6 +148,18 @@ export function createApiApp(options: ApiAppOptions): Hono {
 
   // Health check
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
+
+  // The sign-in panel feed (the ISO-benchmark structural item 4, the
+  // visual-elevation wave): the honest JSON the editorial left panel
+  // rotates through — scheduled (startDate/endDate, inclusive, date-only),
+  // priority-weighted, enabled-flagged per panel; the analogue of ISO's
+  // cdn-hosted panels.json, served by the service itself (the document
+  // ships with the deployment — a campaign edit is a deploy, and deploys
+  // are deliberate acts). Cached briefly; the client carries the same
+  // document as its offline default, so a failed fetch never blanks the
+  // panel.
+  app.get('/api/panels', (c) =>
+    c.json(signinPanels, 200, { 'cache-control': 'public, max-age=300' }))
 
   // The deployment's public config, identity-service shape. The
   // identity projection is PUBLIC-SAFE and honest about this service:
