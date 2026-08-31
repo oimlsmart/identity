@@ -36,11 +36,13 @@
 //                                            service-clients.ts; the
 //                                            RP-facing wire is unchanged —
 //                                            the contract golden holds) AND
-//                                            the developer cone (TODO.
-//                                            identity-features/08: the RFC
-//                                            8693 token exchange of a
-//                                            personal access token → the
-//                                            short-lived scoped OP JWT —
+//                                            the person-bearing exchanges
+//                                            (the RFC 8693 token exchange:
+//                                            the developer cone's personal
+//                                            access tokens, TODO.identity-
+//                                            features/08; the session
+//                                            delegation's access-token
+//                                            subject, TODO.ai-platform/03 —
 //                                            auth/op/tokens.ts; the same
 //                                            estate-internal posture, the
 //                                            golden byte-identical);
@@ -84,7 +86,8 @@ import {
 import {
   auditPat, hashPat, narrowPatScopesParam, patExchangeBeatDue, patExpiryNoticeDue,
   patPlausible, patTokenClaims, resolvePatScopesForAccount,
-  PAT_EXCHANGE_GRANT, PAT_EXCHANGE_HEARTBEAT_MS, PAT_TOKEN_TYPE,
+  delegationScopesParam, delegationTokenClaims,
+  DELEGATION_TOKEN_TYPE, PAT_EXCHANGE_GRANT, PAT_EXCHANGE_HEARTBEAT_MS, PAT_TOKEN_TYPE,
 } from '../auth/op/tokens'
 import { sendOpMail } from '../auth/op/mail'
 import type { MailEnv } from '@oimlsmart/platform-server/mailer'
@@ -614,20 +617,108 @@ export function createOpRouter(): Hono {
       })
     }
 
-    // ── the developer cone: the RFC 8693 token exchange, the PAT class
-    // ONLY (TODO.identity-features/08 — auth/op/tokens.ts). The device
-    // class's precedent holds: the discovery document keeps advertising
-    // the RP contract alone (the exchange grant is an estate-internal
-    // cone, not an RP flow — the contract golden stays byte-identical),
-    // and the exchanged token is the OP's ONE token shape (a
-    // self-contained ES256 JWT the RPs validate against the JWKS, no
-    // call-back). The subject_token IS the credential (no client auth —
-    // the PAT names its account).
+    // ── the person-bearing exchanges: the RFC 8693 grant, two subject
+    // classes (auth/op/tokens.ts). The DEVELOPER cone (TODO.identity-
+    // features/08): the PAT subject — the subject_token IS the credential
+    // (no client auth — the PAT names its account). The SESSION
+    // DELEGATION (TODO.ai-platform/03): the OP's own access token as the
+    // subject — the caller authenticates and the subject binds to the
+    // client it was issued to. The device class's precedent holds for
+    // both: the discovery document keeps advertising the RP contract
+    // alone (the exchange grant is an estate-internal cone, not an RP
+    // flow — the contract golden stays byte-identical), and the exchanged
+    // token is the OP's ONE token shape (a self-contained ES256 JWT the
+    // RPs validate against the JWKS, no call-back).
     if (grantType === PAT_EXCHANGE_GRANT) {
       const subjectTokenType = form.get('subject_token_type') ?? ''
+
+      // ── the session delegation (TODO.ai-platform/03 — tokens.ts's
+      // delegation section): the subject is the OP's OWN opaque access
+      // token, minted to the AUTHENTICATED client by the sign-in's code
+      // exchange. Where the PAT cone's subject IS the credential (no
+      // client auth), the opaque subject is a bearer artifact — the
+      // caller authenticates, and the exchange binds the subject to the
+      // client it was ISSUED to (a service exchanges only its own
+      // sign-ins' tokens, never another RP's). The answer carries the
+      // actor claim (act.sub — the relying party's audit names the
+      // acting service, never just the account).
+      if (subjectTokenType === DELEGATION_TOKEN_TYPE) {
+        const { client: actor, error: actorError } = await authenticateClient(c, form)
+        if (actorError || !actor) {
+          await auditPat('account.delegation_exchange_refused', 'unauthenticated', {}, { error: 'invalid_client' })
+          return actorError ?? oidcError(c, 401, 'invalid_client', 'the delegation exchange requires client authentication')
+        }
+        // The refusal is ONE answer for the whole lattice (the PAT
+        // cone's enrollment doctrine); the audit chain names the leg.
+        // NEVER the token value.
+        const refuseDelegation = async (reason: string, userId?: string): Promise<Response> => {
+          await auditPat('account.delegation_exchange_refused', userId ?? 'unauthenticated', {}, { error: 'invalid_grant', reason, client: actor.clientId })
+          return oidcError(c, 400, 'invalid_grant', 'the subject token is unknown, expired, or its account no longer stands')
+        }
+        const presentedDelegation = form.get('subject_token') ?? ''
+        const subject = presentedDelegation ? await store.getOidcAccessToken(presentedDelegation) : null
+        if (!subject) return refuseDelegation('unknown')
+        if (subject.clientId !== actor.clientId) return refuseDelegation('foreign_token', subject.userId)
+        // The account's standing (a deactivated or erased account's
+        // sessions die with it) — the PAT cone's lattice leg.
+        const subjectAccountRow = (await store.listUsers()).find(u => u.id === subject.userId)
+        const subjectAccount = await store.getUserById(subject.userId)
+        if (!subjectAccountRow || !subjectAccount || !subjectAccountRow.active || subjectAccountRow.provider === 'erased') {
+          return refuseDelegation('account_standing', subject.userId)
+        }
+        // The sign-in's pinned org context, re-judged against the LIVE
+        // membership (never a dead org's claims).
+        const delegationContext = await claimsContextFor(store, subjectAccount, subject.contextOrg)
+        // The scope is REQUIRED (the delegation names its narrowed
+        // target) and re-judged per scope against the live standing —
+        // the PAT cone's own machinery, verbatim.
+        const delegationScope = delegationScopesParam(form.get('scope'))
+        if (delegationScope.error || !delegationScope.scopes) {
+          await auditPat('account.delegation_exchange_refused', subject.userId, {}, { error: 'invalid_scope', client: actor.clientId })
+          return oidcError(c, 400, 'invalid_scope', delegationScope.error ?? 'the scope parameter is required')
+        }
+        const delegationGranted: PatScope[] = []
+        const delegationRoles: Record<string, string[]> = {}
+        const delegationDropped: string[] = []
+        for (const scope of delegationScope.scopes) {
+          const verdict = await resolvePatScopesForAccount(store, subjectAccount, delegationContext, [scope], runtimeEnv<EnvLike>(c))
+          if (verdict.ok) {
+            delegationGranted.push(scope)
+            Object.assign(delegationRoles, verdict.serviceRoles)
+          } else {
+            delegationDropped.push(`${scope.service}:${scope.action}`)
+          }
+        }
+        if (!delegationGranted.length) return refuseDelegation('scope_standing', subject.userId)
+        const delegationKey = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+        // The first-use registration rides the SAME gate as the other
+        // grants (identity#7).
+        if (maySelfRegisterOpKey(delegationKey, config)) {
+          await ensureOpKeyRegistered(store, delegationKey)
+        } else {
+          warnDevKeyRegistrationSkipped('/op/token', delegationKey)
+        }
+        const delegated = await signOpIdToken(delegationKey, delegationTokenClaims(subjectAccount, delegationContext, delegationGranted, delegationRoles, config, actor.clientId))
+        // The exchange lands on the audit chain EVERY time (the
+        // delegation's cadence is per-session — the PAT cone's throttled
+        // heartbeat never applies), the dropped narrowing named.
+        await auditPat('account.delegation_exchange', subject.userId, {}, {
+          client: actor.clientId,
+          scopes: delegationGranted.map(s => `${s.service}:${s.action}`),
+          ...(delegationDropped.length ? { dropped: delegationDropped } : {}),
+        })
+        return c.json({
+          access_token: delegated,
+          issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          token_type: 'Bearer',
+          expires_in: config.accessTokenTtlMs / 1000,
+          scope: delegationGranted.map(s => `${s.service}:${s.action}`).join(' '),
+        })
+      }
+
       if (subjectTokenType !== PAT_TOKEN_TYPE) {
         await auditPat('account.pat_exchange_refused', 'unauthenticated', {}, { error: 'invalid_request' })
-        return oidcError(c, 400, 'invalid_request', `the token-exchange grant speaks subject_token_type ${PAT_TOKEN_TYPE} only`)
+        return oidcError(c, 400, 'invalid_request', `the token-exchange grant speaks subject_token_type ${PAT_TOKEN_TYPE} or ${DELEGATION_TOKEN_TYPE} only`)
       }
       const presented = form.get('subject_token') ?? ''
       const pat = patPlausible(presented) ? await store.findPersonalAccessTokenByHash(await hashPat(presented)) : null
