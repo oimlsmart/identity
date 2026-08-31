@@ -109,6 +109,9 @@ async function driveCodeExchange(clientId: string, secret: string, userCookie: s
     state: 'st-dash',
     code_challenge: pkce.challenge,
     code_challenge_method: 'S256',
+    // The consent stop is this helper's contract (TODO.identity-features/12:
+    // a remembered grant would skip it on a repeat sign-in).
+    prompt: 'consent',
   })
   const authorize = await app.request(`${ISSUER}/op/authorize?${query}`, { headers: { cookie: userCookie } })
   expect(authorize.status).toBe(302)

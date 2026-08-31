@@ -425,6 +425,9 @@ describe('the client registry console’s API', () => {
       redirect_uri: 'https://tl-registry.test/api/auth/callback/oidc',
       scope: 'openid', state: 'st-07b',
       code_challenge: pkce2.challenge, code_challenge_method: 'S256',
+      // The consent page must show for the decision API (TODO.identity-features/12:
+      // the first authorize's allow left a remembered grant covering 'openid').
+      prompt: 'consent',
     })
     const authorize2 = await app.request(`${ISSUER}/op/authorize?${query2}`, { headers: { cookie: userCookie } })
     const authId2 = new URL(authorize2.headers.get('location')!, ISSUER).searchParams.get('auth')!

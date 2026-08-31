@@ -128,6 +128,9 @@ async function roundTrip(cookie: string, client = CLIENT): Promise<{ idToken: Re
     response_type: 'code', client_id: client.client_id, redirect_uri: client.redirect_uris[0]!,
     scope: 'openid profile email', state: 'st', nonce: 'nn',
     code_challenge: challenge, code_challenge_method: 'S256',
+    // The claims proof forces the consent page (TODO.identity-features/12:
+    // a remembered grant would skip it on the repeat round trips).
+    prompt: 'consent',
   })}`, { headers: { cookie }, redirect: 'manual' } as never)
   expect(authorize.status, 'authorize redirects to the consent page').toBe(302)
   const authId = new URL(authorize.headers.get('location')!, ISSUER).searchParams.get('auth')!

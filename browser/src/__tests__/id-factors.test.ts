@@ -140,6 +140,9 @@ async function idTokenClaims(cookie: string): Promise<Record<string, unknown>> {
   const authorize = await app.request(`/op/authorize?${new URLSearchParams({
     response_type: 'code', client_id: CLIENT.client_id, redirect_uri: CLIENT.redirect_uris[0]!,
     scope: 'openid profile email', state: 's', nonce: 'n', code_challenge: s256, code_challenge_method: 'S256',
+    // The consent stop is this helper's contract (TODO.identity-features/12:
+    // a remembered grant would skip it on a repeat sign-in).
+    prompt: 'consent',
   })}`, { headers: { cookie }, redirect: 'manual' })
   expect(authorize.status).toBe(302)
   const authId = new URL(authorize.headers.get('location')!, ISSUER).searchParams.get('auth')!

@@ -570,7 +570,10 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
     // …and a fresh round trip (her LIVE session goes straight to the
     // consent page) still carries the per-client assignment —
     // deactivation kept the rows (the history), never wiped them.
-    await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    // TODO.identity-features/12: leg 3's allow left a remembered grant —
+    // prompt=consent forces the page this leg asserts.
+    const rpStart = await fetch(`${rp.baseUrl}/signin`, { redirect: 'manual' })
+    await page.goto(`${rpStart.headers.get('location')!}&prompt=consent`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-consent-allow"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="op-consent-allow"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="rp-signed-in"]', { timeout: SETTLE, polling: 500 })

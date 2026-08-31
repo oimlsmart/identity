@@ -141,6 +141,9 @@ async function driveAuthorize(
     nonce: params.nonce ?? 'nn-1',
     code_challenge: params.challenge,
     code_challenge_method: 'S256',
+    // The consent stop is this helper's contract (TODO.identity-features/12:
+    // a remembered grant would skip it on a repeat sign-in).
+    prompt: 'consent',
   })
   const authorize = await app.request(`${ISSUER}/op/authorize?${query}`, { headers: { cookie } })
   expect(authorize.status, 'authorize redirects to the consent page').toBe(302)
