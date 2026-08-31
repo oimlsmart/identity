@@ -15,7 +15,8 @@
 //
 // Env: STATUS_SUMMARY_URL (default https://status.oimlsmart.org/api/
 // summary.json), STATUS_PAGE_URL (the pill's link target, default
-// https://status.oimlsmart.org/).
+// https://status.oimlsmart.org/), STATUS_CACHE_TTL_MS (the brief-cache
+// window, default 60000 — the e2e declares a sub-second window).
 //
 // WORKER-SAFE: fetch + AbortSignal.timeout + a module-level cache only.
 // ═══════════════════════════════════════════════════════════════════
@@ -141,7 +142,9 @@ export function unknownStatus(reason: string, pageUrl: string, now: number): Sta
 
 // The brief cache: one upstream read per window per isolate. A fresh
 // cache answers; an EXPIRED window with a failed re-fetch is unknown —
-// last-green is hearsay past the window.
+// last-green is hearsay past the window. The window defaults to
+// CACHE_TTL_MS; STATUS_CACHE_TTL_MS overrides it (the e2e declares a
+// sub-second window to walk the state transitions in one stack).
 let cached: { at: number; body: StatusSummaryProjection } | null = null
 
 /** The fetch seam: the unit legs substitute a stub. */
@@ -156,8 +159,10 @@ export function createStatusSummaryRouter(deps: { fetchImpl?: StatusFetch; now?:
     const env = runtimeEnv<Record<string, string | undefined>>(c)
     const summaryUrl = env.STATUS_SUMMARY_URL?.trim() || STATUS_SUMMARY_DEFAULT_URL
     const pageUrl = env.STATUS_PAGE_URL?.trim() || STATUS_PAGE_DEFAULT_URL
+    const ttl = Number(env.STATUS_CACHE_TTL_MS)
+    const cacheTtl = Number.isFinite(ttl) && ttl >= 0 ? ttl : CACHE_TTL_MS
     const at = now()
-    if (cached && at - cached.at < CACHE_TTL_MS) {
+    if (cached && at - cached.at < cacheTtl) {
       return c.json(cached.body, 200, { 'cache-control': 'no-store' })
     }
     let body: StatusSummaryProjection
