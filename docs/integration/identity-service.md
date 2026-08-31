@@ -43,7 +43,7 @@ Issuer: `https://id.oimlsmart.org`
 | Discovery (RFC 8414) | `GET {issuer}/.well-known/openid-configuration` |
 | JWKS (the signing keys) | `GET {issuer}/jwks.json` (the discovery document's `jwks_uri` is authoritative) |
 | Authorization endpoint | `{issuer}/op/authorize` |
-| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the machine classes — device + service, §9; the RFC 8693 token exchange for the developer cone's personal access tokens — §9a) |
+| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the machine classes — device + service, §9; the RFC 8693 token exchange for the developer cone's personal access tokens — §9a — and the session delegation's access-token subject — §9b) |
 | UserInfo | `{issuer}/op/userinfo` |
 | Avatar (the `picture` claim's target; public, no session) | `{issuer}/op/avatar/<account id>` |
 | Whoami (the account-chip beacon for the static properties: the OP session's minimal projection, CORS-gated on the registered clients' origins) | `GET {issuer}/op/whoami` |
@@ -504,6 +504,70 @@ audit chain carries mint / exchange (a throttled heartbeat, never
 per-request) / revoke. The grant is NOT advertised in the discovery
 document (the device cone's precedent — the estate-internal cone; the
 OIDC surface the golden pins is byte-identical).
+
+## 9b. The session delegation (TODO.ai-platform/03)
+
+A **delegation** is a service acting ON THE USER'S behalf inside the
+user's own session — the estate assistant's "my account" reads are the
+reference caller: the user signs the assistant in (the §2 code flow),
+the assistant exchanges for a narrowly-scoped token, and your service is
+called WITH it — the cones bind exactly as for the user's own browser.
+
+The shape (the same RFC 8693 grant as §9a, the standard's own subject
+type):
+
+```
+POST {issuer}/op/token
+Authorization: Basic <base64(client_id:client_secret)>
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+&subject_token_type=urn:ietf:params:oauth:token-type:access_token
+&subject_token=<the OP access token YOUR code exchange received>
+&scope=hub-instance:read          ← REQUIRED (the §9a grammar) — the
+                                    delegation names its narrowed target
+```
+
+The rules, all narrow-only:
+
+- **The subject binds to you.** The OP's access token is an opaque,
+  store-backed bearer artifact (§5), so the exchange requires your
+  client authentication and answers `invalid_grant` for a token issued
+  to ANOTHER client — a service exchanges only its own sign-ins'
+  tokens, never a foreign RP's.
+- **The standing is re-judged at exchange, never remembered.** The same
+  machinery as §9a (a role lost since the sign-in falls away, the audit
+  names the drop; a set that fell away entirely refuses
+  `invalid_grant`; a disabled or erased account's sessions die with
+  it). The org context is the sign-in's pinned one, re-judged against
+  the live membership — never a dead org's claims.
+- **The window is the session's.** The subject dies with the sign-in's
+  access-token TTL (`OP_ACCESS_TOKEN_TTL_MS`, one hour by default); the
+  delegated JWT lives the same TTL at most. When the window lapses the
+  honest answer is to ask the user to sign in again — there is no
+  refresh, by design.
+- **The answer names the actor.** The delegated JWT is the §9a claim
+  set with `act: { sub: "<your client id>" }` (RFC 8693 §4.1) in the
+  credential row's place: your audit chain records that the ASSISTANT
+  acted for the account, never that the account acted alone. Never an
+  ID token, never a refresh, never `amr`.
+
+**The token lifecycle (issue → narrow → expire)**, the whole arc:
+ISSUE — the user signs in through your code flow (§2) and your service
+retains the access token for the session, never past it; NARROW — each
+exchange re-judges the account's live standing and answers only what
+survives (the granted `scope` on the response states what it got — read
+it, never assume it); EXPIRE — the subject's TTL closes the window, the
+delegated JWT's `exp` closes the use, and the account's own standing
+(deactivated, erased, a revoked membership) closes both early. The
+audit chain carries every exchange (`account.delegation_exchange`,
+naming the account, your client id, the granted scopes, and any drop) —
+the org administrator sees the ACT, never the conversation.
+
+Your service's bearer gate is §9a's verbatim: validate per §6, enforce
+the scope cone (`patScopeCovers`), and stand your own role map on the
+token's `service_roles` entry for your client id. Both narrow; neither
+grants.
 
 ## 10. What your service inherits
 

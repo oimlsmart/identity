@@ -355,3 +355,80 @@ export function narrowPatScopesParam(raw: string | null, pinned: readonly PatSco
   }
   return { scopes: requested, error: null }
 }
+
+// ── the session delegation (TODO.ai-platform/03) ─────────────────────
+// A service acting ON THE USER'S behalf within the user's own session —
+// the estate assistant's "my account" reads are the reference caller.
+// Where the PAT cone's subject token is a long-lived developer
+// credential, the delegation's subject token is the OP's OWN opaque
+// access token, minted to the calling client by the authorization-code
+// flow the sign-in just ran (so the window IS the session's: the
+// subject dies with the sign-in's access-token TTL, and the retained
+// credential never outlives it). The rules, all narrow-only:
+//
+//   - the caller AUTHENTICATES (the client credentials — the opaque
+//     subject is a bearer artifact, so the exchange binds it to the
+//     client it was ISSUED to: a service exchanges only its own
+//     sign-ins' tokens, never another RP's);
+//   - the `scope` parameter is REQUIRED — the delegation names its
+//     narrowed target (the same <service>:<action-class> grammar), and
+//     the standing re-judgment (resolvePatScopesForAccount) is shared
+//     verbatim with the PAT cone: a role the account lost since the
+//     sign-in narrows the answer, a set that fell away refuses;
+//   - the answer is the OP's ONE token shape carrying the ACTOR claim
+//     (RFC 8693 §4.1's `act`: the delegating service's client id) so the
+//     relying party's audit names who ACTED, never just who was acted
+//     for. Never an ID token, never a refresh, never `amr` (the
+//     exchange is not an authentication ceremony — the PAT doctrine).
+
+/** The RFC 8693 subject_token_type the delegation speaks — the
+ *  standard's own access-token type; the OP accepts it for its OWN
+ *  store-backed opaque access tokens only (a foreign-issuer JWT is
+ *  unknown here by construction). */
+export const DELEGATION_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
+
+/** The delegation's scope parameter (REQUIRED — unlike the PAT cone's
+ *  optional narrowing): the normalized set, or the refusal's reason. */
+export function delegationScopesParam(raw: string | null): { scopes: PatScope[] | null; error: string | null } {
+  if (raw === null || !raw.trim()) {
+    return { scopes: null, error: 'the delegation names its narrowed scope — the <service>:<action-class> grammar, never absent' }
+  }
+  const requested = normalizePatScopes(raw.trim().split(/\s+/))
+  if (!requested) return { scopes: null, error: 'the scope parameter is not in the <service>:<action-class> grammar' }
+  return { scopes: requested, error: null }
+}
+
+/** The delegated access token's claim set: the PAT cone's exact shape
+ *  (the ONE token the RPs validate) with the actor claim in the
+ *  credential row's place — `act.sub` names the delegating client (the
+ *  audit's "the assistant read AS the user", never a silent person). */
+export function delegationTokenClaims(
+  account: AuthUserPayload,
+  context: OrgContextResolution,
+  granted: readonly PatScope[],
+  serviceRoles: Record<string, string[]>,
+  config: { issuer: string; accessTokenTtlMs: number },
+  actorClientId: string,
+): Record<string, unknown> {
+  const nowSec = Math.floor(Date.now() / 1000)
+  const services = [...new Set(granted.map(s => s.service))].sort()
+  const claims: Record<string, unknown> = {
+    iss: config.issuer,
+    sub: account.id,
+    aud: services,
+    iat: nowSec,
+    exp: nowSec + Math.floor(config.accessTokenTtlMs / 1000),
+    scope: granted.map(s => `${s.service}:${s.action}`).join(' '),
+    name: account.name,
+    email: account.email,
+    service_roles: Object.fromEntries(
+      services.map(s => [s, serviceRoles[s] ?? []]),
+    ),
+    act: { sub: actorClientId },
+  }
+  if (context.orgId) claims.org = context.orgId
+  if (context.orgId && context.cone) {
+    claims.cone = encodeOrgMemberCone(context.cone) ?? 'org-wide'
+  }
+  return claims
+}

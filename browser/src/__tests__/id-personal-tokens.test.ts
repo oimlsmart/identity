@@ -348,13 +348,15 @@ describe('the exchange (the RFC 8693 grant)', () => {
     expect(((await unknown.json()) as { error: string }).error).toBe('invalid_grant')
     // The malformed subject token (never the prefix shape) — the same answer.
     expect(((await (await exchange('not-a-pat')).json()) as { error: string }).error).toBe('invalid_grant')
-    // The wrong subject_token_type answers invalid_request.
+    // The wrong subject_token_type answers invalid_request (the grant
+    // speaks the PAT type + the session delegation's access-token type
+    // only — TODO.ai-platform/03; an id_token is neither).
     const wrongType = await app.request(`${ISSUER}/op/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
-        subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
         subject_token: minted.token.plaintext,
       }),
     })
