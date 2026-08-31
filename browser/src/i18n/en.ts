@@ -733,6 +733,8 @@ export const en = {
   "login.mfa.useRecovery": "Use a recovery code",
   "login.mfa.verify": "Verify",
   "login.networkError": "Network error. Is the server running?",
+  "login.panel.intro": "Sign in once with your OIML SMART Identity — every service your organization may use follows.",
+  "login.panel.welcome": "One account for the whole estate.",
   "login.passkeyBusy": "Waiting for the passkey…",
   "login.passkeyButton": "Sign in with a passkey",
   "login.passkeyFailed": "The passkey sign-in did not complete. Try again, or sign in with your password.",

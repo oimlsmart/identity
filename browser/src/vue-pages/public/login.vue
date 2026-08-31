@@ -454,7 +454,34 @@ async function submitReset() {
 </script>
 
 <template>
-  <div class="flex-1 flex items-center justify-center px-4 py-12">
+  <!-- The editorial split (the ISO-benchmark structural item 7, the
+       visual-elevation wave's move 2): at desktop widths the sign-in is
+       two panels — the left carries the brand/welcome space (the estate's
+       own globe mark as the illustration, never a stock photo), the right
+       the form. Below lg the single proven column stands (the panel
+       hides; the card carries the lockup itself). The panel is deep
+       brand navy in BOTH color schemes — an intentional book-cover, so
+       dark mode is correct by construction. -->
+  <div class="flex-1 flex">
+    <aside class="hidden lg:flex lg:w-[45%] xl:w-1/2 flex-col relative overflow-hidden bg-brand-950 text-white" data-testid="login-panel">
+      <!-- The estate's globe mark, large and faint, anchored to the
+           panel's lower corner — the house's own visual language. -->
+      <img
+        src="/brand/oiml-logo-globe-dark.svg"
+        alt=""
+        aria-hidden="true"
+        class="absolute -right-28 -bottom-28 w-[30rem] max-w-none opacity-20 pointer-events-none select-none"
+      />
+      <div class="relative flex-1 flex flex-col p-10 xl:p-14">
+        <img :src="branding.logoDark" :alt="branding.productName" class="h-9 w-auto self-start" />
+        <div class="mt-auto pt-16">
+          <h2 class="font-serif text-3xl xl:text-4xl font-bold leading-tight" data-testid="login-panel-welcome">{{ t('login.panel.welcome') }}</h2>
+          <p class="mt-3 text-base leading-relaxed text-brand-100/85 max-w-md">{{ t('login.panel.intro') }}</p>
+        </div>
+      </div>
+    </aside>
+
+    <div class="flex-1 flex items-center justify-center px-4 py-12">
     <!-- Loading state -->
     <div v-if="loading" class="flex flex-col items-center gap-4">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
@@ -463,7 +490,12 @@ async function submitReset() {
     <!-- Login card -->
     <div v-else class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
+        <!-- The card's own lockup stands below lg only — at desktop the
+             editorial panel carries the brand (a variant-class conflict
+             on BrandLogo's dark:pair would double it, hence the wrapper). -->
+        <div class="lg:hidden">
+          <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
+        </div>
         <h1 class="text-2xl font-serif font-bold text-slate-900 dark:text-white">{{ t('login.heading', { product: branding.productName }) }}</h1>
         <p v-if="branding.loginTagline" data-testid="login-tagline" class="mt-2 text-base text-slate-600 dark:text-slate-400">{{ branding.loginTagline }}</p>
       </div>
@@ -688,6 +720,7 @@ async function submitReset() {
       <p class="mt-8 text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-testid="login-legitimacy">
         {{ t('login.legitimacy.before') }}<a href="https://www.oiml.org/en/about/what-is-the-oiml" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.legitimacy.link') }}</a>{{ t('login.legitimacy.after') }}
       </p>
+    </div>
     </div>
   </div>
 </template>
