@@ -126,7 +126,7 @@ const adminCurrent = ADMIN_CURRENT[page]
           </div>
         </div>
       ) : (
-        <div data-layout="app">
+        <div data-layout="app" class="flex-1 flex flex-col">
           <IdPage page={page} client:only="vue" />
         </div>
       )}
