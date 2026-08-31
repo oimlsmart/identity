@@ -469,7 +469,7 @@ async function submitReset() {
          posture): a published problem on the estate's own status service
          surfaces here, dignified; green and unknown render nothing. -->
     <StatusBanner />
-    <div class="flex-1 flex">
+    <div class="flex-1 flex lg:min-h-0">
     <aside class="hidden lg:flex lg:w-[45%] xl:w-1/2 flex-col relative overflow-hidden bg-brand-950 text-white" data-testid="login-panel">
       <!-- The estate's globe mark, large and faint, anchored to the
            panel's lower corner — the house's own visual language. -->
@@ -481,7 +481,10 @@ async function submitReset() {
       />
       <div class="relative flex-1 flex flex-col p-10 xl:p-14">
         <img :src="branding.logoDark" :alt="branding.productName" class="h-9 w-auto self-start" />
-        <div class="mt-auto pt-16">
+        <!-- The welcome block centers in the panel's middle (never the
+             dead top gap the mt-auto left); the legitimacy line anchors
+             the panel's bottom as its quiet footer. -->
+        <div class="flex-1 flex flex-col justify-center">
           <h2 class="font-serif text-3xl xl:text-4xl font-bold leading-tight" data-testid="login-panel-welcome">{{ t('login.panel.welcome') }}</h2>
           <p class="mt-3 text-base leading-relaxed text-brand-100/85 max-w-md">{{ t('login.panel.intro') }}</p>
           <!-- The rotating feed (the ISO-benchmark structural item 4):
@@ -489,10 +492,17 @@ async function submitReset() {
                document as the offline default. -->
           <SigninPanelFeed />
         </div>
+        <!-- The legitimacy line (the ISO-benchmark quick win, smart's
+             TODO.identity-features/11 item 2): the institutional standing,
+             stated once, on the brand panel (its home) at lg+; the card
+             carries it below on the phone (the panel hides there). -->
+        <p class="mt-auto pt-10 text-sm leading-relaxed text-brand-100/70 max-w-md" data-testid="login-legitimacy-panel">
+          {{ t('login.legitimacy.before') }}<a href="https://www.oiml.org/en/about/what-is-the-oiml" target="_blank" rel="noopener" class="text-brand-200 hover:underline">{{ t('login.legitimacy.link') }}</a>{{ t('login.legitimacy.after') }}
+        </p>
       </div>
     </aside>
 
-    <div class="flex-1 flex items-center justify-center px-4 py-12">
+    <div class="flex-1 flex items-center justify-center px-4 py-12 lg:min-h-0 lg:overflow-y-auto">
     <!-- Loading state -->
     <div v-if="loading" class="flex flex-col items-center gap-4">
       <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
@@ -721,14 +731,8 @@ async function submitReset() {
       </p>
       </template>
 
-      <!-- The legitimacy line (the ISO-benchmark quick win, smart's
-           TODO.identity-features/11 item 2): the institutional standing,
-           stated once, linked to the OIML's own page for the claim,
-           never repeated. The type scale fix (the visual-elevation wave):
-           it reads at the secondary-text size in the readable muted tone
-           (≥ 4.5:1 both modes) — a statement of standing, never the tiny
-           apologetic footnote. -->
-      <p class="mt-8 text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-testid="login-legitimacy">
+      <!-- The legitimacy line on the phone (the panel carries it at lg+). -->
+      <p class="lg:hidden mt-8 text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-testid="login-legitimacy">
         {{ t('login.legitimacy.before') }}<a href="https://www.oiml.org/en/about/what-is-the-oiml" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.legitimacy.link') }}</a>{{ t('login.legitimacy.after') }}
       </p>
     </div>
