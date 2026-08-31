@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "panels": [
+    {
+      "id": "passkeys",
+      "priority": 20,
+      "enabled": true,
+      "startDate": null,
+      "endDate": null,
+      "content": {
+        "badge": { "en": "PASSKEYS", "fr": "CLÉS D'ACCÈS" },
+        "heading": {
+          "en": "Sign in with a passkey — nothing to phish",
+          "fr": "Connectez-vous avec une clé d'accès — rien à hameçonner"
+        },
+        "body": {
+          "en": "A passkey lives on your device and unlocks with it; no secret ever crosses the wire to be stolen or replayed. This service supports passwordless passkeys, second-factor passkeys, and recovery codes — add yours from the account page after your next sign-in.",
+          "fr": "Une clé d'accès réside sur votre appareil et se déverrouille avec lui ; aucun secret ne traverse le réseau pour être dérobé ou rejoué. Ce service prend en charge les clés d'accès sans mot de passe, les clés comme second facteur et les codes de récupération — ajoutez les vôtres depuis la page de compte après votre prochaine connexion."
+        },
+        "cta": null
+      }
+    }
+  ]
+}
