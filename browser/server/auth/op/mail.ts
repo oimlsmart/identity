@@ -56,18 +56,19 @@ import { mailerFor, type MailEnv, type MailPosture } from '@oimlsmart/platform-s
 
 export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
 
-/** The DEFAULT mail brand mark: the self-hosted globe, referenced by its
- *  absolute production URL (email clients need an ABSOLUTE public image
- *  URL and the platform's www asset path 404s today, so the OP serves
- *  its own copy, browser/public/brand/). The globe is the SMART
- *  program's light mark (deep-blue line art on transparency) — the
- *  light variant because the header sits on the light card.
+/** The DEFAULT mail brand mark: the OIML SMART logo (the globe + the
+ *  OIML/SMART wordmark), referenced by its absolute production URL (email
+ *  clients need an ABSOLUTE public image URL and the platform's www asset
+ *  path 404s today, so the OP serves its own copy,
+ *  browser/public/brand/oiml-smart-logo.png — the estate's
+ *  assets/oiml-logo_smart-light.svg rendered to PNG: no SVG in email).
+ *  The light variant because the header sits on the light card.
  *
  *  SELF-HOST NOTE (TODO.self-host/02): a self-hosted OP that configures
  *  a mailer must declare OP_MAIL_LOGO_URL to its OWN absolute https
  *  image URL — the default names the estate's domain, and mail bearing
  *  another deployment's brand is the leak this env closes. */
-export const OP_MAIL_LOGO_URL = 'https://id.oimlsmart.org/brand/oiml-smart-globe-light.png'
+export const OP_MAIL_LOGO_URL = 'https://id.oimlsmart.org/brand/oiml-smart-logo.png'
 
 /** The deployment's mail brand mark: the OP_MAIL_LOGO_URL env wins, the
  *  estate's self-hosted default otherwise. */
@@ -204,9 +205,10 @@ export function renderOpMail(
     + `<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${preheader}</div>`
     + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f3ed"><tr><td align="center" style="padding:32px 16px">'
     + '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px">'
-    // The branded header: the self-hosted globe + the service name.
+    // The branded header: the OIML SMART logo + the service name (the logo's
+    // natural ratio — the wordmark lockup is 110:96, never squished square).
     + '<tr><td style="padding:0 8px 20px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
-    + `<td width="40" valign="middle"><img src="${logoUrl}" width="40" height="40" alt="${product}" style="display:block;border:0;outline:none"></td>`
+    + `<td width="44" valign="middle"><img src="${logoUrl}" width="44" height="38" alt="${product}" style="display:block;border:0;outline:none"></td>`
     + `<td valign="middle" style="padding-left:12px;font-family:${SERIF};font-size:19px;line-height:1.2;font-weight:600;color:#001e41">${product}</td>`
     + '</tr></table></td></tr>'
     // The content card on the light canvas.
