@@ -132,9 +132,13 @@ async function bootIdentityStack(): Promise<Stack> {
       OP_ISSUER: ISSUER,
       OP_SIGNING_KEY: await fixtureOpSigningKey(),
       // The quick-wins posture: the ribbon's label (item 5) + the
-      // support affordance's target (item 6).
+      // support affordance's target (item 6). The status projection's
+      // upstream is declared DEAD so the footer's live pill (the
+      // visual-elevation wave) reads its honest "status unknown"
+      // deterministically — never a live-network dependency in CI.
       ENVIRONMENT_LABEL: 'Preview',
       SUPPORT_URL,
+      STATUS_SUMMARY_URL: 'http://127.0.0.1:1/unreachable',
     }, logs)
     const apiBase = `http://localhost:${ID_API}`
     await waitForHttp(`${apiBase}/api/health`, 120_000, logs)
@@ -263,8 +267,14 @@ describe('TODO.identity-features/11 — the ISO-benchmark quick wins', () => {
       expect(ribbon).toContain('this is not the production service')
 
       // Item 2: the legal footer (the www site's own pages) + the status
-      // link + the locale switch, all in the one-line footer. The
+      // affordance + the locale switch, all in the one-line footer. The
       // support link renders once the branding probe lands — wait for it.
+      // The status affordance is the visual-elevation wave's LIVE PILL
+      // (the raw /api/health link is retired): this stack declares a dead
+      // STATUS_SUMMARY_URL, so the pill deterministically reads the
+      // honest degradation — "status unknown", never a fake green; the
+      // full posture walk (green/degraded/down/banner) is id-26's.
+      await page.waitForSelector('[data-testid="shell-status-pill"]', { timeout: SETTLE, polling: 500 })
       await page.waitForSelector('[data-testid="shell-support"]', { timeout: SETTLE, polling: 500 })
       await page.waitForSelector('[data-testid="login-support"]', { timeout: SETTLE, polling: 500 })
       const footerLinks = await page.evaluate(() => {
@@ -272,13 +282,19 @@ describe('TODO.identity-features/11 — the ISO-benchmark quick wins', () => {
         return {
           privacy: read('shell-privacy'),
           terms: read('shell-terms'),
-          status: read('shell-status'),
+          status: read('shell-status-pill'),
           support: read('shell-support'),
         }
       })
+      const pillState = await page.evaluate(() => ({
+        state: document.querySelector('[data-testid="shell-status-pill"]')?.getAttribute('data-state'),
+        text: document.querySelector('[data-testid="shell-status-pill"]')?.textContent?.trim() ?? '',
+      }))
       expect(footerLinks.privacy).toBe('https://www.oimlsmart.org/privacy/')
       expect(footerLinks.terms).toBe('https://www.oimlsmart.org/terms/')
-      expect(footerLinks.status).toContain('/api/health')
+      expect(footerLinks.status).toBe('https://status.oimlsmart.org/')
+      expect(pillState.state).toBe('unknown') // the declared-dead upstream: the honest degradation
+      expect(pillState.text).toContain('Status unknown')
 
       // Item 6: the support affordance — a plain link (this stack's
       // SUPPORT_URL), zero third-party JavaScript.

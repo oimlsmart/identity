@@ -191,10 +191,13 @@ describe('TODO.identity-extract/02a — the identity-native frontend surface', (
     await page.waitForSelector('[data-testid="login-email"]', { timeout: SETTLE, polling: 500 })
     await page.waitForSelector('[data-testid="login-password"]', { timeout: SETTLE, polling: 500 })
     await page.waitForSelector('[data-testid="login-submit"]', { timeout: SETTLE, polling: 500 })
-    // The one-line footer + the status link.
+    // The one-line footer + the status affordance: the visual-elevation
+    // wave's live pill swaps in once the projection probe lands, so the
+    // assertion takes either posture (the static link pre-probe, the
+    // pill after) — the affordance's presence is the contract.
     const footer = await page.evaluate(() => document.querySelector('footer')?.textContent ?? '')
     expect(footer).toContain('the single sign-on service for the oimlsmart.org estate')
-    expect(await page.$('[data-testid="shell-status"]')).not.toBeNull()
+    expect(await page.$('[data-testid="shell-status"], [data-testid="shell-status-pill"]')).not.toBeNull()
     // No platform chrome: no federation nav, no manifest link.
     const platformChrome = await page.evaluate(() => ({
       siteNav: !!document.querySelector('.site-nav, #nav-menu'),
