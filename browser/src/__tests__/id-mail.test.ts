@@ -329,10 +329,11 @@ describe('renderOpMail — the EN/FR templates', () => {
     // The preheader (the inbox preview line) is present but hidden.
     expect(mail.html).toContain('display:none')
     expect(mail.html).toContain('Your OIML SMART Identity account is ready. Set your password to activate it.')
-    // The branded header carries the self-hosted logo at its ABSOLUTE
-    // production URL (email clients need it; the OP serves its own copy).
+    // The branded header carries the self-hosted OIML SMART logo at its
+    // ABSOLUTE production URL (email clients need it; the OP serves its own
+    // copy).
     expect(mail.html).toContain(`<img src="${OP_MAIL_LOGO_URL}"`)
-    expect(OP_MAIL_LOGO_URL).toBe('https://id.oimlsmart.org/brand/oiml-smart-globe-light.png')
+    expect(OP_MAIL_LOGO_URL).toBe('https://id.oimlsmart.org/brand/oiml-smart-logo.png')
     // The primary action is a real button on the brand-600 background
     // (the bgcolor'd cell for Outlook + the styled anchor).
     expect(mail.html).toContain('bgcolor="#004996"')
