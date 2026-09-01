@@ -92,6 +92,7 @@ const ACTION_PREFIXES = [
   { value: '', label: 'every action' },
   { value: 'account.', label: 'account.* (the registry’s acts)' },
   { value: 'account.sign_in', label: 'sign-ins (password)' },
+  { value: 'account.sign_in_probe', label: 'the status probe’s sign-in checks' },
   { value: 'upstream_', label: 'upstream_* (linked methods)' },
   { value: 'client.', label: 'client.* (relying parties)' },
   { value: 'provider.', label: 'provider.* (sign-in providers)' },
@@ -154,6 +155,7 @@ function describe(event: AuditEvent): string {
   switch (event.action) {
     case 'account.sign_in': return `signed in with the password`
     case 'account.sign_in_failed': return `a password sign-in failed for ${String(meta.email ?? event.entity_id)} (${meta.reason === 'deactivated' ? 'the account is deactivated' : 'invalid credentials'})`
+    case 'account.sign_in_probe': return `the status probe exercised the sign-in route for ${String(meta.email ?? event.entity_id)} (the estate's monitoring cadence — never counted as a failure)`
     case 'account.sessions_revoked': return meta.by === 'administrator' ? `the administrator ended every session of ${String(meta.email ?? event.entity_id)} (${String(meta.count ?? 0)})` : `signed out ${String(meta.count ?? 0)} other session(s)`
     case 'account.session_revoked': return meta.by === 'administrator' ? 'a session ended (the administrator)' : 'a session ended'
     case 'upstream_sign_in': return `signed in with ${String(meta.provider ?? '')} (${String(meta.handle ?? '')})`

@@ -28,8 +28,10 @@ function base64urlDecode(s: string): Uint8Array {
 }
 
 /** Constant-time equality (no crypto.timingSafeEqual on Workers — the
- *  length check leaks only what the caller already knows). */
-function timingSafeEqual(a: string, b: string): boolean {
+ *  length check leaks only what the caller already knows). Shared with
+ *  the status-probe recognition (auth/op/probe.ts) — the ONE compare
+ *  every secret-vs-presented check rides. */
+export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false
   let diff = 0
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)

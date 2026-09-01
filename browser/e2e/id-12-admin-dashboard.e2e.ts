@@ -20,7 +20,10 @@
 //   leg 3  the SECURITY surface: five failed passwords flag the burst
 //          (the threshold is named), the audit log filters, the CSV
 //          export answers an attachment over the current view, and the
-//          live access review names the privileged holders;
+//          live access review names the privileged holders; the
+//          recognized status probe's cadence lands account.sign_in_probe
+//          — never a burst, never the feeds — with the raw chain
+//          retaining the rows for the log's filter;
 //   leg 4  the CLIENTS activity: a real authorize→token exchange (the
 //          API-side drive) lands client.token_issued, and the console's
 //          per-client strip shows the issuance.
@@ -150,6 +153,9 @@ async function bootIdentityStack(): Promise<Stack> {
       DEMO_ACCOUNTS_ENABLED: 'true',
       OP_ISSUER: ISSUER,
       OP_SIGNING_KEY: await fixtureOpSigningKey(),
+      // The status-probe recognition (server/auth/op/probe.ts): leg 3's
+      // probe cadence presents this token as the X-OIML-Probe header.
+      STATUS_PROBE_TOKEN: 'id12-probe-token',
       // The heartbeat route's source is the stub (deterministic, never
       // the real GitHub).
       OP_HEARTBEAT_API_BASE: `http://127.0.0.1:${GH_STUB}`,
@@ -478,6 +484,35 @@ describe('TODO.identity-sso/01 — the admin dashboard', () => {
     await page.waitForSelector('[data-testid="op-sec-review-holders"]', { timeout: SETTLE, polling: 500 })
     const holders = await page.$eval('[data-testid="op-sec-review-holders"]', el => el.textContent ?? '')
     expect(holders).toContain('admin@oiml.org')
+
+    // The status probe's cadence (the recognized X-OIML-Probe token):
+    // six exercised invalid-credentials checks on one address — past the
+    // burst threshold — land account.sign_in_probe and never flag.
+    for (let i = 0; i < 6; i++) {
+      const probe = await fetch(`${stack.apiBase}/api/op/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-oiml-probe': 'id12-probe-token' },
+        body: JSON.stringify({ email: 'probe.burst@example.org', password: 'probe' }),
+      })
+      expect(probe.status).toBe(401)
+    }
+    await page.goto(`${stack.base}/op/admin/security`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="op-sec-signals"]', { timeout: SETTLE, polling: 500 })
+    await page.waitForSelector(`[data-testid="op-sec-burst-${hammered.id}"]`, { timeout: SETTLE, polling: 500 })
+    expect(await page.$('[data-testid="op-sec-burst-probe.burst@example.org"]'), 'the probe cadence never flags a burst').toBeNull()
+
+    // The raw chain retains the rows: the log's action filter surfaces
+    // them with the honest readable line.
+    await page.select('[data-testid="op-sec-audit-action"]', 'account.sign_in_probe')
+    await page.waitForFunction(
+      () => {
+        const items = [...document.querySelectorAll('[data-testid^="op-sec-audit-event-"]')]
+        return items.length >= 6
+          && items.every(el => el.textContent?.includes('account.sign_in_probe'))
+          && items.some(el => el.textContent?.includes('the status probe exercised the sign-in route'))
+      },
+      { timeout: SETTLE, polling: 500 },
+    )
   })
 
   it('leg 4 — the clients console: a real exchange lands the issuance; the strip shows it', { timeout: 900_000 }, async () => {

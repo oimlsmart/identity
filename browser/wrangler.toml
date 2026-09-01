@@ -128,6 +128,15 @@ SUPPORT_URL = "mailto:info@oimlsmart.org"
 # until a provider is configured (see the commented blocks above).
 EMAIL_FROM = "OIML SMART Identity <no-reply@oimlsmart.org>"
 # MAIL_PROVIDER_URL = "https://api.resend.com/emails"
+# The estate status probe's recognition token (server/auth/op/probe.ts):
+# the status service's sign-in probe presents it as the X-OIML-Probe
+# header so its exercised invalid-credentials checks audit as the honest
+# account.sign_in_probe (excluded from the feeds + the burst signal)
+# instead of account.sign_in_failed. The SAME value is a Worker secret
+# on BOTH workers (oimlsmart/status's prober too), set with:
+#   npx wrangler secret put STATUS_PROBE_TOKEN --env identity
+# Unset, the recognition is off entirely — every caller is a normal
+# caller and the probe's rows land as ordinary sign_in_failed.
 INSTANCE_PROFILE_YAML = '''
 identity:
   org_id: oimlsmart-id
