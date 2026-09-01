@@ -32,7 +32,7 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, encodeOrgMemberCone, parseOrgMemberCone, type AuthUserPayload, type OrgMembership, type ServerStore } from '@oimlsmart/platform-server/store'
+import { getStore, encodeOrgMemberCone, parseOrgMemberCone, type AuthUserPayload, type OrgMembership, type ServerStore, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
 import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
@@ -53,9 +53,13 @@ interface MembershipGrant {
 /** A member row for the consoles: the membership + the account's
  *  display fields (never credential material). The cone rides as the
  *  parsed posture (TODO.identity-features/09) — the membership's own
- *  row carries the canonical string; the console renders the posture. */
-async function memberView(store: ServerStore, membership: OrgMembership) {
-  const account = (await store.listUsers()).find(u => u.id === membership.userId) ?? null
+ *  row carries the canonical string; the console renders the posture.
+ *  The LIST caller (the people slice) passes the request's one users
+ *  read (the endpoint-scaling doctrine — a per-member listUsers was one
+ *  full scan per member); the single-membership acts keep the one read. */
+async function memberView(store: ServerStore, membership: OrgMembership, usersById?: Map<string, UserAdminRow>) {
+  const account = (usersById?.get(membership.userId)
+    ?? (await store.listUsers()).find(u => u.id === membership.userId)) ?? null
   return {
     userId: membership.userId,
     name: account?.name ?? '(erased account)',
@@ -207,11 +211,15 @@ export function createOpMembershipsRouter(): Hono {
     const store = getStore()
     const org = await resolveRegistryOrg(store, scoped.orgId)
     if (!org) return c.json({ error: `organization '${scoped.orgId}' is not on the organization registry` }, 404)
-    const members = await store.listOrgMembers(scoped.orgId)
+    // The accounts join reads the users table ONCE — the per-member
+    // listUsers this replaces was one full scan per member (the
+    // endpoint-scaling doctrine: prefetch once, group in memory).
+    const [members, users] = await Promise.all([store.listOrgMembers(scoped.orgId), store.listUsers()])
+    const usersById = new Map(users.map(u => [u.id, u]))
     return c.json({
       grant: gate.grant.kind,
       org: { id: org.id, name: org.name, shortName: org.shortName, kind: org.kind, country: org.country, state: org.state, registered: org.registered, roles: org.roles },
-      members: await Promise.all(members.map(m => memberView(store, m))),
+      members: await Promise.all(members.map(m => memberView(store, m, usersById))),
     })
   })
 

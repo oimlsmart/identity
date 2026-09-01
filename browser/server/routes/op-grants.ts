@@ -50,8 +50,15 @@ export function createOpGrantsRouter(): Hono {
     const { user, error } = await requireUser(c)
     if (error || !user) return error!
     const store = getStore()
-    const rows = await store.listConsentGrants(user.id)
-    return c.json({ grants: await Promise.all(rows.map(row => consentGrantRow(store, row))) })
+    // The client registry loads ONCE for the whole list — a per-grant
+    // getOidcClient was one store round trip per grant (the
+    // endpoint-scaling doctrine: prefetch once, group in memory).
+    const [rows, clients] = await Promise.all([
+      store.listConsentGrants(user.id),
+      store.listOidcClients(),
+    ])
+    const clientsById = new Map(clients.map(cl => [cl.clientId, cl]))
+    return c.json({ grants: await Promise.all(rows.map(row => consentGrantRow(store, row, clientsById))) })
   })
 
   // DELETE /api/op/account/grants/:id — the revoke (the store's guard:
