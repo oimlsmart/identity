@@ -22,6 +22,10 @@ interface ChangeContext {
   email: string
   newEmail: string
   expiresAt: string
+  /** TODO.identity-features/01: the ceremony the link carries —
+   *  'change' (the primary-address replacement) or 'add' (the added
+   *  address's own verification). */
+  kind?: 'change' | 'add'
 }
 
 const route = useRoute()
@@ -33,9 +37,9 @@ const failure = ref<{ kind: string; message: string } | null>(null)
 const context = ref<ChangeContext | null>(null)
 const confirming = ref(false)
 const error = ref<string | null>(null)
-/** The completed change's honest outcome (verified = the link traveled
- *  by mail to the new mailbox). */
-const done = ref<{ email: string; verified: boolean } | null>(null)
+/** The completed ceremony's honest outcome (verified = the link
+ *  traveled by mail to the new mailbox). */
+const done = ref<{ email: string; verified: boolean; kind?: 'change' | 'add' } | null>(null)
 
 function fmtDate(iso: string): string {
   const d = new Date(iso)
@@ -117,16 +121,19 @@ async function confirm() {
           </p>
         </template>
 
-        <!-- The completed change. -->
+        <!-- The completed ceremony. -->
         <template v-else-if="done">
-          <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2" data-testid="op-email-change-done">Email address changed</h1>
-          <p class="text-sm text-slate-600 dark:text-slate-300">
+          <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2" data-testid="op-email-change-done">{{ done.kind === 'add' ? 'Email address verified' : 'Email address changed' }}</h1>
+          <p v-if="done.kind === 'add'" class="text-sm text-slate-600 dark:text-slate-300">
+            <span class="font-medium">{{ done.email }}</span> now signs in to your OIML SMART account alongside your other addresses, and receives the account's security notices.
+          </p>
+          <p v-else class="text-sm text-slate-600 dark:text-slate-300">
             Your OIML SMART account now signs in with <span class="font-medium">{{ done.email }}</span>.
           </p>
-          <p v-if="done.verified" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-email-change-verified">
+          <p v-if="done.verified && done.kind !== 'add'" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-email-change-verified">
             The new address is verified: you opened the link that was emailed to it.
           </p>
-          <p v-else class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-email-change-unverified">
+          <p v-else-if="!done.verified" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-email-change-unverified">
             This link was shown on screen (no mailer is configured), so the new address stays marked "not verified" until a mailed link can confirm it.
           </p>
           <p class="mt-4 text-center text-xs">
@@ -136,13 +143,21 @@ async function confirm() {
 
         <!-- The confirmation. -->
         <template v-else-if="context">
-          <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2">Change the email address</h1>
-          <p class="text-sm text-slate-600 dark:text-slate-300 mb-4" data-testid="op-email-change-context">
+          <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2">{{ context.kind === 'add' ? 'Confirm the email address' : 'Change the email address' }}</h1>
+          <p v-if="context.kind === 'add'" class="text-sm text-slate-600 dark:text-slate-300 mb-4" data-testid="op-email-change-context">
+            <span class="font-medium">{{ context.name }}</span>, this link confirms
+            <span class="font-medium">{{ context.newEmail }}</span> as an address on your OIML SMART account.
+          </p>
+          <p v-else class="text-sm text-slate-600 dark:text-slate-300 mb-4" data-testid="op-email-change-context">
             <span class="font-medium">{{ context.name }}</span>, this link moves your OIML SMART account
             from <span class="font-medium">{{ context.email }}</span>
             to <span class="font-medium">{{ context.newEmail }}</span>.
           </p>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
+          <p v-if="context.kind === 'add'" class="text-xs text-slate-500 dark:text-slate-400 mb-4">
+            The link works exactly once and expires {{ fmtDate(context.expiresAt) }}. Once confirmed, the
+            address signs in to the same account and receives its security notices.
+          </p>
+          <p v-else class="text-xs text-slate-500 dark:text-slate-400 mb-4">
             The link works exactly once and expires {{ fmtDate(context.expiresAt) }}. Sign-ins then use the
             new address; nothing else about the account changes.
           </p>
@@ -158,7 +173,7 @@ async function confirm() {
             @click="confirm"
           >
             <div v-if="confirming" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            {{ confirming ? 'Changing…' : 'Confirm the change' }}
+            {{ confirming ? (context.kind === 'add' ? 'Confirming…' : 'Changing…') : (context.kind === 'add' ? 'Confirm the address' : 'Confirm the change') }}
           </button>
         </template>
 

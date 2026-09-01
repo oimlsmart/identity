@@ -48,7 +48,7 @@ import { verifyTotp } from '../auth/op/totp'
 import { hashRecoveryCode, recoveryCodePlausible } from '../auth/op/recovery'
 import { verifyAssertion, CeremonyError } from '../auth/op/webauthn'
 import { webauthnBindingFor } from './op-factors'
-import { sendOpMail } from '../auth/op/mail'
+import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '@oimlsmart/platform-server/mailer'
 import {
   auditFactor,
@@ -75,13 +75,16 @@ export function createOpMfaRouter(): Hono {
   })
 
   /** The lockout email: the burned attempt surfaces to the account
-   *  (never blocking the path — the mailer doctrine). */
+   *  (never blocking the path — the mailer doctrine).
+   *  TODO.identity-features/01: the notice fans out to the primary PLUS
+   *  every verified additional (the "was this you?" must reach every
+   *  proven mailbox — auth/op/mail.ts's sendOpSecurityMail). */
   async function notifyMfaLocked(c: Context, userId: string): Promise<void> {
     const account = await getStore().getUserById(userId)
     if (!account) return
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
-    await sendOpMail(runtimeEnv<MailEnv>(c), {
-      to: account.email,
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+      userId,
       template: 'mfa_locked',
       issuer,
       params: { name: account.name, when: new Date().toISOString().slice(0, 16).replace('T', ' ') },
@@ -89,13 +92,14 @@ export function createOpMfaRouter(): Hono {
   }
 
   /** The new-sign-in notification (the op-accounts posture: every entry
-   *  tells the account holder; never blocks the path). */
+   *  tells the account holder; never blocks the path; the 01 fan-out
+   *  like the lockout's). */
   async function notifySignIn(c: Context, userId: string, methodKey: string): Promise<void> {
     const account = await getStore().getUserById(userId)
     if (!account) return
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
-    await sendOpMail(runtimeEnv<MailEnv>(c), {
-      to: account.email,
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+      userId,
       template: 'signin',
       issuer,
       params: { name: account.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), method: methodKey },
