@@ -61,6 +61,13 @@ before it can reach a relying party.
   need store/profile/mailer machinery land in
   `oimlsmart/platform-server` and arrive here as a version bump, never
   as copies here.
+- **A list endpoint's store-call count is invariant to row count.** The
+  endpoint-scaling gate proves it per endpoint per PR
+  (`browser/src/__tests__/endpoint-scaling.test.ts`, the doctrine in
+  `docs/deployment/endpoint-scaling.md`): prefetch the referenced sets
+  once per request, group in memory, never `await` a store read inside
+  a per-row loop. Budget exceptions are declared per leg with the named
+  follow-up.
 - **No secrets in the repo.** `OP_SIGNING_KEY`, `MAIL_PROVIDER_KEY`,
   the upstream-provider client pairs: Worker secrets, declared with
   `wrangler secret put`. The runbooks name them; the code never carries
