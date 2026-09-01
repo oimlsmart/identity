@@ -1093,6 +1093,14 @@ export function createOpAccountsRouter(): Hono {
     if (await store.findUserByEmail(email)) {
       return c.json({ error: `Another account already uses ${email}.` }, 409)
     }
+    // TODO.identity-features/01: the account's OWN additional addresses
+    // hold the address too — a "change" to one of them is a PROMOTION,
+    // and the completion's cross-table conflict would burn the link
+    // honestly. Name the right act now. (Another account's additional
+    // still completes to the honest burn — the re-check's doctrine.)
+    if ((await store.listAccountEmails(user.id)).some(e => !e.isPrimary && e.email === email)) {
+      return c.json({ error: `${email} is already on this account as an additional address — make it the primary from the emails section instead.` }, 409)
+    }
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     const token = mintEnrollmentToken() // the enrollment doctrine: 256-bit random, the row is its proof
     const verificationUrl = `${issuer}/op/email-change?token=${encodeURIComponent(token)}`

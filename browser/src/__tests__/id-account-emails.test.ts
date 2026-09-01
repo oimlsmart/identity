@@ -194,6 +194,20 @@ describe('the additional-address add', () => {
     expect((await emailsOf(cookie)).length).toBe(2)
   })
 
+  it('the legacy CHANGE flow names the promotion when the target is the account\'s own additional', async () => {
+    const { cookie } = await enrollAccount('nina@example.org', 'Nina Example')
+    await app.request('/api/op/account/emails', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ email: 'nina.alias@example.org' }),
+    })
+    const change = await app.request('/api/op/account/email', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ email: 'nina.alias@example.org' }),
+    })
+    expect(change.status).toBe(409)
+    expect((await change.json() as { error: string }).error).toContain('make it the primary')
+  })
+
   it('the unverified additional never signs in and never resolves the reset', async () => {
     const { cookie } = await enrollAccount('dana@example.org', 'Dana Example')
     await app.request('/api/op/account/emails', {
