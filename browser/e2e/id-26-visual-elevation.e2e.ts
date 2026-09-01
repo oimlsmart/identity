@@ -283,7 +283,7 @@ describe('TODO.identity-features/11 — the visual-elevation wave', () => {
         panelVisible: (document.querySelector('[data-testid="login-panel"]') as HTMLElement).offsetParent !== null,
         panelWidth: (document.querySelector('[data-testid="login-panel"]') as HTMLElement).getBoundingClientRect().width,
       }))
-      expect(desktop.welcome).toContain('One account for the whole estate')
+      expect(desktop.welcome).toContain('One account for all OIML services')
       expect(desktop.badge).toBe('PASSKEYS')
       expect(desktop.heading).toContain('passkey')
       expect(desktop.panelVisible).toBe(true)
@@ -300,7 +300,7 @@ describe('TODO.identity-features/11 — the visual-elevation wave', () => {
         welcome: document.querySelector('[data-testid="login-panel-welcome"]')?.textContent ?? '',
         heading: document.querySelector('[data-testid="login-panel-heading"]')?.textContent ?? '',
       }))
-      expect(french.welcome).toContain('écosystème')
+      expect(french.welcome).toContain('services de l’OIML')
       expect(french.heading).toContain('clé d\'accès')
       await page.evaluate(() => (document.querySelector('[data-testid="locale-en"]') as HTMLElement).click())
     })

@@ -309,7 +309,7 @@ describe('TODO.identity-features/11 — the ISO-benchmark quick wins', () => {
         const el = document.querySelector('[data-testid="login-legitimacy"]')
         return { text: el?.textContent ?? '', href: (el?.querySelector('a') as HTMLAnchorElement | null)?.href ?? null }
       })
-      expect(legitimacy.text).toContain('Operated for the OIML-CS ecosystem of the OIML')
+      expect(legitimacy.text).toContain('Operated by OIML')
       expect(legitimacy.text).toContain('uniting member states in legal metrology')
       expect(legitimacy.href).toBe('https://www.oiml.org/en/about/what-is-the-oiml')
     })
