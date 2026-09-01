@@ -418,8 +418,10 @@ describe('TODO.identity-features/01 — multiple emails per account (the identit
       flog(page, 'leg2: verified; signing in WITH THE SECONDARY through the form')
 
       // The sign-in WITH THE SECONDARY: the form lands on the account
-      // page whose identity is the PRIMARY (the claims' source).
-      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      // page whose identity is the PRIMARY (the claims' source). The
+      // redirect query names the landing (the login page's own
+      // mechanism — its default is /op/home, the leg-2 lesson).
+      await page.goto(`${stack.base}/?redirect=${encodeURIComponent('/op/account')}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await opFormSignIn(page, SECONDARY, UNA.password)
       await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
       expect(new URL(page.url()).pathname).toBe('/op/account')
