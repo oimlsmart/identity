@@ -322,6 +322,20 @@ describe('renderOpMail — the EN/FR templates', () => {
     expect(signin.text).toContain('at 2026-08-17 03:08 UTC by GitHub')
   })
 
+  it('TODO.identity-features/01 — the verify_added_email template renders its own ADD copy (EN/FR)', () => {
+    const en = renderOpMail('verify_added_email', 'en', { ...params, verifyUrl: 'https://id.oimlsmart.org/op/email-change?token=x' })
+    expect(en.subject).toBe('Confirm the address added to your OIML SMART Identity account')
+    expect(en.text).toContain('was added to your OIML SMART Identity account')
+    expect(en.text).toContain('https://id.oimlsmart.org/op/email-change?token=x')
+    expect(en.text).not.toContain('{')
+    expect(en.html).toContain('Confirm the address') // the action label
+    expect(en.html).toContain('href="https://id.oimlsmart.org/op/email-change?token=x"')
+    const fr = renderOpMail('verify_added_email', 'fr', { ...params, verifyUrl: 'https://id.oimlsmart.org/op/email-change?token=x' })
+    expect(fr.subject).toBe('Confirmez l’adresse ajoutée à votre compte OIML SMART Identity')
+    expect(fr.text).toContain('a été ajoutée à votre compte')
+    expect(fr.text).not.toContain('{')
+  })
+
   // ── the redesigned shell (the 2026-08 rebrand) ──────────────────────
 
   it('the redesigned shell: the hidden preheader, the self-hosted logo, the brand-600 button', () => {

@@ -157,6 +157,11 @@ THIS is your user key, never the email), `aud` (your client_id), `exp`
 (validate with ≤ 60 s leeway), `email`, `name`, plus the policy-gated
 families:
 
+`email` is the account's PRIMARY address (TODO.identity-features/01: an
+account may hold several verified addresses — any of them signs in — and
+the holder may move the primary between them). The claim's shape never
+changes, but its VALUE is not a stable identifier: `sub` is.
+
 - `roles` — the account's estate role codes (see §6 for the vocabulary).
 - `groups` — the account's group memberships.
 - `org` — the account's registered organization affiliation.

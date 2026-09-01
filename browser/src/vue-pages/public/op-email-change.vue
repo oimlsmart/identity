@@ -1,16 +1,19 @@
 <script setup lang="ts">
 // ═══════════════════════════════════════════════════════════════════
-// The verify-new-email landing page (TODO.identity/06) — the email
-// change's one-time link (?token=…) resolves here: the account, the
-// from/to addresses, a confirm act. The ceremony mirrors the account
-// setup page's (op-setup.vue): the token is consumed ATOMICALLY at
-// confirm (one-time means one-time), an expired link (24 h) is burned
-// on presentation, and a fresh change request voids the earlier links
-// (only the newest works — the consumed card says so).
+// The verify-an-address landing page (TODO.identity/06 +
+// TODO.identity-features/01) — the one-time link (?token=…) resolves
+// here: the account, the address(es), a confirm act. The token's KIND
+// names the ceremony (the API carries it): 'change' (the
+// primary-address replacement) or 'add' (the added address's own
+// verification — the copy names the add, never the move). The ceremony
+// mirrors the account setup page's (op-setup.vue): the token is
+// consumed ATOMICALLY at confirm (one-time means one-time), an expired
+// link (24 h) is burned on presentation, and a fresh request voids the
+// earlier links of the same ceremony target.
 //
-// The completion may run signed out (the link may arrive by mail once
-// TODO.identity/09's mailer lands): the token IS the proof. A link that
-// was SHOWN on screen (no mailer configured) applies the change without
+// The completion may run signed out (the link arrives by mail): the
+// token IS the proof. A link that was SHOWN on screen (no mailer
+// configured — the 'change' ceremony only) applies the change without
 // verifying the mailbox; the result card says so honestly.
 // ═══════════════════════════════════════════════════════════════════
 import { ref, onMounted } from 'vue'
