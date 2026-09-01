@@ -100,7 +100,11 @@ function parseAuditEvent(data: string): AuditEvent | null {
   }
 }
 
-/** The sign-in outcome families the overview + security surfaces count. */
+/** The sign-in outcome families the overview + security surfaces count.
+ *  The status probe's account.sign_in_probe never joins the failure
+ *  family: the honest monitoring cadence is not an attack signal (the
+ *  raw chain retains the rows; the queryable audit log below carries
+ *  them). */
 const SIGN_IN_OK = new Set(['account.sign_in', 'upstream_sign_in'])
 const SIGN_IN_FAIL = new Set(['account.sign_in_failed', 'upstream_refused'])
 /** The failed-login burst rule (stated in the answer, never hidden):
@@ -339,7 +343,7 @@ export function createOpDashboardRouter(): Hono {
           succeeded: series.reduce((n, d) => n + d.succeeded, 0),
           failed: series.reduce((n, d) => n + d.failed, 0),
         },
-        note: 'UTC day buckets from the audit journal (account.sign_in + upstream_sign_in against account.sign_in_failed + upstream_refused)',
+        note: 'UTC day buckets from the audit journal (account.sign_in + upstream_sign_in against account.sign_in_failed + upstream_refused; the status probe’s account.sign_in_probe rows never count)',
       },
       anomaliesToday: anomalies,
       liveSessions: live.length,

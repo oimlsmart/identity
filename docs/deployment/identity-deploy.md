@@ -90,6 +90,18 @@ Cloudflare token end to end.
    `cloudflare-identity-production`, and the `OP_CONTRACT_PREVIEW_*`
    pair on the preview environment. Undeclared, those legs skip
    honestly and the public legs still run.
+6. **The status probe's token**: the estate status service
+   (oimlsmart/status, the id-auth-route leg) exercises POST
+   /api/op/login every 60s; presenting the shared token as
+   `X-OIML-Probe` lets this OP label those rows `account.sign_in_probe`
+   (excluded from the feeds + the failed-login burst signal) instead of
+   `account.sign_in_failed`. The SAME value is a Worker secret on BOTH
+   workers — here:
+   `npx wrangler secret put STATUS_PROBE_TOKEN --env identity`
+   (stdin, never argv, never a file), and the matching put on the
+   status worker (its README names it). Unset on either side, the
+   recognition is off entirely and the probe's rows stay ordinary
+   sign_in_failed — the probe still proves the path.
 
 ## The release act
 

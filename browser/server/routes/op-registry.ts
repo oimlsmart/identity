@@ -170,6 +170,11 @@ function parseAuditEvent(data: string): AuditEvent | null {
 }
 
 function isRegistryEvent(event: AuditEvent): boolean {
+  // The status probe's rows never surface in the feeds (the activity
+  // feed here, the account detail's trail): the honest cadence is not
+  // registry news. The raw chain retains them — the dashboard's
+  // queryable audit log (routes/op-dashboard.ts) carries them.
+  if (event.action === 'account.sign_in_probe') return false
   return REGISTRY_ENTITY_TYPES.has(event.entity_type)
     || REGISTRY_ACTION_PREFIXES.some(p => event.action.startsWith(p))
 }

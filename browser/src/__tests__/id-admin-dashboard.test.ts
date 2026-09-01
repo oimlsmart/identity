@@ -14,6 +14,12 @@
 //     deactivated land account.sign_in_failed with the honest reason,
 //     the caller's answers unchanged, the holder's own feed seeing the
 //     attempt;
+//   - the status probe's recognition (auth/op/probe.ts): the recognized
+//     X-OIML-Probe token re-labels the invalid-credentials row
+//     account.sign_in_probe (the answer unchanged), the unrecognized
+//     header and the unset secret stay ordinary callers, the feeds +
+//     the burst signal exclude the probe rows, the raw chain retains
+//     them;
 //   - the token endpoint's audits: client.token_issued on the exchange,
 //     client.token_refused on the wrong secret and the replayed code;
 //   - the security signals: the burst threshold, the refusal split, the
@@ -33,7 +39,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 // The store's DB path is read at module evaluation — set it before any
 // import below touches @oimlsmart/platform-server/store/sqlite (the imports are dynamic).
@@ -360,6 +366,123 @@ describe('the sign-in failure audits', () => {
     const events = await feed.json() as Array<{ action: string }>
     expect(events.map(e => e.action)).toContain('account.sign_in_failed')
     expect(events.map(e => e.action)).toContain('account.sign_in')
+  })
+})
+
+// ── the status probe's honest label (auth/op/probe.ts) ───────────────
+
+describe('the status probe recognition', () => {
+  const PROBE_TOKEN = 'the-test-probe-token'
+
+  /** POST /api/op/login with (or without) the probe header. */
+  async function probeLogin(email: string, token?: string): Promise<Response> {
+    return app.request('/api/op/login', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token !== undefined ? { 'x-oiml-probe': token } : {}),
+      },
+      body: JSON.stringify({ email, password: 'probe' }),
+    })
+  }
+
+  afterEach(() => {
+    // The recognition rides the env; an unset secret is the honest
+    // default every OTHER leg (and every other file) runs under.
+    delete process.env.STATUS_PROBE_TOKEN
+  })
+
+  it('the recognized probe lands account.sign_in_probe — the same uniform 401, the same row shape', async () => {
+    process.env.STATUS_PROBE_TOKEN = PROBE_TOKEN
+    const res = await probeLogin('probe.recognized@example.org', PROBE_TOKEN)
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'Invalid email or password' })
+
+    const rows = (await journal()).filter(e => e.entity_id === 'probe.recognized@example.org')
+    expect(rows.map(e => e.action)).toEqual(['account.sign_in_probe'])
+    expect(rows[0]!.entity_type).toBe('auth')
+    expect(rows[0]!.metadata).toEqual({
+      method: 'password',
+      email: 'probe.recognized@example.org',
+      reason: 'invalid_credentials',
+    })
+  })
+
+  it('an unrecognized header is a normal caller — the unchanged row, the unchanged answer', async () => {
+    process.env.STATUS_PROBE_TOKEN = PROBE_TOKEN
+    const res = await probeLogin('probe.stranger@example.org', 'not-the-token')
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'Invalid email or password' })
+    const rows = (await journal()).filter(e => e.entity_id === 'probe.stranger@example.org')
+    expect(rows.map(e => e.action)).toEqual(['account.sign_in_failed'])
+
+    // No header at all: likewise a normal caller.
+    const bare = await probeLogin('probe.bare@example.org')
+    expect(bare.status).toBe(401)
+    const bareRows = (await journal()).filter(e => e.entity_id === 'probe.bare@example.org')
+    expect(bareRows.map(e => e.action)).toEqual(['account.sign_in_failed'])
+  })
+
+  it('the secret unset turns the recognition off entirely', async () => {
+    delete process.env.STATUS_PROBE_TOKEN
+    const res = await probeLogin('probe.nosecret@example.org', PROBE_TOKEN)
+    expect(res.status).toBe(401)
+    const rows = (await journal()).filter(e => e.entity_id === 'probe.nosecret@example.org')
+    expect(rows.map(e => e.action)).toEqual(['account.sign_in_failed'])
+  })
+
+  it('the feeds exclude the probe rows by default; the raw chain retains them', async () => {
+    process.env.STATUS_PROBE_TOKEN = PROBE_TOKEN
+    const fermat = await invite('fermat.probe@example.org', 'Fermat Probe')
+    await enroll(fermat.setupToken)
+    // The address names an account: the probe row keys on the account id.
+    expect((await probeLogin('fermat.probe@example.org', PROBE_TOKEN)).status).toBe(401)
+    const probeRows = (await journal()).filter(e => e.entity_id === fermat.id && e.action === 'account.sign_in_probe')
+    expect(probeRows).toHaveLength(1)
+
+    // The holder's own feed never shows it (their real sign-in stands).
+    const cookie = (await passwordLogin('fermat.probe@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
+    const feed = await (await app.request('/api/op/account/activity', { headers: { cookie } })).json() as Array<{ action: string }>
+    expect(feed.map(e => e.action)).not.toContain('account.sign_in_probe')
+    expect(feed.map(e => e.action)).toContain('account.sign_in')
+
+    // The admin activity feed never shows it (the account's own rows do).
+    const admin = await demoLogin('admin@oiml.org')
+    const activity = await (await app.request('/api/op/registry/activity?q=fermat.probe', { headers: { cookie: admin } })).json() as Array<{ action: string; metadata?: { email?: string } }>
+    expect(activity.length).toBeGreaterThan(0)
+    expect(activity.map(e => e.action)).not.toContain('account.sign_in_probe')
+
+    // The raw chain retains it: the queryable audit log carries the row.
+    const audit = await (await app.request('/api/op/dashboard/audit?action=account.sign_in_probe', { headers: { cookie: admin } })).json() as { events: Array<{ entity_id: string }> }
+    expect(audit.events.some(e => e.entity_id === fermat.id)).toBe(true)
+  })
+
+  it('the burst signal + the overview anomaly counter never count the probe cadence', async () => {
+    process.env.STATUS_PROBE_TOKEN = PROBE_TOKEN
+    const admin = await demoLogin('admin@oiml.org')
+    const securityBefore = await (await app.request('/api/op/dashboard/security', { headers: { cookie: admin } })).json() as {
+      signals: { failedSignIns: { day: number; week: number; bursts: Array<{ key: string }> } }
+    }
+    const overviewBefore = await (await app.request('/api/op/dashboard/overview', { headers: { cookie: admin } })).json() as {
+      anomaliesToday: { failedSignIns: number }
+    }
+
+    // Six recognized probes on one address — past the burst threshold.
+    for (let i = 0; i < 6; i++) {
+      expect((await probeLogin('probe.burst@example.org', PROBE_TOKEN)).status).toBe(401)
+    }
+
+    const security = await (await app.request('/api/op/dashboard/security', { headers: { cookie: admin } })).json() as {
+      signals: { failedSignIns: { day: number; week: number; bursts: Array<{ key: string }> } }
+    }
+    expect(security.signals.failedSignIns.day, 'the probe cadence never counts as a failure').toBe(securityBefore.signals.failedSignIns.day)
+    expect(security.signals.failedSignIns.week).toBe(securityBefore.signals.failedSignIns.week)
+    expect(security.signals.failedSignIns.bursts.some(b => b.key === 'probe.burst@example.org'), 'no burst on the probe address').toBe(false)
+
+    const overview = await (await app.request('/api/op/dashboard/overview', { headers: { cookie: admin } })).json() as {
+      anomaliesToday: { failedSignIns: number }
+    }
+    expect(overview.anomaliesToday.failedSignIns).toBe(overviewBefore.anomaliesToday.failedSignIns)
   })
 })
 

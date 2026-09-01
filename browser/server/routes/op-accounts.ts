@@ -143,6 +143,7 @@ import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/ma
 import { isActiveRegistryOrg, listRegistryOrganizations, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
 import { hashPassword, passwordPolicy, verifyPasswordLogin } from '../auth/passwords'
+import { isStatusProbe } from '../auth/op/probe'
 import { avatarKey, avatarKeys, avatarMaxBytes, AVATAR_TYPES, sniffAvatar } from '../auth/op/avatars'
 import { getBlobStore } from '../blobs'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
@@ -282,6 +283,12 @@ export function createOpAccountsRouter(): Hono {
   // lands on the audit chain: the success as account.sign_in, the
   // failures as account.sign_in_failed (the dashboard's burst signal +
   // the holder's own feed — TODO.identity-sso/01).
+  // The one re-label: the estate status probe (auth/op/probe.ts — the
+  // recognized X-OIML-Probe token) lands its invalid-credentials
+  // failure as account.sign_in_probe instead, the honest label the
+  // feeds + the burst signal exclude (the raw chain retains it). The
+  // recognition NEVER changes the answer: the same uniform 401, the
+  // same timing, the same write through the exercised path.
   // TODO.identity-sso/03: when the account holds factors, the password
   // alone does NOT open the session — the answer is the pending
   // second-factor challenge (one-time, short-TTL, throttled), and the
@@ -300,7 +307,14 @@ export function createOpAccountsRouter(): Hono {
       // caller's answer stays uniform; the journal keys on the account
       // id when the address names one (the holder then sees the attempt
       // on their own feed), else on the normalized address itself.
-      await audit('account.sign_in_failed', cred?.userId ?? body.email.trim().toLowerCase(), {}, {
+      // The recognized status probe's row carries the honest
+      // account.sign_in_probe label instead — the recognition is read
+      // AFTER the outcome is decided, so it never shapes the answer,
+      // the timing, or an error path (auth/op/probe.ts's doctrine).
+      const action = isStatusProbe(c.req.raw, runtimeEnv<EnvLike>(c))
+        ? 'account.sign_in_probe'
+        : 'account.sign_in_failed'
+      await audit(action, cred?.userId ?? body.email.trim().toLowerCase(), {}, {
         method: 'password',
         email: body.email.trim().toLowerCase(),
         reason: 'invalid_credentials',
@@ -1521,7 +1535,10 @@ export function createOpAccountsRouter(): Hono {
   // GET /api/op/account/activity — the account's OWN sign-in + security
   // events from the OP's audit chain (the account/auth event families the
   // identity routes write), newest first, bounded. Nobody else's events
-  // ever appear: the filter keys on the account's id.
+  // ever appear: the filter keys on the account's id. The status probe's
+  // account.sign_in_probe rows stay out by default (the honest cadence
+  // is not the holder's security news; the raw chain retains them — the
+  // dashboard's queryable audit log carries them).
   accounts.get('/api/op/account/activity', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
@@ -1532,6 +1549,7 @@ export function createOpAccountsRouter(): Hono {
         const e = JSON.parse(row.data) as Record<string, unknown>
         if (e.entity_id !== user.id) continue
         if (e.entity_type !== 'account' && e.entity_type !== 'auth') continue
+        if (e.action === 'account.sign_in_probe') continue
         if (typeof e.id !== 'string' || typeof e.timestamp !== 'string' || typeof e.action !== 'string') continue
         events.push({
           id: e.id,
