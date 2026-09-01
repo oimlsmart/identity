@@ -368,6 +368,46 @@ describe('the designation chain’s rendering', () => {
     expect(legacy.designatedBy).toBeNull()
     expect(legacy.csStatus).toBeNull()
   })
+
+  it('the list reads the memberships ONCE (the bulk seam) — never a per-org loop', async () => {
+    // The performance regression's pin (the production registry import's
+    // 217 orgs × one store round-trip each made the orgs page the
+    // measured 2–11s): the handler loads every membership in ONE query
+    // and groups in memory. The fixture: every lifecycle state across
+    // two orgs, so the counts + the admins list prove the grouping.
+    const mk = async (email: string, name: string) =>
+      (await store.createOpAccount({ email, name, role: 'viewer' }))!.id
+    const ada = await mk('bulk.ada@example.org', 'Bulk Ada')
+    const ben = await mk('bulk.ben@example.org', 'Bulk Ben')
+    const cid = await mk('bulk.cid@example.org', 'Bulk Cid')
+    await store.createOrgMembership({ userId: ada, orgId: 'ut-example', roles: ['org_admin'], state: 'active' })
+    await store.createOrgMembership({ userId: ben, orgId: 'ut-example', roles: ['viewer'], state: 'invited', invitedBy: 'admin@oiml.org' })
+    await store.createOrgMembership({ userId: cid, orgId: 'ut-example', roles: ['viewer'], state: 'disabled' })
+    await store.createOrgMembership({ userId: ada, orgId: 'ms-example', roles: ['viewer'], state: 'active' })
+
+    // The instrumentation wraps the installed singleton (the routes
+    // resolve the SAME object via getStore()): the bulk read counts,
+    // the per-org read must never fire.
+    let bulkReads = 0
+    let perOrgReads = 0
+    const realBulk = store.listAllOrgMemberships.bind(store)
+    const realPerOrg = store.listOrgMembers.bind(store)
+    store.listAllOrgMemberships = async () => { bulkReads += 1; return realBulk() }
+    store.listOrgMembers = async (orgId: string) => { perOrgReads += 1; return realPerOrg(orgId) }
+    try {
+      const list = await json(await app.request(`${ORIGIN}/api/op/registry/orgs`, { headers: { cookie: admin } }), 200)
+      expect(bulkReads, 'one memberships query for the whole list, never one per org').toBe(1)
+      expect(perOrgReads, 'the per-org loop is gone').toBe(0)
+      const ut = list.find((r: any) => r.id === 'ut-example')
+      expect(ut.members).toEqual({ active: 1, invited: 1, disabled: 1 })
+      expect(ut.admins).toEqual([{ userId: ada, name: 'Bulk Ada', email: 'bulk.ada@example.org' }])
+      const ms = list.find((r: any) => r.id === 'ms-example')
+      expect(ms.members).toEqual({ active: 1, invited: 0, disabled: 0 })
+    } finally {
+      store.listAllOrgMemberships = realBulk
+      store.listOrgMembers = realPerOrg
+    }
+  })
 })
 
 // ── the join intake's member path ────────────────────────────────────
