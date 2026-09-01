@@ -49,6 +49,13 @@ jobs:
         working-directory: browser
         run: npx vitest run
 
+      # The endpoint-scaling gate (docs/deployment/endpoint-scaling.md):
+      # the list endpoints' store-call invariance, as its own named
+      # signal (the suite also rides the vitest run above).
+      - name: endpoint-scaling gate (the N+1 doctrine)
+        working-directory: browser
+        run: npx vitest run src/__tests__/endpoint-scaling.test.ts
+
       - name: The OIDC-surface contract gate
         working-directory: browser
         run: npx vitest run --config vitest.e2e.config.ts e2e/op-surface-contract.e2e.ts
