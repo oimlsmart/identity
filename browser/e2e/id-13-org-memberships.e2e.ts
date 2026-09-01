@@ -611,4 +611,44 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     expect(row?.state).toBe('disabled')
     expect(row?.disabledBy).toBe(ORG_ADMIN_EMAIL)
   })
+
+  it('leg 7 — the organizations LIST page: the story’s membership counts render correct (the bulk-read regression’s e2e pin)', { timeout: 900_000 }, async () => {
+    // The API's answer first (the page's assertions key off it): the
+    // story's end state on the Utilizer — Sanne ACTIVE org_admin, the
+    // officer DISABLED (leg 6). The invited/disabled counts and the
+    // admins list are EXACT (the boot's backfill only ever writes ACTIVE
+    // primaries, and never an org_admin); the active count is ≥ 1
+    // honestly (a backfilled demo primary may ride it).
+    const adminCookie = await apiSignIn(stack.apiBase, 'admin@oiml.org')
+    const res = await fetch(`${stack.apiBase}/api/op/registry/orgs`, { headers: { cookie: adminCookie } })
+    expect(res.status).toBe(200)
+    const rows = await res.json() as Array<{
+      id: string
+      members: { active: number; invited: number; disabled: number }
+      admins: Array<{ userId: string; name: string; email: string | null }>
+    }>
+    const utilizer = rows.find(r => r.id === UTILIZER_ID)!
+    expect(utilizer.members.invited).toBe(0)
+    expect(utilizer.members.disabled).toBe(1) // the officer (leg 6)
+    expect(utilizer.members.active).toBeGreaterThanOrEqual(1) // Sanne
+    expect(utilizer.admins.map(a => a.email)).toEqual([ORG_ADMIN_EMAIL])
+    const ia = rows.find(r => r.id === IA_ID)!
+    expect(ia.admins).toEqual([]) // the officer is the IA's staff, never its org admin
+
+    // The PAGE (the owner-escalated surface — the production registry
+    // import's 217 orgs × a per-org read made this the measured 2–11s
+    // load; the one-query pin lives in the unit suite, this leg proves
+    // the page over the wire) renders the same counts.
+    await signOut(page)
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await opSignIn(page, 'admin@oiml.org')
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
+    await page.goto(`${stack.base}/op/admin/organizations`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector(`[data-testid="op-orgs-row-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })
+    const membersCell = await page.$eval(`[data-testid="op-orgs-members-${UTILIZER_ID}"]`, el => el.textContent ?? '')
+    expect(membersCell.trim().startsWith(String(utilizer.members.active))).toBe(true)
+    expect(membersCell).toContain(`${utilizer.members.disabled} disabled`)
+    const adminsCell = await page.$eval(`[data-testid="op-orgs-admins-${UTILIZER_ID}"]`, el => el.textContent ?? '')
+    expect(adminsCell).toContain('Sanne de Vries')
+  })
 })
