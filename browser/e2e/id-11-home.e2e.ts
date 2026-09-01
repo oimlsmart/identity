@@ -440,9 +440,13 @@ describe('the SSO home', () => {
       const assistantHref = await page.$eval('[data-testid="home-card-pubs-assistant"]', el => (el as HTMLAnchorElement).href)
       expect(assistantHref).toBe('https://ai.oimlsmart.org/auth/login')
       expect(await page.$('[data-testid="home-card-machine-relay"]')).toBeNull()
-      // The account menu entry + (the admin) the admin area entry.
+      // The account menu entry + (the admin) the admin area entry. The
+      // admin card links the canonical destination DIRECTLY — /op/admin
+      // stays the redirect fallback for stray URLs, never the card's hop.
       expect(await page.$('[data-testid="home-account"]')).toBeTruthy()
-      expect(await page.$('[data-testid="home-admin"]')).toBeTruthy()
+      const adminCard = await page.$('[data-testid="home-admin"]')
+      expect(adminCard).toBeTruthy()
+      expect(await adminCard!.evaluate(el => (el as HTMLAnchorElement).getAttribute('href'))).toBe('/op/admin/overview')
       await hideDevToolbar(page)
       await page.screenshot({ path: join(SHOTS, 'home-populated-light.png') })
 
