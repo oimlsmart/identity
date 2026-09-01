@@ -121,7 +121,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
-import { getStore, type AuthUserPayload, type OrgRegistryContact, type UserAdminRow } from '@oimlsmart/platform-server/store'
+import { getStore, type AuthUserPayload, type OpClientRoleAssignment, type OrgRegistryContact, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, validateOrgLinks, type RegistryOrg, type RegistryOrgKind } from '../auth/org-registry'
 import { listOrgSigningKeys } from '../auth/org-signing-keys'
@@ -278,12 +278,19 @@ export function createOpRegistryRouter(): Hono {
    *  the account-wide default, [] = the explicit none) through the
    *  client's claims policy (the claim gate + the optional role
    *  allowlist). `reason` is a stable code the page renders in words. */
-  async function appAccessFor(store: ReturnType<typeof getStore>, user: UserAdminRow) {
+  async function appAccessFor(store: ReturnType<typeof getStore>, user: UserAdminRow, assignments: OpClientRoleAssignment[]) {
     const accountRoles = accountRoleSet(user)
     const clients = (await store.listOidcClients()).sort((a, b) => a.name.localeCompare(b.name))
+    // The account's per-client assignments arrive loaded (the caller's
+    // ONE listOpClientRoles read — the aggregate carries them too) and
+    // group by client; a per-client getOpClientRoles loop is one store
+    // round-trip per registered client. A client without a row answers
+    // null exactly like getOpClientRoles (the UNIQUE(user, client) key
+    // makes the Map's last write a non-question).
+    const assignedByClient = new Map(assignments.map(a => [a.clientId, a.roles]))
     const rows = []
     for (const client of clients) {
-      const assigned = await store.getOpClientRoles(user.id, client.clientId)
+      const assigned = assignedByClient.get(client.clientId) ?? null
       const held = assigned ?? accountRoles
       const carriesRoleClaims = !!client.claimsPolicy
         && (client.claimsPolicy.claims.includes('roles') || client.claimsPolicy.claims.includes('groups'))
@@ -324,21 +331,27 @@ export function createOpRegistryRouter(): Hono {
     const role = c.req.query('role') ?? ''
 
     const users = await getStore().listUsers()
-    const rows = []
-    for (const user of users) {
-      if (status === 'active' && !user.active) continue
-      if (status === 'deactivated' && user.active) continue
+    // The per-row reads (the sign-in posture + the linked handles) run
+    // CONCURRENTLY across the candidates — the seam carries no bulk
+    // variant for them, so the wall time is the slowest row's, never
+    // the sum of all rows'. The map preserves the list's order; the
+    // sort below is stable, so the answer is byte-identical to the
+    // sequential loop's.
+    const built = await Promise.all(users.map(async (user) => {
+      if (status === 'active' && !user.active) return null
+      if (status === 'deactivated' && user.active) return null
       if (role) {
         const roles = user.roles?.length ? user.roles : [user.role]
-        if (!roles.includes(role)) continue
+        if (!roles.includes(role)) return null
       }
       const row = await listRow(user)
       if (q) {
         const hay = [user.name, user.email, ...row.links.map(l => l.providerAccountId)]
-        if (!hay.some(s => s.toLowerCase().includes(q))) continue
+        if (!hay.some(s => s.toLowerCase().includes(q))) return null
       }
-      rows.push(row)
-    }
+      return row
+    }))
+    const rows = built.filter((row): row is NonNullable<typeof row> => row !== null)
     rows.sort((a, b) => a.name.localeCompare(b.name))
     return c.json(rows)
   })
@@ -358,12 +371,15 @@ export function createOpRegistryRouter(): Hono {
     // lastLogin, which the session payload does not.
     const user = (await store.listUsers()).find(u => u.id === c.req.param('id'))
     if (!user) return c.json({ error: 'not found' }, 404)
-    const [methods, links, sessions, org, clientRoles, memberships, registryOrgs, profile, trail, appAccess, passkeys, totp, recovery] = await Promise.all([
+    // The per-client role assignments load ONCE — the response's
+    // clientRoles field AND the app-access computation both read this
+    // set (appAccessFor groups it by client, never a per-client loop).
+    const clientRoles = await store.listOpClientRoles(user.id)
+    const [methods, links, sessions, org, memberships, registryOrgs, profile, trail, appAccess, passkeys, totp, recovery] = await Promise.all([
       store.countSignInMethods(user.id),
       store.listIdentityLinks(user.id),
       store.listUserSessions(user.id),
       user.orgId ? resolveRegistryOrg(store, user.orgId) : Promise.resolve(null),
-      store.listOpClientRoles(user.id),
       // TODO.identity/11: the account's memberships + the register's
       // display names for them.
       store.listOrgMemberships(user.id),
@@ -372,7 +388,7 @@ export function createOpRegistryRouter(): Hono {
       // projection the admin row does not carry).
       store.getUserById(user.id),
       accountTrail(store, user.id),
-      appAccessFor(store, user),
+      appAccessFor(store, user, clientRoles),
       store.listWebauthnCredentials(user.id),
       store.listTotpSecrets(user.id),
       store.recoveryCodeState(user.id),
@@ -661,11 +677,20 @@ export function createOpRegistryRouter(): Hono {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
     const store = getStore()
-    const [orgs, users] = await Promise.all([listRegistryOrganizations(store), store.listUsers()])
+    // The memberships load ONCE and group in memory — a per-org
+    // listOrgMembers loop is one store round-trip per organization
+    // (217 sequential reads against the production registry import:
+    // the orgs page's measured 2–11s). The chain counts already
+    // compute in memory below.
+    const [orgs, users, allMemberships] = await Promise.all([
+      listRegistryOrganizations(store), store.listUsers(), store.listAllOrgMemberships(),
+    ])
     const byId = new Map(users.map(u => [u.id, u]))
+    const membershipsByOrg = new Map<string, typeof allMemberships>()
+    for (const m of allMemberships) membershipsByOrg.set(m.orgId, [...(membershipsByOrg.get(m.orgId) ?? []), m])
     const rows = []
     for (const org of orgs) {
-      const memberships = await store.listOrgMembers(org.id)
+      const memberships = membershipsByOrg.get(org.id) ?? []
       const active = memberships.filter(m => m.state === 'active')
       rows.push({
         id: org.id,
