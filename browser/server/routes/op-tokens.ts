@@ -50,7 +50,7 @@ import {
   resolvePatExpiry,
   resolvePatScopesForAccount,
 } from '../auth/op/tokens'
-import { sendOpMail } from '../auth/op/mail'
+import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '@oimlsmart/platform-server/mailer'
 
 type EnvLike = Record<string, string | undefined>
@@ -141,9 +141,11 @@ export function createOpTokensRouter(): Hono {
     })
     // The security notification posture: the holder learns of every mint
     // (never blocking the act — sendOpMail's honest result).
+    // TODO.identity-features/01: the notice fans out to the primary PLUS
+    // every verified additional (auth/op/mail.ts's sendOpSecurityMail).
     const config = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw))
-    await sendOpMail(runtimeEnv<MailEnv>(c), {
-      to: user.email,
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+      userId: user.id,
       template: 'pat_minted',
       issuer: config.issuer,
       params: {

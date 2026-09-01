@@ -75,6 +75,23 @@
 //   GET  /api/op/email-change/:token       — the change page's context
 //   POST /api/op/email-change/:token       — complete the change (consumes
 //                                            the link atomically)
+//   POST /api/op/account/emails            — TODO.identity-features/01:
+//                                            ADD an additional address
+//                                            (lands unverified; the
+//                                            verification link travels by
+//                                            mail only, honestly
+//                                            'unavailable' with no mailer)
+//   POST /api/op/account/emails/:email/verification
+//                                          — resend the added address's
+//                                            verification link
+//   POST /api/op/account/emails/primary    — promote a VERIFIED
+//                                            additional to primary (the
+//                                            old primary stays a verified
+//                                            additional)
+//   DELETE /api/op/account/emails/:email   — remove an additional
+//                                            address (the PRIMARY refuses
+//                                            honestly: promote another
+//                                            first)
 //   POST /api/op/account/password          — set/change the password (every
 //                                            OTHER session is revoked, the
 //                                            best-practice rule)
@@ -111,6 +128,7 @@ import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { clientInfo } from '@oimlsmart/platform-server/client-info'
 import { deliverEmailChangeLink, OP_EMAIL_CHANGE_TTL_MS } from '../auth/op/email-change'
+import { deliverEmailVerificationLink, type EmailVerificationDelivery } from '../auth/op/emails'
 import {
   mintEnrollmentToken,
   OP_ACCOUNT_PROVIDER,
@@ -120,7 +138,7 @@ import {
 import { opRandomToken } from '../auth/op/keys'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { issueAccountInvite } from '../auth/op/enrollment'
-import { sendOpMail, type OpMailResult } from '../auth/op/mail'
+import { sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
 import { isActiveRegistryOrg, listRegistryOrganizations, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
@@ -241,11 +259,13 @@ export function createOpAccountsRouter(): Hono {
 
   /** The new-sign-in notification: every entry tells the account holder.
    *  Never blocks the path — a mail failure is audited, never a sign-in
-   *  failure. */
-  async function notifySignIn(c: Context, user: { email: string; name: string }): Promise<void> {
+   *  failure. TODO.identity-features/01: the notice fans out to the
+   *  primary PLUS every verified additional (the "was this you?" must
+   *  reach every proven mailbox — auth/op/mail.ts's sendOpSecurityMail). */
+  async function notifySignIn(c: Context, user: { id: string; email: string; name: string }): Promise<void> {
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
-    await sendOpMail(runtimeEnv<MailEnv>(c), {
-      to: user.email,
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+      userId: user.id,
       template: 'signin',
       issuer,
       params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' ') },
@@ -362,9 +382,17 @@ export function createOpAccountsRouter(): Hono {
       }, 503)
     }
     const store = getStore()
-    // The admin row carries the provider + the active flag (findUserByEmail's
-    // session-shaped payload does not — the same read registryAccount runs).
-    const account = (await store.listUsers()).find(u => u.email === email) ?? null
+    // TODO.identity-features/01: the reset answers to ANY of the
+    // account's VERIFIED addresses (the primary or a proven additional —
+    // an unverified address never names the account). The link travels
+    // to the address the request NAMED: that mailbox is the proof
+    // channel (the verify-an-address ceremonies' posture, never the
+    // security notices' fan-out).
+    const resolved = await store.findUserByAnyEmail(email)
+    // The admin row carries the provider + the active flag (the
+    // session-shaped payload does not — the same read registryAccount
+    // runs).
+    const account = resolved ? (await store.listUsers()).find(u => u.id === resolved.id) ?? null : null
     if (account && account.provider === OP_ACCOUNT_PROVIDER && account.active) {
       const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
       const token = mintEnrollmentToken()
@@ -376,7 +404,7 @@ export function createOpAccountsRouter(): Hono {
       })
       const setupUrl = setupUrlFor(c, token)
       await sendOpMail(env, {
-        to: account.email,
+        to: email,
         template: 'reset',
         issuer,
         params: { name: account.name, setupUrl, hours: Math.round(OP_ENROLLMENT_TTL_MS / 3_600_000) },
@@ -846,12 +874,16 @@ export function createOpAccountsRouter(): Hono {
     if (!user) return c.json({ error: 'authentication required' }, 401)
     const store = getStore()
     const sessionToken = getCookie(c, SESSION_COOKIE) ?? ''
-    const [methods, sessions, pendingEmailChange, memberships, activeOrg] = await Promise.all([
+    const [methods, sessions, pendingEmailChange, memberships, activeOrg, emails] = await Promise.all([
       store.countSignInMethods(user.id),
       store.listUserSessions(user.id, sessionToken),
       store.getPendingEmailChange(user.id),
       store.listOrgMemberships(user.id),
       store.getSessionActiveOrg(sessionToken),
+      // TODO.identity-features/01: every address of the account (the
+      // primary first) with its verification state — the console's
+      // EMAILS section reads it.
+      store.listAccountEmails(user.id),
     ])
     // The register resolves the display names; the account's own join
     // requests (by email — the row names the requester) show the ask's
@@ -872,6 +904,12 @@ export function createOpAccountsRouter(): Hono {
       },
       passwordSet: methods.password,
       sessions,
+      emails: emails.map(e => ({
+        email: e.email,
+        isPrimary: e.isPrimary,
+        verifiedAt: e.verifiedAt,
+        createdAt: e.createdAt,
+      })),
       pendingEmailChange: pendingEmailChange
         ? { newEmail: pendingEmailChange.newEmail, expiresAt: pendingEmailChange.expiresAt, delivery: pendingEmailChange.deliveredBy }
         : null,
@@ -1101,7 +1139,7 @@ export function createOpAccountsRouter(): Hono {
     if (!user) {
       return c.json({ error: 'unknown', error_description: 'This verification link is not valid. Start the email change again from your account page.' }, 404)
     }
-    return c.json({ name: user.name, email: user.email, newEmail: row.newEmail, expiresAt: row.expiresAt })
+    return c.json({ name: user.name, email: user.email, newEmail: row.newEmail, expiresAt: row.expiresAt, kind: row.kind })
   })
 
   // POST /api/op/email-change/:token — complete the change. The store
@@ -1109,7 +1147,14 @@ export function createOpAccountsRouter(): Hono {
   // judges expiry and the address's uniqueness; a mailed link verifies the
   // new address, a shown one applies the change with the address staying
   // unverified (auth/op/email-change.ts documents why).
+  // TODO.identity-features/01: a kind 'add' link verifies the ADDED
+  // address instead (the account_emails row's stamp) — the audit names
+  // the ceremony that ran.
   accounts.post('/api/op/email-change/:token', async (c) => {
+    // The ceremony's kind rides the token row (read before the
+    // completion burns it — the row persists, the consumed stamp is the
+    // one-time proof).
+    const row = await getStore().getEmailChangeToken(c.req.param('token'))
     const result = await getStore().completeEmailChange(c.req.param('token'))
     if (result.kind === 'expired') {
       return c.json({ error: 'expired', error_description: 'This verification link has expired (it lives 24 hours). Start the change again from your account page.' }, 410)
@@ -1120,8 +1165,147 @@ export function createOpAccountsRouter(): Hono {
     if (result.kind !== 'ok') {
       return c.json({ error: 'used', error_description: 'This verification link is not valid or was already used. Start the change again from your account page.' }, 410)
     }
-    await audit('account.email_changed', result.userId, { userId: result.userId }, { to: result.newEmail, verified: result.verified })
-    return c.json({ ok: true, email: result.newEmail, verified: result.verified })
+    if (row?.kind === 'add') {
+      await audit('account.email_verified', result.userId, { userId: result.userId }, { email: result.newEmail, verified: result.verified })
+    } else {
+      await audit('account.email_changed', result.userId, { userId: result.userId }, { to: result.newEmail, verified: result.verified })
+    }
+    return c.json({ ok: true, email: result.newEmail, verified: result.verified, kind: row?.kind ?? 'change' })
+  })
+
+  // ── multiple emails per account (TODO.identity-features/01) ────────
+  // The account carries a primary + additional addresses. Every
+  // additional verifies INDEPENDENTLY (the kind 'add' ceremony above);
+  // the sign-in + the recovery paths answer to ANY verified one; the
+  // primary switch keeps the old primary as a verified additional; the
+  // primary itself is never removed from under the holder.
+
+  /** The per-address verification send (the add + the resend share it):
+   *  the link travels BY MAIL ONLY (a mailbox proof cannot ride a
+   *  screen — auth/op/emails.ts documents the departure from the change
+   *  flow's shown-link posture); the token mints ONLY on a sent link. */
+  async function sendEmailVerification(
+    c: Context,
+    user: { id: string; name: string },
+    email: string,
+  ): Promise<EmailVerificationDelivery> {
+    const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+    const token = mintEnrollmentToken() // the enrollment doctrine: 256-bit random, the row is its proof
+    const verificationUrl = `${issuer}/op/email-change?token=${encodeURIComponent(token)}`
+    const delivery = await deliverEmailVerificationLink(runtimeEnv<EnvLike>(c), {
+      to: email,
+      name: user.name,
+      issuer,
+      verificationUrl,
+      hours: Math.round(OP_EMAIL_CHANGE_TTL_MS / 3_600_000),
+    })
+    if (delivery !== 'mailer') return 'unavailable'
+    await getStore().createEmailChangeToken({
+      token,
+      userId: user.id,
+      newEmail: email,
+      deliveredBy: 'mailer',
+      kind: 'add',
+      ttlMs: OP_EMAIL_CHANGE_TTL_MS,
+    })
+    return 'mailer'
+  }
+
+  // POST /api/op/account/emails — ADD an additional address. The row
+  // lands UNVERIFIED at once (the unverified state is first-class: it
+  // never signs in, never receives account mail), the verification link
+  // follows by mail when the deployment can send it. A re-add of the
+  // account's own row is the idempotent verification re-send.
+  accounts.post('/api/op/account/emails', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const body = await c.req.json<{ email?: string }>().catch(() => null)
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+    if (!email || !email.includes('@') || email.length > 254) {
+      return c.json({ error: 'A valid email address is required.' }, 400)
+    }
+    if (email === user.email) {
+      return c.json({ error: 'That is already the primary address on this account.' }, 400)
+    }
+    const store = getStore()
+    const outcome = await store.addAccountEmail(user.id, email, user.email)
+    if (outcome === 'conflict') {
+      return c.json({ error: `Another account already uses ${email}.` }, 409)
+    }
+    const delivery = await sendEmailVerification(c, user, email)
+    await audit('account.email_added', user.id, { userId: user.id, userName: user.name }, {
+      email,
+      delivery,
+      ...(outcome === 'present' ? { reAdd: true } : {}),
+    })
+    return c.json({ email, verified: false, delivery }, 201)
+  })
+
+  // POST /api/op/account/emails/:email/verification — resend the added
+  // address's verification link (a fresh one-time link voids the
+  // address's earlier ones). The no-mailer deployment answers 503
+  // honestly (the self-service reset's posture).
+  accounts.post('/api/op/account/emails/:email/verification', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const email = c.req.param('email').trim().toLowerCase()
+    const store = getStore()
+    const row = (await store.listAccountEmails(user.id)).find(e => !e.isPrimary && e.email === email)
+    if (!row) return c.json({ error: 'No such additional address on this account.' }, 404)
+    if (row.verifiedAt) return c.json({ error: 'That address is already verified.' }, 409)
+    const delivery = await sendEmailVerification(c, user, email)
+    if (delivery !== 'mailer') {
+      return c.json({
+        error: 'This deployment cannot send email, so the address stays unverified. Ask your administrator to prove the mailbox out of band — or configure a mailer.',
+        mailAvailable: false,
+      }, 503)
+    }
+    await audit('account.email_verification_requested', user.id, { userId: user.id, userName: user.name }, { email, delivery })
+    return c.json({ email, delivery }, 201)
+  })
+
+  // POST /api/op/account/emails/primary — the PRIMARY switch: a VERIFIED
+  // additional takes over as the account's address of record (the OIDC
+  // `email` claim carries it from then on); the outgoing primary stays
+  // a verified additional (sign-in by it keeps working; it can be
+  // removed afterwards). Registered BEFORE any :email-shaped POST so
+  // the literal wins.
+  accounts.post('/api/op/account/emails/primary', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const body = await c.req.json<{ email?: string }>().catch(() => null)
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+    if (!email) return c.json({ error: 'email is required' }, 400)
+    if (email === user.email) return c.json({ ok: true, unchanged: true })
+    const store = getStore()
+    const result = await store.setPrimaryAccountEmail(user.id, email)
+    if (result === 'unknown') {
+      return c.json({ error: 'That address is not on this account — add it first.' }, 404)
+    }
+    if (result === 'unverified') {
+      return c.json({ error: 'Only a verified address can become the primary — open its verification link first.' }, 409)
+    }
+    await audit('account.email_primary_changed', user.id, { userId: user.id, userName: user.name }, { from: user.email, to: email })
+    return c.json({ ok: true, email })
+  })
+
+  // DELETE /api/op/account/emails/:email — remove an ADDITIONAL address.
+  // The PRIMARY refuses honestly: another verified address must be
+  // promoted first (an account never loses its address of record from
+  // under the holder).
+  accounts.delete('/api/op/account/emails/:email', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const email = c.req.param('email').trim().toLowerCase()
+    const result = await getStore().removeAccountEmail(user.id, email)
+    if (result === 'primary') {
+      return c.json({ error: 'The primary address is never removed. Make another verified address the primary first — then this one can go.' }, 409)
+    }
+    if (result === 'unknown') {
+      return c.json({ error: 'No such additional address on this account.' }, 404)
+    }
+    await audit('account.email_removed', user.id, { userId: user.id, userName: user.name }, { email })
+    return c.json({ ok: true })
   })
 
   // POST /api/op/account/password — set/change the password. When the

@@ -95,7 +95,7 @@ import {
   DELEGATION_TOKEN_TYPE, PAT_EXCHANGE_GRANT, PAT_EXCHANGE_HEARTBEAT_MS, PAT_TOKEN_TYPE,
 } from '../auth/op/tokens'
 import { auditGrant } from '../auth/op/grants'
-import { sendOpMail } from '../auth/op/mail'
+import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '@oimlsmart/platform-server/mailer'
 import { resolveRegistryOrg } from '../auth/org-registry'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
@@ -882,9 +882,13 @@ export function createOpRouter(): Hono {
       // one-shot mark lands when the send resolved (or honestly logged —
       // the console posture); a transient provider failure retries on
       // the next exchange.
+      // TODO.identity-features/01: the notice fans out to the primary
+      // PLUS every verified additional (sendOpSecurityMail); the
+      // one-shot stamp rides the PRIMARY send's result (the address of
+      // record).
       if (patExpiryNoticeDue(pat, nowMs)) {
-        const mail = await sendOpMail(runtimeEnv<MailEnv>(c), {
-          to: account.email,
+        const mail = await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+          userId: account.id,
           template: 'pat_expiring',
           issuer: config.issuer,
           params: { name: account.name, tokenName: pat.name, expires: pat.expiresAt.slice(0, 10) },

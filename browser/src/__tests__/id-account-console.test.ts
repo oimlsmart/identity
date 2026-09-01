@@ -204,8 +204,10 @@ describe('the verify-new-email ceremony', () => {
     const context = await app.request(`/api/op/email-change/${token}`)
     expect(context.status).toBe(200)
     const body = await context.json() as Record<string, unknown>
-    expect(body).toMatchObject({ name: 'Tess Example', email: 'tess@example.org', newEmail: 'tess.new@example.org' })
-    expect(Object.keys(body).sort()).toEqual(['email', 'expiresAt', 'name', 'newEmail'])
+    expect(body).toMatchObject({ name: 'Tess Example', email: 'tess@example.org', newEmail: 'tess.new@example.org', kind: 'change' })
+    // TODO.identity-features/01: the context names the ceremony's kind
+    // ('change' here — the legacy primary replacement).
+    expect(Object.keys(body).sort()).toEqual(['email', 'expiresAt', 'kind', 'name', 'newEmail'])
     const unknown = await app.request('/api/op/email-change/nope')
     expect(unknown.status).toBe(404)
   })

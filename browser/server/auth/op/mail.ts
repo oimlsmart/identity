@@ -14,6 +14,12 @@
 //   verify_email  the confirm-the-new-address message — the template
 //                 ships NOW (EN/FR) for TODO.identity/06's email-change
 //                 flow to send; it wires in when that route lands.
+//   verify_added_email
+//                 the confirm-the-ADDED-address message
+//                 (TODO.identity-features/01): every additional address
+//                 verifies independently — the same one-time-link
+//                 doctrine, the copy naming the add (never "the account
+//                 is moving").
 //   mfa_locked    the second-factor lockout notice (TODO.identity-sso/03:
 //                 a burned sign-in attempt surfaces to the account by
 //                 email — the hard-throttle rule's other half).
@@ -23,6 +29,12 @@
 //   pat_expiring  the token's expiry-soon notice (the same wave: the
 //                 lazy sweep — the notice rides the exchange path, once
 //                 per token, while the automation still works).
+//
+// The SECURITY notices (signin, mfa_locked, pat_minted, pat_expiring)
+// fan out to the primary PLUS every verified additional address
+// (sendOpSecurityMail — the "was this you?" must reach every proven
+// mailbox); the transactional ones (invite, reset, verify_*) keep their
+// single addressed target.
 //
 // The copy lives in the i18n catalogs (src/i18n/en.ts + fr.ts, the
 // mail.* namespace) so the EN/FR lockstep rule covers the outbound mail;
@@ -53,8 +65,9 @@ import { en, type MessageKey } from '../../../src/i18n/en'
 import { fr } from '../../../src/i18n/fr'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { mailerFor, type MailEnv, type MailPosture } from '@oimlsmart/platform-server/mailer'
+import type { ServerStore } from '@oimlsmart/platform-server/store'
 
-export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
+export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'verify_added_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
 
 /** The DEFAULT mail brand mark: the OIML SMART logo (the globe + the
  *  OIML/SMART wordmark), referenced by its absolute production URL (email
@@ -100,6 +113,9 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   reset: { subject: 'mail.reset.subject', preheader: 'mail.reset.preheader', heading: 'mail.reset.heading', body: 'mail.reset.body', why: 'mail.reset.why', action: 'mail.reset.action', link: true },
   signin: { subject: 'mail.signin.subject', preheader: 'mail.signin.preheader', heading: 'mail.signin.heading', body: 'mail.signin.body', why: 'mail.signin.why', link: false },
   verify_email: { subject: 'mail.verifyEmail.subject', preheader: 'mail.verifyEmail.preheader', heading: 'mail.verifyEmail.heading', body: 'mail.verifyEmail.body', why: 'mail.verifyEmail.why', action: 'mail.verifyEmail.action', link: true },
+  // TODO.identity-features/01: the added address's own verification —
+  // the same one-time-link ceremony, the copy naming the ADD.
+  verify_added_email: { subject: 'mail.verifyAddedEmail.subject', preheader: 'mail.verifyAddedEmail.preheader', heading: 'mail.verifyAddedEmail.heading', body: 'mail.verifyAddedEmail.body', why: 'mail.verifyAddedEmail.why', action: 'mail.verifyAddedEmail.action', link: true },
   // TODO.identity-sso/03: the second-factor lockout notice — a pure
   // notification like signin (no link, no expiry).
   mfa_locked: { subject: 'mail.mfaLocked.subject', preheader: 'mail.mfaLocked.preheader', heading: 'mail.mfaLocked.heading', body: 'mail.mfaLocked.body', why: 'mail.mfaLocked.why', link: false },
@@ -165,9 +181,10 @@ export function renderOpMail(
   const logoUrl = escapeHtml(typeof params.logoUrl === 'string' && params.logoUrl ? String(params.logoUrl) : OP_MAIL_LOGO_URL)
 
   // The action URL is per-template (the setup link for invite/reset,
-  //  the confirmation link for verify_email) — never "whichever param
-  //  happens to be present" (a caller carrying both would mis-lift).
-  const actionKey = template === 'verify_email' ? 'verifyUrl' : 'setupUrl'
+  //  the confirmation link for verify_email / verify_added_email) —
+  //  never "whichever param happens to be present" (a caller carrying
+  //  both would mis-lift).
+  const actionKey = template === 'verify_email' || template === 'verify_added_email' ? 'verifyUrl' : 'setupUrl'
   const actionUrl = keys.link && typeof params[actionKey] === 'string' ? String(params[actionKey]) : null
 
   // ── The plain-text part: the message IS the text. The expiry note sits
@@ -280,4 +297,45 @@ export async function sendOpMail(
     console.error('[mail] the send raised past the mailer seam:', (err as Error).message)
     return { sent: false, posture: 'console', error: (err as Error).message }
   }
+}
+
+/** The security-notification fan-out (TODO.identity-features/01): a
+ *  security notice ("was this you?" — a sign-in, a factor lockout, a
+ *  developer-token mint/expiry) reaches the PRIMARY (the address of
+ *  record, always — an unverified primary included, the pre-01 posture)
+ *  PLUS every VERIFIED additional (a proven mailbox of the holder): a
+ *  compromised or unread primary never hides the notice, and an
+ *  UNVERIFIED additional never receives account activity (an unproven
+ *  address may be a stranger's). The transactional mail (the invite,
+ *  the reset, the verification links) keeps its single addressed
+ *  target and never rides this helper.
+ *
+ *  Every recipient gets its own send (the mailer's per-recipient rate
+ *  limit + audit journal stay honest). Answers the PRIMARY send's
+ *  result, so the caller's stamp semantics (the pat_expiring one-shot)
+ *  ride the address of record; the additional sends honor sendOpMail's
+ *  never-throws rule one by one. */
+export async function sendOpSecurityMail(
+  env: MailEnv,
+  store: ServerStore,
+  input: {
+    userId: string
+    template: OpMailTemplate
+    issuer: string
+    params?: Record<string, string | number>
+  },
+): Promise<OpMailResult> {
+  const addresses = await store.listAccountEmails(input.userId)
+  const targets = addresses.filter(a => a.isPrimary || a.verifiedAt)
+  let primaryResult: OpMailResult = { sent: false, posture: 'console', error: 'the account carries no primary address' }
+  for (const target of targets) {
+    const result = await sendOpMail(env, {
+      to: target.email,
+      template: input.template,
+      issuer: input.issuer,
+      params: input.params,
+    })
+    if (target.isPrimary) primaryResult = result
+  }
+  return primaryResult
 }

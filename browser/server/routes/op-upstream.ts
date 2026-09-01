@@ -42,7 +42,7 @@ import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { opRequestOrigin } from '../auth/op/config'
 import { clientInfo } from '@oimlsmart/platform-server/client-info'
 import { resolveOpSigningKey } from '../auth/op/keys'
-import { sendOpMail } from '../auth/op/mail'
+import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '@oimlsmart/platform-server/mailer'
 import { roleHome } from '@oimlsmart/platform-server/vocab'
 import {
@@ -435,8 +435,10 @@ export function createOpUpstreamRouter(): Hono {
     })
     // TODO.identity/09 — the account holder learns of every entry (the
     // method is the provider's display name). Never blocks the flow.
-    await sendOpMail(runtimeEnv<MailEnv>(c), {
-      to: user.email,
+    // TODO.identity-features/01: the notice fans out to the primary PLUS
+    // every verified additional (auth/op/mail.ts's sendOpSecurityMail).
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+      userId: user.id,
       template: 'signin',
       issuer: origin,
       params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), method: provider.displayName },

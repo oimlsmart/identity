@@ -13,6 +13,13 @@
 //                   provider's; initials otherwise — served publicly by
 //                   convention at /op/avatar/<id>, the OIDC `picture`
 //                   claim's target, and the section says so plainly);
+//   EMAILS          (TODO.identity-features/01 — components/
+//                   AccountEmails.vue) every address of the account: the
+//                   primary (the claims' `email`, never removable) plus
+//                   the additional addresses, each verified independently
+//                   by a mailed one-time link (the no-mailer deployment
+//                   says so honestly) — add / resend / make primary /
+//                   remove;
 //   ORGANIZATIONS   (TODO.identity/11 — the multi-org model) the
 //                   account's memberships with their per-org role sets and
 //                   states, the ACTIVE-ORG switch (the account acts as one
@@ -60,6 +67,7 @@ import { AVATAR_ACCEPT_TYPES } from '../lib/avatar-crop'
 import AccountFactors, { type FactorsPayload } from '../components/AccountFactors.vue'
 import AccountTokens, { type TokensPayload } from '../components/AccountTokens.vue'
 import AccountApps, { type GrantsPayload } from '../components/AccountApps.vue'
+import AccountEmails, { type AccountEmailRow } from '../components/AccountEmails.vue'
 import { t, type MessageKey } from '../i18n'
 
 interface AccountContext {
@@ -81,6 +89,10 @@ interface AccountContext {
     ip: string | null
     current: boolean
   }>
+  /** TODO.identity-features/01: every address of the account (the
+   *  primary first), each with its verification state — the console's
+   *  EMAILS section reads it through the AccountEmails component. */
+  emails: AccountEmailRow[]
   pendingEmailChange: { newEmail: string; expiresAt: string; delivery: string } | null
   /** TODO.identity/11: the organizations block (the multi-org model). */
   organizations?: {
@@ -1173,6 +1185,14 @@ async function revokeOthers() {
             </div>
           </div>
         </section>
+
+        <!-- 1½ · The email addresses (TODO.identity-features/01): the
+             primary + the additional addresses, each verified
+             independently — add / resend / make primary / remove. -->
+        <AccountEmails
+          :emails="context.emails"
+          @changed="loadQuiet"
+        />
 
         <!-- 2 · The organizations (TODO.identity/11 — the multi-org model). -->
         <section id="organizations" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-organizations">
