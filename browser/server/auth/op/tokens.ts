@@ -214,10 +214,20 @@ export async function patServicesForAccount(
   env?: Record<string, string | undefined>,
 ): Promise<PatServiceOption[]> {
   const map = effectiveRbacMap(env)
+  // The account's assignments load ONCE and group by client — the
+  // per-client getOpClientRoles this replaces was one store round trip
+  // per registered client (the endpoint-scaling doctrine). A client
+  // without a row answers null exactly like getOpClientRoles (the
+  // UNIQUE(user, client) key makes the Map's read a non-question).
+  const [clients, assignments] = await Promise.all([
+    store.listOidcClients(),
+    store.listOpClientRoles(account.id),
+  ])
+  const assignedByClient = new Map(assignments.map(a => [a.clientId, a.roles]))
   const out: PatServiceOption[] = []
-  for (const client of await store.listOidcClients()) {
+  for (const client of clients) {
     if (client.status !== 'active' || deviceClassOf(client.claimsPolicy)) continue
-    const assigned = await store.getOpClientRoles(account.id, client.clientId)
+    const assigned = assignedByClient.get(client.clientId) ?? null
     const roles = rolesForClient(assigned, context.roles, client.claimsPolicy)
     if (!roles.length) continue
     let maxAction: PatActionClass = 'read'

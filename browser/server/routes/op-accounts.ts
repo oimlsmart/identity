@@ -559,13 +559,30 @@ export function createOpAccountsRouter(): Hono {
     if (gate.error) return gate.error
     const store = getStore()
     const rows = (await store.listUsers()).filter(u => u.provider !== 'erased')
-    const signIns = await store.lastAccountSignIns()
-    const out = []
-    for (const row of rows) {
-      const methods = await store.countSignInMethods(row.id)
-      const links = await store.listIdentityLinks(row.id)
-      const clientRoles = await store.listOpClientRoles(row.id)
-      out.push({
+    // The per-client assignments load ONCE and group by account — the
+    // per-row listOpClientRoles this replaces was one store round trip
+    // per account (the endpoint-scaling doctrine: the referenced set
+    // prefetches once per request; the bulk read's user-then-client
+    // ordering keeps each account's client_id ordering, so the answer is
+    // byte-identical to the per-row reads').
+    // The residual per-row reads (the sign-in posture, the linked
+    // handles): the seam carries no bulk variant for them — the gate's
+    // declared budget pins them at 2 per row (never more) until the
+    // kernel's bulk sign-in-posture read lands. They run CONCURRENTLY
+    // across the rows: the wall time is the slowest row's, never the
+    // sum. The map preserves the list's order — byte-identical.
+    const [signIns, allClientRoles] = await Promise.all([
+      store.lastAccountSignIns(),
+      store.listAllOpClientRoles(),
+    ])
+    const rolesByUser = new Map<string, typeof allClientRoles>()
+    for (const a of allClientRoles) rolesByUser.set(a.userId, [...(rolesByUser.get(a.userId) ?? []), a])
+    const built = await Promise.all(rows.map(async (row) => {
+      const [methods, links] = await Promise.all([
+        store.countSignInMethods(row.id),
+        store.listIdentityLinks(row.id),
+      ])
+      return {
         id: row.id,
         email: row.email,
         name: row.name,
@@ -577,10 +594,10 @@ export function createOpAccountsRouter(): Hono {
         passwordSet: methods.password,
         links: links.map(l => ({ provider: l.provider, linkedAt: l.linkedAt, linkedBy: l.linkedBy })),
         lastSignIn: signIns[row.id] ?? row.lastLogin ?? null,
-        clientRoles: clientRoles.map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt })),
-      })
-    }
-    return c.json(out)
+        clientRoles: (rolesByUser.get(row.id) ?? []).map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt })),
+      }
+    }))
+    return c.json(built)
   })
 
   // ── the registry acts (TODO.identity/03) ───────────────────────────

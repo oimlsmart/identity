@@ -53,7 +53,11 @@ export async function auditGrant(
 /** The console's row: the grant projected for the account page's "apps
  *  they can access" section — the client's display name resolved from
  *  the registry (a client the registry since lost reads honestly by
- *  id), the scopes as a set, the remembered-at stamp. NEVER more. */
+ *  id), the scopes as a set, the remembered-at stamp. NEVER more. The
+ *  LIST caller (the grants route) passes the registry's once-per-request
+ *  read — a per-grant getOidcClient was one store round trip per grant
+ *  (the endpoint-scaling doctrine); a client the map misses resolves by
+ *  id exactly as the live read's null did. */
 export interface ConsentGrantRow {
   id: string
   clientId: string
@@ -62,12 +66,18 @@ export interface ConsentGrantRow {
   createdAt: string
 }
 
-export async function consentGrantRow(store: ReturnType<typeof getStore>, grant: OidcConsentGrant): Promise<ConsentGrantRow> {
-  const client = await store.getOidcClient(grant.clientId)
+export async function consentGrantRow(
+  store: ReturnType<typeof getStore>,
+  grant: OidcConsentGrant,
+  clientsById?: Map<string, { name: string }>,
+): Promise<ConsentGrantRow> {
+  const clientName = clientsById
+    ? (clientsById.get(grant.clientId)?.name ?? grant.clientId)
+    : ((await store.getOidcClient(grant.clientId))?.name ?? grant.clientId)
   return {
     id: grant.id,
     clientId: grant.clientId,
-    clientName: client?.name ?? grant.clientId,
+    clientName,
     scopes: normalizeOidcScopeSet(grant.scope).split(' ').filter(Boolean),
     createdAt: grant.createdAt,
   }

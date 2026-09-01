@@ -62,9 +62,12 @@ export interface HomeService {
 }
 
 /** The role claims the OP would emit for this account on this client —
- *  the admission set (non-empty = the account enters with a role). */
-async function emittedRoles(user: AuthUserPayload, client: OidcClient): Promise<string[]> {
-  const assigned = await getStore().getOpClientRoles(user.id, client.clientId)
+ *  the admission set (non-empty = the account enters with a role). The
+ *  assignment arrives read: the LIST caller (the home feed) passes the
+ *  once-per-request batch (the endpoint-scaling doctrine — a per-client
+ *  getOpClientRoles was one store round trip per registered client);
+ *  the single-client caller (the request act) passes its one read. */
+async function emittedRoles(user: AuthUserPayload, client: OidcClient, assigned: string[] | null): Promise<string[]> {
   const claims = roleClaimsForClient(assigned, { role: user.role, roles: user.roles, orgId: user.orgId }, client.claimsPolicy)
   return (claims.roles as string[] | undefined) ?? []
 }
@@ -133,14 +136,19 @@ export function createOpHomeRouter(): Hono {
     if (gate.error || !gate.user) return gate.error!
     const user = gate.user!
     const store = getStore()
-    const [clients, requested] = await Promise.all([
+    // The account's per-client assignments load ONCE (grouped by client)
+    // — the admission check below never re-enters the store per client.
+    const [clients, requested, assignments] = await Promise.all([
       store.listOidcClients(),
       requestedClientIds(user.id),
+      store.listOpClientRoles(user.id),
     ])
+    const assignedByClient = new Map(assignments.map(a => [a.clientId, a.roles]))
     const services: HomeService[] = []
     for (const client of clients) {
       if (!client.launch || client.status !== 'active') continue
-      const admitted = client.launch.visibility === 'open' || (await emittedRoles(user, client)).length > 0
+      const admitted = client.launch.visibility === 'open'
+        || (await emittedRoles(user, client, assignedByClient.get(client.clientId) ?? null)).length > 0
       if (admitted) {
         services.push({
           clientId: client.clientId,
@@ -190,7 +198,7 @@ export function createOpHomeRouter(): Hono {
     if (client.launch.visibility !== 'request') {
       return c.json({ error: 'this service does not take access requests' }, 400)
     }
-    if ((await emittedRoles(user, client)).length > 0) {
+    if ((await emittedRoles(user, client, await getStore().getOpClientRoles(user.id, client.clientId))).length > 0) {
       return c.json({ error: 'your account already holds a role this service accepts — the card is launchable' }, 409)
     }
     const requested = await requestedClientIds(user.id)
