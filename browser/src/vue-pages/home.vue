@@ -16,9 +16,11 @@
 //               carries it).
 //   THE ACCOUNT the account-console entry (profile, sign-in methods,
 //   MENU ENTRY  sessions, activity) — /op/account, native on this host.
-//   THE ADMIN   /op/admin for admin/cs_admin only (the feed's flag —
-//   AREA        the admin area stays a separate section, never mixed
-//               into the user surfaces).
+//   THE ADMIN   /op/admin/overview for admin/cs_admin only (the feed's
+//   AREA        flag — the admin area stays a separate section, never
+//               mixed into the user surfaces). The card links the
+//               canonical destination directly; the /op/admin redirect
+//               stays as the fallback for stray URLs.
 //
 // The sign-in page at / stays the unauthenticated posture; a live
 // session there redirects here (login.vue's skip). All copy rides the
@@ -205,7 +207,7 @@ async function requestAccess(service: HomeService) {
         </a>
         <a
           v-if="feed.admin"
-          href="/op/admin"
+          href="/op/admin/overview"
           class="group rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 flex items-center gap-4 hover:border-brand-300 dark:hover:border-brand-600 hover:shadow-md transition-all no-underline"
           data-testid="home-admin"
         >
