@@ -50,6 +50,41 @@ const email = ref('')
 const password = ref('')
 const submitting = ref(false)
 
+// The page-level answer bound (the 2026-09-01 outage's lesson — NEVER an
+// infinite spinner): the server's bounded store writes answer an honest
+// 503 in seconds (the kernel's 5 s default budget); this client-side
+// bound sits comfortably past it so the server's honest answer always
+// wins the race, and only the wedged-worker class (no answer at all)
+// trips it — rendered as the same "briefly unavailable" copy, never a
+// spin. The conditional-UI passkey wait keeps its own abort lifecycle
+// (its wait is the user's, not a fetch's).
+const FETCH_BOUND_MS = 10_000
+
+async function fetchBounded(input: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_BOUND_MS)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** The fetch failure's honest copy: the answer bound's abort is the
+ *  service's unavailability (retry in a moment); anything else is the
+ *  network. */
+function failureCopy(e: unknown, fallbackKey: Parameters<typeof t>[0]): string {
+  return e instanceof DOMException && e.name === 'AbortError' ? t('login.serviceUnavailable') : t(fallbackKey)
+}
+
+/** The 503's two honest kinds: the store's bounded-write timeout (code
+ *  'store_unavailable' — the catalog copy renders, i18n-locked) vs. a
+ *  route's OWN 503 (the no-mailer reset posture — the route's words
+ *  render). */
+function isStoreUnavailable(res: Response, body: { code?: string } | null): boolean {
+  return res.status === 503 && body?.code === 'store_unavailable'
+}
+
 // The deployment's demo posture (from /api/config's public projection):
 // the demo-cast fallback for the password form exists only while the
 // deployment keeps the cast (DEMO_ACCOUNTS_ENABLED / the profile's
@@ -130,7 +165,7 @@ onMounted(async () => {
   }
 
   try {
-    const res = await fetch('/api/config')
+    const res = await fetchBounded('/api/config')
     if (res.ok) {
       const cfg = await res.json() as { identity?: { demoAccountsEnabled?: boolean } }
       demoEnabled.value = cfg.identity?.demoAccountsEnabled !== false
@@ -139,7 +174,7 @@ onMounted(async () => {
 
   // The OP's enabled upstream providers.
   try {
-    const res = await fetch('/api/op/providers/public')
+    const res = await fetchBounded('/api/op/providers/public')
     if (res.ok) {
       const list = await res.json() as Array<{ id: string; kind: string; displayName: string; brandMark: string | null }>
       upstreamProviders.value = Array.isArray(list) ? list : []
@@ -149,7 +184,7 @@ onMounted(async () => {
   // An existing session skips the form: the authorize flow's re-entry
   // target, else the SSO home (the launcher's post-login landing).
   try {
-    const res = await fetch('/api/auth/session', { credentials: 'include' })
+    const res = await fetchBounded('/api/auth/session', { credentials: 'include' })
     if (res.ok) {
       router.replace(redirectTarget())
       return
@@ -183,7 +218,7 @@ function upstreamLogin(providerId: string) {
  *  the page swaps to the factor step (below). */
 async function submitOpLogin() {
   abortConditionalUi() // the form wins over the passkey autofill
-  const res = await fetch('/api/op/login', {
+  const res = await fetchBounded('/api/op/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'include',
@@ -212,7 +247,7 @@ async function submitOpLogin() {
   if (res.status === 401 && demoEnabled.value) {
     // The demo cast signs in through the demo endpoint (the server-side
     // demo gate still applies).
-    const demoRes = await fetch('/api/auth/demo', {
+    const demoRes = await fetchBounded('/api/auth/demo', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
@@ -223,8 +258,12 @@ async function submitOpLogin() {
       return
     }
   }
-  const body = await res.json().catch(() => null) as { error?: string } | null
-  if (res.status === 403 && body?.error) {
+  const body = await res.json().catch(() => null) as { error?: string; code?: string } | null
+  if (isStoreUnavailable(res, body)) {
+    // The bounded write's honest 503: the store is briefly unavailable —
+    // never the spinner the 2026-09-01 outage spun.
+    error.value = t('login.serviceUnavailable')
+  } else if (res.status === 403 && body?.error) {
     error.value = body.error // the deactivated account's honest message
   } else if (res.status === 401) {
     error.value = t('login.invalidCredentials')
@@ -238,8 +277,8 @@ async function submitLogin() {
   error.value = null
   try {
     await submitOpLogin()
-  } catch {
-    error.value = t('login.networkError')
+  } catch (e) {
+    error.value = failureCopy(e, 'login.networkError')
   } finally {
     submitting.value = false
   }
@@ -249,9 +288,12 @@ async function submitLogin() {
 
 /** The factor step's error mapping: the honest 401 (try again), the
  *  throttle's 429 (the backoff, or the locked burn), the expired
- *  challenge's restart. */
-function mfaErrorFrom(res: Response, body: { error?: string; locked?: boolean } | null) {
-  if (res.status === 429) {
+ *  challenge's restart, the store's bounded-write 503 (briefly
+ *  unavailable — retry in a moment, never a spinner). */
+function mfaErrorFrom(res: Response, body: { error?: string; locked?: boolean; code?: string } | null) {
+  if (isStoreUnavailable(res, body)) {
+    error.value = t('login.serviceUnavailable')
+  } else if (res.status === 429) {
     error.value = body?.error ?? t('login.mfa.throttled')
     if (body?.locked) mfa.value = null // the burned attempt: back to the password form
   } else if (body?.error) {
@@ -268,7 +310,7 @@ async function submitMfaTotp() {
   mfaBusy.value = true
   error.value = null
   try {
-    const res = await fetch('/api/op/login/mfa/totp', {
+    const res = await fetchBounded('/api/op/login/mfa/totp', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
@@ -276,8 +318,8 @@ async function submitMfaTotp() {
     })
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
-  } catch {
-    error.value = t('login.networkError')
+  } catch (e) {
+    error.value = failureCopy(e, 'login.networkError')
   } finally {
     mfaBusy.value = false
   }
@@ -290,7 +332,7 @@ async function submitMfaRecovery() {
   mfaBusy.value = true
   error.value = null
   try {
-    const res = await fetch('/api/op/login/mfa/recovery', {
+    const res = await fetchBounded('/api/op/login/mfa/recovery', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
@@ -298,8 +340,8 @@ async function submitMfaRecovery() {
     })
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
-  } catch {
-    error.value = t('login.networkError')
+  } catch (e) {
+    error.value = failureCopy(e, 'login.networkError')
   } finally {
     mfaBusy.value = false
   }
@@ -312,7 +354,7 @@ async function submitMfaPasskey() {
   mfaBusy.value = true
   error.value = null
   try {
-    const optRes = await fetch('/api/op/login/mfa/passkey/options', {
+    const optRes = await fetchBounded('/api/op/login/mfa/passkey/options', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
@@ -328,7 +370,7 @@ async function submitMfaPasskey() {
       mfaBusy.value = false
       return
     }
-    const res = await fetch('/api/op/login/mfa/passkey', {
+    const res = await fetchBounded('/api/op/login/mfa/passkey', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
@@ -336,8 +378,8 @@ async function submitMfaPasskey() {
     })
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
-  } catch {
-    error.value = t('login.networkError')
+  } catch (e) {
+    error.value = failureCopy(e, 'login.networkError')
   } finally {
     mfaBusy.value = false
   }
@@ -355,14 +397,18 @@ function cancelMfa() {
 /** The passwordless ceremony's shared finish: the assertion against the
  *  passwordless endpoint. */
 async function finishPasswordless(credential: CredentialJson) {
-  const res = await fetch('/api/op/login/passkey', {
+  const res = await fetchBounded('/api/op/login/passkey', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({ credential }),
   })
   if (res.ok) { landSignedIn(); return }
-  const body = await res.json().catch(() => null) as { error?: string } | null
+  const body = await res.json().catch(() => null) as { error?: string; code?: string } | null
+  if (isStoreUnavailable(res, body)) {
+    error.value = t('login.serviceUnavailable')
+    return
+  }
   error.value = body?.error ?? t('login.passkeyFailed')
 }
 
@@ -373,7 +419,7 @@ async function signInWithPasskey() {
   passkeyBusy.value = true
   error.value = null
   try {
-    const optRes = await fetch('/api/op/login/passkey/options', { method: 'POST', credentials: 'include' })
+    const optRes = await fetchBounded('/api/op/login/passkey/options', { method: 'POST', credentials: 'include' })
     if (!optRes.ok) {
       error.value = t('login.passkeyFailed')
       passkeyBusy.value = false
@@ -389,8 +435,8 @@ async function signInWithPasskey() {
       return
     }
     await finishPasswordless(credential)
-  } catch {
-    error.value = t('login.networkError')
+  } catch (e) {
+    error.value = failureCopy(e, 'login.networkError')
   } finally {
     passkeyBusy.value = false
   }
@@ -435,20 +481,24 @@ async function submitReset() {
   resetDone.value = null
   resetError.value = null
   try {
-    const res = await fetch('/api/op/login/reset', {
+    const res = await fetchBounded('/api/op/login/reset', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ email: resetEmail.value }),
     })
-    const body = await res.json().catch(() => null) as { message?: string; error?: string } | null
+    const body = await res.json().catch(() => null) as { message?: string; error?: string; code?: string } | null
     if (res.ok) {
       resetDone.value = body?.message ?? t('login.resetDoneFallback')
+    } else if (isStoreUnavailable(res, body)) {
+      // The bounded write's 503 — the catalog copy (the route's own 503,
+      // the no-mailer posture, keeps its own words below).
+      resetError.value = t('login.serviceUnavailable')
     } else {
       resetError.value = body?.error ?? t('login.resetFailed')
     }
-  } catch {
-    resetError.value = t('login.networkError')
+  } catch (e) {
+    resetError.value = failureCopy(e, 'login.networkError')
   } finally {
     resetBusy.value = false
   }

@@ -19,7 +19,7 @@
 import { Hono } from 'hono'
 import type { D1Database, Fetcher, R2Bucket, SendEmail } from '@cloudflare/workers-types'
 import { installStore } from '@oimlsmart/platform-server/store'
-import { d1StoreFor } from '@oimlsmart/platform-server/store/d1'
+import { d1StoreFor, resolveStoreWriteBudgetMs } from '@oimlsmart/platform-server/store/d1'
 import { createApiApp } from './app'
 import { installInstanceProfile, resolveInstanceProfileFromEnv } from '@oimlsmart/platform-server/profile'
 import { installBlobStore, r2BlobStore } from './blobs'
@@ -59,6 +59,12 @@ export type CloudflareApiEnv = {
   OP_RATE_LIMIT_WINDOW_MS?: string
   /** The avatar upload cap override (server/auth/op/avatars.ts). */
   AVATAR_MAX_BYTES?: string
+  /** The store's write-confirmation budget in ms (the kernel's
+   *  bounded-write discipline — the 2026-09-01 lesson): a hung D1 write
+   *  answers the typed StoreUnavailable (→ the honest 503) inside this
+   *  budget instead of spinning the request. Absent: the kernel's
+   *  default (5 s). */
+  STORE_WRITE_BUDGET_MS?: string
   /** Transactional email. EMAIL: the Cloudflare Email Service
    *  `send_email` binding (wrangler.toml's commented
    *  [[env.identity.send_email]] block). The HTTPS provider fallback is
@@ -88,7 +94,11 @@ function buildWorkerApp(): Hono {
         if (!db) {
           return c.json({ error: 'the D1 binding (DB) is not configured on this worker' }, 500)
         }
-        installStore(d1StoreFor(db))
+        // The bounded-write discipline (the 2026-09-01 lesson): the
+        // store's writes race the deployment's budget — a hung write
+        // answers StoreUnavailable → the app-level honest 503, never a
+        // spin. The env binding retunes the kernel's 5 s default.
+        installStore(d1StoreFor(db, { writeBudgetMs: resolveStoreWriteBudgetMs(c.env as CloudflareApiEnv) }))
         const bucket = (c.env as CloudflareApiEnv | undefined)?.BLOBS
         installBlobStore(bucket ? r2BlobStore(bucket) : null)
         installInstanceProfile(resolveInstanceProfileFromEnv(c.env as CloudflareApiEnv))

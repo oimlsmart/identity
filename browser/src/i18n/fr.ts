@@ -766,6 +766,7 @@ export const fr: Record<MessageKey, string> = {
   "login.mfa.useRecovery": "Utiliser un code de récupération",
   "login.mfa.verify": "Vérifier",
   "login.networkError": "Erreur réseau. Le serveur est-il en cours d’exécution ?",
+  "login.serviceUnavailable": "Le service est momentanément indisponible — réessayez dans un instant.",
   "login.panel.intro": "Connectez-vous une seule fois avec votre identité OIML SMART — tous les services ouverts à votre organisation suivent.",
   "login.panel.welcome": "Un seul compte pour tous les services de l’OIML.",
   "login.passkeyBusy": "En attente de la clé d’accès…",
