@@ -221,6 +221,9 @@ bucket_name = "acme-identity-avatars"
 ENTITY_BACKEND = "server"
 OP_ISSUER = "https://id.example.invalid"
 EMAIL_FROM = "ACME Identity <no-reply@example.invalid>"
+# STORE_WRITE_BUDGET_MS = "5000"   # optional — the store's write-confirmation
+# budget (the kernel's bounded-write discipline: a hung D1 write answers the
+# honest 503 inside the budget, never a spin; default 5000 ms).
 OP_UPSTREAM_SEED = '''
 []
 '''

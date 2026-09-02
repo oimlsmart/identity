@@ -42,6 +42,7 @@ import { createOpRateLimiter } from './rate-limit'
 import { getBlobStore } from './blobs'
 import signinPanels from './signin-panels.json'
 import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
+import { StoreUnavailable } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile, projectModuleToggles, publicProfileView, type InstanceProfile } from '@oimlsmart/platform-server/profile'
 
 export interface ApiAppOptions {
@@ -62,6 +63,33 @@ export function createApiApp(options: ApiAppOptions): Hono {
   const app = new Hono()
 
   for (const mw of options.middleware ?? []) app.use('*', mw)
+
+  // The bounded-write discipline's route-surface answer (the 2026-09-01
+  // outage's lesson — a hung store write must answer an honest error in
+  // seconds, never spin the caller): the kernel's D1 store throws the
+  // typed StoreUnavailable when a write/batch/DDL statement does not
+  // confirm within its budget; the surface answers 503 — the store's
+  // TEMPORARY unavailability named, the retryability explicit, the
+  // operation + budget carried for the operator, and the honest
+  // may-have-landed posture preserved (a plain INSERT's retry is not
+  // claimed safe). The login page renders this as its "briefly
+  // unavailable — retry in a moment" copy, never the infinite spinner.
+  // Every other failure keeps Hono's own default (log + the plain 500).
+  app.onError((err, c) => {
+    if (err instanceof StoreUnavailable) {
+      return c.json({
+        error: 'the account store is briefly unavailable — retry in a moment',
+        code: 'store_unavailable',
+        retryable: true,
+        operation: err.operation,
+        budgetMs: err.budgetMs,
+        writeMayHaveLanded: true,
+        retrySafe: err.retrySafe,
+      }, 503, { 'retry-after': '5' })
+    }
+    console.error(err)
+    return c.text('Internal Server Error', 500)
+  })
 
   // The OP-surface rate limiter (server/rate-limit.ts — the extraction
   // map's risk-8 follow-through): a per-caller token bucket guards the

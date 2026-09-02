@@ -764,6 +764,7 @@ export const en = {
   "login.mfa.useRecovery": "Use a recovery code",
   "login.mfa.verify": "Verify",
   "login.networkError": "Network error. Is the server running?",
+  "login.serviceUnavailable": "The service is briefly unavailable — retry in a moment.",
   "login.panel.intro": "Sign in once with your OIML SMART Identity — every service your organization may use follows.",
   "login.panel.welcome": "One account for all OIML services.",
   "login.passkeyBusy": "Waiting for the passkey…",
