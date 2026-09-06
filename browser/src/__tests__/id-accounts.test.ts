@@ -33,6 +33,11 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
+// TODO.identity-sso/04 slice C's login backoff ladder: 1 ms base, so the
+// wrong-then-right sequences below are exercised, not slept through (the
+// OP_MFA_BACKOFF_BASE_MS precedent in id-factors.test.ts).
+process.env.OP_LOGIN_BACKOFF_BASE_MS = '1'
+
 import {
   hashPassword,
   passwordPolicy,
@@ -122,6 +127,7 @@ afterAll(async () => {
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
   delete process.env.DATABASE_PATH
+  delete process.env.OP_LOGIN_BACKOFF_BASE_MS
   const profileMod = await import('@oimlsmart/platform-server/profile')
   profileMod.resetInstanceProfileForTest()
 })

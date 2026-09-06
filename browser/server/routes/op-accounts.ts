@@ -138,6 +138,7 @@ import {
 import { opRandomToken } from '../auth/op/keys'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
+import { clearLoginThrottle, delayMs, loginThrottleWaitMs, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
@@ -318,9 +319,19 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: 'Email and password required' }, 400)
     }
     const store = getStore()
+    const loginEmail = body.email.trim().toLowerCase()
+    // TODO.identity-sso/04 slice C: the per-account backoff ladder (auth/
+    // op/login-throttle.ts — the second factor's throttle math, the
+    // SILENT posture): the address's failures owe this attempt a bounded
+    // wait, paid BEFORE the verify runs. The answer never changes shape
+    // (the uniform 401, never a 429) — only its timing.
+    await delayMs(await loginThrottleWaitMs(store, loginEmail, resolveLoginBackoffBaseMs(runtimeEnv<EnvLike>(c)).baseMs))
     const cred = await store.getPasswordLogin(body.email)
     const ok = await verifyPasswordLogin(body.password, cred?.hash ?? null)
     if (!cred || !ok) {
+      // The ladder's rung climbs (the audit below stays the durable
+      // record; the row is the timing one).
+      await recordLoginThrottleFailure(store, loginEmail)
       // The failure lands on the audit chain too (TODO.identity-sso/01's
       // failed-login signal + the holder's own security feed). The
       // caller's answer stays uniform; the journal keys on the account
@@ -333,9 +344,9 @@ export function createOpAccountsRouter(): Hono {
       const action = isStatusProbe(c.req.raw, runtimeEnv<EnvLike>(c))
         ? 'account.sign_in_probe'
         : 'account.sign_in_failed'
-      await audit(action, cred?.userId ?? body.email.trim().toLowerCase(), {}, {
+      await audit(action, cred?.userId ?? loginEmail, {}, {
         method: 'password',
-        email: body.email.trim().toLowerCase(),
+        email: loginEmail,
         reason: 'invalid_credentials',
       }, 'auth')
       return c.json({ error: 'Invalid email or password' }, 401)
@@ -343,11 +354,14 @@ export function createOpAccountsRouter(): Hono {
     if (!cred.active) {
       await audit('account.sign_in_failed', cred.userId, {}, {
         method: 'password',
-        email: body.email.trim().toLowerCase(),
+        email: loginEmail,
         reason: 'deactivated',
       }, 'auth')
       return c.json({ error: 'This account is deactivated — contact your administrator.' }, 403)
     }
+    // The password verified: the ladder clears outright (a success ends
+    // the backoff — the second factor's own ladder stands behind it).
+    await clearLoginThrottle(store, loginEmail)
     // TODO.identity-sso/04 slice B: the deferred breach re-check — a
     // password chosen while the corpus was unreachable re-runs the query
     // on the presented password (the marker decides; absent = no call).
