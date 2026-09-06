@@ -1,0 +1,202 @@
+name: identity-backup
+
+# The account registry's scheduled backup (TODO.identity-ops/03's open
+# half — the data lifecycle; the operating plan is docs/deployment/
+# identity-operations.md → "Scheduled exports"): every night at 23:41
+# UTC (an off-herd minute), export the live D1 registry
+# (oiml-smart-platform-identity) as SQL text with the repo's pinned
+# wrangler, gzip it, and upload it to the R2 bucket
+# oiml-smart-identity-backups under a dated key:
+#   backups/YYYY/MM/DD/oiml-smart-platform-identity.sql.gz
+# then prune the dated keys older than the retention (35 days — the
+# runbook's DR section names no number; the decision is stated in the
+# runbook's scheduled-exports section). The prune rides AFTER the
+# night's verified upload, so a persistently broken export can never
+# delete the aging survivors.
+#
+# The run verifies its own artifact twice: a sanity gate on the export
+# before upload (non-empty, carries CREATE TABLE statements), and a
+# read-back after upload (a byte-length compare, `gzip -t`, and a
+# byte-identical cmp on the downloaded copy) — a landed-but-corrupt
+# object fails the night, never the restore. The restore PATH stays
+# the quarterly drill's proof (the runbook's DR section); the
+# automated restore-dry-run is the runbook's documented follow-up.
+#
+# A red run opens (or appends to) the standing issue — the heartbeat's
+# report-failure pattern. A failing backup is never silent.
+#
+# Required GitHub configuration (the one-time OWNER ACTS, the runbook's
+# scheduled-exports section): the `cloudflare-identity-backup`
+# environment — deliberately WITHOUT required reviewers (a nightly job
+# cannot wait on an approval; the production environment's gate would
+# stall it) — carrying the four secrets:
+#   CLOUDFLARE_ACCOUNT_ID  the estate account id (also the R2 endpoint
+#                          host: <account>.r2.cloudflarestorage.com)
+#   CLOUDFLARE_API_TOKEN   an API token scoped to D1 Read (the export)
+#   R2_ACCESS_KEY_ID       the R2 S3 pair (Object Read & Write on the
+#   R2_SECRET_ACCESS_KEY   backup bucket only): the upload, the
+#                          read-back, and the prune
+# Until the environment carries the four, the guard below fails
+# honestly and the standing issue says exactly that.
+
+on:
+  schedule:
+    # Nightly, 23:41 UTC — off the :00/:30 herd marks.
+    - cron: '41 23 * * *'
+  workflow_dispatch:
+
+concurrency:
+  # Backups serialize and never cancel mid-flight (a cancelled upload
+  # could mask a failed night); the timeout bounds a hang.
+  group: identity-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    environment: cloudflare-identity-backup
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      # The R2 pair again under the AWS names the runner's aws cli
+      # consumes; the guard names the R2_* secrets so the provisioning
+      # error tells the owner exactly what to set.
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      BACKUP_BUCKET: oiml-smart-identity-backups
+      RETENTION_DAYS: '35'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard — the backup posture is provisioned
+        run: |
+          MISSING=""
+          for v in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            if [ -z "${!v}" ]; then MISSING="$MISSING $v"; fi
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::the cloudflare-identity-backup environment is missing:$MISSING — the one-time owner provisioning (docs/deployment/identity-operations.md → Scheduled exports) is incomplete."
+            exit 1
+          fi
+          echo "the four credentials are present"
+
+      - name: Install dependencies (the pinned wrangler is a dev dep)
+        working-directory: browser
+        run: npm ci
+
+      - name: Export the live registry (a consistent snapshot, SQL text)
+        working-directory: browser
+        # The DR drill's own command (docs/deployment/
+        # identity-operations.md): the default config is browser/
+        # wrangler.toml, the identity env names the live database.
+        run: |
+          mkdir -p "$RUNNER_TEMP/identity-backup"
+          npx wrangler d1 export oiml-smart-platform-identity --remote --env identity \
+            --output "$RUNNER_TEMP/identity-backup/oiml-smart-platform-identity.sql"
+
+      - name: Sanity gate — the export is a real snapshot
+        run: |
+          SQL="$RUNNER_TEMP/identity-backup/oiml-smart-platform-identity.sql"
+          if [ ! -s "$SQL" ]; then
+            echo "::error::the export is empty"
+            exit 1
+          fi
+          TABLES=$(grep -c 'CREATE TABLE' "$SQL" || true)
+          if [ "$TABLES" -lt 1 ]; then
+            echo "::error::the export carries no CREATE TABLE statements — not a registry snapshot"
+            exit 1
+          fi
+          echo "export sanity: $(stat -c%s "$SQL") bytes, $TABLES CREATE TABLE statements"
+
+      - name: Gzip + upload the dated key
+        run: |
+          SQL="$RUNNER_TEMP/identity-backup/oiml-smart-platform-identity.sql"
+          gzip -9 "$SQL"
+          KEY="backups/$(date -u +%Y/%m/%d)/oiml-smart-platform-identity.sql.gz"
+          ENDPOINT="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+          {
+            echo "BACKUP_KEY=$KEY"
+            echo "R2_ENDPOINT=$ENDPOINT"
+          } >> "$GITHUB_ENV"
+          aws s3 cp "$SQL.gz" "s3://$BACKUP_BUCKET/$KEY" --endpoint-url "$ENDPOINT"
+          echo "uploaded s3://$BACKUP_BUCKET/$KEY ($(stat -c%s "$SQL.gz") bytes gzipped)"
+
+      - name: Verify — read the object back (byte length + gzip integrity)
+        run: |
+          LOCAL=$(stat -c%s "$RUNNER_TEMP/identity-backup/oiml-smart-platform-identity.sql.gz")
+          REMOTE=$(aws s3api head-object --bucket "$BACKUP_BUCKET" --key "$BACKUP_KEY" \
+            --endpoint-url "$R2_ENDPOINT" --query ContentLength --output text)
+          if [ "$REMOTE" != "$LOCAL" ]; then
+            echo "::error::the landed object is $REMOTE bytes, the upload was $LOCAL"
+            exit 1
+          fi
+          aws s3 cp "s3://$BACKUP_BUCKET/$BACKUP_KEY" "$RUNNER_TEMP/identity-backup/readback.sql.gz" \
+            --endpoint-url "$R2_ENDPOINT" >/dev/null
+          gzip -t "$RUNNER_TEMP/identity-backup/readback.sql.gz"
+          cmp "$RUNNER_TEMP/identity-backup/oiml-smart-platform-identity.sql.gz" \
+              "$RUNNER_TEMP/identity-backup/readback.sql.gz"
+          echo "read-back verified: $REMOTE bytes, gzip-clean, byte-identical"
+
+      - name: Prune the dated keys older than the retention
+        run: |
+          CUTOFF=$(date -u -d "-$RETENTION_DAYS days" +%Y%m%d)
+          echo "retention $RETENTION_DAYS days — pruning dated keys older than $CUTOFF"
+          # One listing page is 1000 objects ≈ 2.7 years of nightly
+          # keys; the 35-day retention keeps the listing far under it.
+          aws s3api list-objects-v2 --bucket "$BACKUP_BUCKET" --prefix backups/ \
+            --endpoint-url "$R2_ENDPOINT" --query 'Contents[].Key' --output text \
+            | tr '\t' '\n' | while read -r k; do
+            if [ -z "$k" ]; then continue; fi
+            d=$(echo "$k" | sed -E 's|^backups/([0-9]{4})/([0-9]{2})/([0-9]{2})/.*$|\1\2\3|')
+            case "$d" in ''|*[!0-9]*) continue ;; esac
+            if [ "$d" -lt "$CUTOFF" ]; then
+              echo "pruning $k (dated $d)"
+              aws s3 rm "s3://$BACKUP_BUCKET/$k" --endpoint-url "$R2_ENDPOINT" >/dev/null
+            fi
+          done
+
+  report-failure:
+    # One honest summary per failed run (the heartbeat's pattern): the
+    # standing issue gets the run link appended; the first failure
+    # opens it. A red backup is never silent.
+    if: failure()
+    needs: [export]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Post the failure summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Identity backup failing — the nightly D1 export to R2 is broken or unprovisioned'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = `The identity-backup run of ${new Date().toISOString()} failed: ${runUrl}\n\n`
+              + 'The workflow (.github/workflows/identity-backup.yml) exports the live registry '
+              + '(oiml-smart-platform-identity) to the R2 bucket oiml-smart-identity-backups and prunes '
+              + 'past the retention. The failing leg is named in the run log. If the guard leg failed, '
+              + 'the one-time owner provisioning is incomplete: docs/deployment/identity-operations.md '
+              + '→ "Scheduled exports" lists the bucket and the four secrets. The data-loss window until '
+              + 'the fix is bounded by the last green night plus the quarterly restore drill\'s kept export.'
+            const { data: listed } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            })
+            const standing = listed.find(i => i.title === title && !i.pull_request)
+            if (standing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: standing.number, body,
+              })
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body })
+            }

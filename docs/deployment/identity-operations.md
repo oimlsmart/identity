@@ -70,12 +70,12 @@ has passed, never automatically mid-flight.
 
 ## The account registry's data lifecycle
 
-- Backups: the restore path is a PROVEN drill (the DR section below) —
-  the live registry exports on demand and restores byte-clean. The
-  scheduled export to an R2 bucket with retention is the open half;
-  until it lands, the drill's own export is the latest known-good
-  snapshot, and the drill cadence (quarterly + before any
-  migration-carrying deploy) bounds the data-loss window honestly.
+- Backups: BOTH halves are landed — the nightly scheduled export to
+  R2 (the scheduled-exports section below: the dated gzip'd snapshot,
+  the 35-day retention, the run's own read-back verification, the
+  failure alarm) and the quarterly restore drill (the DR section
+  below) that proves a snapshot restores byte-clean. The data-loss
+  window is one night, and a red night is never silent.
 - Offboarding: disable revokes sessions and blocks issuance while
   preserving the audit trail; delete is the erasure path and
   anonymizes. On the account page the lighter act sits between the
@@ -168,6 +168,88 @@ check: every table on the live side exists on the scratch with the same
 count, and no extra table appears. A mismatch fails the drill and is an
 incident — the restore path is broken and the next migration-carrying
 deploy does NOT proceed on an unproven backup.
+
+### Scheduled exports: the nightly D1 → R2 backup
+
+The other half of the backup discipline (TODO.identity-ops/03): the
+`identity-backup` workflow (`.github/workflows/identity-backup.yml`)
+exports the live registry every night at 23:41 UTC (an off-herd
+minute; dispatchable by hand any time), gzips the SQL text, and
+uploads it to the R2 bucket `oiml-smart-identity-backups` under a
+dated key:
+
+    backups/YYYY/MM/DD/oiml-smart-platform-identity.sql.gz
+
+The artifact is exactly the drill's export shape (SQL text), so the
+drill's restore — step 2 onward above — applies verbatim to any
+nightly snapshot.
+
+- Cadence: nightly. The data-loss window is one day plus whatever the
+  standing issue's age says (a red night is never silent — below).
+- Retention: 35 days, pruned inside the same run AFTER the night's
+  verified upload — a persistently broken export can never delete the
+  aging survivors. (The DR section names no number; 35 is the
+  decision — a full month plus the quarter-boundary drill margin. It
+  governs the SNAPSHOTS; the admin audit journal itself is retained
+  for the life of the registry, per the dashboard's retention
+  statement.)
+- The run's own verification: a sanity gate on the export before
+  upload (non-empty, carries CREATE TABLE statements), then a
+  read-back after upload (a byte-length compare, `gzip -t`, and a
+  byte-identical `cmp` on the downloaded copy). A landed-but-corrupt
+  object fails the night, never the restore. The restore PATH stays
+  the quarterly drill's proof; the automated restore-dry-run — a
+  scheduled restore of the freshest snapshot into a scratch D1 with
+  the drill's diff in CI — is a deliberately deferred follow-up: it
+  needs D1 create/delete on a CI token and the drill harness ported
+  into a workflow, which doubles this change's scope for a path the
+  quarterly drill already proves.
+- The failure alarm: a red run opens (or appends to) the standing
+  issue "Identity backup failing — …", the heartbeat's
+  report-failure pattern.
+
+Listing and fetching a backup, operator-local (the R2 S3 pair rides
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`; wrangler's `r2 object`
+verbs fetch too, but the LISTING is the S3 pair's job — wrangler
+carries no `r2 object list`):
+
+```bash
+ENDPOINT="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+BUCKET=oiml-smart-identity-backups
+export AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… AWS_DEFAULT_REGION=auto
+
+# the freshest snapshots
+aws s3 ls "s3://$BUCKET/backups/" --recursive --endpoint-url "$ENDPOINT" | tail
+
+# fetch one night, then restore it through the drill's step 2 onward
+aws s3 cp "s3://$BUCKET/backups/2026/09/07/oiml-smart-platform-identity.sql.gz" /tmp/ \
+  --endpoint-url "$ENDPOINT"
+gunzip /tmp/oiml-smart-platform-identity.sql.gz
+```
+
+The one-time provisioning — OWNER ACTS, done once, never by the
+workflow:
+
+1. The bucket (the estate account, the drill's credentials posture):
+   `npx wrangler r2 bucket create oiml-smart-identity-backups`.
+   No public access, no custom domain — the default private posture
+   IS the posture.
+2. The D1-read API token: a Cloudflare API token scoped to D1 Read on
+   the estate account (the export's only need — the deploy token's
+   broader perms are deliberately NOT reused).
+3. The R2 S3 pair: an R2 API token with Object Read & Write scoped to
+   the backup bucket only (the dashboard hands back the access-key id
+   + secret); it carries the upload, the read-back, and the prune.
+4. The GitHub environment `cloudflare-identity-backup` — WITHOUT
+   required reviewers, on purpose: a nightly job cannot wait on an
+   approval (the production environment's gate would stall it; the
+   contrast is the point) — carrying the four secrets:
+   `CLOUDFLARE_ACCOUNT_ID` (the estate account id; also the R2
+   endpoint host), `CLOUDFLARE_API_TOKEN` (act 2),
+   `R2_ACCESS_KEY_ID` + `R2_SECRET_ACCESS_KEY` (act 3).
+
+Until act 4 lands, the workflow's guard leg fails honestly and the
+standing issue says exactly that.
 
 ## The participant registry's bootstrap (TODO.identity-features/10)
 
