@@ -70,6 +70,8 @@ import {
   TOTP_ENROLL_TTL_MS,
   WEBAUTHN_CHALLENGE_TTL_MS,
 } from '../auth/op/factors'
+import { sendOpSecurityMail } from '../auth/op/mail'
+import type { MailEnv } from '@oimlsmart/platform-server/mailer'
 import { base64urlEncode } from '../auth/op/webauthn'
 
 type EnvLike = Record<string, string | undefined>
@@ -118,6 +120,33 @@ export function createOpFactorsRouter(): Hono {
     if (typeof raw !== 'string') return null
     const name = raw.trim()
     return name.length >= NAME_BOUNDS.min && name.length <= NAME_BOUNDS.max ? name : null
+  }
+
+  /** The factor add/remove notice (TODO.identity-sso/04 slice D): every
+   *  enrollment + revocation tells the holder (the "was this you?" for
+   *  the account's sign-in surface). The factor KIND resolves the
+   *  localized label (sendOpMail's factorKind handling), the user-chosen
+   *  name interpolating; the recovery set carries none. Never blocks the
+   *  ceremony (a mail failure is never the flow's failure). */
+  async function notifyFactor(
+    c: Context,
+    user: { id: string; name: string },
+    template: 'factor_enrolled' | 'factor_revoked',
+    factorKind: 'totp' | 'passkey' | 'recovery',
+    factorName?: string,
+  ): Promise<void> {
+    const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+      userId: user.id,
+      template,
+      issuer,
+      params: {
+        name: user.name,
+        factorKind,
+        ...(factorName ? { factorName } : {}),
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      },
+    })
   }
 
   // GET /api/op/account/factors — the registry's console read.
@@ -225,6 +254,7 @@ export function createOpFactorsRouter(): Hono {
     const name = readName(body?.name) ?? 'Authenticator app'
     await store.markTotpSecretVerified(row.id, user.id, name)
     await auditFactor('factor.totp_enrolled', user.id, { userId: user.id, userName: user.name }, { name })
+    await notifyFactor(c, user, 'factor_enrolled', 'totp', name)
     // The first factor lands the recovery floor (shown once).
     const recoveryCodes = await recoveryCodesAtFirstFactor(store, user.id)
     if (recoveryCodes) {
@@ -242,6 +272,7 @@ export function createOpFactorsRouter(): Hono {
     if (!row || row.userId !== user.id) return c.json({ error: 'no such authenticator' }, 404)
     await store.deleteTotpSecret(user.id, row.id)
     await auditFactor('factor.totp_revoked', user.id, { userId: user.id, userName: user.name }, { name: row.name })
+    await notifyFactor(c, user, 'factor_revoked', 'totp', row.name)
     return c.json({ ok: true })
   })
 
@@ -357,6 +388,7 @@ export function createOpFactorsRouter(): Hono {
     await auditFactor('factor.passkey_enrolled', user.id, { userId: user.id, userName: user.name }, {
       name, credentialId: registration.credentialId, aaguid: registration.aaguid, transports,
     })
+    await notifyFactor(c, user, 'factor_enrolled', 'passkey', name)
     const recoveryCodes = await recoveryCodesAtFirstFactor(store, user.id)
     if (recoveryCodes) {
       await auditFactor('factor.recovery_generated', user.id, { userId: user.id, userName: user.name }, { count: recoveryCodes.length })
@@ -393,6 +425,7 @@ export function createOpFactorsRouter(): Hono {
     }
     await store.deleteWebauthnCredential(user.id, cred.credentialId)
     await auditFactor('factor.passkey_revoked', user.id, { userId: user.id, userName: user.name }, { name: cred.name, credentialId: cred.credentialId })
+    await notifyFactor(c, user, 'factor_revoked', 'passkey', cred.name)
     return c.json({ ok: true })
   })
 
@@ -421,6 +454,11 @@ export function createOpFactorsRouter(): Hono {
       user.id, { userId: user.id, userName: user.name },
       { count: codes.length, replaced: prior.total },
     )
+    // TODO.identity-sso/04 slice D: a fresh set from THIS route always
+    // notifies (an old set died here — the holder must know). The
+    // first-factor auto-generation rides the factor's own enroll notice
+    // instead (no extra mail).
+    await notifyFactor(c, user, 'factor_enrolled', 'recovery')
     return c.json({ ok: true, codes })
   })
 

@@ -275,6 +275,20 @@ export function createOpAccountsRouter(): Hono {
     })
   }
 
+  /** The password-set/changed notice (TODO.identity-sso/04 slice D): the
+   *  enrollment completion and the console change share it — one copy
+   *  ("set or changed") for both ceremonies. Never blocks the path (the
+   *  notifySignIn rule: a mail failure is never the flow's failure). */
+  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }): Promise<void> {
+    const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+      userId: user.id,
+      template: 'password_changed',
+      issuer,
+      params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' ') },
+    })
+  }
+
   /** The deferred breach re-check (TODO.identity-sso/04 slice B): a
    *  password chosen while the corpus was unreachable re-runs the
    *  k-anonymity query HERE — on the presented password, at the next
@@ -760,6 +774,25 @@ export function createOpAccountsRouter(): Hono {
       roles,
       previous,
     })
+    // TODO.identity-sso/04 slice D: a grant or a change with a NON-EMPTY
+    // set notifies the holder (the "was this expected?" for new powers on
+    // a client — the registry's display name when it carries one). The
+    // explicit-empty assignment and DELETE's clear restore a posture,
+    // they grant nothing, so they never mail.
+    if (roles.length > 0) {
+      const client = await store.getOidcClient(clientId)
+      await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+        userId: target.id,
+        template: 'client_roles_granted',
+        issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer,
+        params: {
+          name: target.name,
+          client: client?.name ?? clientId,
+          roles: roles.join(', '),
+          when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        },
+      })
+    }
     return c.json({ userId: target.id, clientId, roles })
   })
 
@@ -934,7 +967,11 @@ export function createOpAccountsRouter(): Hono {
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
     })
     if (breach === 'unknown') await markBreachRecheck(store, result.userId)
-    return c.json(await store.getUserById(result.userId))
+    const enrolled = await store.getUserById(result.userId)
+    // TODO.identity-sso/04 slice D: the password-set notice rides the
+    // completion (the holder's first proof the credential is live).
+    if (enrolled) await notifyPasswordChanged(c, enrolled)
+    return c.json(enrolled)
   })
 
   // ── the account self-service (TODO.identity/02 + the 06 console) ───
@@ -1243,6 +1280,10 @@ export function createOpAccountsRouter(): Hono {
     // completion burns it — the row persists, the consumed stamp is the
     // one-time proof).
     const row = await getStore().getEmailChangeToken(c.req.param('token'))
+    // TODO.identity-sso/04 slice D: the prior primary reads BEFORE the
+    // completion — the change orphans the old address (the account row
+    // carries the new one), and the notice to the OLD mailbox names it.
+    const priorUser = row && row.kind !== 'add' ? await getStore().getUserById(row.userId) : null
     const result = await getStore().completeEmailChange(c.req.param('token'))
     if (result.kind === 'expired') {
       return c.json({ error: 'expired', error_description: 'This verification link has expired (it lives 24 hours). Start the change again from your account page.' }, 410)
@@ -1257,6 +1298,28 @@ export function createOpAccountsRouter(): Hono {
       await audit('account.email_verified', result.userId, { userId: result.userId }, { email: result.newEmail, verified: result.verified })
     } else {
       await audit('account.email_changed', result.userId, { userId: result.userId }, { to: result.newEmail, verified: result.verified })
+      // TODO.identity-sso/04 slice D: the email-changed notice fans out to
+      // the account's current mailboxes AND lands on the OLD address
+      // directly — the "was this you?" must reach the mailbox that just
+      // stopped being the address of record (the one an attacker moving
+      // the account would have replaced).
+      const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+      const when = new Date().toISOString().slice(0, 16).replace('T', ' ')
+      const from = priorUser?.email ?? ''
+      await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+        userId: result.userId,
+        template: 'email_changed',
+        issuer,
+        params: { name: priorUser?.name ?? result.newEmail, from, to: result.newEmail, when },
+      })
+      if (from && from !== result.newEmail) {
+        await sendOpMail(runtimeEnv<MailEnv>(c), {
+          to: from,
+          template: 'email_changed',
+          issuer,
+          params: { name: priorUser?.name ?? from, from, to: result.newEmail, when },
+        })
+      }
     }
     return c.json({ ok: true, email: result.newEmail, verified: result.verified, kind: row?.kind ?? 'change' })
   })
@@ -1435,6 +1498,9 @@ export function createOpAccountsRouter(): Hono {
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
     })
     if (breach === 'unknown') await markBreachRecheck(store, user.id)
+    // TODO.identity-sso/04 slice D: the password-changed notice (the
+    // "was this you?" for the credential change itself).
+    await notifyPasswordChanged(c, user)
     return c.json({ ok: true, otherSessionsRevoked: revoked })
   })
 

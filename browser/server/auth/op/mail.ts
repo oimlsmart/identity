@@ -30,11 +30,37 @@
 //                 lazy sweep — the notice rides the exchange path, once
 //                 per token, while the automation still works).
 //
-// The SECURITY notices (signin, mfa_locked, pat_minted, pat_expiring)
-// fan out to the primary PLUS every verified additional address
-// (sendOpSecurityMail — the "was this you?" must reach every proven
-// mailbox); the transactional ones (invite, reset, verify_*) keep their
-// single addressed target.
+// TODO.identity-sso/04 slice D — the account-lifecycle notices (every
+// one fans out like a security notice and carries the "was this you?"
+// reset pointer, the muted secondary block naming the sign-in page's
+// self-service reset):
+//
+//   password_changed        the password was set or changed (the
+//                           enrollment's completion + the console's
+//                           change — one copy, both moments);
+//   email_changed           the primary address moved (the fan-out to
+//                           the account's current mailboxes PLUS the
+//                           orphaned OLD address directly — a hijack's
+//                           victim reads the notice where the account
+//                           used to reach them);
+//   linked_method_added /   an upstream identity was linked / unlinked
+//   linked_method_removed   (routes/op-upstream.ts's ceremonies);
+//   factor_enrolled /       a second factor landed / left (TOTP app,
+//   factor_revoked          passkey; factor_enrolled also carries the
+//                           recovery set's REGENERATION — the old set's
+//                           death is the security-relevant half);
+//   recovery_code_used      the account-recovery floor was exercised at
+//                           sign-in (it REPLACES that sign-in's generic
+//                           'signin' notice — one entry, one message);
+//   client_roles_granted    an administrator granted per-client roles
+//                           (grants + changes with a non-empty set; a
+//                           clear never mails — the checklist's choice).
+//
+// The SECURITY notices (signin, mfa_locked, pat_minted, pat_expiring,
+// and slice D's lifecycle notices) fan out to the primary PLUS every
+// verified additional address (sendOpSecurityMail — the "was this you?"
+// must reach every proven mailbox); the transactional ones (invite,
+// reset, verify_*) keep their single addressed target.
 //
 // The copy lives in the i18n catalogs (src/i18n/en.ts + fr.ts, the
 // mail.* namespace) so the EN/FR lockstep rule covers the outbound mail;
@@ -68,6 +94,11 @@ import { mailerFor, type MailEnv, type MailPosture } from '@oimlsmart/platform-s
 import type { ServerStore } from '@oimlsmart/platform-server/store'
 
 export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'verify_added_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
+  // TODO.identity-sso/04 slice D: the account-lifecycle security notices
+  // (each a pure notification — never a primary button; the "was this
+  // you?" reset pointer rides the secondary block, the `reset` flag).
+  | 'password_changed' | 'email_changed' | 'linked_method_added' | 'linked_method_removed'
+  | 'factor_enrolled' | 'factor_revoked' | 'recovery_code_used' | 'client_roles_granted'
 
 /** The DEFAULT mail brand mark: the OIML SMART logo (the globe + the
  *  OIML/SMART wordmark), referenced by its absolute production URL (email
@@ -108,6 +139,11 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
    *  plain-text fallback, the expiry caption). signin is the pure
    *  notification — no link, no expiry. */
   link: boolean
+  /** reset (TODO.identity-sso/04 slice D): the security notice's "was
+   *  this you?" block — the muted secondary pointer to the sign-in
+   *  page's self-service reset (params.resetUrl, auto-filled from the
+   *  issuer by sendOpMail). Never a primary button, never one-time. */
+  reset?: boolean
 }> = {
   invite: { subject: 'mail.invite.subject', preheader: 'mail.invite.preheader', heading: 'mail.invite.heading', body: 'mail.invite.body', why: 'mail.invite.why', action: 'mail.invite.action', link: true },
   reset: { subject: 'mail.reset.subject', preheader: 'mail.reset.preheader', heading: 'mail.reset.heading', body: 'mail.reset.body', why: 'mail.reset.why', action: 'mail.reset.action', link: true },
@@ -124,6 +160,17 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   // the prose, never a deep link).
   pat_minted: { subject: 'mail.patMinted.subject', preheader: 'mail.patMinted.preheader', heading: 'mail.patMinted.heading', body: 'mail.patMinted.body', why: 'mail.patMinted.why', link: false },
   pat_expiring: { subject: 'mail.patExpiring.subject', preheader: 'mail.patExpiring.preheader', heading: 'mail.patExpiring.heading', body: 'mail.patExpiring.body', why: 'mail.patExpiring.why', link: false },
+  // TODO.identity-sso/04 slice D: the account-lifecycle notices — every
+  // one a pure notification (link: false) carrying the "was this you?"
+  // reset pointer (reset: true).
+  password_changed: { subject: 'mail.passwordChanged.subject', preheader: 'mail.passwordChanged.preheader', heading: 'mail.passwordChanged.heading', body: 'mail.passwordChanged.body', why: 'mail.passwordChanged.why', link: false, reset: true },
+  email_changed: { subject: 'mail.emailChanged.subject', preheader: 'mail.emailChanged.preheader', heading: 'mail.emailChanged.heading', body: 'mail.emailChanged.body', why: 'mail.emailChanged.why', link: false, reset: true },
+  linked_method_added: { subject: 'mail.linkedMethodAdded.subject', preheader: 'mail.linkedMethodAdded.preheader', heading: 'mail.linkedMethodAdded.heading', body: 'mail.linkedMethodAdded.body', why: 'mail.linkedMethodAdded.why', link: false, reset: true },
+  linked_method_removed: { subject: 'mail.linkedMethodRemoved.subject', preheader: 'mail.linkedMethodRemoved.preheader', heading: 'mail.linkedMethodRemoved.heading', body: 'mail.linkedMethodRemoved.body', why: 'mail.linkedMethodRemoved.why', link: false, reset: true },
+  factor_enrolled: { subject: 'mail.factorEnrolled.subject', preheader: 'mail.factorEnrolled.preheader', heading: 'mail.factorEnrolled.heading', body: 'mail.factorEnrolled.body', why: 'mail.factorEnrolled.why', link: false, reset: true },
+  factor_revoked: { subject: 'mail.factorRevoked.subject', preheader: 'mail.factorRevoked.preheader', heading: 'mail.factorRevoked.heading', body: 'mail.factorRevoked.body', why: 'mail.factorRevoked.why', link: false, reset: true },
+  recovery_code_used: { subject: 'mail.recoveryCodeUsed.subject', preheader: 'mail.recoveryCodeUsed.preheader', heading: 'mail.recoveryCodeUsed.heading', body: 'mail.recoveryCodeUsed.body', why: 'mail.recoveryCodeUsed.why', link: false, reset: true },
+  client_roles_granted: { subject: 'mail.clientRolesGranted.subject', preheader: 'mail.clientRolesGranted.preheader', heading: 'mail.clientRolesGranted.heading', body: 'mail.clientRolesGranted.body', why: 'mail.clientRolesGranted.why', link: false, reset: true },
 }
 
 export type MailLocale = 'en' | 'fr'
@@ -187,11 +234,16 @@ export function renderOpMail(
   const actionKey = template === 'verify_email' || template === 'verify_added_email' ? 'verifyUrl' : 'setupUrl'
   const actionUrl = keys.link && typeof params[actionKey] === 'string' ? String(params[actionKey]) : null
 
+  // TODO.identity-sso/04 slice D: the security notices' "was this you?"
+  // reset pointer (the muted secondary block — never the primary button).
+  // sendOpMail auto-fills params.resetUrl from the issuer for these.
+  const resetUrl = keys.reset === true && typeof params.resetUrl === 'string' && params.resetUrl ? String(params.resetUrl) : null
+
   // ── The plain-text part: the message IS the text. The expiry note sits
   //    right after the action link; the footer mirrors the HTML footer. ──
   const textBody = raw(keys.body).split(/\n\n+/).flatMap((p) =>
     actionUrl && p.trim() === String(params[actionKey]) ? [p, raw('mail.link.once')] : [p])
-  const text = [...textBody, '--', raw(keys.why), raw('mail.footer'), raw('mail.footer.support')].join('\n\n')
+  const text = [...textBody, ...(resetUrl ? [raw('mail.resetLink.text')] : []), '--', raw(keys.why), raw('mail.footer'), raw('mail.footer.support')].join('\n\n')
   const subject = raw(keys.subject)
 
   // ── The HTML shell. The primary action: the bulletproof button (a
@@ -214,6 +266,15 @@ export function renderOpMail(
     return `<p style="margin:0 0 16px;font-family:${SANS};font-size:15px;line-height:1.6;color:#1d1d1b">${p.replace(/\n/g, '<br>')}</p>`
   }).join('')
 
+  // The reset pointer's HTML: the copy line with its URL wrapped in a
+  // plain anchor (the escaped-interpolation trick: the escaped URL is a
+  // known substring of the escaped line, so split/join lifts it).
+  const resetBlock = resetUrl
+    ? '<p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #e3e9f2;font-family:' + SANS + ';font-size:13px;line-height:1.6;color:#5b6b7f">'
+      + esc('mail.resetLink.text').split(escapeHtml(resetUrl)).join(`<a href="${escapeHtml(resetUrl)}" style="color:#004996;text-decoration:underline">${escapeHtml(resetUrl)}</a>`)
+      + '</p>'
+    : ''
+
   const preheader = esc(keys.preheader) + '&zwnj;&nbsp;'.repeat(18)
   const html = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">'
     + `<html lang="${locale}" xmlns="http://www.w3.org/1999/xhtml">`
@@ -232,6 +293,7 @@ export function renderOpMail(
     + '<tr><td style="background-color:#ffffff;border:1px solid #e3e9f2;border-radius:12px;padding:34px 34px 30px">'
     + `<h1 style="margin:0 0 20px;font-family:${SERIF};font-size:24px;line-height:1.3;font-weight:600;color:#001e41">${esc(keys.heading)}</h1>`
     + paragraphs
+    + resetBlock
     + '</td></tr>'
     // The honest footer.
     + '<tr><td style="padding:24px 12px 8px">'
@@ -283,6 +345,28 @@ export async function sendOpMail(
     } else if (typeof params.method === 'string' && params.method in catalog) {
       params.method = catalog[params.method as MessageKey]
     }
+  }
+  // TODO.identity-sso/04 slice D: the factor notices' label — the callers
+  // pass the factor KIND (params.factorKind: 'totp' | 'passkey' |
+  // 'recovery'); the localized label fills from the catalog (the sign-in
+  // method's precedent), the factor's user-chosen name interpolating
+  // (params.factorName; the recovery set carries none).
+  if (input.template === 'factor_enrolled' || input.template === 'factor_revoked') {
+    const catalog: Record<MessageKey, string> = locale === 'fr' ? fr : en
+    const kind = params.factorKind
+    const kindKey: MessageKey | null = kind === 'totp' ? 'mail.factor.kindTotp'
+      : kind === 'passkey' ? 'mail.factor.kindPasskey'
+      : kind === 'recovery' ? 'mail.factor.kindRecovery'
+      : null
+    params.factor = kindKey
+      ? interpolate(catalog[kindKey], { factorName: params.factorName ?? '' })
+      : String(kind ?? '')
+  }
+  // The security notices' reset pointer defaults to the deployment's
+  // sign-in page (the self-service reset lives there — the login.vue
+  // "Forgot your password?" panel).
+  if (TEMPLATE_KEYS[input.template].reset === true && params.resetUrl === undefined) {
+    params.resetUrl = `${input.issuer}/`
   }
   const rendered = renderOpMail(input.template, locale, params)
   try {

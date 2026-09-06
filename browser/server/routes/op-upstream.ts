@@ -408,6 +408,20 @@ export function createOpUpstreamRouter(): Hono {
         await audit('upstream_link', user.id, { userId: user.id, userName: user.name }, {
           provider: providerId, handle: identity.handle,
         })
+        // TODO.identity-sso/04 slice D: the holder learns of the new
+        // sign-in method (the "was this you?" for the link itself).
+        // Never blocks the flow (the sign-in notice's rule).
+        await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+          userId: user.id,
+          template: 'linked_method_added',
+          issuer: origin,
+          params: {
+            name: user.name,
+            provider: provider.displayName,
+            handle: identity.handle,
+            when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+          },
+        })
       }
       const done = new URL('/op/account', origin)
       done.searchParams.set('linked', providerId)
@@ -576,9 +590,28 @@ export function createOpUpstreamRouter(): Hono {
         error: 'This link is your only way to sign in. Set a password first, or keep the link — an account always keeps at least one sign-in method.',
       }, 409)
     }
+    // TODO.identity-sso/04 slice D: the victim row reads BEFORE the
+    // delete — the removal notice names the unlinked handle, and the row
+    // is gone afterwards.
+    const victim = (await store.listIdentityLinks(gate.user.id)).find(l => l.provider === providerId)
     const gone = await store.deleteIdentityLink(gate.user.id, providerId)
     if (!gone) return c.json({ error: 'not linked' }, 404)
     await audit('upstream_unlink', gate.user.id, { userId: gate.user.id, userName: gate.user.name }, { provider: providerId })
+    // TODO.identity-sso/04 slice D: the holder learns of the removal (the
+    // victim row names the unlinked handle; the registry resolves the
+    // provider's display name — the GET route's join pattern).
+    const displayName = (await store.listIdentityProviders()).find(p => p.id === providerId)?.displayName ?? providerId
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+      userId: gate.user.id,
+      template: 'linked_method_removed',
+      issuer: opRequestOrigin(c.req.raw),
+      params: {
+        name: gate.user.name,
+        provider: displayName,
+        handle: victim?.providerAccountId ?? providerId,
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      },
+    })
     return c.json({ ok: true })
   })
 
