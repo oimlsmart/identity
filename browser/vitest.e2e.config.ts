@@ -19,5 +19,12 @@ export default defineConfig({
     // cover several of them.
     testTimeout: 240_000,
     hookTimeout: 120_000,
+    env: {
+      // TODO.identity-sso/04 slice B: the breach corpus is DISABLED for
+      // every booted stack by default (the spawned servers inherit this
+      // through their env scrub) — a leg exercising the check declares
+      // its own HIBP_RANGE_URL (id-30's in-process stub).
+      HIBP_RANGE_URL: 'off',
+    },
   },
 })

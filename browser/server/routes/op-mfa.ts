@@ -93,14 +93,18 @@ export function createOpMfaRouter(): Hono {
 
   /** The new-sign-in notification (the op-accounts posture: every entry
    *  tells the account holder; never blocks the path; the 01 fan-out
-   *  like the lockout's). */
-  async function notifySignIn(c: Context, userId: string, methodKey: string): Promise<void> {
+   *  like the lockout's).
+   *  TODO.identity-sso/04 slice D: the recovery-code completion sends its
+   *  OWN notice ('recovery_code_used' — the spent code IS the news, and
+   *  the reset pointer is urgent there) INSTEAD of the generic sign-in
+   *  mail; every other completion keeps 'signin'. */
+  async function notifySignIn(c: Context, userId: string, methodKey: string, notifyTemplate: 'signin' | 'recovery_code_used' = 'signin'): Promise<void> {
     const account = await getStore().getUserById(userId)
     if (!account) return
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId,
-      template: 'signin',
+      template: notifyTemplate,
       issuer,
       params: { name: account.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), method: methodKey },
     })
@@ -110,7 +114,14 @@ export function createOpMfaRouter(): Hono {
    *  completion loses), mint the session with the full amr provenance,
    *  set the cookie, audit the sign-in, notify. Answers null when the
    *  race was lost. */
-  async function completeSignIn(c: Context, pendingToken: string, addedAmr: string[], methodKey: string, auditMethod: string) {
+  async function completeSignIn(
+    c: Context,
+    pendingToken: string,
+    addedAmr: string[],
+    methodKey: string,
+    auditMethod: string,
+    notifyTemplate: 'signin' | 'recovery_code_used' = 'signin',
+  ) {
     const store = getStore()
     const pending = await store.consumeMfaPending(pendingToken)
     if (!pending) return null
@@ -120,7 +131,7 @@ export function createOpMfaRouter(): Hono {
     const token = await store.createSession(pending.userId, { ...clientInfo(c), amr })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
     await auditFactor('account.sign_in', pending.userId, { userId: pending.userId }, { method: auditMethod, amr })
-    await notifySignIn(c, pending.userId, methodKey)
+    await notifySignIn(c, pending.userId, methodKey, notifyTemplate)
     return { userId: pending.userId, amr }
   }
 
@@ -198,7 +209,7 @@ export function createOpMfaRouter(): Hono {
     const consumed = await store.consumeRecoveryCode(pending.userId, await hashRecoveryCode(code))
     if (consumed) {
       await auditFactor('factor.recovery_used', pending.userId, { userId: pending.userId }, {})
-      const done = await completeSignIn(c, pending.token, ['recovery'], 'mail.signin.methodPasswordRecovery', 'password+recovery')
+      const done = await completeSignIn(c, pending.token, ['recovery'], 'mail.signin.methodPasswordRecovery', 'password+recovery', 'recovery_code_used')
       if (!done) return c.json({ error: 'This sign-in challenge expired or was already completed. Sign in again.' }, 401)
       return c.json(await store.getUserById(done.userId))
     }

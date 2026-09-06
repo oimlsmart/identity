@@ -123,7 +123,7 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload } from '@oimlsmart/platform-server/store'
+import { getStore, type AuthUserPayload, type ServerStore } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { clientInfo } from '@oimlsmart/platform-server/client-info'
@@ -137,6 +137,8 @@ import {
 } from '../auth/op/accounts'
 import { opRandomToken } from '../auth/op/keys'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
+import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
+import { clearLoginThrottle, delayMs, loginThrottleWaitMs, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
@@ -273,6 +275,38 @@ export function createOpAccountsRouter(): Hono {
     })
   }
 
+  /** The password-set/changed notice (TODO.identity-sso/04 slice D): the
+   *  enrollment completion and the console change share it — one copy
+   *  ("set or changed") for both ceremonies. Never blocks the path (the
+   *  notifySignIn rule: a mail failure is never the flow's failure). */
+  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }): Promise<void> {
+    const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+      userId: user.id,
+      template: 'password_changed',
+      issuer,
+      params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' ') },
+    })
+  }
+
+  /** The deferred breach re-check (TODO.identity-sso/04 slice B): a
+   *  password chosen while the corpus was unreachable re-runs the
+   *  k-anonymity query HERE — on the presented password, at the next
+   *  successful password sign-in. The verdict never strands the sign-in
+   *  (the holder is already in): the audit event (the holder's own
+   *  activity feed reads it) carries the outcome, and a definitive
+   *  answer disarms the marker (auth/op/hibp.ts). */
+  async function recheckBreachedPassword(c: Context, store: ServerStore, userId: string, password: string): Promise<void> {
+    try {
+      if (!(await breachRecheckPending(store, userId))) return
+      const outcome = await hibpPasswordVerdict(password, runtimeEnv<EnvLike>(c))
+      await audit('account.password_breach_recheck', userId, { userId }, { outcome })
+      await resolveBreachRecheck(store, userId, outcome)
+    } catch (err) {
+      console.error('[op] the deferred breach re-check failed:', (err as Error).message)
+    }
+  }
+
   // ── the password sign-in ───────────────────────────────────────────
 
   // POST /api/op/login — email + password. The failure classes are
@@ -299,9 +333,19 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: 'Email and password required' }, 400)
     }
     const store = getStore()
+    const loginEmail = body.email.trim().toLowerCase()
+    // TODO.identity-sso/04 slice C: the per-account backoff ladder (auth/
+    // op/login-throttle.ts — the second factor's throttle math, the
+    // SILENT posture): the address's failures owe this attempt a bounded
+    // wait, paid BEFORE the verify runs. The answer never changes shape
+    // (the uniform 401, never a 429) — only its timing.
+    await delayMs(await loginThrottleWaitMs(store, loginEmail, resolveLoginBackoffBaseMs(runtimeEnv<EnvLike>(c)).baseMs))
     const cred = await store.getPasswordLogin(body.email)
     const ok = await verifyPasswordLogin(body.password, cred?.hash ?? null)
     if (!cred || !ok) {
+      // The ladder's rung climbs (the audit below stays the durable
+      // record; the row is the timing one).
+      await recordLoginThrottleFailure(store, loginEmail)
       // The failure lands on the audit chain too (TODO.identity-sso/01's
       // failed-login signal + the holder's own security feed). The
       // caller's answer stays uniform; the journal keys on the account
@@ -314,9 +358,9 @@ export function createOpAccountsRouter(): Hono {
       const action = isStatusProbe(c.req.raw, runtimeEnv<EnvLike>(c))
         ? 'account.sign_in_probe'
         : 'account.sign_in_failed'
-      await audit(action, cred?.userId ?? body.email.trim().toLowerCase(), {}, {
+      await audit(action, cred?.userId ?? loginEmail, {}, {
         method: 'password',
-        email: body.email.trim().toLowerCase(),
+        email: loginEmail,
         reason: 'invalid_credentials',
       }, 'auth')
       return c.json({ error: 'Invalid email or password' }, 401)
@@ -324,11 +368,19 @@ export function createOpAccountsRouter(): Hono {
     if (!cred.active) {
       await audit('account.sign_in_failed', cred.userId, {}, {
         method: 'password',
-        email: body.email.trim().toLowerCase(),
+        email: loginEmail,
         reason: 'deactivated',
       }, 'auth')
       return c.json({ error: 'This account is deactivated — contact your administrator.' }, 403)
     }
+    // The password verified: the ladder clears outright (a success ends
+    // the backoff — the second factor's own ladder stands behind it).
+    await clearLoginThrottle(store, loginEmail)
+    // TODO.identity-sso/04 slice B: the deferred breach re-check — a
+    // password chosen while the corpus was unreachable re-runs the query
+    // on the presented password (the marker decides; absent = no call).
+    // Never strands the sign-in.
+    await recheckBreachedPassword(c, store, cred.userId, body.password)
     // The second-factor branch (the factor registry, TODO.identity-sso/02+03):
     // a verified TOTP app or a registered passkey turns the password into
     // the FIRST leg — the session waits on the factor. The pending row's
@@ -722,6 +774,25 @@ export function createOpAccountsRouter(): Hono {
       roles,
       previous,
     })
+    // TODO.identity-sso/04 slice D: a grant or a change with a NON-EMPTY
+    // set notifies the holder (the "was this expected?" for new powers on
+    // a client — the registry's display name when it carries one). The
+    // explicit-empty assignment and DELETE's clear restore a posture,
+    // they grant nothing, so they never mail.
+    if (roles.length > 0) {
+      const client = await store.getOidcClient(clientId)
+      await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+        userId: target.id,
+        template: 'client_roles_granted',
+        issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer,
+        params: {
+          name: target.name,
+          client: client?.name ?? clientId,
+          roles: roles.join(', '),
+          when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        },
+      })
+    }
     return c.json({ userId: target.id, clientId, roles })
   })
 
@@ -873,6 +944,14 @@ export function createOpAccountsRouter(): Hono {
     if (!policy.ok) {
       return c.json({ error: `The password needs ${policy.problems.join(' and ')}.` }, 400)
     }
+    // TODO.identity-sso/04 slice B: a breached password is refused BEFORE
+    // the link is touched (the policy's own order — a refused password
+    // never burns it); an unreachable corpus ACCEPTS, notes the audit,
+    // and arms the sign-in re-check (auth/op/hibp.ts).
+    const breach = await hibpPasswordVerdict(body.password, runtimeEnv<EnvLike>(c))
+    if (breach === 'breached') {
+      return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
+    }
     const store = getStore()
     const result = await store.completeEnrollment(c.req.param('token'), await hashPassword(body.password), 'enrollment')
     if (result.kind === 'expired') {
@@ -884,8 +963,15 @@ export function createOpAccountsRouter(): Hono {
     const token = await store.createSession(result.userId, clientInfo(c))
     await store.touchLastLogin(result.userId)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
-    await audit('account.enrolled', result.userId, { userId: result.userId }, {})
-    return c.json(await store.getUserById(result.userId))
+    await audit('account.enrolled', result.userId, { userId: result.userId }, {
+      ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
+    })
+    if (breach === 'unknown') await markBreachRecheck(store, result.userId)
+    const enrolled = await store.getUserById(result.userId)
+    // TODO.identity-sso/04 slice D: the password-set notice rides the
+    // completion (the holder's first proof the credential is live).
+    if (enrolled) await notifyPasswordChanged(c, enrolled)
+    return c.json(enrolled)
   })
 
   // ── the account self-service (TODO.identity/02 + the 06 console) ───
@@ -1194,6 +1280,10 @@ export function createOpAccountsRouter(): Hono {
     // completion burns it — the row persists, the consumed stamp is the
     // one-time proof).
     const row = await getStore().getEmailChangeToken(c.req.param('token'))
+    // TODO.identity-sso/04 slice D: the prior primary reads BEFORE the
+    // completion — the change orphans the old address (the account row
+    // carries the new one), and the notice to the OLD mailbox names it.
+    const priorUser = row && row.kind !== 'add' ? await getStore().getUserById(row.userId) : null
     const result = await getStore().completeEmailChange(c.req.param('token'))
     if (result.kind === 'expired') {
       return c.json({ error: 'expired', error_description: 'This verification link has expired (it lives 24 hours). Start the change again from your account page.' }, 410)
@@ -1208,6 +1298,28 @@ export function createOpAccountsRouter(): Hono {
       await audit('account.email_verified', result.userId, { userId: result.userId }, { email: result.newEmail, verified: result.verified })
     } else {
       await audit('account.email_changed', result.userId, { userId: result.userId }, { to: result.newEmail, verified: result.verified })
+      // TODO.identity-sso/04 slice D: the email-changed notice fans out to
+      // the account's current mailboxes AND lands on the OLD address
+      // directly — the "was this you?" must reach the mailbox that just
+      // stopped being the address of record (the one an attacker moving
+      // the account would have replaced).
+      const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+      const when = new Date().toISOString().slice(0, 16).replace('T', ' ')
+      const from = priorUser?.email ?? ''
+      await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
+        userId: result.userId,
+        template: 'email_changed',
+        issuer,
+        params: { name: priorUser?.name ?? result.newEmail, from, to: result.newEmail, when },
+      })
+      if (from && from !== result.newEmail) {
+        await sendOpMail(runtimeEnv<MailEnv>(c), {
+          to: from,
+          template: 'email_changed',
+          issuer,
+          params: { name: priorUser?.name ?? from, from, to: result.newEmail, when },
+        })
+      }
     }
     return c.json({ ok: true, email: result.newEmail, verified: result.verified, kind: row?.kind ?? 'change' })
   })
@@ -1371,9 +1483,24 @@ export function createOpAccountsRouter(): Hono {
       const ok = await verifyPasswordLogin(typeof body.current === 'string' ? body.current : '', cred?.hash ?? null)
       if (!ok) return c.json({ error: 'The current password does not match.' }, 403)
     }
+    // TODO.identity-sso/04 slice B: the breach check on the NEW password
+    // (the current one verified above — the auth gate runs first). A
+    // breached candidate is refused with the credential untouched; an
+    // unreachable corpus accepts + arms the sign-in re-check.
+    const breach = await hibpPasswordVerdict(body.next, runtimeEnv<EnvLike>(c))
+    if (breach === 'breached') {
+      return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
+    }
     await store.setPasswordHash(user.id, await hashPassword(body.next), user.email)
     const revoked = await store.deleteOtherSessions(user.id, getCookie(c, SESSION_COOKIE) ?? '')
-    await audit('account.password', user.id, { userId: user.id, userName: user.name }, { otherSessionsRevoked: revoked })
+    await audit('account.password', user.id, { userId: user.id, userName: user.name }, {
+      otherSessionsRevoked: revoked,
+      ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
+    })
+    if (breach === 'unknown') await markBreachRecheck(store, user.id)
+    // TODO.identity-sso/04 slice D: the password-changed notice (the
+    // "was this you?" for the credential change itself).
+    await notifyPasswordChanged(c, user)
     return c.json({ ok: true, otherSessionsRevoked: revoked })
   })
 

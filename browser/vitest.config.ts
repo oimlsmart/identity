@@ -15,5 +15,13 @@ export default defineConfig({
       allow: ['..', '../..'],
     },
   },
-  test: {},
+  test: {
+    env: {
+      // TODO.identity-sso/04 slice B: the breached-password check's corpus
+      // is DISABLED across the unit suites (no test here hits the live
+      // network; the check's own pins — id-password-breach.test.ts —
+      // declare their stub endpoint in-file, overriding this).
+      HIBP_RANGE_URL: 'off',
+    },
+  },
 })

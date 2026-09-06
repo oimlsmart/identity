@@ -49,6 +49,11 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
+// TODO.identity-sso/04 slice C: the burst legs fire five wrong passwords
+// on ONE address — the login throttle's ladder compresses to instant
+// here (the signal under test is the audit burst, not the wait).
+process.env.OP_LOGIN_BACKOFF_BASE_MS = '1'
+
 let app: import('hono').Hono
 let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
 let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
@@ -208,6 +213,7 @@ afterAll(async () => {
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
   delete process.env.DATABASE_PATH
+  delete process.env.OP_LOGIN_BACKOFF_BASE_MS
   delete process.env.OP_HEARTBEAT_API_BASE
   delete process.env.OP_HEARTBEAT_WORKFLOW
   delete process.env.OP_HEARTBEAT_REPO

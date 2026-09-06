@@ -369,6 +369,13 @@ async function bootIdentityStack(): Promise<Stack> {
       EMAIL_FROM: 'OIML SMART Identity <no-reply@oimlsmart.org>',
       MAIL_PROVIDER_URL: `${mailer.baseUrl}/emails`,
       MAIL_PROVIDER_KEY: MAIL_KEY,
+      // TODO.identity-sso/04: the notices wave legitimately mails ONE
+      // story account past the default 5/h bucket (the enrollment's
+      // password_changed, the factor's factor_enrolled, the sign-ins, —
+      // then leg 3's lockout would rate-limit and never land). The bucket
+      // itself is proven in-process (id-mail.test.ts); this leg's subject
+      // is the ladder + the lockout, so the cap lifts honestly.
+      MAIL_RATE_LIMIT_CAPACITY: '50',
     }, logs)
     const apiBase = `http://localhost:${ID_API}`
     await waitForHttp(`${apiBase}/api/health`, 120_000, logs)

@@ -156,6 +156,10 @@ async function bootIdentityStack(): Promise<Stack> {
       // The status-probe recognition (server/auth/op/probe.ts): leg 3's
       // probe cadence presents this token as the X-OIML-Probe header.
       STATUS_PROBE_TOKEN: 'id12-probe-token',
+      // TODO.identity-sso/04 slice C's login backoff ladder, the test
+      // value: leg 3's burst keeps its cadence (the ladder is still
+      // exercised — 50/100/200/400 ms — never slept through).
+      OP_LOGIN_BACKOFF_BASE_MS: '25',
       // The heartbeat route's source is the stub (deterministic, never
       // the real GitHub).
       OP_HEARTBEAT_API_BASE: `http://127.0.0.1:${GH_STUB}`,
