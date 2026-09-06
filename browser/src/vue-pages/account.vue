@@ -658,6 +658,8 @@ function activityLabel(event: ActivityEvent): string {
   if (typeof event.metadata.to === 'string') params.to = event.metadata.to
   if (typeof event.metadata.provider === 'string') params.provider = event.metadata.provider
   if (typeof event.metadata.count === 'number') params.count = event.metadata.count
+  // TODO.identity-sso/04 slice B: the breach re-check's verdict.
+  if (typeof event.metadata.outcome === 'string') params.outcome = event.metadata.outcome
   // TODO.identity/11: the org acts resolve the org's name from the
   // memberships (the audit metadata carries the org id).
   if (typeof event.metadata.org_id === 'string') params.org = orgName(event.metadata.org_id) || event.metadata.org_id

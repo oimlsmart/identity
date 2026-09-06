@@ -179,6 +179,7 @@ declares it.)
 | `BLOBS_DISABLED` | optional | `true` binds NO avatar store: uploads answer an honest 503 and accounts render initials (the console says so). |
 | `AVATAR_MAX_BYTES` | optional | The upload cap (default 2 MiB). |
 | `OP_RATE_LIMIT_CAPACITY` | optional | `0` disables the OP-surface rate limiter (generous human-paced defaults otherwise). |
+| `HIBP_RANGE_URL` | optional | The breached-password corpus's k-anonymity range endpoint (default `https://api.pwnedpasswords.com/range/`): new passwords (enrollment, the console change) are refused when the corpus names them. The literal `off` disables the check honestly (no marker, no audit note); an UNREACHABLE corpus accepts the password, notes the audit (`breachCheck: 'unreachable'`), and re-checks at the next password sign-in. Point it at your own mirror for a sovereign deployment. |
 | `PORT` | optional | The API's listen port (default 3190). |
 
 ## Shape B: Cloudflare Workers + D1 (your own account)

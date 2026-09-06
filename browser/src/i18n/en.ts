@@ -28,6 +28,7 @@ export const en = {
   "account.activity.action.account.membership_declined": "The invitation to {org} was declined",
   "account.activity.action.account.membership_requested": "Requested to join {org}",
   "account.activity.action.account.password": "Password changed",
+  "account.activity.action.account.password_breach_recheck": "The breach-corpus check that was unreachable when the password was set re-ran at this sign-in: {outcome}",
   "account.activity.action.account.password_removed": "Password removed",
   "account.activity.action.account.password_reset": "A password reset email was requested for this account",
   "account.activity.action.account.pat_exchange": "Developer token exchanged for access: {name}",

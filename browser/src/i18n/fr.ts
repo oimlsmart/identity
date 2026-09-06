@@ -30,6 +30,7 @@ export const fr: Record<MessageKey, string> = {
   "account.activity.action.account.membership_declined": "L’invitation à {org} a été déclinée",
   "account.activity.action.account.membership_requested": "Demande d’adhésion à {org}",
   "account.activity.action.account.password": "Mot de passe changé",
+  "account.activity.action.account.password_breach_recheck": "Le contrôle auprès du corpus de mots de passe compromis, injoignable lors de la définition du mot de passe, a été relancé à cette connexion : {outcome}",
   "account.activity.action.account.password_removed": "Mot de passe retiré",
   "account.activity.action.account.password_reset": "Un e-mail de réinitialisation du mot de passe a été demandé pour ce compte",
   "account.activity.action.account.pat_exchange": "Jeton de développement échangé contre un accès : {name}",

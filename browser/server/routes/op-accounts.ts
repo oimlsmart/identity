@@ -123,7 +123,7 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload } from '@oimlsmart/platform-server/store'
+import { getStore, type AuthUserPayload, type ServerStore } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { clientInfo } from '@oimlsmart/platform-server/client-info'
@@ -137,6 +137,7 @@ import {
 } from '../auth/op/accounts'
 import { opRandomToken } from '../auth/op/keys'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
+import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
@@ -273,6 +274,24 @@ export function createOpAccountsRouter(): Hono {
     })
   }
 
+  /** The deferred breach re-check (TODO.identity-sso/04 slice B): a
+   *  password chosen while the corpus was unreachable re-runs the
+   *  k-anonymity query HERE — on the presented password, at the next
+   *  successful password sign-in. The verdict never strands the sign-in
+   *  (the holder is already in): the audit event (the holder's own
+   *  activity feed reads it) carries the outcome, and a definitive
+   *  answer disarms the marker (auth/op/hibp.ts). */
+  async function recheckBreachedPassword(c: Context, store: ServerStore, userId: string, password: string): Promise<void> {
+    try {
+      if (!(await breachRecheckPending(store, userId))) return
+      const outcome = await hibpPasswordVerdict(password, runtimeEnv<EnvLike>(c))
+      await audit('account.password_breach_recheck', userId, { userId }, { outcome })
+      await resolveBreachRecheck(store, userId, outcome)
+    } catch (err) {
+      console.error('[op] the deferred breach re-check failed:', (err as Error).message)
+    }
+  }
+
   // ── the password sign-in ───────────────────────────────────────────
 
   // POST /api/op/login — email + password. The failure classes are
@@ -329,6 +348,11 @@ export function createOpAccountsRouter(): Hono {
       }, 'auth')
       return c.json({ error: 'This account is deactivated — contact your administrator.' }, 403)
     }
+    // TODO.identity-sso/04 slice B: the deferred breach re-check — a
+    // password chosen while the corpus was unreachable re-runs the query
+    // on the presented password (the marker decides; absent = no call).
+    // Never strands the sign-in.
+    await recheckBreachedPassword(c, store, cred.userId, body.password)
     // The second-factor branch (the factor registry, TODO.identity-sso/02+03):
     // a verified TOTP app or a registered passkey turns the password into
     // the FIRST leg — the session waits on the factor. The pending row's
@@ -873,6 +897,14 @@ export function createOpAccountsRouter(): Hono {
     if (!policy.ok) {
       return c.json({ error: `The password needs ${policy.problems.join(' and ')}.` }, 400)
     }
+    // TODO.identity-sso/04 slice B: a breached password is refused BEFORE
+    // the link is touched (the policy's own order — a refused password
+    // never burns it); an unreachable corpus ACCEPTS, notes the audit,
+    // and arms the sign-in re-check (auth/op/hibp.ts).
+    const breach = await hibpPasswordVerdict(body.password, runtimeEnv<EnvLike>(c))
+    if (breach === 'breached') {
+      return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
+    }
     const store = getStore()
     const result = await store.completeEnrollment(c.req.param('token'), await hashPassword(body.password), 'enrollment')
     if (result.kind === 'expired') {
@@ -884,7 +916,10 @@ export function createOpAccountsRouter(): Hono {
     const token = await store.createSession(result.userId, clientInfo(c))
     await store.touchLastLogin(result.userId)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
-    await audit('account.enrolled', result.userId, { userId: result.userId }, {})
+    await audit('account.enrolled', result.userId, { userId: result.userId }, {
+      ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
+    })
+    if (breach === 'unknown') await markBreachRecheck(store, result.userId)
     return c.json(await store.getUserById(result.userId))
   })
 
@@ -1371,9 +1406,21 @@ export function createOpAccountsRouter(): Hono {
       const ok = await verifyPasswordLogin(typeof body.current === 'string' ? body.current : '', cred?.hash ?? null)
       if (!ok) return c.json({ error: 'The current password does not match.' }, 403)
     }
+    // TODO.identity-sso/04 slice B: the breach check on the NEW password
+    // (the current one verified above — the auth gate runs first). A
+    // breached candidate is refused with the credential untouched; an
+    // unreachable corpus accepts + arms the sign-in re-check.
+    const breach = await hibpPasswordVerdict(body.next, runtimeEnv<EnvLike>(c))
+    if (breach === 'breached') {
+      return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
+    }
     await store.setPasswordHash(user.id, await hashPassword(body.next), user.email)
     const revoked = await store.deleteOtherSessions(user.id, getCookie(c, SESSION_COOKIE) ?? '')
-    await audit('account.password', user.id, { userId: user.id, userName: user.name }, { otherSessionsRevoked: revoked })
+    await audit('account.password', user.id, { userId: user.id, userName: user.name }, {
+      otherSessionsRevoked: revoked,
+      ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
+    })
+    if (breach === 'unknown') await markBreachRecheck(store, user.id)
     return c.json({ ok: true, otherSessionsRevoked: revoked })
   })
 
