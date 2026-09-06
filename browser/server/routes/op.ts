@@ -972,10 +972,13 @@ export function createOpRouter(): Hono {
     if (scopes.includes('profile')) claims.name = user.name
     if (scopes.includes('email')) {
       claims.email = user.email
-      // The OP's registry IS the account list (invite-only,
-      // admin-managed) — an account's email is vouched for by
-      // construction.
-      claims.email_verified = true
+      // TODO.identity-sso/04 (the account lifecycle discipline): the
+      // claim answers the address's CURRENT verification state (the
+      // invite/setup ceremony's stamp, users.email_verified_at) — an
+      // invited-not-yet-set-up or admin-re-addressed account reads
+      // FALSE, so an RP never takes an unproven mailbox as vouched
+      // (the platform's link-by-verified-email rule depends on it).
+      claims.email_verified = Boolean(user.emailVerifiedAt)
     }
     const assigned = await store.getOpClientRoles(user.id, client!.clientId)
     const context = await claimsContextFor(store, user, code.contextOrg ?? null)
@@ -1051,7 +1054,9 @@ export function createOpRouter(): Hono {
     if (scopes.includes('profile')) claims.name = user.name
     if (scopes.includes('email')) {
       claims.email = user.email
-      claims.email_verified = true
+      // The same honesty the ID token carries (TODO.identity-sso/04):
+      // the address's CURRENT verification state, never a blanket true.
+      claims.email_verified = Boolean(user.emailVerifiedAt)
     }
     // The same shaping the ID token carried (TODO.identity/03): the
     // per-client assignment through the client's policy allowlist, under

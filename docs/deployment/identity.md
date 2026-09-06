@@ -710,7 +710,12 @@ in the `account.*` EN/FR catalog namespace:
    and the primary email with its verification state
    (`users.email_verified_at`). The invite ceremony
    marks the invited address verified (the administrator delivered the
-   one-time link there); an email change re-judges it (below).
+   one-time link there); an email change re-judges it (below). While
+   the primary stands unverified the console shows the banner naming
+   the consequences (the ID token's `email_verified` answers false; the
+   strong factors stay locked) and the ways out — the email change
+   below, or the administrator's fresh setup link
+   (TODO.identity-sso/04).
 2. **Sign-in methods**: the password and the linked upstream identities
    as equal citizens. THE GUARD: an account always keeps at least one
    way in. `DELETE /api/op/account/password` and 08's
@@ -1331,10 +1336,13 @@ instance, the user's EXISTING local account is adopted by the SSO
 sign-in, not replaced.
 
 **The adoption (per user, at their first SSO sign-in).** The OP's ID
-token always vouches for the account's email (`email_verified: true`,
-the invite-only registry vouches by construction). The instance's
-resolution order (above, step 3) links the OP identity onto the local
-account whose email matches: the row's provider pair becomes the OP
+token carries the account's email with its CURRENT verification state
+(`email_verified` answers the `users.email_verified_at` stamp — true
+after the invite/setup ceremony or a mailed verification link, false
+for an invited-not-yet-set-up or admin-re-addressed account;
+TODO.identity-sso/04). The instance's resolution order (above, step 3)
+links the OP identity onto the local account whose email matches ONLY
+when the claim answers verified: the row's provider pair becomes the OP
 identity, and **the locally assigned role and org binding stand**; the
 OP's role claims are never applied to a linked account. The instance
 writes an `sso_link` audit event; the user's console, history and

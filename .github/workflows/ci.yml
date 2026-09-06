@@ -162,6 +162,7 @@ jobs:
             e2e/id-26-visual-elevation.e2e.ts \
             e2e/id-27-consent-grants.e2e.ts \
             e2e/id-28-account-emails.e2e.ts \
+            e2e/id-29-email-verification.e2e.ts \
             e2e/id-surface.e2e.ts \
             e2e/op-surface-contract.e2e.ts \
             e2e/op-key-rotate.e2e.ts

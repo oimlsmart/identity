@@ -313,6 +313,8 @@ export const en = {
   "account.tokens.title": "Developer tokens",
   "account.title": "Your account",
   "account.unavailable": "This deployment does not run the OIML SMART identity service: your sign-in is managed by this instance's own configuration (its demo accounts, GitHub, or single sign-on). The account console lives on the identity provider.",
+  "account.verification.bannerBody": "Nothing has proved this mailbox yet: the services you sign in to are told the address is unverified, and strong sign-in factors stay locked (their recovery path rides this mailbox). Change to a new address below — its confirmation link proves it — or ask your administrator for a fresh setup link, which re-proves this one.",
+  "account.verification.bannerTitle": "Your email address is not verified",
   "admin.clients.classApp": "Application — a relying party (the signed-in-user flows)",
   "admin.clients.classDevice": "Device — the machine cone (client_credentials only, never a sign-in)",
   "admin.clients.classLegend": "client class (fixed at registration)",
