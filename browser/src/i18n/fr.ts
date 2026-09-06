@@ -315,6 +315,8 @@ export const fr: Record<MessageKey, string> = {
   "account.tokens.title": "Jetons de développement",
   "account.title": "Votre compte",
   "account.unavailable": "Ce déploiement n’exécute pas le service d’identité OIML SMART : votre connexion est gérée par la configuration propre à cette instance (ses comptes de démonstration, GitHub ou l’authentification unique). La console du compte se trouve sur le fournisseur d’identité.",
+  "account.verification.bannerBody": "Rien n’a encore prouvé cette boîte : les services où vous vous connectez sont informés que l’adresse n’est pas vérifiée, et les facteurs forts restent verrouillés (leur chemin de récupération passe par cette boîte). Changez d’adresse ci-dessous — son lien de confirmation la prouve — ou demandez à votre administrateur un nouveau lien de configuration, qui re-prouve celle-ci.",
+  "account.verification.bannerTitle": "Votre adresse e-mail n’est pas vérifiée",
   "admin.clients.classApp": "Application — une partie de confiance (les flux avec utilisateur connecté)",
   "admin.clients.classDevice": "Appareil — le cône machine (client_credentials uniquement, jamais de connexion)",
   "admin.clients.classLegend": "classe du client (fixée à l’enregistrement)",

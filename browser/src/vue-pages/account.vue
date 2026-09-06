@@ -1010,6 +1010,25 @@ async function revokeOthers() {
           <p class="text-sm text-red-700 dark:text-red-300" data-testid="op-account-error">{{ error }}</p>
         </div>
 
+        <!-- The verification banner (TODO.identity-sso/04): the primary
+             address is unproven, so the ID token's email_verified answers
+             false (routes/op.ts reads the same stamp) and the factors
+             stay locked (their own gate). The copy names the acts that
+             exist TODAY — the email change below (its mailed link proves
+             the NEW address) and the administrator's fresh setup link.
+             The self-service resend for the CURRENT address waits on the
+             kernel's verify-the-primary ceremony (email_change_tokens
+             carry 'change'/'add' only — nothing stamps an unchanged
+             primary). -->
+        <div
+          v-if="!context.account.emailVerifiedAt"
+          class="mb-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+          data-testid="account-verification-banner"
+        >
+          <p class="text-sm font-medium text-amber-800 dark:text-amber-200">{{ t('account.verification.bannerTitle') }}</p>
+          <p class="mt-1 text-sm text-amber-700 dark:text-amber-300">{{ t('account.verification.bannerBody') }}</p>
+        </div>
+
         <!-- 1 · The profile. -->
         <section id="profile" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-profile">
           <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">{{ t('account.profile.title') }}</h2>

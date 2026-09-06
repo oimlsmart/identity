@@ -32,7 +32,7 @@
       ],
       "aud": "fixture-rp",
       "email": "ia@oiml.org",
-      "email_verified": true,
+      "email_verified": false,
       "exp": "{ts}",
       "groups": [
         "ia_officer"
@@ -56,7 +56,7 @@
         "pwd"
       ],
       "email": "ia@oiml.org",
-      "email_verified": true,
+      "email_verified": false,
       "groups": [
         "ia_officer"
       ],
