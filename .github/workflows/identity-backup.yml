@@ -126,7 +126,7 @@ jobs:
         run: |
           KEY="identity/$(date -u +%Y%m%d-%H%MZ).sql"
           echo "BACKUP_KEY=$KEY" >> "$GITHUB_ENV"
-          npx wrangler r2 object put "$BACKUP_BUCKET/$KEY" \
+          npx wrangler r2 object put "$BACKUP_BUCKET/$KEY" --remote \
             --file "$RUNNER_TEMP/identity-backup/export.sql"
           echo "uploaded r2://$BACKUP_BUCKET/$KEY"
 
@@ -134,7 +134,7 @@ jobs:
         working-directory: browser
         run: |
           LOCAL=$(stat -c%s "$RUNNER_TEMP/identity-backup/export.sql")
-          npx wrangler r2 object get "$BACKUP_BUCKET/$BACKUP_KEY" \
+          npx wrangler r2 object get "$BACKUP_BUCKET/$BACKUP_KEY" --remote \
             --file "$RUNNER_TEMP/identity-backup/readback.sql"
           REMOTE=$(stat -c%s "$RUNNER_TEMP/identity-backup/readback.sql")
           if [ "$REMOTE" != "$LOCAL" ]; then
