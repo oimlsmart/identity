@@ -549,6 +549,76 @@ describe('the avatar upload', () => {
     }
   })
 
+  it('every early refusal DRAINS the upload body before answering (the dev-relay wedge: 401/503/413/415)', async () => {
+    // The wedge (agent-526's find, the 413 fix's sibling class): a refusal
+    // returned with the request stream unread wedges the vite '/api' dev
+    // relay — the browser sees a 502 / undici an EPIPE instead of the
+    // honest status. The in-process proof: a body stream that records its
+    // own fate — pulled-to-done (the route drained it) vs cancelled (the
+    // client went away) vs NEITHER (the refusal answered with the upload
+    // unread — the wedge).
+    function trackedUpload(parts: Uint8Array[]) {
+      const state = { served: 0, done: false, cancelled: false }
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (state.served < parts.length) controller.enqueue(parts[state.served++]!)
+          else { state.done = true; controller.close() }
+        },
+        cancel() { state.cancelled = true },
+      })
+      return { body, state }
+    }
+    async function putAvatarStream(opts: { cookie?: string; contentType: string; parts: Uint8Array[]; contentLength?: number }) {
+      const { body, state } = trackedUpload(opts.parts)
+      const headers: Record<string, string> = { 'content-type': opts.contentType }
+      if (opts.cookie) headers.cookie = opts.cookie
+      if (opts.contentLength !== undefined) headers['content-length'] = String(opts.contentLength)
+      const req = new Request('http://localhost/api/op/account/avatar', {
+        method: 'PUT',
+        headers,
+        body,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' })
+      return { res: await app.request(req), state }
+    }
+    const expectDrained = (state: { done: boolean; cancelled: boolean }, refusal: string) => {
+      expect(state.done, `${refusal}: the refusal drained the upload body`).toBe(true)
+      expect(state.cancelled, `${refusal}: the stream was read, never torn down`).toBe(false)
+    }
+
+    const blobsMod = await import('../../server/blobs')
+
+    // 401 — no session: the refusal still consumes the upload.
+    blobsMod.uninstallBlobStoreForTest()
+    const anon = await putAvatarStream({ contentType: 'image/png', parts: [PNG] })
+    expect(anon.res.status).toBe(401)
+    expectDrained(anon.state, '401')
+
+    // 503 — a session but no blob store bound.
+    const cookie = await enroll((await invite('ravi@example.org', 'Ravi Drain')).setupUrl, 'ravi has a proper passphrase')
+    const noStore = await putAvatarStream({ cookie, contentType: 'image/png', parts: [PNG] })
+    expect(noStore.res.status).toBe(503)
+    expectDrained(noStore.state, '503')
+
+    const mem = memoryBlobs()
+    blobsMod.installBlobStore(mem)
+    try {
+      // 413 — the DECLARED length over the cap, with a real body in flight.
+      const declared = await putAvatarStream({ cookie, contentType: 'image/png', parts: [PNG], contentLength: 3 * 1024 * 1024 })
+      expect(declared.res.status).toBe(413)
+      expectDrained(declared.state, '413')
+
+      // 415 — the declared type refused (SVG is never an avatar type).
+      const svg = await putAvatarStream({ cookie, contentType: 'image/svg+xml', parts: [Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')] })
+      expect(svg.res.status).toBe(415)
+      expectDrained(svg.state, '415')
+
+      expect(mem.map.size).toBe(0) // nothing was stored
+    } finally {
+      blobsMod.uninstallBlobStoreForTest()
+    }
+  })
+
   it('the audit chain records the upload and the removal', async () => {
     const blobsMod = await import('../../server/blobs')
     const mem = memoryBlobs()

@@ -1098,14 +1098,36 @@ export function createOpAccountsRouter(): Hono {
   // Content-Type. The serving URL is the account's OWN route below, so a
   // stored avatar never depends on an outside provider's availability.
 
+  /** The early refusals of a RAW-BODY route drain the request stream
+   *  before answering: a refusal returned with the upload unread wedges
+   *  the vite '/api' dev relay (the relay surfaces the early answer as a
+   *  502 to the browser / an EPIPE to undici instead of the honest
+   *  status — the id-06 leg-6 race, observed byte-identical on v2's own
+   *  CI). EVERY refusal of the upload route drains, not just the 413 the
+   *  race was first pinned on — the 401 (no session), the 503 (no blob
+   *  store) and the 415 (the declared type refused) are the same answer
+   *  with the same unread stream. Discard streaming, never buffered — the
+   *  lying-length threat model the early refusals exist for is unchanged;
+   *  a client that goes away mid-drain is fine. */
+  async function drainUpload(c: Context): Promise<void> {
+    try {
+      const body = c.req.raw.body
+      if (body) for await (const _ of body) { /* discard */ }
+    } catch { /* the client tearing down mid-drain still earns the refusal */ }
+  }
+
   // PUT /api/op/account/avatar — the upload (the raw body, the document
   //  store's POSTure). Replaces the current avatar (the other extensions'
   //  keys are deleted — at most one avatar blob exists per account).
   accounts.put('/api/op/account/avatar', async (c) => {
     const user = await sessionUser(c)
-    if (!user) return c.json({ error: 'authentication required' }, 401)
+    if (!user) {
+      await drainUpload(c)
+      return c.json({ error: 'authentication required' }, 401)
+    }
     const blobs = getBlobStore()
     if (!blobs) {
+      await drainUpload(c)
       return c.json({
         error: 'no blob store is bound on this deployment — avatar uploads are unavailable (the account shows the linked provider’s picture, or the initials)',
         available: false,
@@ -1115,21 +1137,14 @@ export function createOpAccountsRouter(): Hono {
     const declared = Number(c.req.header('content-length') ?? 0)
     if (declared > max) {
       // Refuse on the DECLARED length (a lying client never streams
-      // into memory) — but DRAIN the body before answering: a 413
-      // returned with the request stream unread wedges the dev proxy
-      // (the vite '/api' relay surfaces the early answer as a 502 to
-      // the browser / an EPIPE to undici instead of the honest 413 —
-      // the id-06 leg-6 race, observed byte-identical on v2's own CI).
-      // Discard streaming, never buffered; a client that goes away
-      // mid-drain is fine.
-      try {
-        const body = c.req.raw.body
-        if (body) for await (const _ of body) { /* discard */ }
-      } catch { /* the client tearing down mid-drain still earns the 413 */ }
+      // into memory) — the drain keeps the early answer honest through
+      // the dev relay (drainUpload above).
+      await drainUpload(c)
       return c.json({ error: `the picture exceeds the ${Math.round(max / 1024 / 1024)} MB avatar limit`, maxBytes: max }, 413)
     }
     const contentType = c.req.header('content-type')?.split(';')[0]?.trim().toLowerCase() ?? ''
     if (!AVATAR_TYPES[contentType]) {
+      await drainUpload(c)
       return c.json({ error: `the picture must be a PNG, JPEG, WebP or GIF image (received ${contentType || 'no content type'})`, allowed: Object.keys(AVATAR_TYPES) }, 415)
     }
     const data = await c.req.arrayBuffer()
