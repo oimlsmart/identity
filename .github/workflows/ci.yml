@@ -169,6 +169,7 @@ jobs:
             e2e/id-33-logout.e2e.ts \
             e2e/id-34-refresh-rotation.e2e.ts \
             e2e/id-35-revoke-introspect.e2e.ts \
+            e2e/id-36-client-governance.e2e.ts \
             e2e/id-surface.e2e.ts \
             e2e/op-surface-contract.e2e.ts \
             e2e/op-key-rotate.e2e.ts

@@ -59,6 +59,16 @@
 //                                         tokens issued per UTC day (14
 //                                         days), the refusal counts, the
 //                                         registry's own events
+//   GET  /api/op/dashboard/clients/:id/governance
+//                                       — the client-registry governance
+//                                         view (read-only): the WHOLE
+//                                         consent-grant history (live AND
+//                                         revoked), the live-token
+//                                         population counts (never a
+//                                         token value), the audit slice
+//                                         (the client-side acts ∪ the
+//                                         account-side consent acts
+//                                         naming the client)
 //
 // The rules the spec pins, kept here: every admin act writes an audit
 // event (the revoke-all below does; the neighboring routers carry the
@@ -77,6 +87,9 @@ import { getStore, type AuthUserPayload } from '@oimlsmart/platform-server/store
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { SESSION_COOKIE, sessionUser } from '@oimlsmart/platform-server/session'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
+import { DEVICE_CLASS, deviceClassOf } from '../auth/op/device-clients'
+import { SERVICE_CLASS, serviceClassOf } from '../auth/op/service-clients'
+import { logoutBlockOf } from '../auth/op/logout'
 
 /** The audit journal's parsed row (the shape every writer serializes). */
 interface AuditEvent {
@@ -111,6 +124,10 @@ const SIGN_IN_FAIL = new Set(['account.sign_in_failed', 'upstream_refused'])
  *  one account or address with this many failed sign-ins inside 24 hours
  *  is a burst. */
 const FAILED_LOGIN_BURST_THRESHOLD = 5
+/** The governance view's audit-slice cap (the newest N rows of the
+ *  client's own chain — the full history stays queryable at
+ *  /api/op/dashboard/audit). */
+const GOVERNANCE_AUDIT_CAP = 50
 /** The overview + client activity series depth (UTC day buckets). */
 const SERIES_DAYS = 14
 
@@ -678,6 +695,98 @@ export function createOpDashboardRouter(): Hono {
       generatedAt: new Date().toISOString(),
       retention: RETENTION_STATEMENT,
       clients: rows,
+    })
+  })
+
+  // GET /api/op/dashboard/clients/:id/governance — the client-registry
+  // governance view (TODO.identity-sso's "the review, the audit"): the
+  // read-only per-client answer the console's expansion renders. WHO
+  // holds a grant with the client — the WHOLE consent history, live AND
+  // revoked (the account console's list hides the revoked half; the
+  // governance view shows the history the audit chain would otherwise
+  // carry alone), each grant's account resolved through ONE users
+  // prefetch. HOW MANY sessions + offline grants stand behind it — two
+  // counts, never the rows: the console never answers a token value. And
+  // the audit slice — the client-side acts (entity_id IS the client)
+  // plus the account-side consent acts naming it (metadata.client),
+  // newest first, capped (the full history stays queryable at
+  // /api/op/dashboard/audit). The ACTS stay on the neighboring surfaces
+  // (the registry's register/rotate/disable, the account console's
+  // revoke, this router's own session acts) — this route never writes.
+  dashboard.get('/api/op/dashboard/clients/:id/governance', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error) return gate.error
+    const store = getStore()
+    const clientId = c.req.param('id')
+    const client = await store.getOidcClient(clientId)
+    if (!client) return c.json({ error: 'no such client' }, 404)
+    // The endpoint-scaling doctrine: every referenced set prefetches ONCE
+    // per request and groups in memory — nothing awaits inside a per-row
+    // loop, so the store-call count is invariant to the journal's length
+    // and the client's grant count alike.
+    const [grants, accessLive, refreshLive, users, journal] = await Promise.all([
+      store.listOidcConsentGrantsForClient(clientId),
+      store.countOidcAccessTokensForClient(clientId),
+      store.countOidcRefreshTokensForClient(clientId),
+      store.listUsers(),
+      readJournal(),
+    ])
+    const accountsById = new Map(users.map(u => [u.id, u]))
+    const accountRef = (id: string | null) => {
+      if (!id) return null
+      const account = accountsById.get(id)
+      return account ? { id: account.id, name: account.name, email: account.email } : { id, name: null, email: null }
+    }
+    // The client slice mirrors routes/op.ts's clientView — the same
+    // registry truth (the derived class + the policy blocks), never the
+    // secret hash.
+    const device = deviceClassOf(client.claimsPolicy)
+    const service = device ? null : serviceClassOf(client.claimsPolicy)
+    const auditRows = journal
+      .filter(e => e.entity_id === clientId || e.metadata?.client === clientId)
+      .slice(0, GOVERNANCE_AUDIT_CAP)
+      .map(e => ({
+        at: e.timestamp,
+        action: e.action,
+        actor: e.user_name ?? null,
+        // The account the act touched: the account-side rows carry it as
+        // the entity id; the client-side rows that name one carry it in
+        // metadata.account (token_issued / token_refreshed /
+        // refresh_reuse_detected).
+        account: accountRef(
+          e.entity_type === 'account' ? e.entity_id
+            : typeof e.metadata?.account === 'string' ? e.metadata.account
+              : null,
+        ),
+        metadata: e.metadata ?? {},
+      }))
+    return c.json({
+      generatedAt: new Date().toISOString(),
+      retention: RETENTION_STATEMENT,
+      client: {
+        clientId: client.clientId,
+        name: client.name,
+        class: device ? DEVICE_CLASS : service ? SERVICE_CLASS : 'application',
+        device,
+        service,
+        redirectUris: client.redirectUris,
+        claimsPolicy: client.claimsPolicy,
+        logout: logoutBlockOf(client.claimsPolicy),
+        launch: client.launch,
+        confidential: !!client.secretHash,
+        status: client.status,
+        createdAt: client.createdAt,
+        createdBy: client.createdBy,
+      },
+      grants: grants.map(grant => ({
+        id: grant.id,
+        account: accountRef(grant.userId),
+        scope: grant.scope,
+        createdAt: grant.createdAt,
+        revokedAt: grant.revokedAt,
+      })),
+      tokens: { accessLive, refreshLive },
+      audit: auditRows,
     })
   })
 
