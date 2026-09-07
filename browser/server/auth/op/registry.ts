@@ -85,6 +85,7 @@ import { hashClientSecret } from './secrets'
 import { validateLaunch, type LaunchInput } from './launch'
 import { DEVICE_CLASS, validateDeviceBlock, type DeviceClientClaims, type OpClientPolicy } from './device-clients'
 import { SERVICE_CLASS, validateServiceBlock, type OpServicePolicy, type ServiceClientClaims } from './service-clients'
+import { validateLogoutBlock, type OpLogoutBlock, type OpLogoutPolicy } from './logout'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -112,6 +113,10 @@ export interface OpClientSeedEntry {
   /** The service identity the client binds (REQUIRED with class
    *  'service', refused otherwise). */
   service?: ServiceClientClaims
+  /** TODO.identity-sso (the wave-A tail): the client's logout surface
+   *  (the exact post-logout redirect URIs + the backchannel receiver).
+   *  The application class only — the machine classes never carry one. */
+  logout?: OpLogoutBlock
 }
 
 /** Parse + validate the seed declaration. Throws honestly on a malformed
@@ -178,6 +183,16 @@ export function parseOpClientSeed(raw: string): OpClientSeedEntry[] {
       const { error } = validateLaunch(rec.launch as LaunchInput)
       if (error) throw new Error(`OP_CLIENT_SEED[${i}]: ${error}`)
     }
+    // TODO.identity-sso (the wave-A tail): the logout surface — the
+    // application class only, validated at the seed like every other
+    // field. An all-empty block normalizes to ABSENT (the tight-write
+    // doctrine — the policy JSON never carries an empty logout key).
+    if (rec.logout !== undefined) {
+      if (isMachine) throw new Error(`OP_CLIENT_SEED[${i}]: the ${rec.class} class has no logout surface (nothing signs in through it) — no logout block`)
+      const { logout, error } = validateLogoutBlock(rec.logout)
+      if (error) throw new Error(`OP_CLIENT_SEED[${i}]: ${error}`)
+      rec.logout = logout && (logout.post_logout_redirect_uris.length || logout.backchannel_logout_uri) ? logout : undefined
+    }
     return rec as unknown as OpClientSeedEntry
   })
 }
@@ -192,12 +207,16 @@ export async function seedOidcClientsFromEnv(env: EnvLike, store: ServerStore): 
     // column round-trips opaquely — the machine classes are data-level
     // extensions, auth/op/device-clients.ts's + service-clients.ts's
     // doctrine).
-    const policy: OpClientPolicy | OpServicePolicy | null = entry.class === DEVICE_CLASS
+    const policy: OpClientPolicy | OpServicePolicy | OpLogoutPolicy | null = entry.class === DEVICE_CLASS
       ? { claims: [], class: DEVICE_CLASS, device: entry.device! }
       : entry.class === SERVICE_CLASS
         ? { claims: [], class: SERVICE_CLASS, service: entry.service! }
-        : entry.claims_policy
-          ? { claims: entry.claims_policy.claims, ...(entry.claims_policy.roles ? { roles: entry.claims_policy.roles } : {}) }
+        : entry.claims_policy || entry.logout
+          ? {
+              claims: entry.claims_policy?.claims ?? [],
+              ...(entry.claims_policy?.roles ? { roles: entry.claims_policy.roles } : {}),
+              ...(entry.logout ? { logout: entry.logout } : {}),
+            }
           : null
     await store.upsertOidcClient({
       clientId: entry.client_id,

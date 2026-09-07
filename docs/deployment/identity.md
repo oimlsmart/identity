@@ -418,8 +418,9 @@ account model" below); the demo cast rides along in development only
 | `GET /jwks.json` | The public signing keys: ES256, kid'd, with the rotation history (every `active` row of `oidc_keys` is served, so a rotation never strands an in-flight token). |
 | `GET /op/authorize` | The authorization endpoint: validates the client and the EXACT `redirect_uri` against the registry (an unregistered one is refused in place, never redirected to), requires `response_type=code`, the `openid` scope and PKCE S256, then either redirects to the instance's login page (no session — the flow re-enters afterwards) or to the consent page. The consent page is SKIPPED when a remembered grant covers the request's scope set (TODO.identity-features/12 — the consent decision's allow records the grant per account+client+scope set; `prompt=consent` in the request always shows the page). |
 | `GET /op/consent` | The consent page (the app's house style): the client name, the scopes, the account being shared, allow/deny. |
-| `POST /op/token` | The code exchange: the one-time code (consumed atomically — a replay always loses with `invalid_grant`), the PKCE verifier, and the client secret (HTTP Basic or form; public clients run on PKCE alone). Answers the signed ES256 ID token (`iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, plus the claims policy's extras) and a Bearer access token. |
+| `POST /op/token` | The code exchange: the one-time code (consumed atomically — a replay always loses with `invalid_grant`), the PKCE verifier, and the client secret (HTTP Basic or form; public clients run on PKCE alone). Answers the signed ES256 ID token (`iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, `auth_time` — the authentication instant, the wave-A tail's `prompt=login` freshness proof — and `amr` when a sign-in ceremony was recorded, plus the claims policy's extras) and a Bearer access token. |
 | `GET /op/userinfo` | The access token's claims (the same scope + policy split as the ID token). |
+| `GET/POST /op/endsession` | RP-Initiated Logout 1.0 (TODO.identity-sso, the wave-A tail): ends the browser's OP session (the row + the cookie) and fires the OP-initiated backchannel fan-out, then redirects to the `post_logout_redirect_uri` ONLY when it is registered exactly on the resolved client's logout block (the open-redirector guard) — every other shape answers the OP's own signed-out page. The `id_token_hint` validates against the OP's own registered keyset (an expired hint stays valid). See "The logout cone" below. |
 | `GET /op/avatar/:id` | The PUBLIC avatar serve (no session; the GitHub-avatars convention): the stored upload with its real content type + `nosniff` + a short public cache, the generated-initials SVG for a known account without an upload (or with no blob store bound), a plain JSON 404 for an unknown or erased account. This is the URL the `picture` claim names. |
 
 All OP state that must survive Worker isolates lives in D1
@@ -450,7 +451,7 @@ with the shown-once generated secret, and the per-client role
 assignments of TODO.identity/03 consume the claims policy (the user
 registry's console landed with it). The known instances bootstrap
 from the `OP_CLIENT_SEED` env (a JSON array of
-`{ client_id, name, secret?, redirect_uris, claims_policy? }`,
+`{ client_id, name, secret?, redirect_uris, claims_policy?, logout? }`,
 upserted at boot — secrets hashed PBKDF2 before they touch the
 database; declare the seed as a Worker secret when it carries them).
 The DEVICE class (the machine cone — the SMI twins' per-device
@@ -458,7 +459,53 @@ credentials, `docs/integration/identity-service.md` §3/§9) seeds as
 `{ client_id, name, class: "device", secret, device: { id, org,
 instrument_model } }` — the secret is required (a device client is
 always confidential), and redirect_uris / a launch card / a claims
-policy are refused honestly at the boot.
+policy / a logout block are refused honestly at the boot.
+
+### The logout cone (TODO.identity-sso, the wave-A tail)
+
+Two halves, one client-registered surface: the `logout` block rides the
+claims-policy JSON (the data-level extension doctrine — no migration)
+as `logout: { post_logout_redirect_uris: [...], backchannel_logout_uri:
+"…" }`. Both URIs must be absolute http(s); the application class only
+(the machine classes refuse the block at write — nothing signs in,
+nothing logs out). The console's client form carries the fields; an
+edit that omits `logout` drops the stored block (the wholesale policy
+rewrite doctrine, exactly as with roles).
+
+- **RP-initiated logout** — `GET/POST /op/endsession` (the endpoints
+  table). The act always lands (the session row + the cookie die); the
+  redirect to `post_logout_redirect_uri` (+ `state`) fires ONLY for a
+  URI registered on the RESOLVED, active client (the `id_token_hint`'s
+  `aud` wins over the `client_id` param) — every other shape answers
+  the OP's signed-out page, never an open redirect.
+- **OP-initiated backchannel logout** — every session-ending act (the
+  console's sign-out, the account's session revokes, the admin session
+  revocations, the deactivation + erasure sweeps, and the end-session
+  itself when a live session stood) POSTs a `logout_token` JWT
+  (`iss`/`sub`/`aud`/`jti`/`iat`/`exp` — a 120 s life — plus the
+  `http://schemas.openid.net/event/backchannel-logout` event; NO `sid`:
+  no sid tracking exists, the token names the account) to each LIVE
+  consent-grant client's `backchannel_logout_uri`. Fire-and-forget:
+  the act never waits on an RP, a failure logs and never fails the act,
+  and the grant-based targeting may over-notify a client the account no
+  longer holds a session at (the remembered grant softens the
+  re-auth). The password change's embedded other-sessions revoke is
+  deliberately NOT a trigger (credential hygiene, not a logout act).
+
+The third leg of the tail is **`prompt=login`** at `/op/authorize`: the
+forced re-authentication renders the sign-in form despite a live
+session (the authorize redirect consumes the `login` value — the
+stateless loop guard — and the login page's own `prompt=login` flag
+holds the existing-session bounce off; the upstream-IdP sign-in path
+propagates it where the provider speaks `prompt`). The RP's freshness
+PROOF is the ID token's `auth_time` (the new session's authentication
+instant, projected from `sessions.created_at`); `max_age` stays
+deferred — the RP asks with `prompt=login` and verifies `auth_time`.
+
+The discovery document declares `end_session_endpoint` and
+`auth_time` in `claims_supported`; the surface-contract golden's
+re-record for this wave is deliberate (the wave's subject IS the
+surface growth).
 
 ### The signing keys
 

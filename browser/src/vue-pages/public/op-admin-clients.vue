@@ -44,6 +44,10 @@ interface ClientRow {
   service: { id: string; org: string; audience: string; scopes: string[] } | null
   redirectUris: string[]
   claimsPolicy: { claims: string[]; roles?: string[] } | null
+  /** The registered logout surface (TODO.identity-sso, the wave-A tail):
+   *  the exact post-logout redirect URIs + the backchannel receiver —
+   *  null = no logout surface registered. */
+  logout: { post_logout_redirect_uris: string[]; backchannel_logout_uri: string | null } | null
   /** The SSO home's launch card (null = not on the launcher). */
   launch: { url: string; icon: string | null; description: string | null; visibility: 'roles' | 'request' | 'open' } | null
   confidential: boolean
@@ -124,6 +128,12 @@ const form = ref({
   service_audience: '',
   /** The service's scope allowlist (space- or comma-separated). */
   service_scopes: '',
+  /** The logout surface (TODO.identity-sso, the wave-A tail; the
+   *  application class only): the exact post-logout redirect URIs (one
+   *  per line — the end-session redirect's allowlist) + the RP's
+   *  backchannel receiver (empty = no backchannel notice). */
+  logout_redirect_uris: '',
+  backchannel_uri: '',
 })
 const editing = ref<string | null>(null)
 /** The re-key decision in edit mode: off keeps the stored secret hash. */
@@ -141,6 +151,7 @@ function resetForm() {
     launchOn: false, launch_url: '', launch_description: '', launch_icon: 'external', launch_visibility: 'roles',
     classKind: 'application', device_id: '', device_org: '', device_model: '',
     service_id: '', service_org: '', service_audience: '', service_scopes: '',
+    logout_redirect_uris: '', backchannel_uri: '',
   }
 }
 
@@ -168,6 +179,8 @@ function editRow(row: ClientRow) {
     service_org: row.service?.org ?? '',
     service_audience: row.service?.audience ?? '',
     service_scopes: row.service?.scopes.join(' ') ?? '',
+    logout_redirect_uris: (row.logout?.post_logout_redirect_uris ?? []).join('\n'),
+    backchannel_uri: row.logout?.backchannel_logout_uri ?? '',
   }
 }
 
@@ -286,12 +299,37 @@ function validateLaunchForm(): string[] {
   return problems
 }
 
+/** The logout surface's inline validation (TODO.identity-sso, the
+ *  wave-A tail; the server re-validates at write — this keeps the
+ *  honest refusal next to the field). The application class only. */
+const logoutProblems = ref<string[]>([])
+function validateLogoutForm(): string[] {
+  const problems: string[] = []
+  if (form.value.classKind === 'application') {
+    for (const uri of form.value.logout_redirect_uris.split('\n').map(u => u.trim()).filter(Boolean)) {
+      try {
+        const parsed = new URL(uri)
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') problems.push(t('admin.clients.logoutUriNotAbsolute', { uri }))
+      } catch { problems.push(t('admin.clients.logoutUriNotAbsolute', { uri })) }
+    }
+    const backchannel = form.value.backchannel_uri.trim()
+    if (backchannel) {
+      try {
+        const parsed = new URL(backchannel)
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') problems.push(t('admin.clients.backchannelNotAbsolute'))
+      } catch { problems.push(t('admin.clients.backchannelNotAbsolute')) }
+    }
+  }
+  logoutProblems.value = problems
+  return problems
+}
+
 async function save() {
   if (saving.value) return
   error.value = null
   notice.value = null
   lastSecret.value = null
-  if (validateUris().length || validateLaunchForm().length || validateDeviceForm().length || validateServiceForm().length) return
+  if (validateUris().length || validateLaunchForm().length || validateDeviceForm().length || validateServiceForm().length || validateLogoutForm().length) return
   saving.value = true
   try {
     // The secret posture: a NEW confidential client (or a re-key) asks the
@@ -342,6 +380,14 @@ async function save() {
               ...(form.value.claims.includes('roles') || form.value.claims.includes('groups')
                 ? (form.value.roles.length ? { roles: form.value.roles } : {})
                 : {}),
+            },
+            // The logout surface (the wave-A tail): always sent on the
+            // application class — the policy's wholesale rewrite carries
+            // it, so cleared fields clear the stored block (the server
+            // keeps an all-empty block out of the JSON entirely).
+            logout: {
+              post_logout_redirect_uris: form.value.logout_redirect_uris.split('\n').map(u => u.trim()).filter(Boolean),
+              backchannel_logout_uri: form.value.backchannel_uri.trim() || null,
             },
           }
     // The launch card: on = the card as declared; an edit with the card
@@ -745,6 +791,42 @@ onMounted(async () => {
                 </label>
               </div>
             </div>
+          </fieldset>
+          <!-- The logout surface (TODO.identity-sso, the wave-A tail):
+               the RP-initiated end-session's redirect allowlist + the
+               backchannel receiver. The application class only — the
+               machine classes never sign in, so they never log out. -->
+          <fieldset v-if="form.classKind === 'application'" class="sm:col-span-2">
+            <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.logoutLegend') }}</legend>
+            <div class="space-y-2" data-testid="op-client-field-logout">
+              <div>
+                <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.logoutRedirectUris') }}</label>
+                <textarea
+                  v-model="form.logout_redirect_uris"
+                  rows="2"
+                  data-testid="op-client-field-logout-uris"
+                  placeholder="https://tl.example.org/signed-out"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                  @blur="validateLogoutForm"
+                  @input="validateLogoutForm"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.backchannelUri') }}</label>
+                <input
+                  v-model="form.backchannel_uri"
+                  data-testid="op-client-field-backchannel-uri"
+                  placeholder="https://tl.example.org/api/auth/backchannel-logout"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                  @blur="validateLogoutForm"
+                  @input="validateLogoutForm"
+                />
+              </div>
+              <p class="text-[11px] text-slate-400 dark:text-slate-500">{{ t('admin.clients.logoutNote') }}</p>
+            </div>
+            <ul v-if="logoutProblems.length" class="mt-1 list-disc list-inside text-xs text-red-600 dark:text-red-400" data-testid="op-client-logout-problems">
+              <li v-for="problem in logoutProblems" :key="problem">{{ problem }}</li>
+            </ul>
           </fieldset>
           <fieldset v-if="form.classKind === 'application'" class="sm:col-span-2">
             <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">SSO home (the launcher card a signed-in account meets after sign-in)</legend>

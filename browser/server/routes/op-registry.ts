@@ -121,14 +121,18 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type AuthUserPayload, type OpClientRoleAssignment, type OrgRegistryContact, type UserAdminRow } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, validateOrgLinks, type RegistryOrg, type RegistryOrgKind } from '../auth/org-registry'
 import { listOrgSigningKeys } from '../auth/org-signing-keys'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
+import { prepareBackchannelLogout } from '../auth/op/logout'
 import { orgAuditSlice } from '../auth/op/org-audit'
 import { patListRow } from '../auth/op/tokens'
 import { sessionUser } from '@oimlsmart/platform-server/session'
+
+type EnvLike = Record<string, string | undefined>
 
 /** The audit actions the registry's activity feed surfaces: the identity
  *  registry's own journal rows (accounts, roles, links, sessions,
@@ -542,13 +546,16 @@ export function createOpRegistryRouter(): Hono {
 
   // POST /api/op/registry/users/:id/sessions/:sid/revoke — the admin ends
   // one of the account's sessions (the store scopes the delete to the
-  // account, so another account's session id is a no-op).
+  // account, so another account's session id is a no-op). TODO.identity-
+  // sso (the wave-A tail): the successful revoke fires the OP-initiated
+  // backchannel fan-out (the RPs hear the session's end).
   registry.post('/api/op/registry/users/:id/sessions/:sid/revoke', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error || !gate.user) return gate.error!
     const store = getStore()
     const user = await store.getUserById(c.req.param('id'))
     if (!user) return c.json({ error: 'not found' }, 404)
+    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, user.id)
     const revoked = await store.deleteSessionById(user.id, c.req.param('sid'))
     if (!revoked) return c.json({ error: 'no such session' }, 404)
     await audit('account.session_revoked', user.id, { userId: gate.user!.id, userName: gate.user!.name }, {
@@ -556,6 +563,7 @@ export function createOpRegistryRouter(): Hono {
       session: c.req.param('sid'),
       by: 'administrator',
     })
+    floatBackchannel()
     return c.json({ ok: true })
   })
 
@@ -566,12 +574,15 @@ export function createOpRegistryRouter(): Hono {
   // The count rides the audit event. On your OWN account this is the
   // sign-out-everywhere the account console already offers — allowed, and
   // it ends this console's session too (the page re-authenticates).
+  // TODO.identity-sso (the wave-A tail): a non-zero sweep fires the
+  // OP-initiated backchannel fan-out.
   registry.post('/api/op/registry/users/:id/sessions/revoke-all', async (c) => {
     const gate = await requireAdmin(c)
     if (gate.error || !gate.user) return gate.error!
     const store = getStore()
     const user = await store.getUserById(c.req.param('id'))
     if (!user) return c.json({ error: 'not found' }, 404)
+    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, user.id)
     const sessions = await store.listUserSessions(user.id)
     let count = 0
     for (const session of sessions) {
@@ -582,6 +593,7 @@ export function createOpRegistryRouter(): Hono {
       count,
       by: 'administrator',
     })
+    if (count > 0) floatBackchannel()
     return c.json({ ok: true, revoked: count })
   })
 

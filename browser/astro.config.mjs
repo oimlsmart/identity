@@ -86,6 +86,14 @@ export default defineConfig({
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
           },
+          // The end-session endpoint (TODO.identity-sso, the wave-A
+          // tail): RP-initiated logout — the browser lands here from the
+          // RP's redirect, so the API answers it (the session act + the
+          // registered-URI redirect / the signed-out page).
+          '/op/endsession': {
+            target: process.env.API_ORIGIN || 'http://localhost:3190',
+            headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
+          },
           // The org key-resolution endpoint (TODO.trust-registry/01):
           // PUBLIC, anonymous — the verifiers fetch it cross-origin.
           '/op/keys': {

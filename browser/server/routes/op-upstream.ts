@@ -183,7 +183,7 @@ export function createOpUpstreamRouter(): Hono {
     c: Context,
     provider: IdentityProvider,
     mode: 'login' | 'link',
-    extra: { linkUserId?: string; redirect?: string },
+    extra: { linkUserId?: string; redirect?: string; prompt?: string },
   ): Promise<Response> {
     const env = runtimeEnv<EnvLike>(c)
     const origin = opRequestOrigin(c.req.raw)
@@ -214,17 +214,27 @@ export function createOpUpstreamRouter(): Hono {
       state,
       nonce,
       codeChallenge: pkce.challenge,
+      // TODO.identity-sso (the wave-A tail): the forced re-authentication
+      // propagates — the upstream re-prompts too (GitHub's authorize has
+      // no prompt concept; the github branch above honestly ignores it).
+      ...(extra.prompt ? { prompt: extra.prompt } : {}),
     }))
   }
 
-  // GET /op/upstream/:id/signin — the login-page button's target.
+  // GET /op/upstream/:id/signin — the login-page button's target. TODO.
+  // identity-sso (the wave-A tail): ?prompt=login propagates the forced
+  // re-authentication to the upstream (the OIDC-kind providers re-prompt;
+  // GitHub has no prompt concept and ignores it honestly).
   router.get('/op/upstream/:id/signin', async (c) => {
     await ensureSeeded(c)
     const origin = opRequestOrigin(c.req.raw)
     const provider = await enabledProvider(c, c.req.param('id'))
     if (!provider) return c.redirect(loginErrorRedirect(origin, 'unknown'))
     try {
-      return await startFlow(c, provider, 'login', { redirect: safeLocalRedirect(c.req.query('redirect')) })
+      return await startFlow(c, provider, 'login', {
+        redirect: safeLocalRedirect(c.req.query('redirect')),
+        prompt: c.req.query('prompt') === 'login' ? 'login' : undefined,
+      })
     } catch (err) {
       const reason = err instanceof OidcError ? err.reason : 'config'
       console.error(`[op] upstream sign-in start failed (${provider.id}/${reason}):`, (err as Error).message)

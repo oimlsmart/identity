@@ -166,6 +166,7 @@ jobs:
             e2e/id-30-password-breach.e2e.ts \
             e2e/id-31-login-throttle.e2e.ts \
             e2e/id-32-security-notices.e2e.ts \
+            e2e/id-33-logout.e2e.ts \
             e2e/id-surface.e2e.ts \
             e2e/op-surface-contract.e2e.ts \
             e2e/op-key-rotate.e2e.ts

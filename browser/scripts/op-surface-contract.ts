@@ -325,7 +325,11 @@ async function captureClaims(base: string, issuer: string, creds: SurfaceCredent
       account: consent.account,
       issuerName: consent.issuerName,
     },
-    idToken: { ...idToken, sub: M.sub, iat: M.ts, exp: M.ts },
+    // TODO.identity-sso (the wave-A tail): auth_time joins the
+    // per-instant markers (the authentication instant is as volatile as
+    // iat/exp) — CONDITIONALLY: present normalizes to the marker, absent
+    // stays absent (the golden diff catches a disappearance).
+    idToken: { ...idToken, sub: M.sub, iat: M.ts, exp: M.ts, ...(idToken.auth_time !== undefined ? { auth_time: M.ts } : {}) },
     userinfo: { ...userinfo, sub: M.sub },
     tokenResponse: { token_type: tokens.token_type, expires_in: tokens.expires_in },
   }, issuer)
