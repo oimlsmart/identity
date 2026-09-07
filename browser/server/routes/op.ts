@@ -31,8 +31,18 @@
 //   POST /op/token                         — the code exchange: one-time
 //                                            code + PKCE verify + the
 //                                            client's secret → the signed
-//                                            ES256 ID token + access token;
-//                                            ALSO the machine cone
+//                                            ES256 ID token + access token
+//                                            (+ the FIRST refresh token of
+//                                            a rotation family when the
+//                                            grant carries offline_access —
+//                                            TODO.identity-sso, the wave-C
+//                                            token surface, kernel 0.2.6);
+//                                            ALSO the refresh grant itself
+//                                            (grant_type=refresh_token —
+//                                            the one-time consume + the
+//                                            rotation, a re-presented spent
+//                                            token kills the family) AND
+//                                            the machine cone
 //                                            (grant_type=client_credentials,
 //                                            the device + service classes
 //                                            only → the self-contained
@@ -52,6 +62,23 @@
 //                                            estate-internal posture, the
 //                                            golden byte-identical);
 //   GET  /op/userinfo                      — the access token's claims;
+//   POST /op/revoke                        — RFC 7009 (the wave-C token
+//                                            surface): the client-bound
+//                                            revocation — a client revokes
+//                                            only its OWN tokens, a refresh
+//                                            token's revocation kills its
+//                                            whole family, the answer is
+//                                            200 whether the token existed
+//                                            or not;
+//   POST /op/introspect                    — RFC 7662 (identity#47/#42's
+//                                            RS half): the authenticated
+//                                            client reads a token's
+//                                            standing — the opaque access
+//                                            tokens from the table, the
+//                                            machine classes' JWTs through
+//                                            the signature + the named
+//                                            client's standing (never a
+//                                            table read);
 //   GET  /op/avatar/<account id>           — the PUBLIC avatar serve (no
 //                                            session — the `picture`
 //                                            claim's target, the
@@ -69,10 +96,10 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, normalizePatScopes, type AuthUserPayload, type OidcClient, type OidcClientLaunch, type PatScope } from '@oimlsmart/platform-server/store'
+import { getStore, normalizeOidcScopeSet, normalizePatScopes, type AuthUserPayload, type OidcClient, type OidcClientLaunch, type PatScope } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/config'
-import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, type OpSigningKey } from '../auth/op/keys'
+import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, verifyOpJwt, type OpSigningKey } from '../auth/op/keys'
 import { hashClientSecret, verifyClientSecret } from '../auth/op/secrets'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
 import { roleClaimsForContext, pictureClaimForClient } from '../auth/op/claims'
@@ -192,12 +219,20 @@ export function createOpRouter(): Hono {
       // endpoint — the kernel's RP side (buildEndSessionUrl) already
       // consumes it.
       end_session_endpoint: `${issuer}/op/endsession`,
+      // TODO.identity-sso (the wave-C token surface): RFC 7009 + RFC
+      // 7662 — the client-bound revocation and the token-standing read.
+      revocation_endpoint: `${issuer}/op/revoke`,
+      introspection_endpoint: `${issuer}/op/introspect`,
       jwks_uri: `${issuer}/jwks.json`,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
       subject_types_supported: ['public'],
       id_token_signing_alg_values_supported: ['ES256'],
-      scopes_supported: ['openid', 'profile', 'email'],
+      // offline_access (the wave-C token surface): the refresh grant's
+      // ask — admitted for the application class (public and confidential
+      // alike; the rotation + the reuse-kill are the compensating
+      // controls), never for the machine classes.
+      scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       code_challenge_methods_supported: ['S256'],
       // auth_time joins: the prompt=login freshness proof the RP verifies
@@ -670,7 +705,7 @@ export function createOpRouter(): Hono {
         return creds.error
       }
       if (!creds.clientId) {
-        return refuseToken(400, 'unsupported_grant_type', 'authorization_code only')
+        return refuseToken(400, 'unsupported_grant_type', 'authorization_code and refresh_token only')
       }
       const machineClient = await store.getOidcClient(creds.clientId)
       if (!machineClient || machineClient.status !== 'active') {
@@ -680,7 +715,7 @@ export function createOpRouter(): Hono {
       const device = deviceClassOf(machineClient.claimsPolicy)
       const service = device ? null : serviceClassOf(machineClient.claimsPolicy)
       if (!device && !service) {
-        return refuseToken(400, 'unsupported_grant_type', 'authorization_code only (client_credentials is the machine classes’ cone)', machineClient.clientId)
+        return refuseToken(400, 'unsupported_grant_type', 'authorization_code and refresh_token only (client_credentials is the machine classes’ cone)', machineClient.clientId)
       }
       // The machine caller authenticates with its secret — the machine
       // classes are always confidential (the registry refuses a public
@@ -943,8 +978,158 @@ export function createOpRouter(): Hono {
       })
     }
 
+    // ── the refresh grant (TODO.identity-sso, the wave-C token surface) ──
+    // RFC 6749 §6 with ROTATION (the OAuth 2.0 Security BCP's refresh
+    // doctrine, kernel 0.2.6's store): the presented token consumes
+    // ATOMICALLY and its successor mints IN THE SAME FAMILY; a presented
+    // CONSUMED token is the theft signal (RFC 6819 §5.2.2.3) — the store
+    // already killed the whole family, the answer is invalid_grant, and
+    // the audit chain carries the anomaly (TODO.identity-sso/01's
+    // baseline). The refreshed ID token proves the ORIGINAL
+    // authentication (the row's auth_time never advances; OIDC Core
+    // §12.2), the claims re-judge the LIVE standing (a role or membership
+    // revoked mid-grant disappears here), and RFC 6749 §6's scope
+    // narrowing narrows BOTH the access token and the rotated refresh row
+    // (else the narrowing would be illusory).
+    if (grantType === 'refresh_token') {
+      const { client, error } = await authenticateClient(c, form)
+      if (error) {
+        await audit('client.token_refused', form.get('client_id')?.trim() || 'unauthenticated', {}, { error: 'invalid_client' })
+        return error
+      }
+      // The machine classes never refresh (client_credentials re-mints
+      // instead) — refused BEFORE the one-time token is consumed, so a
+      // confused deputy never burns another client's grant.
+      const refreshMachineClass = deviceClassOf(client!.claimsPolicy) ? DEVICE_CLASS
+        : serviceClassOf(client!.claimsPolicy) ? SERVICE_CLASS
+          : null
+      if (refreshMachineClass) {
+        return refuseToken(400, 'unsupported_grant_type', `the ${refreshMachineClass} class speaks client_credentials only — never a refresh token`, client!.clientId)
+      }
+      const presentedRefresh = form.get('refresh_token') ?? ''
+      const consumed = presentedRefresh ? await store.consumeOidcRefreshToken(presentedRefresh) : { kind: 'invalid' as const }
+      if (consumed.kind === 'reuse') {
+        // The theft signal, journaled loudly: the account, the client,
+        // the family — NEVER the token value.
+        await audit('client.refresh_reuse_detected', consumed.clientId, {}, { account: consumed.userId, family: consumed.familyId })
+        return refuseToken(400, 'invalid_grant', 'the refresh token was already used — the rotation family stands revoked', client!.clientId)
+      }
+      if (consumed.kind !== 'ok') {
+        return refuseToken(400, 'invalid_grant', 'the refresh token is unknown, expired, or revoked', client!.clientId)
+      }
+      const grant = consumed.token
+      if (grant.clientId !== client!.clientId) {
+        // The cross-client present: the consume already burned the token
+        // (fail toward invalidation — a token that leaked across clients
+        // is compromised by definition); the legitimate holder's next
+        // present reads the reuse verdict and the family dies.
+        return refuseToken(400, 'invalid_grant', 'the refresh token was not issued to this client', client!.clientId)
+      }
+      // The account's standing (the delegation cone's lattice leg): a
+      // deactivated or erased account's grant dies with its sessions.
+      const grantUser = await store.getUserById(grant.userId)
+      const grantUserRow = (await store.listUsers()).find(u => u.id === grant.userId)
+      if (!grantUser || !grantUserRow || !grantUserRow.active || grantUserRow.provider === 'erased') {
+        return refuseToken(400, 'invalid_grant', 'the refresh token’s account no longer stands', client!.clientId)
+      }
+      // RFC 6749 §6's scope narrowing: the request may name a SUBSET of
+      // the granted set — an empty ask or anything beyond refuses loudly
+      // (never a silent mint past the grant). The row's spelling reads as
+      // a SET and the answer goes out canonical (migration 0025's scope
+      // cell contract) — the code-exchange row may carry the request's
+      // verbatim order, the rotation never does.
+      let effectiveScope = normalizeOidcScopeSet(grant.scope)
+      const askedScope = form.get('scope')
+      if (askedScope !== null) {
+        const grantedSet = new Set(grant.scope.split(/\s+/).filter(Boolean))
+        const asked = askedScope.split(/\s+/).filter(Boolean)
+        if (!asked.length || asked.some(s => !grantedSet.has(s))) {
+          return refuseToken(400, 'invalid_scope', 'the scope parameter must name a subset of the granted scopes', client!.clientId)
+        }
+        effectiveScope = normalizeOidcScopeSet(asked.join(' '))
+      }
+
+      // The claims the code exchange's math derives, re-judged from the
+      // row's provenance (the context re-checked against the LIVE
+      // membership — never a dead org's claims).
+      const refreshScopes = effectiveScope.split(/\s+/).filter(Boolean)
+      const refreshNowSec = Math.floor(Date.now() / 1000)
+      const refreshClaims: Record<string, unknown> = {
+        iss: config.issuer,
+        sub: grantUser.id,
+        aud: client!.clientId,
+        exp: refreshNowSec + config.idTokenTtlSec,
+        iat: refreshNowSec,
+      }
+      if (refreshScopes.includes('profile')) refreshClaims.name = grantUser.name
+      if (refreshScopes.includes('email')) {
+        refreshClaims.email = grantUser.email
+        refreshClaims.email_verified = Boolean(grantUser.emailVerifiedAt)
+      }
+      const refreshAssigned = await store.getOpClientRoles(grantUser.id, client!.clientId)
+      const refreshContext = await claimsContextFor(store, grantUser, grant.contextOrg)
+      Object.assign(refreshClaims, roleClaimsForContext(refreshAssigned, refreshContext, client!.claimsPolicy))
+      const refreshPicture = pictureClaimForClient(grantUser, client!.claimsPolicy, config.issuer)
+      if (refreshPicture) refreshClaims.picture = refreshPicture
+      // The authorizing authentication's provenance carries through EVERY
+      // rotation: the amr as recorded, the ORIGINAL authentication
+      // instant (never the refresh's moment).
+      if (grant.amr?.length) refreshClaims.amr = grant.amr
+      if (grant.authTime) {
+        const grantAuthTime = authTimeOf(grant.authTime)
+        if (grantAuthTime) refreshClaims.auth_time = grantAuthTime
+      }
+
+      const refreshKey = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+      // The first-use registration rides the SAME gate as the other
+      // grants (identity#7).
+      if (maySelfRegisterOpKey(refreshKey, config)) {
+        await ensureOpKeyRegistered(store, refreshKey)
+      } else {
+        warnDevKeyRegistrationSkipped('/op/token', refreshKey)
+      }
+      const refreshedIdToken = await signOpIdToken(refreshKey, refreshClaims)
+
+      const refreshedAccess = opRandomToken()
+      await store.createOidcAccessToken({
+        token: refreshedAccess,
+        userId: grantUser.id,
+        clientId: client!.clientId,
+        scope: effectiveScope,
+        contextOrg: grant.contextOrg,
+        amr: grant.amr,
+        ttlMs: config.accessTokenTtlMs,
+      })
+      // The rotation: the successor inherits the family + the provenance
+      // (the NARROWED scope when the request narrowed — the grant's
+      // record of what still stands).
+      const rotated = opRandomToken()
+      await store.createOidcRefreshToken({
+        token: rotated,
+        userId: grantUser.id,
+        clientId: client!.clientId,
+        scope: effectiveScope,
+        contextOrg: grant.contextOrg,
+        amr: grant.amr,
+        authTime: grant.authTime,
+        familyId: grant.familyId,
+        ttlMs: config.refreshTokenTtlMs,
+      })
+      // The refresh lands on the audit chain (the per-client activity +
+      // the anomaly baseline), NEVER the token values.
+      await audit('client.token_refreshed', client!.clientId, {}, { account: grantUser.id, scope: effectiveScope, family: grant.familyId })
+      return c.json({
+        access_token: refreshedAccess,
+        token_type: 'Bearer',
+        expires_in: config.accessTokenTtlMs / 1000,
+        id_token: refreshedIdToken,
+        refresh_token: rotated,
+        scope: effectiveScope,
+      })
+    }
+
     if (grantType !== 'authorization_code') {
-      return refuseToken(400, 'unsupported_grant_type', 'authorization_code only', form.get('client_id') ?? undefined)
+      return refuseToken(400, 'unsupported_grant_type', 'authorization_code and refresh_token only', form.get('client_id') ?? undefined)
     }
 
     const { client, error } = await authenticateClient(c, form)
@@ -1065,6 +1250,28 @@ export function createOpRouter(): Hono {
       ttlMs: config.accessTokenTtlMs,
     })
 
+    // TODO.identity-sso (the wave-C token surface): the offline half of
+    // the consent — a granted offline_access scope mints the FIRST
+    // refresh token of its rotation family (kernel 0.2.6, migration
+    // 0025). The row carries the code's full provenance (the canonical
+    // scope, the context, the amr, the ORIGINAL auth_time) — every later
+    // rotation re-mints the same truth.
+    let refreshToken: string | null = null
+    if (scopes.includes('offline_access')) {
+      refreshToken = opRandomToken()
+      await store.createOidcRefreshToken({
+        token: refreshToken,
+        userId: user.id,
+        clientId: client!.clientId,
+        scope: code.scope,
+        contextOrg: code.contextOrg ?? null,
+        amr: code.amr,
+        authTime: code.authTime,
+        familyId: opRandomToken(),
+        ttlMs: config.refreshTokenTtlMs,
+      })
+    }
+
     // The issuance lands on the audit chain (TODO.identity-sso/01's
     // per-client activity + the anomaly baseline): the client, the
     // account, the scope. NEVER the token values.
@@ -1075,6 +1282,7 @@ export function createOpRouter(): Hono {
       token_type: 'Bearer',
       expires_in: config.accessTokenTtlMs / 1000,
       id_token: idToken,
+      ...(refreshToken ? { refresh_token: refreshToken } : {}),
     })
   })
 
@@ -1116,6 +1324,128 @@ export function createOpRouter(): Hono {
     // token carried (the authorizing authentication's provenance).
     if (access.amr?.length) claims.amr = access.amr
     return c.json(claims)
+  })
+
+  // ── the token surface's management half (TODO.identity-sso, wave C) ──
+
+  // POST /op/revoke — RFC 7009: the client-bound revocation. A client
+  // revokes only its OWN tokens; a REFRESH token's revocation kills its
+  // whole rotation family (the grant lineage ends — the kernel store's
+  // doctrine), an access token's row deletes. The machine classes' JWTs
+  // carry no rows — revoking one is the honest no-op (the token's
+  // standing rides its exp and the client's status; the introspection
+  // endpoint below answers it). The answer is 200 whether the token
+  // existed or not (RFC 7009 §2.2's indistinguishability) — the audit
+  // chain carries the truth (the kind found, never the token value).
+  op.post('/op/revoke', async (c) => {
+    const contentType = c.req.header('content-type') ?? ''
+    if (!contentType.includes('application/x-www-form-urlencoded')) {
+      return oidcError(c, 400, 'invalid_request', 'the revocation endpoint speaks application/x-www-form-urlencoded')
+    }
+    const form = new URLSearchParams(await c.req.raw.text())
+    const { client, error } = await authenticateClient(c, form)
+    if (error) {
+      await audit('client.revoke_refused', form.get('client_id')?.trim() || 'unauthenticated', {}, { error: 'invalid_client' })
+      return error
+    }
+    const token = form.get('token') ?? ''
+    if (!token) {
+      return oidcError(c, 400, 'invalid_request', 'the token parameter is required')
+    }
+    // token_type_hint is ADVISORY (RFC 7009 §2.1): the hinted half is
+    // tried first, but a wrong hint never protects the token — the other
+    // half still answers (the RFC's own search extension).
+    const hint = form.get('token_type_hint')
+    let kind: 'refresh' | 'access' | 'unknown' = 'unknown'
+    const halves: Array<'refresh' | 'access'> = hint === 'access_token' ? ['access', 'refresh'] : ['refresh', 'access']
+    for (const half of halves) {
+      if (half === 'refresh' && await getStore().revokeOidcRefreshToken(token, client!.clientId)) { kind = 'refresh'; break }
+      if (half === 'access' && await getStore().deleteOidcAccessToken(token, client!.clientId)) { kind = 'access'; break }
+    }
+    await audit('client.token_revoked', client!.clientId, {}, { kind })
+    return new Response(null, { status: 200 })
+  })
+
+  // POST /op/introspect — RFC 7662 (identity#47/#42's RS half): the
+  // caller authenticates as a client (the token endpoint's own
+  // machinery); ANY active registered client may introspect (the relying
+  // party and the resource server are the same registry here — the
+  // answer never carries more than the token's own claims). The OPAQUE
+  // access tokens answer from the table (active + the claim set); the
+  // machine classes' self-contained JWTs answer through the SIGNATURE
+  // against the registered keyset + the issuer + the expiry + the named
+  // client's LIVE standing — never a table read (there are no rows). A
+  // refresh token answers { active: false }: the refresh rows serve the
+  // token endpoint's rotation, never introspection (the named scope of
+  // this surface). Everything unknown, expired, or revoked answers the
+  // honest inactive.
+  op.post('/op/introspect', async (c) => {
+    const contentType = c.req.header('content-type') ?? ''
+    if (!contentType.includes('application/x-www-form-urlencoded')) {
+      return oidcError(c, 400, 'invalid_request', 'the introspection endpoint speaks application/x-www-form-urlencoded')
+    }
+    const form = new URLSearchParams(await c.req.raw.text())
+    const { client, error } = await authenticateClient(c, form)
+    if (error) {
+      await audit('client.introspect_refused', form.get('client_id')?.trim() || 'unauthenticated', {}, { error: 'invalid_client' })
+      return error
+    }
+    const token = form.get('token') ?? ''
+    if (!token) {
+      return oidcError(c, 400, 'invalid_request', 'the token parameter is required')
+    }
+    const store = getStore()
+    const config = configFor(c)
+
+    // The opaque half: the access-token table (the row's absence — never
+    // minted, revoked, or swept — IS the inactive answer; the liveness
+    // clause holds the expiry honest).
+    const access = await store.getOidcAccessToken(token)
+    if (access) {
+      return c.json({
+        active: true,
+        iss: config.issuer,
+        sub: access.userId,
+        aud: access.clientId,
+        client_id: access.clientId,
+        scope: access.scope,
+        token_type: 'Bearer',
+        exp: Math.floor(new Date(access.expiresAt).getTime() / 1000),
+        ...(access.amr?.length ? { amr: access.amr } : {}),
+      })
+    }
+
+    // The machine half: the compact-JWT shape (three segments) verifies
+    // against the keyset — then the standing re-judges what the table
+    // never carried: the issuer's match, the expiry, and the NAMED
+    // client still registered + active (a disabled machine client's
+    // in-flight tokens go inactive here, the revocation story the rows
+    // never had).
+    if (token.split('.').length === 3) {
+      const claims = await verifyOpJwt(store, token)
+      if (claims) {
+        const namedClientId = typeof claims.client_id === 'string' ? claims.client_id
+          : typeof claims.aud === 'string' ? claims.aud : ''
+        const namedClient = namedClientId ? await store.getOidcClient(namedClientId) : null
+        const standing = Boolean(namedClient && namedClient.status === 'active')
+          && claims.iss === config.issuer
+          && typeof claims.exp === 'number' && claims.exp * 1000 > Date.now()
+        if (standing) {
+          return c.json({
+            active: true,
+            iss: claims.iss,
+            sub: claims.sub,
+            aud: claims.aud,
+            ...(typeof claims.client_id === 'string' ? { client_id: claims.client_id } : {}),
+            ...(typeof claims.scope === 'string' ? { scope: claims.scope } : {}),
+            token_type: 'Bearer',
+            ...(typeof claims.iat === 'number' ? { iat: claims.iat } : {}),
+            exp: claims.exp,
+          })
+        }
+      }
+    }
+    return c.json({ active: false })
   })
 
   // ── the end-session (TODO.identity-sso, the wave-A tail) ─────────────

@@ -48,6 +48,10 @@ const SCOPE_LABELS: Record<string, string> = {
   openid: 'Sign you in',
   profile: 'Your name',
   email: 'Your email address',
+  // TODO.identity-sso (the wave-C token surface): the refresh grant's
+  // ask — the client keeps access while you are away (rotation + the
+  // reuse-kill hold the risk; the "Revoke access" act ends it).
+  offline_access: 'Stay reachable while you are away (offline access)',
 }
 const POLICY_CLAIM_LABELS: Record<string, string> = {
   roles: 'Your platform roles',

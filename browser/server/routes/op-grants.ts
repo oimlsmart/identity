@@ -12,7 +12,11 @@
 //                                          store's guard: the owner's
 //                                          live row flips, once) — the
 //                                          next sign-in to the client
-//                                          re-prompts the consent page.
+//                                          re-prompts the consent page,
+//                                          and the OFFLINE half dies with
+//                                          it (the pair's refresh rows
+//                                          delete — TODO.identity-sso,
+//                                          the wave-C token surface).
 //
 // The acts land on the audit chain (entity_type 'account' — the
 // account's own activity feed shows them).
@@ -72,11 +76,17 @@ export function createOpGrantsRouter(): Hono {
     if (!grant) return c.json({ error: 'no such grant' }, 404)
     const flipped = await store.revokeConsentGrant(grant.id, user.id)
     if (!flipped) return c.json({ error: 'this grant is already revoked' }, 409)
+    // TODO.identity-sso (the wave-C token surface): the offline half dies
+    // with the consent — every refresh row of the (account, client) pair
+    // goes (the access tokens keep their ≤1 h life; the audit names the
+    // count, never a token value).
+    const refreshTokens = await store.deleteOidcRefreshTokensForUserClient(user.id, grant.clientId)
     await auditGrant('account.consent_revoked', user.id, { userId: user.id, userName: user.name }, {
       grant: grant.id,
       client: grant.clientId,
       name: (await store.getOidcClient(grant.clientId))?.name ?? grant.clientId,
       scope: grant.scope,
+      refreshTokens,
     })
     return c.json({ ok: true })
   })

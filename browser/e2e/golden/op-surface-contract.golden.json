@@ -93,20 +93,24 @@
     ],
     "end_session_endpoint": "{issuer}/op/endsession",
     "grant_types_supported": [
-      "authorization_code"
+      "authorization_code",
+      "refresh_token"
     ],
     "id_token_signing_alg_values_supported": [
       "ES256"
     ],
+    "introspection_endpoint": "{issuer}/op/introspect",
     "issuer": "{issuer}",
     "jwks_uri": "{issuer}/jwks.json",
     "response_types_supported": [
       "code"
     ],
+    "revocation_endpoint": "{issuer}/op/revoke",
     "scopes_supported": [
       "openid",
       "profile",
-      "email"
+      "email",
+      "offline_access"
     ],
     "subject_types_supported": [
       "public"
