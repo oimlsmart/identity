@@ -32,6 +32,19 @@
 //                   Logout 1.0): records the raw logout_tokens, the
 //                   test's assertion surface.
 //
+// TODO.identity-sso (the wave-C token surface) adds the offline half:
+//   the /callback capture keeps the access + refresh tokens the exchange
+//                   answered (the refresh token rides the response
+//                   untyped — the kernel's OidcTokenResponse predates the
+//                   grant; the fixture casts);
+//   GET /refresh  — the refresh grant over the REAL wire: the current
+//                   refresh token (or ?token=<override> — the reuse
+//                   probe's spent-token present) POSTed to the OP's token
+//                   endpoint; a 200 rotates the capture and re-validates
+//                   the fresh ID token through the REAL path (the claims
+//                   surface updates), a refusal records the OIDC error.
+//                   The verdict rides /whoami's lastRefreshResult.
+//
 // NO per-test state beyond the last flow's — this is a fixture, not a
 // product.
 // ═══════════════════════════════════════════════════════════════════
@@ -62,6 +75,15 @@ export interface StubRp {
   claims: OidcIdTokenClaims | null
   /** The last completed sign-in's RAW ID token (the end-session hint). */
   lastIdToken: string | null
+  /** The last exchange/refresh's access token (the wave-C introspection
+   *  + revocation surface). */
+  lastAccessToken: string | null
+  /** The last exchange/refresh's refresh token (null = the grant never
+   *  carried offline_access). */
+  lastRefreshToken: string | null
+  /** The last /refresh leg's verdict: the rotated capture on a 200, the
+   *  OIDC error on a refusal. */
+  lastRefreshResult: { ok: true } | { ok: false; status: number; error: string } | null
   /** The last userinfo read. */
   userinfo: Record<string, unknown> | null
   /** The last error redirect the OP sent (access_denied & co.). */
@@ -84,6 +106,9 @@ export async function startStubRp(opts: {
   let pending: StubRpFlow | null = null
   let claims: OidcIdTokenClaims | null = null
   let lastIdToken: string | null = null
+  let lastAccessToken: string | null = null
+  let lastRefreshToken: string | null = null
+  let lastRefreshResult: StubRp['lastRefreshResult'] = null
   let userinfo: Record<string, unknown> | null = null
   let lastError: Record<string, string> | null = null
   let logoutState: string | null = null
@@ -103,6 +128,9 @@ export async function startStubRp(opts: {
         pending = { state, nonce, verifier: pkce.verifier }
         claims = null
         lastIdToken = null
+        lastAccessToken = null
+        lastRefreshToken = null
+        lastRefreshResult = null
         userinfo = null
         lastError = null
         const built = new URL(buildAuthorizationUrl(metadata, {
@@ -161,6 +189,11 @@ export async function startStubRp(opts: {
             jwksUri: metadata.jwks_uri,
           })
           lastIdToken = tokens.id_token
+          // The wave-C capture: the access + refresh halves ride along
+          // (the refresh token is untyped on the kernel's
+          // OidcTokenResponse — the interface predates the grant).
+          lastAccessToken = tokens.access_token ?? null
+          lastRefreshToken = (tokens as { refresh_token?: string }).refresh_token ?? null
           if (tokens.access_token) {
             const ui = await fetch(metadata.userinfo_endpoint!, {
               headers: { authorization: `Bearer ${tokens.access_token}` },
@@ -232,9 +265,67 @@ export async function startStubRp(opts: {
         return res.end('ok')
       }
 
+      if (url.pathname === '/refresh') {
+        // The refresh grant (the wave-C token surface) over the REAL
+        // wire: the current capture (or the ?token= override — the reuse
+        // probe's spent-token present), the client_secret_basic posture
+        // the exchange used.
+        const presented = url.searchParams.get('token') ?? lastRefreshToken
+        if (!presented) {
+          res.writeHead(400, { 'content-type': 'text/plain' })
+          return res.end('no refresh token captured (did the sign-in carry offline_access?)')
+        }
+        const metadata = await discoverIssuer(issuer)
+        const body = new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: presented,
+          client_id: opts.clientId,
+        })
+        const headers: Record<string, string> = { 'content-type': 'application/x-www-form-urlencoded' }
+        if (opts.clientSecret) {
+          headers.authorization = `Basic ${btoa(`${encodeURIComponent(opts.clientId)}:${encodeURIComponent(opts.clientSecret)}`)}`
+        }
+        const refreshed = await fetch(metadata.token_endpoint, { method: 'POST', headers, body })
+        const answer = await refreshed.json() as { access_token?: string; id_token?: string; refresh_token?: string; error?: string; error_description?: string }
+        if (!refreshed.ok) {
+          lastRefreshResult = { ok: false, status: refreshed.status, error: answer.error ?? `HTTP ${refreshed.status}` }
+          res.writeHead(200, { 'content-type': 'text/html' })
+          return res.end(`<html><body>
+            <h1 data-testid="rp-refresh-refused">Refresh refused</h1>
+            <p data-testid="rp-refresh-error">${lastRefreshResult.error}</p>
+          </body></html>`)
+        }
+        // The rotation's capture; the fresh ID token re-validates through
+        // the REAL path (the signature against the OP's JWKS, iss/aud/
+        // exp). The nonce expectation echoes the token's own — the
+        // refreshed mint carries NO nonce (OIDC Core §12.2's "if present"
+        // carry is this wave's named follow-up: the kernel's refresh row
+        // predates a nonce column), so the replay-guard leg is vacuous BY
+        // CONSTRUCTION here; the auth_time proof is the e2e's explicit
+        // assertion on the returned claims.
+        lastAccessToken = answer.access_token ?? null
+        lastRefreshToken = answer.refresh_token ?? null
+        lastIdToken = answer.id_token ?? null
+        const decoded = lastIdToken
+          ? JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(lastIdToken.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0)))) as { nonce?: string }
+          : {}
+        claims = await validateIdToken(lastIdToken!, {
+          issuer,
+          clientId: opts.clientId,
+          nonce: decoded.nonce as string,
+          jwksUri: metadata.jwks_uri,
+        })
+        lastRefreshResult = { ok: true }
+        res.writeHead(200, { 'content-type': 'text/html' })
+        return res.end(`<html><body>
+          <h1 data-testid="rp-refreshed">Refreshed</h1>
+          <p data-testid="rp-refresh-sub">${claims.sub}</p>
+        </body></html>`)
+      }
+
       if (url.pathname === '/whoami') {
         res.writeHead(200, { 'content-type': 'application/json' })
-        return res.end(JSON.stringify({ claims, userinfo, lastError, logoutState, logoutTokens }))
+        return res.end(JSON.stringify({ claims, userinfo, lastError, logoutState, logoutTokens, lastAccessToken, lastRefreshToken, lastRefreshResult }))
       }
 
       res.writeHead(404, { 'content-type': 'text/plain' })
@@ -263,6 +354,9 @@ export async function startStubRp(opts: {
     baseUrl: baseUrl(),
     get claims() { return claims },
     get lastIdToken() { return lastIdToken },
+    get lastAccessToken() { return lastAccessToken },
+    get lastRefreshToken() { return lastRefreshToken },
+    get lastRefreshResult() { return lastRefreshResult },
     get userinfo() { return userinfo },
     get lastError() { return lastError },
     get logoutState() { return logoutState },

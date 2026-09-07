@@ -190,6 +190,50 @@ export async function signOpIdToken(key: OpSigningKey, claims: Record<string, un
   return signOpJwt(key, claims)
 }
 
+/** Verify an OP-signed JWT against the REGISTERED keyset (the
+ *  introspection endpoint's machine-token half — TODO.identity-sso, the
+ *  wave-C token surface): the compact parse, the kid resolved against the
+ *  ACTIVE rows (a retired key's tokens are past their lifetimes anyway),
+ *  the ES256 signature verified (WebCrypto's raw P1363, the signer's own
+ *  encoding). Answers the claims, or null — malformed, an unknown kid, a
+ *  bad signature all read the same (the caller answers inactive; the
+ *  claim-level standing — issuer, expiry, the client's status — is the
+ *  CALLER's re-judgment, deliberately never folded in here). */
+export async function verifyOpJwt(store: ServerStore, token: string): Promise<Record<string, unknown> | null> {
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+  let header: { alg?: string; kid?: string }
+  let claims: Record<string, unknown>
+  try {
+    header = JSON.parse(new TextDecoder().decode(base64urlDecode(parts[0]!))) as { alg?: string; kid?: string }
+    claims = JSON.parse(new TextDecoder().decode(base64urlDecode(parts[1]!))) as Record<string, unknown>
+  } catch {
+    return null
+  }
+  if (header.alg !== 'ES256' || typeof header.kid !== 'string' || !header.kid) return null
+  const row = (await store.listOidcKeys()).find(r => r.kid === header.kid && r.status === 'active')
+  if (!row) return null
+  try {
+    const jwk = JSON.parse(row.publicJwk) as JsonWebKey
+    const key = await crypto.subtle.importKey(
+      'jwk',
+      { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y },
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['verify'],
+    )
+    const ok = await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      key,
+      base64urlDecode(parts[2]!) as BufferSource,
+      new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
+    )
+    return ok ? claims : null
+  } catch {
+    return null
+  }
+}
+
 /** PKCE S256: base64url(SHA-256(verifier)) — compared against the
  *  authorize-time challenge. */
 export async function pkceS256(verifier: string): Promise<string> {

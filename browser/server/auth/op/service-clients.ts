@@ -52,10 +52,11 @@
 // full allowlist. NEVER a user claim (no name/email/roles/groups/
 // picture/amr — there is no account behind a service token), never an
 // ID token, never a refresh token. The discovery document keeps
-// advertising the RP contract alone (grant_types_supported stays
-// authorization_code): the machine classes are estate-internal cones,
-// not RP flows — the OIDC wire the relying parties pin (the contract
-// gate's golden) is byte-identical.
+// advertising the RP contract alone (grant_types_supported stays the
+// APPLICATION grants — authorization_code + the wave-C refresh_token;
+// client_credentials never advertises): the machine classes are
+// estate-internal cones, not RP flows — the OIDC wire the relying
+// parties pin (the contract gate's golden) is byte-identical.
 //
 // WORKER-SAFE: pure functions, no I/O, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════

@@ -15,6 +15,11 @@
 //                         10 minutes — the sign-in + consent round trip).
 //   OP_ACCESS_TOKEN_TTL_MS / OP_ID_TOKEN_TTL_SEC
 //                         the issued tokens' lifetimes (default 1 hour).
+//   OP_REFRESH_TOKEN_TTL_MS
+//                         the refresh token's lifetime per mint (the SSO
+//                         wave-C token surface; default 30 days). Each
+//                         rotation slides the window forward on the NEW
+//                         row — the family has no absolute cap beyond it.
 //   OP_SIGNING_KEY        the ES256 private key as JWK JSON (a Worker
 //                         secret / the node's environment). UNSET: a
 //                         development key is generated per process with
@@ -53,6 +58,8 @@ export interface OpConfig {
   authorizationTtlMs: number
   accessTokenTtlMs: number
   idTokenTtlSec: number
+  /** The refresh token's per-mint lifetime (the wave-C token surface). */
+  refreshTokenTtlMs: number
 }
 
 function intFrom(env: EnvLike, name: string, fallback: number): number {
@@ -81,5 +88,6 @@ export function resolveOpConfig(env: EnvLike, requestOrigin: string): OpConfig {
     authorizationTtlMs: intFrom(env, 'OP_AUTHZ_TTL_MS', 10 * 60 * 1000),
     accessTokenTtlMs: intFrom(env, 'OP_ACCESS_TOKEN_TTL_MS', 60 * 60 * 1000),
     idTokenTtlSec: intFrom(env, 'OP_ID_TOKEN_TTL_SEC', 60 * 60),
+    refreshTokenTtlMs: intFrom(env, 'OP_REFRESH_TOKEN_TTL_MS', 30 * 24 * 60 * 60 * 1000),
   }
 }

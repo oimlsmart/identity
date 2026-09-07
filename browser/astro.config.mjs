@@ -104,6 +104,16 @@ export default defineConfig({
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
           },
+          // The wave-C token surface (TODO.identity-sso): RFC 7009
+          // revocation + RFC 7662 introspection — the RPs/RSs POST here.
+          '/op/revoke': {
+            target: process.env.API_ORIGIN || 'http://localhost:3190',
+            headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
+          },
+          '/op/introspect': {
+            target: process.env.API_ORIGIN || 'http://localhost:3190',
+            headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
+          },
           '/op/userinfo': {
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },

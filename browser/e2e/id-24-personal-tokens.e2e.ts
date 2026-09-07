@@ -418,9 +418,11 @@ describe('the developer tokens (the identity profile)', () => {
     expect(((await narrowed.json()) as { scope: string }).scope).toBe(`${HUB.client_id}:read`)
 
     // The discovery document: the RP contract alone (the device class's
-    // precedent — the estate-internal cone never advertises).
+    // precedent — the estate-internal cones never advertise: neither
+    // client_credentials nor this RFC 8693 exchange; the wave-C
+    // refresh_token IS an RP grant and advertises honestly).
     const discovery = await (await fetch(`${stack.apiBase}/.well-known/openid-configuration`)).json() as { grant_types_supported: string[] }
-    expect(discovery.grant_types_supported).toEqual(['authorization_code'])
+    expect(discovery.grant_types_supported).toEqual(['authorization_code', 'refresh_token'])
   })
 
   it('leg 4 — the narrowing mid-flight: the service’s disable shrinks the next exchange (the standing re-judgment)', { timeout: 900_000 }, async () => {

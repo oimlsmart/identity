@@ -44,10 +44,11 @@
 // NEVER a user claim (no name/email/roles/groups/picture/amr — there is
 // no account behind a device token), never an ID token, never a
 // refresh token. The discovery document keeps advertising the RP
-// contract alone (grant_types_supported stays authorization_code): the
-// device class is an estate-internal cone, not an RP flow — the OIDC
-// wire the relying parties pin (the contract gate's golden) is
-// byte-identical.
+// contract alone (grant_types_supported stays the APPLICATION grants —
+// authorization_code + the wave-C refresh_token; client_credentials
+// never advertises): the device class is an estate-internal cone, not
+// an RP flow — the OIDC wire the relying parties pin (the contract
+// gate's golden) is byte-identical.
 //
 // WORKER-SAFE: pure functions, no I/O, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════

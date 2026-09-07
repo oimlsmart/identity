@@ -43,8 +43,10 @@ Issuer: `https://id.oimlsmart.org`
 | Discovery (RFC 8414) | `GET {issuer}/.well-known/openid-configuration` |
 | JWKS (the signing keys) | `GET {issuer}/jwks.json` (the discovery document's `jwks_uri` is authoritative) |
 | Authorization endpoint | `{issuer}/op/authorize` |
-| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the machine classes — device + service, §9; the RFC 8693 token exchange for the developer cone's personal access tokens — §9a — and the session delegation's access-token subject — §9b) |
+| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; refresh_token for the offline half — §5b; client_credentials for the machine classes — device + service, §9; the RFC 8693 token exchange for the developer cone's personal access tokens — §9a — and the session delegation's access-token subject — §9b) |
 | UserInfo | `{issuer}/op/userinfo` |
+| Token revocation (RFC 7009) | `{issuer}/op/revoke` (§5b) |
+| Token introspection (RFC 7662) | `{issuer}/op/introspect` (§5b) |
 | End-session (RP-initiated logout) | `{issuer}/op/endsession` (GET or form POST — §5a) |
 | Avatar (the `picture` claim's target; public, no session) | `{issuer}/op/avatar/<account id>` |
 | Whoami (the account-chip beacon for the static properties: the OP session's minimal projection, CORS-gated on the registered clients' origins) | `GET {issuer}/op/whoami` |
@@ -335,6 +337,77 @@ proof: the resulting ID token's `auth_time` must be ≥ the moment you
 asked (the claim rides every ID token; an RP that skips the check gets
 no assurance from the ask). `max_age` is NOT served today — ask with
 `prompt=login` and verify `auth_time` yourself.
+
+## 5b. The offline half: refresh tokens, revocation, introspection (TODO.identity-sso, the wave-C remainder)
+
+**Refresh tokens (the rotation doctrine).** Ask for the `offline_access`
+scope on the authorization request and the code exchange's answer
+carries a `refresh_token` alongside the ID + access tokens. The scope
+is open to the whole APPLICATION class — confidential clients and
+PUBLIC clients alike (a public client refreshes with its `client_id`
+alone; the possession of the token is the proof, exactly as at the
+exchange). The machine classes never refresh — they re-mint with
+`client_credentials` (§9).
+
+When the access token ages out, POST to the token endpoint:
+
+```
+grant_type=refresh_token
+refresh_token=<the current token>
+client_id=<your client id>           (+ client_secret_basic when you hold one)
+scope=<OPTIONAL: a SUBSET of the granted set — RFC 6749 §6>
+```
+
+The answer is a fresh access token, a fresh ID token, and the NEXT
+refresh token — **the presented token is spent, always**: store the
+successor at once and never present an old one again. The rules that
+will bite you if you ignore them:
+
+- **Rotation + the reuse kill.** A re-presented SPENT token is treated
+  as theft (RFC 6819 §5.2.2.3): the OP answers `invalid_grant` AND
+  revokes the whole rotation family — your live successor dies with it,
+  and the account must sign in again. A retry storm racing two refresh
+  calls with the same token is the classic way to trip this; serialize
+  your refreshes.
+- **The narrowing sticks.** A `scope` ask beyond the granted set
+  refuses `invalid_scope` (and, because the consume is the read, the
+  presented token is spent even when the ask refuses — re-presenting it
+  reads the reuse verdict above). A narrowed grant never widens back.
+- **The claims re-judge the live standing.** A role, organization, or
+  the account itself revoked mid-grant disappears from the refreshed
+  tokens; a deactivated account's grant refuses.
+- **`auth_time` never advances** (OIDC Core §12.2): the refreshed ID
+  token proves the ORIGINAL authentication instant — when your policy
+  needs freshness, ask with `prompt=login` (§5a), never by reading
+  `auth_time` on a refreshed token. (The named gap: the refreshed ID
+  token omits the original `nonce` — validate the signature/`iss`/`aud`/
+  `exp` and trust the TLS channel + the rotation for replay resistance.)
+
+**Revocation (RFC 7009).** When your service drops a session — the user
+signs out locally, you offboard them, you suspect a leak — POST to
+`{issuer}/op/revoke` with `token=<the token>` (+ your client
+authentication, and optionally `token_type_hint` = `access_token` or
+`refresh_token`; a wrong or missing hint still revokes — the hint only
+orders the search). Revoking a REFRESH token kills its whole rotation
+family; revoke it when you mean "this offline access ends". You can
+only revoke your OWN tokens: the answer is 200 whether the token
+existed, was already revoked, or was never yours — the truth lives on
+the OP's audit chain, not in the answer.
+
+**Introspection (RFC 7662).** Resource servers (and any registered
+client) resolve a token's standing with a POST to
+`{issuer}/op/introspect` (`token=<…>` + your client authentication).
+The answer is `active: true` + the claim set (`iss`, `sub`, `aud`,
+`client_id`, `scope`, `token_type`, `exp`, the `amr` when present) for
+a live OP-issued access token, and `active: false` for everything else
+— unknown, expired, revoked, or a refresh token (the refresh rows serve
+the rotation, never introspection). The machine classes' self-contained
+JWTs (§9) introspect through the signature + the named client's LIVE
+standing: a disabled device or service client's in-flight tokens read
+inactive — so a consumer that wants revocation semantics for machine
+tokens gets them by introspecting instead of trusting the `exp` alone.
+Prefer the local JWT check for latency, introspect when standing
+matters.
 
 ## 6. Validating tokens (the must-dos)
 

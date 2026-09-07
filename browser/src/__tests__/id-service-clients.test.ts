@@ -422,8 +422,9 @@ describe('the token endpoint (the service grant)', () => {
     expect(wrong.status).toBe(401)
     expect(((await wrong.json()) as { error: string }).error).toBe('invalid_client')
 
-    // The refresh grant: the OP never mints refresh tokens — refused for
-    // the service class like every other class.
+    // The refresh grant: the application class's cone since the wave-C
+    // token surface — the machine classes still refuse it (the service
+    // re-authenticates with client_credentials instead).
     const refresh = await app.request(`${ISSUER}/op/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: `Basic ${btoa(`service-grant:${serviceSecret}`)}` },

@@ -427,7 +427,7 @@ describe('the machine cone’s service class (the identity profile)', () => {
     expect(hub.status).toBe(400)
     expect(((await hub.json()) as { error: string }).error).toBe('unsupported_grant_type')
 
-    // No refresh grant for anyone.
+    // No refresh grant for the machine classes (the wave-C token surface's refresh grant is the application class's cone).
     const refresh = await fetch(`${stack.apiBase}/op/token`, {
       method: 'POST',
       headers: {

@@ -418,8 +418,10 @@ account model" below); the demo cast rides along in development only
 | `GET /jwks.json` | The public signing keys: ES256, kid'd, with the rotation history (every `active` row of `oidc_keys` is served, so a rotation never strands an in-flight token). |
 | `GET /op/authorize` | The authorization endpoint: validates the client and the EXACT `redirect_uri` against the registry (an unregistered one is refused in place, never redirected to), requires `response_type=code`, the `openid` scope and PKCE S256, then either redirects to the instance's login page (no session — the flow re-enters afterwards) or to the consent page. The consent page is SKIPPED when a remembered grant covers the request's scope set (TODO.identity-features/12 — the consent decision's allow records the grant per account+client+scope set; `prompt=consent` in the request always shows the page). |
 | `GET /op/consent` | The consent page (the app's house style): the client name, the scopes, the account being shared, allow/deny. |
-| `POST /op/token` | The code exchange: the one-time code (consumed atomically — a replay always loses with `invalid_grant`), the PKCE verifier, and the client secret (HTTP Basic or form; public clients run on PKCE alone). Answers the signed ES256 ID token (`iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, `auth_time` — the authentication instant, the wave-A tail's `prompt=login` freshness proof — and `amr` when a sign-in ceremony was recorded, plus the claims policy's extras) and a Bearer access token. |
+| `POST /op/token` | The code exchange: the one-time code (consumed atomically — a replay always loses with `invalid_grant`), the PKCE verifier, and the client secret (HTTP Basic or form; public clients run on PKCE alone). Answers the signed ES256 ID token (`iss`, `sub`, `aud`, `exp`, `iat`, `nonce`, `auth_time` — the authentication instant, the wave-A tail's `prompt=login` freshness proof — and `amr` when a sign-in ceremony was recorded, plus the claims policy's extras) and a Bearer access token; a granted `offline_access` scope adds the first refresh token of a rotation family. The same endpoint speaks `grant_type=refresh_token` (the rotation — see "The token surface" below), `client_credentials` (the machine classes), and the RFC 8693 token exchange (the developer cone). |
 | `GET /op/userinfo` | The access token's claims (the same scope + policy split as the ID token). |
+| `POST /op/revoke` | RFC 7009 (the wave-C token surface): the client-bound revocation — a client revokes only its OWN tokens; a refresh token's revocation kills its whole rotation family. `token_type_hint` is advisory (a wrong hint still revokes — the RFC's search extension); the answer is 200 whether the token existed or not (the audit chain carries the kind found). See "The token surface" below. |
+| `POST /op/introspect` | RFC 7662 (identity#47/#42's RS half): any active registered client may ask. The opaque access tokens answer `active` + the claim set from the table; the machine classes' self-contained JWTs answer through the signature + the named client's LIVE standing; a refresh token (and everything unknown, expired, or revoked) answers the honest `{ "active": false }`. See "The token surface" below. |
 | `GET/POST /op/endsession` | RP-Initiated Logout 1.0 (TODO.identity-sso, the wave-A tail): ends the browser's OP session (the row + the cookie) and fires the OP-initiated backchannel fan-out, then redirects to the `post_logout_redirect_uri` ONLY when it is registered exactly on the resolved client's logout block (the open-redirector guard) — every other shape answers the OP's own signed-out page. The `id_token_hint` validates against the OP's own registered keyset (an expired hint stays valid). See "The logout cone" below. |
 | `GET /op/avatar/:id` | The PUBLIC avatar serve (no session; the GitHub-avatars convention): the stored upload with its real content type + `nosniff` + a short public cache, the generated-initials SVG for a known account without an upload (or with no blob store bound), a plain JSON 404 for an unknown or erased account. This is the URL the `picture` claim names. |
 
@@ -427,7 +429,9 @@ All OP state that must survive Worker isolates lives in D1
 (`oidc_clients`, `oidc_authorizations`, `oidc_codes`,
 `oidc_access_tokens`, `oidc_keys` — schema `0004_oidc_op.sql`;
 `oidc_consent_grants` — `0021_oidc_consent_grants.sql`, the remembered
-consent grants the authorize endpoint's skip reads);
+consent grants the authorize endpoint's skip reads;
+`oidc_refresh_tokens` — `0025_oidc_refresh_tokens.sql`, the rotation
+families the refresh grant consumes);
 NOTHING rides a per-process Map (the GitHub-flow lesson). The
 implementation is `browser/server/routes/op.ts` +
 `browser/server/auth/op/`, WebCrypto only.
@@ -506,6 +510,75 @@ The discovery document declares `end_session_endpoint` and
 `auth_time` in `claims_supported`; the surface-contract golden's
 re-record for this wave is deliberate (the wave's subject IS the
 surface growth).
+
+### The token surface (TODO.identity-sso, the wave-C remainder)
+
+The offline half of the consent, with the OAuth 2.0 Security BCP's
+rotation doctrine (kernel 0.2.6, migration `0025_oidc_refresh_tokens`):
+
+- **The refresh grant** — a granted `offline_access` scope (the
+  application class only: the machine classes re-mint with
+  `client_credentials` and are refused `unsupported_grant_type` BEFORE
+  any token is consumed) mints the FIRST refresh token of a rotation
+  family at the code exchange. `grant_type=refresh_token` at
+  `/op/token` then consumes the presented token ATOMICALLY and mints
+  its successor IN THE SAME FAMILY. The row carries the granting code's
+  full provenance: the refreshed ID token proves the ORIGINAL
+  `auth_time` (never the refresh's moment — OIDC Core §12.2), the `amr`
+  as recorded, and the claims RE-JUDGED against the live standing (a
+  role, membership, or the account itself gone mid-grant disappears
+  here). RFC 6749 §6's `scope` parameter narrows BOTH the access token
+  and the rotated row — a superset ask refuses `invalid_scope` and a
+  narrowed row never widens back. Public clients refresh on the
+  `client_id` + possession alone (the PKCE-standing posture — rotation
+  + the reuse kill are the compensating controls that make the public
+  client's offline access safe).
+- **The reuse verdict** (RFC 6819 §5.2.2.3) — a presented CONSUMED
+  token is the theft signal: the kernel's consume has already killed
+  the whole family (the legitimate chain and the attacker's copy both
+  end), the answer is `invalid_grant`, and the audit chain carries
+  `client.refresh_reuse_detected` naming the account, the client, and
+  the family — never the token value. The consume is the read (the
+  one-read-path doctrine): a cross-client present or a refused
+  narrowing BURNS the token, so the legitimate holder's retry reads the
+  reuse verdict — the failure mode fails toward invalidation,
+  deliberately.
+- **Revocation** — `POST /op/revoke` (RFC 7009): client-bound (a
+  client revokes only its own tokens; a foreign client's revoke answers
+  the indistinguishable 200 and kills nothing), `token_type_hint`
+  advisory with the other half still searched, an access token's row
+  deleted, a refresh token's FAMILY killed. The machine classes' JWTs
+  carry no rows — revoking one is the honest no-op (their standing
+  rides the `exp` and the client's status). The consent console's
+  "Revoke access" (`DELETE /api/op/account/grants/:id`) carries the
+  offline half out with the grant (every refresh row of the
+  account+client pair dies; the audit names the count). The audit
+  action is `client.token_revoked` with the kind found
+  (`access`/`refresh`/`unknown`).
+- **Introspection** — `POST /op/introspect` (RFC 7662, the RS half of
+  identity#47/#42): the caller authenticates as any active registered
+  client. The opaque access tokens answer from the table (`active` +
+  `iss`/`sub`/`aud`/`client_id`/`scope`/`token_type`/`exp`, the `amr`
+  when present); the machine classes' self-contained JWTs answer
+  through the SIGNATURE against the registered keyset + the issuer +
+  the expiry + the NAMED client's live standing — a disabled machine
+  client's in-flight tokens read inactive here (the revocation story
+  the rows never had). A refresh token answers `{ "active": false }` by
+  design: the refresh rows serve the token endpoint's rotation, never
+  introspection.
+
+The refresh token's life is `OP_REFRESH_TOKEN_TTL_MS` (default 30
+days); the access token's stays `OP_ACCESS_TOKEN_TTL_MS`. The known
+deferrals: `max_age` (ask with `prompt=login`, verify `auth_time`), and
+the refreshed ID token's `nonce` (OIDC Core §12.2's "if present" carry
+— the kernel's refresh row predates a nonce column; the original ID
+token's `nonce` stands, the refreshed one omits it). The discovery
+document declares `grant_types_supported` +
+`refresh_token`, `scopes_supported` + `offline_access`, and the
+`revocation_endpoint`/`introspection_endpoint` pair; the
+surface-contract golden's re-record for this wave is deliberate (the
+diff is exactly that discovery growth — the error-taxonomy legs pin
+the error CODES, never the description texts).
 
 ### The signing keys
 
