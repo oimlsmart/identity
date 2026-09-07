@@ -465,6 +465,29 @@ instrument_model } }` — the secret is required (a device client is
 always confidential), and redirect_uris / a launch card / a claims
 policy / a logout block are refused honestly at the boot.
 
+**The governance view** (TODO.identity-sso's client-registry governance
+console). Each row of the console expands into the per-client
+governance answer (`GET /api/op/dashboard/clients/:id/governance`,
+admin/`cs_admin`, read-only — the acts stay on the neighboring
+surfaces): the client's registry truth (the derived class included,
+never the secret hash); the WHOLE consent-grant history the client
+holds — live AND revoked, each account resolved (the account consoles
+hide the revoked half; governance shows it); the live-token population
+counts (`accessLive`/`refreshLive` — counts, never a token value; a
+revoked refresh family is deleted wholesale, so a live row's presence
+IS the offline grant's standing); and the audit slice — the client-side
+acts (`entity_id` is the client) plus the account-side consent acts
+naming it (`metadata.client`: `account.consent_granted`,
+`account.consent_revoked`), newest first, capped at 50 (the full
+history stays queryable at `/api/op/dashboard/audit`). Who may REGISTER
+a client is unchanged and stays written above: the platform admin and
+the scheme operator. A self-service registration-REQUEST queue (an
+account proposes a client, a reviewer admits it) is NOT built — the
+policy questions are open (who may request — any authenticated
+account? org-scoped?; which role reviews; how a proposed claims policy
+is reviewed against the registry's posture) and land with the wave
+that builds the queue.
+
 ### The logout cone (TODO.identity-sso, the wave-A tail)
 
 Two halves, one client-registered surface: the `logout` block rides the

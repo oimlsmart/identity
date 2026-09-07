@@ -6,7 +6,11 @@
 // for that client), the enable/disable state, and the registration
 // wizard. A confidential client's secret is GENERATED server-side and
 // shown exactly ONCE (only its hash survives); the copy affordance is
-// the handover.
+// the handover. Each row's GOVERNANCE expansion (TODO.identity-sso, the
+// client-registry governance console) reads the dashboard API's
+// per-client governance view: the whole consent history (live AND
+// revoked), the live-token population counts, the audit slice — the
+// read-only "who holds what with this client" answer.
 //
 // THE MACHINE CLASSES (the machine cone — server/auth/op/device-clients.ts
 // + service-clients.ts) render HONESTLY: a machine client is a non-human
@@ -68,6 +72,30 @@ interface ClientActivity {
     refusals14d: number
   }
   registryEvents: Array<{ at: string; action: string; by: string }>
+}
+
+/** The per-client governance view (TODO.identity-sso, the client-registry
+ *  governance console — GET /api/op/dashboard/clients/:id/governance):
+ *  the read-only answer the row's expansion renders — the WHOLE consent
+ *  history (live AND revoked), the live-token population counts (never
+ *  a token value), the audit slice. */
+interface ClientGovernance {
+  generatedAt: string
+  grants: Array<{
+    id: string
+    account: { id: string; name: string | null; email: string | null } | null
+    scope: string
+    createdAt: string
+    revokedAt: string | null
+  }>
+  tokens: { accessLive: number; refreshLive: number }
+  audit: Array<{
+    at: string
+    action: string
+    actor: string | null
+    account: { id: string; name: string | null; email: string | null } | null
+    metadata: Record<string, unknown>
+  }>
 }
 
 const CLAIM_OPTIONS = ['roles', 'groups', 'org', 'picture']
@@ -213,6 +241,44 @@ async function loadActivity(): Promise<void> {
   if (!res.ok) return
   const body = await res.json() as { clients: ClientActivity[] }
   activity.value = Object.fromEntries(body.clients.map(row => [row.clientId, row]))
+}
+
+// ── the governance expansion (the client-registry governance console) ──
+/** The read-once cache, keyed by clientId (a Refresh re-reads; the
+ *  answers go stale as the neighboring acts land). */
+const governance = ref<Record<string, ClientGovernance>>({})
+/** The row whose expansion is open (one at a time). */
+const governanceOpen = ref<string | null>(null)
+const governanceLoading = ref<string | null>(null)
+const governanceErrors = ref<Record<string, string>>({})
+
+async function fetchGovernance(clientId: string): Promise<void> {
+  governanceLoading.value = clientId
+  delete governanceErrors.value[clientId]
+  try {
+    const res = await api(`/api/op/dashboard/clients/${encodeURIComponent(clientId)}/governance`)
+    if (!res.ok) {
+      governanceErrors.value[clientId] = t('admin.clients.governanceFailed', { status: String(res.status) })
+      return
+    }
+    governance.value[clientId] = await res.json() as ClientGovernance
+  } finally {
+    governanceLoading.value = null
+  }
+}
+
+function toggleGovernance(row: ClientRow): void {
+  if (governanceOpen.value === row.clientId) {
+    governanceOpen.value = null
+    return
+  }
+  governanceOpen.value = row.clientId
+  if (!governance.value[row.clientId]) void fetchGovernance(row.clientId)
+}
+
+/** The at-stamp's console spelling (the activity strip's pattern). */
+function fmtAt(iso: string): string {
+  return `${iso.slice(0, 16).replace('T', ' ')}Z`
 }
 
 /** The strip's one-liner for a row. */
@@ -587,6 +653,11 @@ onMounted(async () => {
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <button
+                  :data-testid="`op-client-governance-toggle-${row.clientId}`"
+                  class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline"
+                  @click="toggleGovernance(row)"
+                >{{ governanceOpen === row.clientId ? t('admin.clients.governanceHide') : t('admin.clients.governanceButton') }}</button>
+                <button
                   :data-testid="`op-client-toggle-${row.clientId}`"
                   class="text-xs font-medium rounded-md px-2 py-1 border transition-colors"
                   :class="row.status === 'active'
@@ -596,6 +667,63 @@ onMounted(async () => {
                 >{{ row.status === 'active' ? 'active' : 'disabled' }}</button>
                 <button :data-testid="`op-client-edit-${row.clientId}`" class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline" @click="editRow(row)">Edit</button>
               </div>
+            </div>
+            <!-- The governance expansion (TODO.identity-sso, the
+                 client-registry governance console): the read-only
+                 per-client view — the WHOLE consent history (the revoked
+                 rows stay listed; the account consoles hide them), the
+                 live-token population counts (never a token value), the
+                 audit slice. The ACTS stay on the neighboring surfaces
+                 (this page's register/edit/toggle, the account console's
+                 revoke) — the expansion never writes. -->
+            <div
+              v-if="governanceOpen === row.clientId"
+              class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700"
+              :data-testid="`op-client-governance-${row.clientId}`"
+            >
+              <p v-if="governanceLoading === row.clientId" class="text-[11px] text-slate-400 dark:text-slate-500">{{ t('admin.clients.governanceLoading') }}</p>
+              <p v-else-if="governanceErrors[row.clientId]" class="text-[11px] text-red-600 dark:text-red-400">{{ governanceErrors[row.clientId] }}</p>
+              <template v-else-if="governance[row.clientId]">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400" :data-testid="`op-client-governance-tokens-${row.clientId}`">
+                    {{ t('admin.clients.governanceTokensLine', { access: String(governance[row.clientId]!.tokens.accessLive), refresh: String(governance[row.clientId]!.tokens.refreshLive) }) }}
+                  </p>
+                  <button
+                    class="text-[11px] font-medium text-brand-600 dark:text-brand-300 hover:underline shrink-0"
+                    :data-testid="`op-client-governance-refresh-${row.clientId}`"
+                    @click="fetchGovernance(row.clientId)"
+                  >{{ t('admin.clients.governanceRefresh') }}</button>
+                </div>
+                <div class="mt-2">
+                  <h3 class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('admin.clients.governanceGrantsLegend') }}</h3>
+                  <p v-if="!governance[row.clientId]!.grants.length" class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{{ t('admin.clients.governanceGrantsEmpty') }}</p>
+                  <ul v-else class="mt-1 space-y-1" :data-testid="`op-client-governance-grants-${row.clientId}`">
+                    <li v-for="grant in governance[row.clientId]!.grants" :key="grant.id" class="text-[11px] text-slate-500 dark:text-slate-400">
+                      {{ grant.account?.name ?? grant.account?.id ?? '—' }}<template v-if="grant.account?.email"> · {{ grant.account.email }}</template>
+                      · {{ grant.scope }} · {{ fmtAt(grant.createdAt) }}
+                      <span
+                        v-if="grant.revokedAt"
+                        class="ml-1 text-[10px] px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold"
+                      >{{ t('admin.clients.governanceGrantRevoked', { at: fmtAt(grant.revokedAt) }) }}</span>
+                      <span
+                        v-else
+                        class="ml-1 text-[10px] px-1 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-semibold"
+                      >{{ t('admin.clients.governanceGrantLive') }}</span>
+                    </li>
+                  </ul>
+                </div>
+                <div class="mt-2">
+                  <h3 class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('admin.clients.governanceAuditLegend') }}</h3>
+                  <p v-if="!governance[row.clientId]!.audit.length" class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{{ t('admin.clients.governanceAuditEmpty') }}</p>
+                  <ul v-else class="mt-1 space-y-1" :data-testid="`op-client-governance-audit-${row.clientId}`">
+                    <li v-for="event in governance[row.clientId]!.audit" :key="`${event.at}-${event.action}`" class="text-[11px] text-slate-500 dark:text-slate-400">
+                      {{ fmtAt(event.at) }} · <span class="font-mono">{{ event.action }}</span>
+                      <template v-if="event.account?.email"> · {{ event.account.email }}</template>
+                      <template v-else-if="event.actor"> · {{ event.actor }}</template>
+                    </li>
+                  </ul>
+                </div>
+              </template>
             </div>
           </li>
         </ul>

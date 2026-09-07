@@ -481,6 +481,52 @@ describe('the pinned constants (the regression net)', () => {
     expectScalingInvariant({ label: 'GET /api/op/dashboard/clients as admin', ...leg, largeRows: SMALL })
   })
 
+  it('GET /api/op/dashboard/clients/:id/governance (the governance view: the per-client reads + ONE users prefetch + the journal’s one read)', async () => {
+    // The governed client + its own fixture, grown 10× along BOTH axes
+    // the endpoint reads: the consent-grant history (distinct scope
+    // triples on the member account, every third one revoked — the slice
+    // must carry live AND revoked at either scale) and the audit rows
+    // naming the client (the account-side metadata.client half).
+    await store.upsertOidcClient({
+      clientId: 'gate-gov-client', name: 'Gate Governed Service', secretHash: 'gate-hash',
+      redirectUris: ['https://gov.example/callback'], claimsPolicy: null,
+    })
+    const seed = async (from: number, count: number) => {
+      for (let i = from; i < from + count; i++) {
+        const grant = await store.recordConsentGrant({ userId: memberId, clientId: 'gate-gov-client', scope: `openid gate-scope-${i}` })
+        if (i % 3 === 2) await store.revokeConsentGrant(grant.id, memberId)
+        await store.putEntity('auditEvents', `gate-gov-aud-${i}`, null, JSON.stringify({
+          id: `gate-gov-aud-${i}`, timestamp: `2026-08-${String((i % 28) + 1).padStart(2, '0')}T00:00:00.000Z`,
+          entity_type: 'account', entity_id: memberId, action: 'account.consent_revoked',
+          user_id: memberId, user_name: 'Gate Member', metadata: { client: 'gate-gov-client', grant: grant.id },
+        }))
+      }
+    }
+    const leg = await runLeg({
+      seedSmall: () => seed(0, SMALL).then(() => SMALL),
+      grow: () => seed(SMALL, LARGE - SMALL).then(() => LARGE),
+      request: () => app.fetch(req('/api/op/dashboard/clients/gate-gov-client/governance', adminCookie)),
+    })
+    expectScalingInvariant({ label: 'GET /api/op/dashboard/clients/:id/governance as admin', ...leg })
+    // The content pin at the large scale: the WHOLE history lands (the
+    // revoked third among it — the account console would hide them), the
+    // audit slice names the client, the counts answer numbers.
+    const body = await (await app.fetch(req('/api/op/dashboard/clients/gate-gov-client/governance', adminCookie))).json() as {
+      client: { clientId: string }
+      grants: Array<{ scope: string; revokedAt: string | null }>
+      tokens: { accessLive: number; refreshLive: number }
+      audit: Array<{ action: string }>
+    }
+    expect(body.client.clientId).toBe('gate-gov-client')
+    // (the scope cell is the canonical spelling — the tokens sort, so the
+    // fixture's marker rides inside, never first)
+    expect(body.grants.filter(g => g.scope.includes('gate-scope-')).length).toBe(LARGE)
+    expect(body.grants.filter(g => g.scope.includes('gate-scope-') && g.revokedAt).length, 'the revoked third lists').toBe(Math.floor(LARGE / 3))
+    expect(body.audit.filter(a => a.action === 'account.consent_revoked').length).toBe(LARGE)
+    expect(typeof body.tokens.accessLive).toBe('number')
+    expect(typeof body.tokens.refreshLive).toBe('number')
+  })
+
   it('GET /api/op/dashboard/access-review (the quarterly review’s live read — batched by construction)', async () => {
     const leg = await runLeg({
       seedSmall: () => SMALL,
