@@ -1,0 +1,279 @@
+name: identity-restore-dryrun
+
+# The account registry's automated RESTORE dry-run (identity#73 —
+# TODO.identity-ops/03's deferred half; the operating plan is
+# docs/deployment/identity-operations.md → "The automated restore
+# dry-run"): every week, restore the LATEST nightly R2 snapshot into a
+# THROWAWAY local D1 and prove the backup is restorable — continuously,
+# not quarterly-by-hand. The quarterly drill (the runbook's DR section)
+# stays the human proof before migration-carrying deploys; this leg
+# catches a broken restore path within a week, inside the bucket's
+# 30-day retention, with 30 nights of fallback snapshots behind it.
+#
+# What the run asserts (each leg proven against a real snapshot):
+#   1. the snapshot applies CLEAN into the throwaway D1 (a corrupt or
+#      partial export fails here, not at a disaster);
+#   2. the restored TABLE SET is exactly the export's CREATE TABLE set
+#      (internal sqlite_/_cf_ tables excluded on both sides);
+#   3. the restored per-table ROW COUNTS equal the export's INSERT
+#      counts per table (the export is one INSERT per row — the floor
+#      is exact, and a dropped row is a red run);
+#   4. d1_migrations agrees with the kernel's migration set: the
+#      restored bookkeeping is byte-faithful to the snapshot's, and
+#      every applied name is a file in the kernel's canonical set
+#      (node_modules/@oimlsmart/platform-server/migrations — the
+#      append-only registry contract). A kernel file not yet applied on
+#      the live registry is the normal kernel-bump → tag-deploy window
+#      (the runbook's migration discipline): logged, never failed.
+#
+# The restore target is miniflare-local ONLY (`wrangler d1 execute
+# --local --persist-to <a runner-temp dir>`) — the live registry
+# (oiml-smart-platform-identity) is never written, never even named on
+# a remote command; the throwaway state dies with the runner. The R2
+# fetch is the workflow's only remote act, and it is read-only
+# (wrangler carries no `r2 object list`, so the freshest key comes from
+# the Cloudflare API's bucket object listing; the pilot token carries
+# the R2 object verbs — the same credential posture as the nightly).
+#
+# A red run opens (or appends to) the standing issue — the heartbeat's
+# report-failure pattern, mirrored from identity-backup.yml. A failing
+# restore path is never silent.
+#
+# Required GitHub configuration: the SAME `cloudflare-identity-backup`
+# environment as the nightly (the runbook's scheduled-exports section)
+# — the two secrets CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN. No
+# new owner act.
+#
+# THE OUTPUT DISCIPLINE, THE PUBLIC-REPO SHAPE (the nightly's rule,
+# restated): the snapshot CONTAINS the account registry — the log names
+# the object key, the byte counts, the table and row counts, never the
+# SQL content (no cat, no head, no artifact upload).
+
+on:
+  schedule:
+    # Weekly, Wednesday 04:17 UTC — off the :00/:30 herd marks, a few
+    # hours after the night's 23:41 UTC export, so the restore source
+    # is never more than a day stale.
+    - cron: '17 4 * * 3'
+  workflow_dispatch:
+
+concurrency:
+  # Dry-runs serialize and never cancel mid-flight (a cancelled restore
+  # could mask a failed week); the timeout bounds a hang.
+  group: identity-restore-dryrun
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    environment: cloudflare-identity-backup
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BACKUP_BUCKET: oiml-identity-backups
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard — the backup posture is provisioned
+        run: |
+          MISSING=""
+          for v in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!v}" ]; then MISSING="$MISSING $v"; fi
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::the cloudflare-identity-backup environment is missing:$MISSING — the one-time owner provisioning (docs/deployment/identity-operations.md → Scheduled exports) is incomplete."
+            exit 1
+          fi
+          echo "the two credentials are present"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies (the pinned wrangler is a dev dep)
+        working-directory: browser
+        run: npm ci
+
+      - name: Resolve the latest snapshot key (the Cloudflare API's object listing)
+        # wrangler carries no `r2 object list` (the runbook says so for
+        # the drill); the token carries the R2 object verbs, so the API
+        # answers the listing. The timestamped identity/YYYYMMDD-HHMMZ.sql
+        # keys sort lexicographically — the last is the freshest.
+        run: |
+          KEY=$(curl -sf -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BACKUP_BUCKET/objects?prefix=identity/&per_page=1000" \
+            | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.success){console.error("the listing API refused:",JSON.stringify(d.errors));process.exit(1)} const ks=(d.result||[]).map(o=>o.key).filter(k=>/^identity\/\d{8}-\d{4}Z\.sql$/.test(k)).sort(); if(!ks.length){console.error("no identity/ snapshots in the bucket");process.exit(1)} console.log(ks[ks.length-1])') || exit 1
+          echo "BACKUP_KEY=$KEY" >> "$GITHUB_ENV"
+          echo "restore source: r2://$BACKUP_BUCKET/$KEY"
+
+      - name: Fetch the snapshot (read-only)
+        working-directory: browser
+        run: |
+          mkdir -p "$RUNNER_TEMP/identity-restore"
+          npx wrangler r2 object get "$BACKUP_BUCKET/$BACKUP_KEY" --remote \
+            --file "$RUNNER_TEMP/identity-restore/snapshot.sql"
+
+      - name: Sanity gate — the export's own line shape
+        run: |
+          SQL="$RUNNER_TEMP/identity-restore/snapshot.sql"
+          if [ ! -s "$SQL" ]; then
+            echo "::error::the snapshot is empty"
+            exit 1
+          fi
+          TABLES=$(grep -cE '^CREATE TABLE' "$SQL" || true)
+          if [ "$TABLES" -lt 1 ]; then
+            echo "::error::the snapshot carries no CREATE TABLE statements — not a registry snapshot"
+            exit 1
+          fi
+          echo "snapshot sanity: $(stat -c%s "$SQL") bytes, $TABLES CREATE TABLE statements"
+
+      - name: Restore into a THROWAWAY local D1 (miniflare-local, never remote)
+        working-directory: browser
+        # --local + --persist-to a runner-temp dir: the miniflare state
+        # dies with the runner. The remote registry is never a restore
+        # target — the guard below fails the run if this step ever
+        # drifts toward one.
+        run: |
+          npx wrangler d1 execute oiml-smart-platform-identity --local \
+            --persist-to "$RUNNER_TEMP/identity-restore/d1" \
+            --file "$RUNNER_TEMP/identity-restore/snapshot.sql" -y
+          echo "the snapshot applied clean into the throwaway D1"
+
+      - name: Assert — the restored table set is the export's CREATE TABLE set
+        working-directory: browser
+        # Both sides exclude the internal sqlite_/_cf_ tables (the
+        # AUTOINCREMENT bookkeeping sqlite_sequence restores too — it is
+        # not schema). NOTE: LIKE's escape is per-char here — plain
+        # prefixes, no backslash escapes (the 2026-09-07 local proof).
+        run: |
+          SQL="$RUNNER_TEMP/identity-restore/snapshot.sql"
+          grep -E '^CREATE TABLE' "$SQL" \
+            | sed -E 's/^CREATE TABLE( IF NOT EXISTS)? "?([^ "(]+)"?.*$/\2/' \
+            | sort > "$RUNNER_TEMP/identity-restore/tables-expected.txt"
+          npx wrangler d1 execute oiml-smart-platform-identity --local \
+            --persist-to "$RUNNER_TEMP/identity-restore/d1" --json \
+            --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name" \
+            | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results.map(r=>r.name).join("\n"))' \
+            | sort > "$RUNNER_TEMP/identity-restore/tables-actual.txt"
+          if ! diff "$RUNNER_TEMP/identity-restore/tables-expected.txt" "$RUNNER_TEMP/identity-restore/tables-actual.txt"; then
+            echo "::error::the restored table set differs from the export's CREATE TABLE set"
+            exit 1
+          fi
+          echo "table set: identical ($(wc -l < "$RUNNER_TEMP/identity-restore/tables-actual.txt" | tr -d ' ') tables)"
+
+      - name: Assert — the restored row counts equal the export's INSERT counts
+        working-directory: browser
+        # The export is one INSERT per row, so the per-table INSERT count
+        # IS the expected row count — the floor is exact. The per-table
+        # query loop is the quarterly drill's own shape (a compound
+        # SELECT trips D1's term limit — proven 2026-09-07). Internal
+        # sqlite_ inserts (the AUTOINCREMENT bookkeeping) are excluded
+        # on both sides. Table names are validated before interpolation.
+        run: |
+          SQL="$RUNNER_TEMP/identity-restore/snapshot.sql"
+          WORK="$RUNNER_TEMP/identity-restore"
+          grep -oE '^INSERT INTO "[^"]+"' "$SQL" | sed 's/^INSERT INTO "//;s/"$//' \
+            | grep -v '^sqlite_' | sort | uniq -c | awk '{print $2"\t"$1}' > "$WORK/counts-expected.txt"
+          : > "$WORK/counts-actual.txt"
+          while IFS= read -r t; do
+            if ! [[ "$t" =~ ^[a-z0-9_]+$ ]]; then
+              echo "::error::unexpected table name in the export: $t"
+              exit 1
+            fi
+            n=$(npx wrangler d1 execute oiml-smart-platform-identity --local \
+              --persist-to "$WORK/d1" --json \
+              --command "SELECT COUNT(*) AS n FROM \"$t\"" \
+              | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results[0].n)')
+            printf '%s\t%s\n' "$t" "$n" >> "$WORK/counts-actual.txt"
+          done < "$WORK/tables-expected.txt"
+          sort -o "$WORK/counts-actual.txt" "$WORK/counts-actual.txt"
+          awk -F'\t' '$1 !~ /^sqlite_/ && $2 != 0' "$WORK/counts-actual.txt" > "$WORK/counts-actual-nz.txt"
+          if ! diff "$WORK/counts-expected.txt" "$WORK/counts-actual-nz.txt"; then
+            echo "::error::a restored table's row count differs from the export's INSERT count"
+            exit 1
+          fi
+          echo "row counts: identical ($(awk -F'\t' '{s+=$2} END {print s}' "$WORK/counts-actual-nz.txt") rows across $(wc -l < "$WORK/counts-actual-nz.txt" | tr -d ' ') data tables)"
+
+      - name: Assert — d1_migrations agrees with the kernel's migration set
+        working-directory: browser
+        # Two directions (the append-only registry contract,
+        # AGENTS.md → "The account registry never moves"):
+        #   - fidelity: the restored bookkeeping is exactly the
+        #     snapshot's d1_migrations name set;
+        #   - agreement: every applied name is a file in the kernel's
+        #     canonical set. An applied name that is NOT a kernel file
+        #     is drift (a renamed/renumbered migration) and fails.
+        # A kernel file not yet applied is the normal kernel-bump →
+        # tag-deploy window: logged as a notice, never a failure.
+        run: |
+          SQL="$RUNNER_TEMP/identity-restore/snapshot.sql"
+          WORK="$RUNNER_TEMP/identity-restore"
+          grep -oE "^INSERT INTO \"d1_migrations\" \(\"id\",\"name\",\"applied_at\"\) VALUES\([0-9]+,'[^']+'" "$SQL" \
+            | sed -E "s/.*VALUES\([0-9]+,'//;s/'//" | sort > "$WORK/applied-snapshot.txt"
+          npx wrangler d1 execute oiml-smart-platform-identity --local \
+            --persist-to "$WORK/d1" --json \
+            --command "SELECT name FROM d1_migrations ORDER BY name" \
+            | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results.map(r=>r.name).join("\n"))' \
+            > "$WORK/applied-restored.txt"
+          if ! diff "$WORK/applied-snapshot.txt" "$WORK/applied-restored.txt"; then
+            echo "::error::the restored d1_migrations differs from the snapshot's — the restore dropped bookkeeping"
+            exit 1
+          fi
+          echo "migration fidelity: restored d1_migrations == the snapshot's ($(wc -l < "$WORK/applied-restored.txt" | tr -d ' ') applied)"
+          ls node_modules/@oimlsmart/platform-server/migrations/*.sql | xargs -n1 basename | sort > "$WORK/kernel.txt"
+          DRIFT=$(comm -23 "$WORK/applied-snapshot.txt" "$WORK/kernel.txt")
+          if [ -n "$DRIFT" ]; then
+            echo "::error::applied migrations that are NOT kernel files (the append-only contract is broken):"
+            echo "$DRIFT"
+            exit 1
+          fi
+          PENDING=$(comm -13 "$WORK/applied-snapshot.txt" "$WORK/kernel.txt")
+          if [ -n "$PENDING" ]; then
+            echo "::notice::kernel migrations not yet applied to the live registry (the kernel-bump → tag-deploy window): $PENDING"
+          fi
+          echo "kernel agreement: every applied migration is a kernel file"
+
+  report-failure:
+    # One honest summary per failed run (the heartbeat's pattern,
+    # mirrored from identity-backup.yml): the standing issue gets the
+    # run link appended; the first failure opens it. A red restore path
+    # is never silent.
+    if: failure()
+    needs: [restore]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Post the failure summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Identity restore dry-run failing — the nightly snapshots do not restore clean'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = `The identity-restore-dryrun run of ${new Date().toISOString()} failed: ${runUrl}\n\n`
+              + 'The workflow (.github/workflows/identity-restore-dryrun.yml) restores the latest nightly '
+              + 'R2 snapshot (oiml-identity-backups, identity/YYYYMMDD-HHMMZ.sql) into a throwaway local D1 '
+              + 'and asserts the clean apply, the table set, the per-table row counts, and the d1_migrations '
+              + 'agreement with the kernel. The failing leg is named in the run log. A failing restore path '
+              + 'means the backups are unproven: the next migration-carrying deploy does NOT proceed on an '
+              + 'unproven backup (docs/deployment/identity-operations.md → the DR section); the fallback is '
+              + 'the bucket\'s other snapshots inside the 30-day retention plus the quarterly drill.'
+            const { data: listed } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            })
+            const standing = listed.find(i => i.title === title && !i.pull_request)
+            if (standing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: standing.number, body,
+              })
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body })
+            }
