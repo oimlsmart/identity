@@ -16,6 +16,14 @@
 //   THE WAY OUT the self-service email change's MAILED completion
 //               re-verifies (the token row's delivered_by decides,
 //               never a route parameter) — the claim answers true again.
+//   THE RESEND  (wave A, the kernel 0.2.4 'verify' kind) the CURRENT
+//               primary's own verification: the holder POSTs the resend,
+//               the link mails to the address of record (the
+//               verify_primary_email copy — never the change copy), the
+//               mailed completion stamps the SAME address (nothing
+//               moves: no email_changed notice) and the round trip
+//               answers true; the already-verified re-POST is the
+//               honest 409.
 //
 // The demo cast stays honestly unverified (fictional mailboxes) — the
 // surface-contract golden re-recorded its false deliberately.
@@ -57,6 +65,7 @@ let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
 const UNA = { email: 'una@example.org', name: 'Una Example', password: 'una has a proper passphrase' }
 const UNA_EDITED = 'una.renamed@example.org'
 const UNA_NEXT = 'una.next@example.org'
+const UNA_RESEND = 'una.resend@example.org' // the wave-A leg's admin re-address (a fresh recipient — the mailer bucket)
 
 /** The fetch adapter the RP's validator runs against: the in-process
  *  app itself (discovery/JWKS ride the real routes). */
@@ -292,5 +301,60 @@ describe('TODO.identity-sso/04 — the email_verified claim answers the CURRENT 
     expect(idToken.email).toBe(UNA_NEXT)
     expect(idToken.email_verified, 'the mailed completion re-verified the mailbox').toBe(true)
     expect(userinfo.email_verified, 'userinfo answers the same').toBe(true)
+  })
+
+  it('THE RESEND (wave A): the unverified primary asks for its own link — the mailed verify completion stamps the SAME address', async () => {
+    // The administrator re-addresses the account again (the unverified
+    // posture the resend exists for).
+    const admin = await demoLogin('admin@oiml.org')
+    const account = await store.findUserByEmail(UNA_NEXT)
+    expect(account).toBeTruthy()
+    const edit = await app.request(`/api/op/accounts/${account!.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ email: UNA_RESEND }),
+    })
+    expect(edit.status, 'the admin re-address lands').toBe(200)
+    expect((await store.getUserById(account!.id))?.emailVerifiedAt ?? null, 'the re-addressed primary is unverified').toBeNull()
+
+    const cookie = await passwordLogin(UNA_RESEND, UNA.password)
+    stub.reset() // the sign-in notices are not this leg's subject
+
+    // The resend: the link mints ONLY on a sent mail, addressed to the
+    // CURRENT primary itself.
+    const resend = await app.request('/api/op/account/email/verification', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+    })
+    expect(resend.status, 'the resend mints + mails').toBe(201)
+    expect(await resend.json()).toMatchObject({ email: UNA_RESEND, delivery: 'mailer' })
+
+    const verifyMails = stub.messages.filter(m => m.to === UNA_RESEND)
+    expect(verifyMails, 'exactly one link to the address of record').toHaveLength(1)
+    expect(verifyMails[0]!.subject ?? '', 'the verify-the-primary copy — never the change copy')
+      .toBe('Confirm the email address on your OIML SMART Identity account')
+    const link = linkFromEmailText(verifyMails[0]!.text)
+    expect(link).toContain(`${ISSUER}/op/email-change?token=`)
+
+    const complete = await app.request(link.replace(`${ISSUER}/op/email-change?token=`, `${ISSUER}/api/op/email-change/`), { method: 'POST' })
+    expect(complete.status).toBe(200)
+    expect(await complete.json()).toMatchObject({ ok: true, email: UNA_RESEND, verified: true, kind: 'verify' })
+
+    // Nothing moved: the ceremony mails NO email_changed notice.
+    expect(stub.messages.filter(m => (m.subject ?? '').includes('was changed')),
+      'the verify ceremony never cries "the address changed"').toHaveLength(0)
+
+    const fresh = await passwordLogin(UNA_RESEND, UNA.password)
+    const { idToken, userinfo } = await roundTrip(fresh)
+    expect(idToken.email).toBe(UNA_RESEND)
+    expect(idToken.email_verified, 'the mailed verify completion re-verified the SAME primary').toBe(true)
+    expect(userinfo.email_verified, 'userinfo answers the same').toBe(true)
+
+    // The honest 409: an already-verified primary never re-mints.
+    const again = await app.request('/api/op/account/email/verification', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: fresh },
+    })
+    expect(again.status, 'the already-verified resend is the honest conflict').toBe(409)
   })
 })

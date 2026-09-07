@@ -713,7 +713,11 @@ in the `account.*` EN/FR catalog namespace:
    one-time link there); an email change re-judges it (below). While
    the primary stands unverified the console shows the banner naming
    the consequences (the ID token's `email_verified` answers false; the
-   strong factors stay locked) and the ways out — the email change
+   strong factors stay locked) and the ways out — the banner's own
+   resend button (`POST /api/op/account/email/verification`, the kernel
+   0.2.4 `verify` ceremony: the one-time link mails to the CURRENT
+   address and its completion stamps the row — mail-only, a no-mailer
+   deployment answers 503 honestly), the email change
    below, or the administrator's fresh setup link
    (TODO.identity-sso/04).
 2. **Sign-in methods**: the password and the linked upstream identities
@@ -760,6 +764,20 @@ The token row stamps `delivered_by`:
 addresses, nothing more); `POST` completes: one-time, expiry burned on
 presentation, and a take-over of the address between request and
 completion answers 409 with the token burned.
+
+**The verify-CURRENT-email ceremony** (TODO.identity-sso/04 wave A, the
+kernel 0.2.4 `kind: 'verify'`): `POST /api/op/account/email/verification`
+mints the same one-time 24 h link for the address the account ALREADY
+holds as its primary — the invited-not-yet-set-up and the
+admin-re-addressed postures, whose primary never went through a mailbox
+proof. Mail-only like the added address's ceremony (a shown link could
+never prove a mailbox): a no-mailer deployment answers 503 honestly, an
+already-verified primary 409, and a fresh request voids the account's
+earlier pending `verify` links (the kernel's own sweep). Completing the
+mailed link stamps `users.email_verified_at` when the address is STILL
+the primary (a primary that moved meanwhile burns the link honestly);
+nothing about the address changes, so no `email_changed` notice mails —
+the audit's `account.email_verified` names the ceremony.
 
 **The delivery seam** (documented here as TODO.identity/09's integration
 point, now wired): `deliverEmailChangeLink(env, { to, name, issuer,
