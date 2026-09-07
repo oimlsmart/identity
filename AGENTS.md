@@ -79,7 +79,7 @@ before it can reach a relying party.
 
 - Operations runbook: `docs/deployment/identity-operations.md`
   (incl. the DR restore-drill section — the proven D1 export/restore —
-  and the nightly scheduled exports to R2 with the 35-day retention).
+  and the nightly scheduled exports to R2 with the 30-day retention).
 - The published SLO (99.9% monthly, the heartbeat as the instrument):
   `docs/deployment/identity-slo.md`.
 - Deploy runbook (the staged rollout, the one-time setup, rollback):
