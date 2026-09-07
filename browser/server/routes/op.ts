@@ -95,12 +95,16 @@ import {
   DELEGATION_TOKEN_TYPE, PAT_EXCHANGE_GRANT, PAT_EXCHANGE_HEARTBEAT_MS, PAT_TOKEN_TYPE,
 } from '../auth/op/tokens'
 import { auditGrant } from '../auth/op/grants'
+import {
+  authTimeOf, logoutBlockOf, prepareBackchannelLogout,
+  validateLogoutBlock, verifyOpIdTokenHint, type OpLogoutBlock, type OpLogoutPolicy,
+} from '../auth/op/logout'
 import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '@oimlsmart/platform-server/mailer'
 import { resolveRegistryOrg } from '../auth/org-registry'
 import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
 import { SESSION_COOKIE, sessionUser } from '@oimlsmart/platform-server/session'
-import { getCookie } from 'hono/cookie'
+import { deleteCookie, getCookie } from 'hono/cookie'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -184,6 +188,10 @@ export function createOpRouter(): Hono {
       authorization_endpoint: `${issuer}/op/authorize`,
       token_endpoint: `${issuer}/op/token`,
       userinfo_endpoint: `${issuer}/op/userinfo`,
+      // TODO.identity-sso (the wave-A tail): the RP-initiated logout's
+      // endpoint — the kernel's RP side (buildEndSessionUrl) already
+      // consumes it.
+      end_session_endpoint: `${issuer}/op/endsession`,
       jwks_uri: `${issuer}/jwks.json`,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code'],
@@ -192,7 +200,10 @@ export function createOpRouter(): Hono {
       scopes_supported: ['openid', 'profile', 'email'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       code_challenge_methods_supported: ['S256'],
-      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'amr'],
+      // auth_time joins: the prompt=login freshness proof the RP verifies
+      // (the wave-A tail — the code carries the session's authentication
+      // instant, kernel 0.2.5).
+      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'amr'],
     })
   })
 
@@ -314,11 +325,29 @@ export function createOpRouter(): Hono {
     //    page, with this very request as the post-login destination (the
     //    flow re-enters /op/authorize, now signed in). NOTHING is stored
     //    yet — the row is created only for an authenticated request.
+    //
+    //    prompt=login (TODO.identity-sso, the wave-A tail — the OIDC
+    //    forced re-authentication) takes the SAME path WITH a live
+    //    session: the re-entry URL sheds the 'login' value (consumed by
+    //    this redirect — the stateless loop guard) and the login page's
+    //    own prompt flag forces the form past its existing-session
+    //    bounce. The RP's freshness PROOF is the ID token's auth_time
+    //    (the code carries the new session's authentication instant) —
+    //    the strip is the flow's bookkeeping, never the assurance. The
+    //    remaining prompt values (consent) ride on.
+    const prompts = (prompt ?? '').split(/\s+/).filter(Boolean)
+    const forceLogin = prompts.includes('login')
     const user = await sessionUser(c)
-    if (!user) {
+    if (!user || forceLogin) {
       const here = new URL(c.req.url)
+      if (forceLogin) {
+        const rest = prompts.filter(p => p !== 'login')
+        if (rest.length) here.searchParams.set('prompt', rest.join(' '))
+        else here.searchParams.delete('prompt')
+      }
       const target = `${here.pathname}${here.search}`
-      return c.redirect(`/?redirect=${encodeURIComponent(target)}`)
+      const flag = forceLogin ? '&prompt=login' : ''
+      return c.redirect(`/?redirect=${encodeURIComponent(target)}${flag}`)
     }
 
     // 4b. The remembered consent (TODO.identity-features/12): a LIVE
@@ -338,6 +367,7 @@ export function createOpRouter(): Hono {
         codeChallenge: challenge,
         userId: user.id,
         amr: user.amr ?? null,
+        authTime: user.sessionCreatedAt ?? null,
       })
       return c.redirect(redirect)
     }
@@ -377,6 +407,10 @@ export function createOpRouter(): Hono {
     codeChallenge: string
     userId: string
     amr: string[] | null
+    /** TODO.identity-sso (the wave-A tail): the consenting session's
+     *  authentication instant (AuthUserPayload.sessionCreatedAt, verbatim)
+     *  — the ID token's auth_time. Null = none recorded. */
+    authTime: string | null
   }): Promise<string> {
     const config = configFor(c)
     const code = opRandomToken()
@@ -397,8 +431,10 @@ export function createOpRouter(): Hono {
       contextOrg,
       // TODO.identity-sso/02+03: the consenting session's authentication
       // provenance rides the code into the ID token (the session's truth
-      // at the moment of consent — never recomputed later).
+      // at the moment of consent — never recomputed later). The wave-A
+      // tail adds the authentication INSTANT (the auth_time claim).
       amr: input.amr,
+      authTime: input.authTime,
       ttlMs: config.codeTtlMs,
     })
     const back = new URL(input.redirectUri)
@@ -541,6 +577,7 @@ export function createOpRouter(): Hono {
       codeChallenge: decided.codeChallenge,
       userId: user.id,
       amr: user.amr ?? null,
+      authTime: user.sessionCreatedAt ?? null,
     })
     return c.json({ redirect })
   })
@@ -993,6 +1030,15 @@ export function createOpRouter(): Hono {
     // RP-visible claim matches the session's truth. Absent when no
     // OP-side credential event was recorded (an upstream sign-in).
     if (code.amr?.length) claims.amr = code.amr
+    // TODO.identity-sso (the wave-A tail): the authentication INSTANT —
+    // the prompt=login freshness proof the RP verifies (an RP that asked
+    // for a forced re-authentication checks auth_time ≥ the request's
+    // moment). Absent when the code carries none (a pre-wave row, or a
+    // session whose instant never projected).
+    if (code.authTime) {
+      const authTime = authTimeOf(code.authTime)
+      if (authTime) claims.auth_time = authTime
+    }
 
     const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
     // The first-use registration rides the SAME gate as the JWKS route
@@ -1071,6 +1117,86 @@ export function createOpRouter(): Hono {
     if (access.amr?.length) claims.amr = access.amr
     return c.json(claims)
   })
+
+  // ── the end-session (TODO.identity-sso, the wave-A tail) ─────────────
+
+  /** The signed-out page: the end-session's honest landing when no
+   *  REGISTERED post_logout_redirect_uri applies (absent, or not on the
+   *  resolved client's logout block — the open-redirector guard never
+   *  redirects to an unregistered URI). Server-rendered and
+   *  dependency-free, the authorizeRefusal doctrine. */
+  function signedOutPage(c: Context): Response {
+    return c.html(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark"><meta name="theme-color" content="#004996">
+<title>Signed out — OIML SMART Identity</title>
+<style>
+  body { font-family: ui-sans-serif, system-ui, sans-serif; background: #faf8f5; color: #0f172a; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+  main { max-width: 28rem; padding: 2rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 0.75rem; }
+  h1 { font-size: 1.125rem; margin: 0 0 0.5rem; } p { font-size: 0.875rem; color: #475569; margin: 0; }
+  p.home { margin-top: 1rem; } a { color: #004996; }
+  @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #fff; } main { background: #1e293b; border-color: #334155; } p { color: #94a3b8; } a { color: #7cb3ff; } }
+</style></head>
+<body><main><h1 data-testid="op-signed-out">Signed out</h1><p>Your session on this identity provider has ended. You can close this page, or return to the sign-in page.</p><p class="home"><a href="/" data-testid="op-signed-out-home">Back to the sign-in page</a></p></main></body></html>`, 200)
+  }
+
+  // GET/POST /op/endsession — RP-Initiated Logout 1.0: the RP's redirect
+  // (or form POST) lands with the id_token_hint, client_id,
+  // post_logout_redirect_uri + state. The ACT is the point: the agent's
+  // OP session ends (the cookie's row + the cookie) and the OP-initiated
+  // backchannel fan-out notifies the account's other live-grant clients
+  // (fire-and-forget — the answer never waits on an RP). The redirect is
+  // courtesy: it fires ONLY to a URI the RESOLVED client registered in
+  // its logout block (the open-redirector guard); every other shape
+  // answers the honest signed-out page. A hint that fails validation
+  // never blocks the act — it only narrows the client resolution to the
+  // client_id param; an EXPIRED hint stays valid (the spec's rule).
+  const endSession = async (c: Context) => {
+    await ensureSeeded(c)
+    const config = configFor(c)
+    const params = c.req.method === 'POST'
+      ? new URLSearchParams(await c.req.raw.text())
+      : new URL(c.req.url).searchParams
+    const hint = params.get('id_token_hint')?.trim() || null
+    const clientIdParam = params.get('client_id')?.trim() || null
+    const postLogout = params.get('post_logout_redirect_uri')?.trim() || null
+    const state = params.get('state') ?? null
+
+    const store = getStore()
+    // The hint validates against the LOCAL registered keyset (the OP's
+    // own mint — never an HTTP fetch).
+    const verified = hint ? await verifyOpIdTokenHint((await opJwks(store)).keys, config.issuer, hint) : null
+    const client = await store.getOidcClient(verified?.aud ?? clientIdParam ?? '')
+
+    // The session ends FIRST; the fan-out's targets collect BEFORE the
+    // delete (the grant set is the one the ending presence belonged to).
+    // No live session → nothing to notify (the redirect/honest page
+    // still stands — the RP's user IS signed out).
+    const sessionToken = getCookie(c, SESSION_COOKIE)
+    const sessionOwner = sessionToken ? await store.getSessionUser(sessionToken) : null
+    if (sessionToken && sessionOwner) {
+      const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, sessionOwner.id)
+      await store.deleteSession(sessionToken)
+      deleteCookie(c, SESSION_COOKIE, { path: '/' })
+      floatBackchannel()
+    } else if (sessionToken) {
+      // The cookie named a dead/expired row — clear it honestly.
+      deleteCookie(c, SESSION_COOKIE, { path: '/' })
+    }
+
+    // The redirect's guard: ONLY a registered URI of the RESOLVED,
+    // ACTIVE client — an unknown/disabled client or an unregistered URI
+    // never redirects (the page stands).
+    const logout = logoutBlockOf(client?.claimsPolicy ?? null)
+    if (client?.status === 'active' && postLogout && logout?.post_logout_redirect_uris.includes(postLogout)) {
+      const back = new URL(postLogout)
+      if (state) back.searchParams.set('state', state)
+      return c.redirect(back.toString())
+    }
+    return signedOutPage(c)
+  }
+  op.get('/op/endsession', endSession)
+  op.post('/op/endsession', endSession)
 
   // ── the public avatar serve ────────────────────────────────────────
 
@@ -1173,6 +1299,9 @@ export function createOpRouter(): Hono {
       service,
       redirectUris: client.redirectUris,
       claimsPolicy: client.claimsPolicy,
+      // TODO.identity-sso (the wave-A tail): the registered logout surface
+      // (the policy JSON's logout block, normalized) — null = none.
+      logout: logoutBlockOf(client.claimsPolicy),
       // The SSO home's launch card (null = the client is not on the
       // launcher — the machine classes NEVER are).
       launch: client.launch,
@@ -1219,6 +1348,12 @@ export function createOpRouter(): Hono {
       generate_secret?: boolean
       redirect_uris?: string[]
       claims_policy?: { claims?: unknown; roles?: unknown } | null
+      /** TODO.identity-sso (the wave-A tail): the client's logout surface
+       *  — the exact post-logout redirect URIs (the end-session redirect's
+       *  allowlist) + the backchannel receiver. The application class
+       *  only; the wholesale policy rewrite carries it (an edit that
+       *  omits `logout` drops the stored block, exactly as with roles). */
+      logout?: unknown
       launch?: LaunchInput | null
       class?: unknown
       device?: unknown
@@ -1286,6 +1421,9 @@ export function createOpRouter(): Hono {
       if (body.service !== undefined) {
         return c.json({ error: `the service block rides class "${SERVICE_CLASS}" — declare the class, or drop the block` }, 400)
       }
+      if (body.logout !== undefined) {
+        return c.json({ error: 'the device class has no logout surface — nothing signs in through it, nothing logs out (client_credentials only)' }, 400)
+      }
     } else if (isService) {
       if (body.service !== undefined) {
         const { service, error } = validateServiceBlock(body.service)
@@ -1321,6 +1459,9 @@ export function createOpRouter(): Hono {
       if (body.device !== undefined) {
         return c.json({ error: `the device block rides class "${DEVICE_CLASS}" — declare the class, or drop the block` }, 400)
       }
+      if (body.logout !== undefined) {
+        return c.json({ error: 'the service class has no logout surface — nothing signs in through it, nothing logs out (client_credentials only)' }, 400)
+      }
     } else {
       // THE APPLICATION CLASS (the relying-party posture — unchanged).
       if (body.device !== undefined || body.service !== undefined) {
@@ -1332,6 +1473,16 @@ export function createOpRouter(): Hono {
       for (const uri of body.redirect_uris) {
         try { new URL(uri) } catch { return c.json({ error: `redirect_uris entry ${JSON.stringify(uri)} is not an absolute URI` }, 400) }
       }
+    }
+    // TODO.identity-sso (the wave-A tail): the logout block, the
+    // application class only (the machine branches refused above). An
+    // all-empty block stores as NO logout surface (the key stays out of
+    // the policy JSON — the tight-write doctrine).
+    let logoutWrite: OpLogoutBlock | null = null
+    if (body.logout !== undefined) {
+      const { logout, error } = validateLogoutBlock(body.logout)
+      if (error) return c.json({ error }, 400)
+      logoutWrite = logout && (logout.post_logout_redirect_uris.length || logout.backchannel_logout_uri) ? logout : null
     }
     if (body.claims_policy != null && (!Array.isArray(body.claims_policy?.claims) || body.claims_policy.claims.some(x => typeof x !== 'string'))) {
       return c.json({ error: 'claims_policy.claims must be a list of claim names (roles, groups, org, picture)' }, 400)
@@ -1377,15 +1528,19 @@ export function createOpRouter(): Hono {
           ? null
           : existing?.secretHash ?? null
     // The class marker + the machine block ride the policy JSON (the store
-    // seam round-trips it opaquely — the data-level extension).
-    const policy: OpClientPolicy | OpServicePolicy | null = isDevice
+    // seam round-trips it opaquely — the data-level extension). The
+    // wave-A tail's logout block rides the same JSON (the application
+    // class); the wholesale rewrite doctrine stands — an edit that omits
+    // `logout` drops the stored block, exactly as with roles.
+    const policy: OpClientPolicy | OpServicePolicy | OpLogoutPolicy | null = isDevice
       ? { claims: [], class: DEVICE_CLASS, device: deviceBlock! }
       : isService
         ? { claims: [], class: SERVICE_CLASS, service: serviceBlock! }
-        : body.claims_policy
+        : body.claims_policy || logoutWrite
           ? {
-              claims: body.claims_policy.claims as string[],
+              claims: (body.claims_policy?.claims as string[] | undefined) ?? [],
               ...(policyRoles ? { roles: policyRoles as string[] } : {}),
+              ...(logoutWrite ? { logout: logoutWrite } : {}),
             }
           : null
     const client = await getStore().upsertOidcClient({
@@ -1413,6 +1568,9 @@ export function createOpRouter(): Hono {
       made_public: body.secret === null,
       redirect_uris: client.redirectUris.length,
       claims: client.claimsPolicy?.claims ?? [],
+      // The logout surface's write (undefined = untouched, null = cleared,
+      // the block = as written) — the wholesale policy doctrine's record.
+      ...(body.logout !== undefined ? { logout: logoutWrite } : {}),
       // The launch write's record (undefined = untouched, null = off
       // the launcher, object = the card as written).
       ...(launchWrite !== undefined ? { launch: launchWrite } : {}),

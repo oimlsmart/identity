@@ -143,6 +143,7 @@ import {
   seedOpAccountsFromEnv,
 } from '../auth/op/accounts'
 import { opRandomToken } from '../auth/op/keys'
+import { prepareBackchannelLogout } from '../auth/op/logout'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
 import { clearLoginThrottle, delayMs, loginThrottleWaitMs, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
@@ -840,8 +841,13 @@ export function createOpAccountsRouter(): Hono {
     const store = getStore()
     await store.setUserActive(target.id, body.active)
     if (!body.active) {
+      // TODO.identity-sso (the wave-A tail): the deactivation ends the
+      // account's whole presence — the OP-initiated backchannel fan-out
+      // tells the live-grant clients (prepared BEFORE the revoke sweep).
+      const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, target.id)
       const revoked = await store.revokeOpUserCredentials(target.id)
       await audit('account.deactivated', target.id, { userId: gate.user.id, userName: gate.user.name }, { revoked })
+      floatBackchannel()
     } else {
       await audit('account.reactivated', target.id, { userId: gate.user.id, userName: gate.user.name }, {})
     }
@@ -870,8 +876,13 @@ export function createOpAccountsRouter(): Hono {
     if (target.id === gate.user.id) {
       return c.json({ error: 'you cannot erase your own account' }, 400)
     }
+    // TODO.identity-sso (the wave-A tail): the erasure takes the grant
+    // rows with it — the backchannel targets collect BEFORE the sweep,
+    // the sends float after it (the RPs hear the account's end).
+    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, target.id)
     const erased = await getStore().eraseOpAccount(target.id)
     if (!erased) return c.json({ error: 'not found' }, 404)
+    floatBackchannel()
     // The avatar's bytes go too — best-effort (a blob-store hiccup never
     // blocks the erasure; the failure is logged).
     const blobs = getBlobStore()
@@ -1576,23 +1587,31 @@ export function createOpAccountsRouter(): Hono {
 
   // POST /api/op/account/sessions/revoke-others — sign out everywhere
   // else (the current session stands). Registered BEFORE the :id route
-  // so the literal wins.
+  // so the literal wins. TODO.identity-sso (the wave-A tail): the act
+  // fires the OP-initiated backchannel fan-out (the account's other
+  // sessions ended — the RPs hear it; no sid, so the fan-out is the
+  // wholesale notice the spec's shape allows).
   accounts.post('/api/op/account/sessions/revoke-others', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, user.id)
     const revoked = await getStore().deleteOtherSessions(user.id, getCookie(c, SESSION_COOKIE) ?? '')
     await audit('account.sessions_revoked', user.id, { userId: user.id, userName: user.name }, { count: revoked })
+    if (revoked > 0) floatBackchannel()
     return c.json({ ok: true, revoked })
   })
 
   // POST /api/op/account/sessions/:id/revoke — end one of the account's
   // sessions (another account's session id is a no-op by construction).
+  // The wave-A tail's fan-out rides the successful revoke only.
   accounts.post('/api/op/account/sessions/:id/revoke', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, user.id)
     const revoked = await getStore().deleteSessionById(user.id, c.req.param('id'))
     if (!revoked) return c.json({ error: 'no such session' }, 404)
     await audit('account.session_revoked', user.id, { userId: user.id, userName: user.name }, { session: c.req.param('id') })
+    floatBackchannel()
     return c.json({ ok: true })
   })
 

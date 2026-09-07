@@ -16,7 +16,9 @@
 //
 // The OP is never an RP of itself: the SSO/GitHub projections the
 // monorepo's router computes are honestly absent here, and the signout
-// has no IdP end-session leg.
+// has no upstream-IdP end-session leg. (The OP-side backchannel fan-out
+// the signout triggers is TODO.identity-sso's wave-A tail — auth/op/
+// logout.ts.)
 //
 // WORKER-SAFE: hono + the kernel seams only, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
@@ -28,6 +30,7 @@ import { getStore } from '@oimlsmart/platform-server/store'
 import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { clientInfo } from '@oimlsmart/platform-server/client-info'
 import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '@oimlsmart/platform-server/session'
+import { prepareBackchannelLogout } from '../auth/op/logout'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -106,12 +109,28 @@ export function createAuthLeanRouter(options: AuthLeanRouterOptions): Hono {
     return c.json({ enabled: true, accounts: await getStore().listDemoAccounts() })
   })
 
-  // POST /api/auth/signout — logout. Plain: no IdP end-session leg (the
-  // OP's sessions were never minted by an upstream IdP of this service).
+  // POST /api/auth/signout — logout. No IdP end-session leg of the OP's
+  // own (the OP's sessions were never minted by an upstream IdP of this
+  // service) — but TODO.identity-sso (the wave-A tail) adds the
+  // OP-initiated BACKCHANNEL fan-out: the account's live-grant clients
+  // with a registered backchannel receiver each get the logout_token
+  // (fire-and-forget — the answer never waits on an RP). The prepare
+  // rides BEFORE the delete (the grant set is the one the ending
+  // presence belonged to).
   auth.post('/signout', async (c) => {
     await ensureInit()
     const token = getCookie(c, SESSION_COOKIE)
-    if (token) await getStore().deleteSession(token)
+    if (token) {
+      const store = getStore()
+      const user = await store.getSessionUser(token)
+      if (user) {
+        const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, user.id)
+        await store.deleteSession(token)
+        floatBackchannel()
+      } else {
+        await store.deleteSession(token)
+      }
+    }
     deleteCookie(c, SESSION_COOKIE, { path: '/' })
     return c.json({ ok: true })
   })

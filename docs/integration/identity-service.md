@@ -45,6 +45,7 @@ Issuer: `https://id.oimlsmart.org`
 | Authorization endpoint | `{issuer}/op/authorize` |
 | Token endpoint | `{issuer}/op/token` (authorization_code for the application class; client_credentials for the machine classes — device + service, §9; the RFC 8693 token exchange for the developer cone's personal access tokens — §9a — and the session delegation's access-token subject — §9b) |
 | UserInfo | `{issuer}/op/userinfo` |
+| End-session (RP-initiated logout) | `{issuer}/op/endsession` (GET or form POST — §5a) |
 | Avatar (the `picture` claim's target; public, no session) | `{issuer}/op/avatar/<account id>` |
 | Whoami (the account-chip beacon for the static properties: the OP session's minimal projection, CORS-gated on the registered clients' origins) | `GET {issuer}/op/whoami` |
 | Org signing keys (TODO.trust-registry/01 — an org's PUBLIC key set + its standing, for artifact verifiers; anonymous, `Cache-Control: public, max-age=60`, CORS-open) | `{issuer}/op/keys/<org id>.json` |
@@ -63,6 +64,10 @@ Your service needs a client registration on the OP. One entry:
   "claims_policy": {
     "claims": ["roles", "groups", "org"],
     "roles": ["viewer", "mc_member"]
+  },
+  "logout": {
+    "post_logout_redirect_uris": ["https://your-service.example/signed-out"],
+    "backchannel_logout_uri": "https://your-service.example/backchannel-logout"
   }
 }
 ```
@@ -81,6 +86,13 @@ Your service needs a client registration on the OP. One entry:
   `{issuer}/op/admin` manages clients), or the registry API
   (`POST /api/op/clients`, admin-held), or — for a self-hosted OP — the
   `OP_CLIENT_SEED` bootstrap env.
+- `logout` (OPTIONAL, the application class only — the machine classes
+  never carry one): your service's logout surface (§5a).
+  `post_logout_redirect_uris` is the EXACT-match allowlist the OP's
+  end-session redirect fires to (an unregistered URI never redirects —
+  the user lands on the OP's signed-out page instead);
+  `backchannel_logout_uri` is the receiver the OP POSTs a logout_token
+  to when the account's OP session ends from ANY trigger.
 - Rotation and disable: a client can be disabled without deleting its
   audit trail; a disabled client's tokens stop at issuance (existing
   sessions at your service die at YOUR session lifetime — see §8).
@@ -154,7 +166,10 @@ the token contract and the per-request scope narrowing.
 
 Standard: `iss` (exactly the issuer URL), `sub` (the stable account id —
 THIS is your user key, never the email), `aud` (your client_id), `exp`
-(validate with ≤ 60 s leeway), `email`, `name`, plus the policy-gated
+(validate with ≤ 60 s leeway), `iat`, `auth_time` (the authentication
+instant as an OIDC NumericDate — the `prompt=login` freshness proof,
+§5a; verify `auth_time` ≥ your ask's moment when you forced a
+re-authentication), `email`, `name`, plus the policy-gated
 families:
 
 `email` is the account's PRIMARY address (TODO.identity-features/01: an
@@ -265,8 +280,61 @@ what actually happened.
 5. Validate the ID token (§6), then build YOUR OWN session (your cookie,
    your lifetime). The ID token is evidence of the sign-in event, not a
    session.
-6. Logout: end your session; if the metadata declares
-   `end_session_endpoint`, redirect there for the OP-side sign-out.
+6. Logout: end your session; then redirect the browser to the
+   metadata's `end_session_endpoint` for the OP-side sign-out (§5a).
+
+## 5a. The logout contract + the forced re-authentication (TODO.identity-sso, the wave-A tail)
+
+**RP-initiated logout.** After ending your own session, send the browser
+to `{issuer}/op/endsession` (GET, or a form POST) with:
+
+- `id_token_hint` — the ID token of the sign-in being ended (the OP
+  validates the signature against its own registered keys and the `iss`;
+  an EXPIRED token is still a valid hint — logouts routinely land past
+  the token's life);
+- `client_id` — your client id (the fallback client resolution when no
+  hint is sent; the hint's `aud` wins when both are present);
+- `post_logout_redirect_uri` + `state` — OPTIONAL: the browser returns
+  to this URI with your `state` ONLY when the URI is registered EXACTLY
+  on the resolved client's `logout.post_logout_redirect_uris` (the
+  open-redirector guard). Anything else — no URI, an unregistered URI,
+  a hint that fails validation — still ends the OP session, but lands
+  on the OP's own signed-out page instead of redirecting.
+
+The kernel's `buildEndSessionUrl(metadata, …)` builds this URL (null
+when the metadata declares no endpoint — your local sign-out then
+stands alone).
+
+**OP-initiated backchannel logout** (Back-Channel Logout 1.0). When the
+account's OP presence ends from ANY session-ending act — the account
+console's sign-out or session revokes, an administrator's session
+revocation, the account's deactivation or erasure, or an RP-initiated
+end-session with a live session — the OP POSTs
+`application/x-www-form-urlencoded` with `logout_token=<jwt>` to every
+LIVE consent-grant client's registered `backchannel_logout_uri`. Your
+receiver must:
+
+1. Validate the logout_token exactly like an ID token (signature against
+   the JWKS, `iss`, `aud` = your client id, `exp` — the token lives
+   120 s), and require the `events` claim to carry
+   `http://schemas.openid.net/event/backchannel-logout`. A logout_token
+   carries NO `nonce`, and this OP carries NO `sid` (no sid tracking
+   exists — the token names the ACCOUNT, not the session): drop ALL of
+   the account's sessions at your service. (A false positive is soft:
+   the remembered consent grant lets the next sign-in sail through.)
+2. Answer fast (any 2xx); the OP's fan-out is fire-and-forget — it never
+   blocks the act that triggered it, and an unreachable or refusing
+   receiver is logged, never retried. Idempotency is on you: the same
+   account may be notified again (use `jti` to dedupe).
+
+**Forced re-authentication (`prompt=login`).** Send `prompt=login` on
+the authorization request when your policy needs a FRESH authentication
+(a sensitive section, a step-up). The OP renders its sign-in form even
+with a live session. The ask is only half the contract — VERIFY the
+proof: the resulting ID token's `auth_time` must be ≥ the moment you
+asked (the claim rides every ID token; an RP that skips the check gets
+no assurance from the ask). `max_age` is NOT served today — ask with
+`prompt=login` and verify `auth_time` yourself.
 
 ## 6. Validating tokens (the must-dos)
 

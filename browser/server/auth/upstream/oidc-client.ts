@@ -41,7 +41,11 @@ export type { OidcIdTokenClaims, OidcMetadata, PkcePair }
 
 /** The upstream authorization URL: the RP-side builder, plus the
  *  provider's extras (Apple: response_mode=form_post — required when
- *  the name/email scopes are requested). */
+ *  the name/email scopes are requested). TODO.identity-sso (the wave-A
+ *  tail): `prompt` (only 'login' propagates — the OP's own supported
+ *  set) forwards the forced re-authentication to the upstream, so a
+ *  prompt=login flow through an upstream-linked account re-prompts
+ *  THERE too (the upstream's own session alone must never satisfy it). */
 export function buildUpstreamAuthorizationUrl(
   provider: IdentityProvider,
   metadata: OidcMetadata,
@@ -50,6 +54,7 @@ export function buildUpstreamAuthorizationUrl(
     state: string
     nonce: string
     codeChallenge: string
+    prompt?: string
   },
 ): string {
   const url = new URL(buildAuthorizationUrl(metadata, {
@@ -61,6 +66,7 @@ export function buildUpstreamAuthorizationUrl(
     codeChallenge: params.codeChallenge,
   }))
   if (isAppleProvider(provider)) url.searchParams.set('response_mode', 'form_post')
+  if (params.prompt) url.searchParams.set('prompt', params.prompt)
   return url.toString()
 }
 

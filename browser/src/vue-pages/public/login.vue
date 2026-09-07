@@ -122,6 +122,14 @@ function redirectTarget(): string {
   return (route.query.redirect as string) || '/op/home'
 }
 
+/** TODO.identity-sso (the wave-A tail): prompt=login — the OIDC forced
+ *  re-authentication. The authorize route consumed the flow's own
+ *  'login' value and set this page flag in its place: the form stands
+ *  EVEN with a live session (the existing-session bounce would loop the
+ *  flow). The freshness PROOF the RP verifies is the new ID token's
+ *  auth_time — this flag is the flow's bookkeeping. */
+const forceReauth = route.query.prompt === 'login'
+
 /** A completed sign-in's landing (the session cookie is set by then). */
 function landSignedIn() {
   router.replace(redirectTarget())
@@ -183,9 +191,11 @@ onMounted(async () => {
 
   // An existing session skips the form: the authorize flow's re-entry
   // target, else the SSO home (the launcher's post-login landing).
+  // prompt=login (the wave-A tail's forced re-authentication) is the ONE
+  // exception — the form stands and the session is re-proven.
   try {
     const res = await fetchBounded('/api/auth/session', { credentials: 'include' })
-    if (res.ok) {
+    if (res.ok && !forceReauth) {
       router.replace(redirectTarget())
       return
     }
@@ -198,11 +208,14 @@ onMounted(async () => {
 
 // The OP's upstream provider button: the flow starts at the OP's
 // sign-in endpoint, carrying the page's post-login redirect (the OIDC
-// re-entry when the sign-in is mid-flow for a relying party).
+// re-entry when the sign-in is mid-flow for a relying party). The
+// wave-A tail's forced re-authentication propagates too — the upstream
+// re-prompts (op-upstream.ts's signin route).
 function upstreamLogin(providerId: string) {
   const redirect = route.query.redirect as string | undefined
   const suffix = redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''
-  window.location.href = `/op/upstream/${encodeURIComponent(providerId)}/signin${suffix}`
+  const promptSuffix = forceReauth ? `${redirect ? '&' : '?'}prompt=login` : ''
+  window.location.href = `/op/upstream/${encodeURIComponent(providerId)}/signin${suffix}${promptSuffix}`
 }
 
 /** The identity provider's own sign-in: the password account against

@@ -171,9 +171,10 @@ export async function opJwks(store: ServerStore): Promise<{ keys: JsonWebKey[] }
   return { keys }
 }
 
-/** Sign an ID token (ES256; WebCrypto emits the raw P1363 signature JWS
- *  wants). */
-export async function signOpIdToken(key: OpSigningKey, claims: Record<string, unknown>): Promise<string> {
+/** Sign an OP JWT (ES256; WebCrypto emits the raw P1363 signature JWS
+ *  wants) — the ID tokens AND the backchannel logout tokens
+ *  (TODO.identity-sso, the wave-A tail) ride the one signer. */
+export async function signOpJwt(key: OpSigningKey, claims: Record<string, unknown>): Promise<string> {
   const header = base64url(new TextEncoder().encode(JSON.stringify({ alg: 'ES256', typ: 'JWT', kid: key.kid })))
   const payload = base64url(new TextEncoder().encode(JSON.stringify(claims)))
   const signature = await crypto.subtle.sign(
@@ -182,6 +183,11 @@ export async function signOpIdToken(key: OpSigningKey, claims: Record<string, un
     new TextEncoder().encode(`${header}.${payload}`),
   )
   return `${header}.${payload}.${base64url(new Uint8Array(signature))}`
+}
+
+/** Sign an ID token (the signOpJwt general signer's original name). */
+export async function signOpIdToken(key: OpSigningKey, claims: Record<string, unknown>): Promise<string> {
+  return signOpJwt(key, claims)
 }
 
 /** PKCE S256: base64url(SHA-256(verifier)) — compared against the

@@ -19,6 +19,19 @@
 //   GET /whoami   — the last validated claims (JSON), the test's
 //                   assertion surface.
 //
+// TODO.identity-sso (the wave-A tail) adds the logout half:
+//   GET /signin?prompt=login   — the forced re-authentication ask (the
+//                   authorization URL gains the prompt value);
+//   GET /signout  — RP-initiated logout: the OP's end-session URL from
+//                   discovery (buildEndSessionUrl — the kernel's own
+//                   builder) with the last ID token as the hint and
+//                   /signed-out as the post-logout landing;
+//   GET /signed-out           — the post-logout landing page (echoes the
+//                   state round-trip);
+//   POST /backchannel-logout  — the OP-initiated receiver (Back-Channel
+//                   Logout 1.0): records the raw logout_tokens, the
+//                   test's assertion surface.
+//
 // NO per-test state beyond the last flow's — this is a fixture, not a
 // product.
 // ═══════════════════════════════════════════════════════════════════
@@ -26,6 +39,7 @@
 import { createServer, type Server } from 'node:http'
 import {
   buildAuthorizationUrl,
+  buildEndSessionUrl,
   clearOidcCaches,
   discoverIssuer,
   exchangeCode,
@@ -46,10 +60,17 @@ export interface StubRp {
   baseUrl: string
   /** The last completed sign-in's validated ID-token claims. */
   claims: OidcIdTokenClaims | null
+  /** The last completed sign-in's RAW ID token (the end-session hint). */
+  lastIdToken: string | null
   /** The last userinfo read. */
   userinfo: Record<string, unknown> | null
   /** The last error redirect the OP sent (access_denied & co.). */
   lastError: Record<string, string> | null
+  /** The state the last /signout sent (the post-logout round-trip's
+   *  assertion surface). */
+  logoutState: string | null
+  /** The backchannel receiver's captured logout_tokens (raw JWTs). */
+  logoutTokens: string[]
   close(): Promise<void>
 }
 
@@ -62,8 +83,11 @@ export async function startStubRp(opts: {
 }): Promise<StubRp> {
   let pending: StubRpFlow | null = null
   let claims: OidcIdTokenClaims | null = null
+  let lastIdToken: string | null = null
   let userinfo: Record<string, unknown> | null = null
   let lastError: Record<string, string> | null = null
+  let logoutState: string | null = null
+  const logoutTokens: string[] = []
 
   const server: Server = createServer((req, res) => {
     void (async () => {
@@ -78,18 +102,23 @@ export async function startStubRp(opts: {
         const pkce = await generatePkce()
         pending = { state, nonce, verifier: pkce.verifier }
         claims = null
+        lastIdToken = null
         userinfo = null
         lastError = null
-        res.writeHead(302, {
-          location: buildAuthorizationUrl(metadata, {
-            clientId: opts.clientId,
-            redirectUri: `${baseUrl()}/callback`,
-            scopes: opts.scopes ?? 'openid profile email',
-            state,
-            nonce,
-            codeChallenge: pkce.challenge,
-          }),
-        })
+        const built = new URL(buildAuthorizationUrl(metadata, {
+          clientId: opts.clientId,
+          redirectUri: `${baseUrl()}/callback`,
+          scopes: opts.scopes ?? 'openid profile email',
+          state,
+          nonce,
+          codeChallenge: pkce.challenge,
+        }))
+        // The wave-A tail: /signin?prompt=login asks the OP for the
+        // forced re-authentication (the kernel's builder takes no prompt
+        // param — the fixture sets it, the OP's authorize consumes it).
+        const prompt = url.searchParams.get('prompt')
+        if (prompt) built.searchParams.set('prompt', prompt)
+        res.writeHead(302, { location: built.toString() })
         return res.end()
       }
 
@@ -131,6 +160,7 @@ export async function startStubRp(opts: {
             nonce: flow.nonce,
             jwksUri: metadata.jwks_uri,
           })
+          lastIdToken = tokens.id_token
           if (tokens.access_token) {
             const ui = await fetch(metadata.userinfo_endpoint!, {
               headers: { authorization: `Bearer ${tokens.access_token}` },
@@ -150,9 +180,61 @@ export async function startStubRp(opts: {
         </body></html>`)
       }
 
+      if (url.pathname === '/signout') {
+        // RP-initiated logout (the wave-A tail): the OP's end-session URL
+        // from discovery, the last ID token as the hint, /signed-out as
+        // the registered post-logout landing. No end_session_endpoint →
+        // the honest local-only answer (the kernel builder's null).
+        if (!lastIdToken) {
+          res.writeHead(400, { 'content-type': 'text/plain' })
+          return res.end('no sign-in to sign out from')
+        }
+        const metadata = await discoverIssuer(issuer)
+        const endSession = buildEndSessionUrl(metadata, {
+          idTokenHint: lastIdToken,
+          clientId: opts.clientId,
+          postLogoutRedirectUri: `${baseUrl()}/signed-out`,
+        })
+        if (!endSession) {
+          res.writeHead(200, { 'content-type': 'text/html' })
+          return res.end(`<html><body><h1 data-testid="rp-no-end-session">The provider declares no end-session endpoint — signed out locally</h1></body></html>`)
+        }
+        const target = new URL(endSession)
+        logoutState = randomToken()
+        target.searchParams.set('state', logoutState)
+        res.writeHead(302, { location: target.toString() })
+        return res.end()
+      }
+
+      if (url.pathname === '/signed-out') {
+        res.writeHead(200, { 'content-type': 'text/html' })
+        return res.end(`<html><body>
+          <h1 data-testid="rp-signed-out">Signed out</h1>
+          <p data-testid="rp-signed-out-state">${url.searchParams.get('state') ?? ''}</p>
+        </body></html>`)
+      }
+
+      if (url.pathname === '/backchannel-logout') {
+        // The OP-initiated receiver (Back-Channel Logout 1.0): record the
+        // raw logout_token; the test validates it against the OP's JWKS.
+        const body = await new Promise<string>((resolveBody) => {
+          let acc = ''
+          req.on('data', chunk => { acc += chunk })
+          req.on('end', () => resolveBody(acc))
+        })
+        const token = new URLSearchParams(body).get('logout_token')
+        if (!token) {
+          res.writeHead(400, { 'content-type': 'text/plain' })
+          return res.end('logout_token required')
+        }
+        logoutTokens.push(token)
+        res.writeHead(200, { 'content-type': 'text/plain' })
+        return res.end('ok')
+      }
+
       if (url.pathname === '/whoami') {
         res.writeHead(200, { 'content-type': 'application/json' })
-        return res.end(JSON.stringify({ claims, userinfo, lastError }))
+        return res.end(JSON.stringify({ claims, userinfo, lastError, logoutState, logoutTokens }))
       }
 
       res.writeHead(404, { 'content-type': 'text/plain' })
@@ -180,8 +262,11 @@ export async function startStubRp(opts: {
     port,
     baseUrl: baseUrl(),
     get claims() { return claims },
+    get lastIdToken() { return lastIdToken },
     get userinfo() { return userinfo },
     get lastError() { return lastError },
+    get logoutState() { return logoutState },
+    logoutTokens,
     close: () => new Promise((resolve) => server.close(() => resolve())),
   }
 }
