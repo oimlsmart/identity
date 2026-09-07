@@ -70,14 +70,17 @@ has passed, never automatically mid-flight.
 
 ## The account registry's data lifecycle
 
-- Backups: BOTH halves are landed — the nightly scheduled export to
+- Backups: ALL THREE legs are landed — the nightly scheduled export to
   R2 (the scheduled-exports section below: the timestamped SQL
   snapshot in `oiml-identity-backups`, the bucket's 30-day expiry
-  rule, the run's own read-back verification, the failure alarm) and
-  the quarterly restore drill (the DR section below) that restores
-  FROM the latest R2 snapshot and proves it byte-clean — the R2 path
-  itself is drilled, not just the export. The data-loss window is one
-  night, and a red night is never silent.
+  rule, the run's own read-back verification, the failure alarm), the
+  weekly automated restore dry-run (the DR section below: the freshest
+  snapshot restored into a throwaway local D1 with the assertions in
+  CI), and the quarterly restore drill (the DR section below) that
+  restores FROM the latest R2 snapshot and proves it byte-clean — the
+  R2 path itself is drilled, not just the export. The data-loss window
+  is one night, a broken restore path surfaces within a week, and a
+  red night is never silent.
 - Offboarding: disable revokes sessions and blocks issuance while
   preserving the audit trail; delete is the erasure path and
   anonymizes. On the account page the lighter act sits between the
@@ -98,6 +101,44 @@ has passed, never automatically mid-flight.
 - The admin audit log (every grant, rotation, offboarding) is retained
   and exportable — the scheme's peer-assessment habit makes the OP's
   own admin log audit evidence.
+
+### The automated restore dry-run
+
+The drill's continuous half (identity#73 — TODO.identity-ops/03's
+deferred half): the `identity-restore-dryrun` workflow
+(`.github/workflows/identity-restore-dryrun.yml`) runs every Wednesday
+at 04:17 UTC (an off-herd minute, a few hours after the night's 23:41
+UTC export, so the restore source is never more than a day stale) and
+is dispatchable by hand any time. Each run:
+
+1. Resolves the freshest snapshot from the Cloudflare API's bucket
+   object listing (wrangler carries no `r2 object list`; the pilot
+   token carries the R2 object verbs — the same
+   `cloudflare-identity-backup` environment and two secrets as the
+   nightly; no new owner act) and fetches it read-only.
+2. Restores it into a THROWAWAY local D1 (`wrangler d1 execute --local
+   --persist-to <a runner-temp dir>` — miniflare-local only; the live
+   registry is never written and never named on a remote command; the
+   state dies with the runner).
+3. Asserts, in order: the SQL applies clean; the restored table set is
+   exactly the export's CREATE TABLE set (internal `sqlite_`/`_cf_`
+   tables excluded on both sides — the LIKE prefixes are plain, no
+   backslash escapes); the restored per-table row counts equal the
+   export's per-table INSERT counts (the export is one INSERT per row,
+   so the floor is exact); and `d1_migrations` agrees with the kernel's
+   migration set — the restored bookkeeping is byte-faithful to the
+   snapshot's, and every applied name is a file in the kernel's
+   canonical set (`node_modules/@oimlsmart/platform-server/migrations`,
+   the append-only contract: an applied name that is not a kernel file
+   is drift and fails). A kernel file not yet applied is the normal
+   kernel-bump → tag-deploy window (the migration discipline above):
+   logged as a notice, never a failure.
+
+A red run opens (or appends to) the standing issue "Identity restore
+dry-run failing — …", the heartbeat's report-failure pattern mirrored
+from the nightly. The quarterly drill below stays the human proof —
+this leg narrows a broken restore path to a week, inside the bucket's
+30-day retention, with up to 30 nights of fallback snapshots behind it.
 
 ### Disaster recovery: the restore drill
 
@@ -224,15 +265,12 @@ nightly snapshot.
   upload (non-empty, carries CREATE TABLE statements), then a
   read-back after upload (a byte-length compare and a byte-identical
   `cmp` on the downloaded copy). A landed-but-corrupt object fails
-  the night, never the restore. The restore PATH is the quarterly
-  drill's proof — and the drill restores FROM the latest of these
-  snapshots (step 1 above), so the R2 path itself is drilled, not
-  just the export. The automated restore-dry-run — a scheduled
-  restore of the freshest snapshot into a scratch D1 with the drill's
-  diff in CI — is a deliberately deferred follow-up: it needs D1
-  create/delete on a CI token and the drill harness ported into a
-  workflow, which doubles this change's scope for a path the
-  quarterly drill already proves.
+  the night, never the restore. The restore PATH is proven twice over:
+  the quarterly drill restores FROM the latest of these snapshots
+  (step 1 above), so the R2 path itself is drilled, not just the
+  export — and the automated restore dry-run (the DR section's first
+  subsection) restores the freshest snapshot into a throwaway local D1
+  every week with the drill's assertions in CI.
 - The failure alarm: a red run opens (or appends to) the standing
   issue "Identity backup failing — …", the heartbeat's
   report-failure pattern.
