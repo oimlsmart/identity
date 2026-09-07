@@ -221,6 +221,15 @@ const emailError = ref<string | null>(null)
 /** The requested change: the mailed line, or the honestly-shown link. */
 const emailResult = ref<{ delivery: string; newEmail: string; expiresAt: string; verificationUrl?: string } | null>(null)
 
+// The CURRENT primary's verification resend (TODO.identity-sso/04 wave
+// A — the banner's act): the kernel 0.2.4 'verify' ceremony mails the
+// one-time link to the address of record itself.
+const resendBusy = ref(false)
+/** The resend's honest outcome: the mailed line, or the server's own
+ *  refusal text (the no-mailer deployment's 503 names the ways out). */
+const resendSent = ref<string | null>(null)
+const resendError = ref<string | null>(null)
+
 // The password form.
 const currentPassword = ref('')
 const nextPassword = ref('')
@@ -830,6 +839,36 @@ async function requestEmailChange() {
   }
 }
 
+/** The banner's resend act (TODO.identity-sso/04 wave A): the CURRENT
+ *  primary's verification link travels by mail (the kernel 0.2.4 'verify'
+ *  ceremony). The 503's server text names the no-mailer ways out — the
+ *  banner shows it verbatim (the email-change form's posture). */
+async function resendVerification() {
+  if (resendBusy.value) return
+  resendBusy.value = true
+  resendError.value = null
+  resendSent.value = null
+  try {
+    const res = await fetch('/api/op/account/email/verification', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { error?: string } | null
+      resendError.value = body?.error ?? t('account.networkError')
+      resendBusy.value = false
+      return
+    }
+    const body = await res.json() as { email: string }
+    resendSent.value = t('account.verification.resendSent', { email: body.email })
+    resendBusy.value = false
+  } catch {
+    resendError.value = t('account.networkError')
+    resendBusy.value = false
+  }
+}
+
 // ── the sign-in methods ──────────────────────────────────────────────
 
 function startLink(providerId: string) {
@@ -1015,13 +1054,12 @@ async function revokeOthers() {
         <!-- The verification banner (TODO.identity-sso/04): the primary
              address is unproven, so the ID token's email_verified answers
              false (routes/op.ts reads the same stamp) and the factors
-             stay locked (their own gate). The copy names the acts that
-             exist TODAY — the email change below (its mailed link proves
-             the NEW address) and the administrator's fresh setup link.
-             The self-service resend for the CURRENT address waits on the
-             kernel's verify-the-primary ceremony (email_change_tokens
-             carry 'change'/'add' only — nothing stamps an unchanged
-             primary). -->
+             stay locked (their own gate). The acts out: the resend below
+             (wave A — the kernel 0.2.4 'verify' ceremony mails the
+             one-time link to the CURRENT address; its completion stamps
+             users.email_verified_at), the email change below it (its
+             mailed link proves the NEW address), and the administrator's
+             fresh setup link. -->
         <div
           v-if="!context.account.emailVerifiedAt"
           class="mb-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
@@ -1029,6 +1067,20 @@ async function revokeOthers() {
         >
           <p class="text-sm font-medium text-amber-800 dark:text-amber-200">{{ t('account.verification.bannerTitle') }}</p>
           <p class="mt-1 text-sm text-amber-700 dark:text-amber-300">{{ t('account.verification.bannerBody') }}</p>
+          <div class="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+            <button
+              type="button"
+              :disabled="resendBusy || resendSent !== null"
+              class="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50"
+              data-testid="account-verification-resend"
+              @click="resendVerification"
+            >
+              <div v-if="resendBusy" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              {{ t('account.verification.resend') }}
+            </button>
+            <p v-if="resendSent" class="text-sm text-amber-800 dark:text-amber-200" data-testid="account-verification-resend-sent">{{ resendSent }}</p>
+            <p v-else-if="resendError" class="text-sm text-red-700 dark:text-red-300" data-testid="account-verification-resend-error">{{ resendError }}</p>
+          </div>
         </div>
 
         <!-- 1 · The profile. -->

@@ -16,9 +16,15 @@
 //          and the same round trip answers FALSE on BOTH surfaces (an
 //          RP's link-by-verified-email rule can never be fooled by an
 //          unproven mailbox);
-//   leg 3  the WAY OUT: the self-service email change's mailed link
-//          re-verifies (the token row's delivered_by decides) — the
-//          banner lifts and the claim answers TRUE again.
+//   leg 2b the RESEND way out (wave A, the kernel 0.2.4 'verify' kind):
+//          the banner's own button mails the one-time link to the
+//          CURRENT address — the landing page's verify copy, the mailed
+//          completion stamps the SAME address (nothing moves), the
+//          banner lifts and the claim answers TRUE;
+//   leg 3  the CHANGE ceremony re-judges on the move: the self-service
+//          email change's mailed link verifies the NEW address (the
+//          token row's delivered_by decides) — the claim answers TRUE
+//          on the new primary.
 //
 // The demo cast stays honestly unverified (fictional mailboxes): the
 // surface-contract golden's re-record of its false is deliberate.
@@ -173,6 +179,11 @@ async function bootIdentityStack(mailer: StubMailer): Promise<Stack> {
       EMAIL_FROM: 'OIML SMART Identity <no-reply@oimlsmart.org>',
       MAIL_PROVIDER_URL: `${mailer.baseUrl}/emails`,
       MAIL_PROVIDER_KEY: MAIL_KEY,
+      // The arc legitimately mails one story address past the kernel
+      // mailer's default 5/h recipient bucket (the sign-in notices + the
+      // wave-A verify link + the slice-D email_changed direct) — the
+      // bucket itself is id-mail.test.ts's subject, never this arc's.
+      MAIL_RATE_LIMIT_CAPACITY: '50',
     }, logs)
     const apiBase = `http://localhost:${ID_API}`
     await waitForHttp(`${apiBase}/api/health`, 120_000, logs)
@@ -411,7 +422,63 @@ describe('TODO.identity-sso/04 — the email_verified claim + the console banner
     })
   })
 
-  it('leg 3 — the way out: the emailed email-change link re-verifies; the banner lifts, the claim answers TRUE', { timeout: 900_000 }, async () => {
+  it('leg 2b — the resend way out (wave A): the banner button mails the CURRENT address its own link; the banner lifts, the claim answers TRUE', { timeout: 900_000 }, async () => {
+    const cookie = await passwordCookie(stack.base, UNA_EDITED, UNA.password)
+    mailer.reset() // the sign-in notices are not this leg's subject
+
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, cookie)
+      flog(page, 'leg2b: opening the console for the resend')
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="account-verification-resend"]', { timeout: APP_COLD, polling: 500 })
+
+      // The banner's own act: the one-time link mails to the CURRENT
+      // primary (the kernel 0.2.4 'verify' ceremony).
+      await page.evaluate(() => (document.querySelector('[data-testid="account-verification-resend"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="account-verification-resend-sent"]', { timeout: SETTLE, polling: 500 })
+      expect(await page.$eval('[data-testid="account-verification-resend-sent"]', el => el.textContent ?? ''))
+        .toContain(UNA_EDITED)
+      flog(page, 'leg2b: the verification link is mailed')
+    })
+
+    // The stub captured the verify_primary_email to the CURRENT address.
+    const verifyMails = mailer.messages.filter(m => m.to === UNA_EDITED)
+    expect(verifyMails).toHaveLength(1)
+    expect(verifyMails[0]!.subject ?? '', 'the verify-the-primary copy — never the change copy')
+      .toBe('Confirm the email address on your OIML SMART Identity account')
+    const emailed = linkFromEmailText(verifyMails[0]!.text)
+    expect(emailed).toContain(`${ISSUER}/op/email-change?token=`)
+
+    await withPage(async (page) => {
+      // A FRESH browser: the email's link is the whole proof.
+      flog(page, 'leg2b: opening the emailed verification link')
+      await page.goto(emailed, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-email-change-context"]', { timeout: SETTLE, polling: 500 })
+      expect(await page.$eval('h1', el => el.textContent ?? '')).toContain('Verify your email address')
+      await page.evaluate(() => (document.querySelector('[data-testid="op-email-change-confirm"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="op-email-change-done"]', { timeout: SETTLE, polling: 500 })
+      expect(await page.$eval('[data-testid="op-email-change-done"]', el => el.textContent ?? '')).toContain('Email address verified')
+      flog(page, 'leg2b: verified; the console + the claims follow')
+    })
+
+    await withPage(async (page) => {
+      const fresh = await passwordCookie(stack.base, UNA_EDITED, UNA.password)
+      await signInViaCookie(page, stack.base, fresh)
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="account-email-verified"]', { timeout: APP_COLD, polling: 500 })
+      // The banner LIFTED — the SAME address now reads verified.
+      expect(await page.$('[data-testid="account-verification-banner"]')).toBeNull()
+      expect(await page.$eval('[data-testid="account-email"]', el => el.textContent?.trim())).toBe(UNA_EDITED)
+
+      await rpRoundTrip(page, rp)
+      expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe(UNA_EDITED)
+      expect(rp.claims?.email_verified, 'the mailed verify completion re-verified the SAME primary').toBe(true)
+      expect(rp.userinfo?.email_verified, 'userinfo answers the same').toBe(true)
+      flog(page, 'leg2b: done')
+    })
+  })
+
+  it('leg 3 — the change ceremony re-judges on the move: the emailed email-change link verifies the NEW address; the claim answers TRUE on the new primary', { timeout: 900_000 }, async () => {
     const cookie = await passwordCookie(stack.base, UNA_EDITED, UNA.password)
     mailer.reset() // the sign-in notices are not this leg's subject
 

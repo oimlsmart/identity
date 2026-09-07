@@ -20,6 +20,14 @@
 //                 verifies independently — the same one-time-link
 //                 doctrine, the copy naming the add (never "the account
 //                 is moving").
+//   verify_primary_email
+//                 the confirm-the-CURRENT-address message
+//                 (TODO.identity-sso/04 wave A, riding the kernel 0.2.4
+//                 'verify' token kind): the primary the account ALREADY
+//                 holds never went through a mailbox proof (the
+//                 invited-not-yet-set-up and the admin-re-addressed
+//                 postures) — the copy names the address of record,
+//                 never a move and never an add.
 //   mfa_locked    the second-factor lockout notice (TODO.identity-sso/03:
 //                 a burned sign-in attempt surfaces to the account by
 //                 email — the hard-throttle rule's other half).
@@ -93,7 +101,7 @@ import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
 import { mailerFor, type MailEnv, type MailPosture } from '@oimlsmart/platform-server/mailer'
 import type { ServerStore } from '@oimlsmart/platform-server/store'
 
-export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'verify_added_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
+export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
   // TODO.identity-sso/04 slice D: the account-lifecycle security notices
   // (each a pure notification — never a primary button; the "was this
   // you?" reset pointer rides the secondary block, the `reset` flag).
@@ -152,6 +160,10 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   // TODO.identity-features/01: the added address's own verification —
   // the same one-time-link ceremony, the copy naming the ADD.
   verify_added_email: { subject: 'mail.verifyAddedEmail.subject', preheader: 'mail.verifyAddedEmail.preheader', heading: 'mail.verifyAddedEmail.heading', body: 'mail.verifyAddedEmail.body', why: 'mail.verifyAddedEmail.why', action: 'mail.verifyAddedEmail.action', link: true },
+  // TODO.identity-sso/04 wave A: the CURRENT primary's own verification
+  // (the kernel 0.2.4 'verify' kind) — the same ceremony again, the copy
+  // naming the address of record (nothing moves, nothing is added).
+  verify_primary_email: { subject: 'mail.verifyPrimaryEmail.subject', preheader: 'mail.verifyPrimaryEmail.preheader', heading: 'mail.verifyPrimaryEmail.heading', body: 'mail.verifyPrimaryEmail.body', why: 'mail.verifyPrimaryEmail.why', action: 'mail.verifyPrimaryEmail.action', link: true },
   // TODO.identity-sso/03: the second-factor lockout notice — a pure
   // notification like signin (no link, no expiry).
   mfa_locked: { subject: 'mail.mfaLocked.subject', preheader: 'mail.mfaLocked.preheader', heading: 'mail.mfaLocked.heading', body: 'mail.mfaLocked.body', why: 'mail.mfaLocked.why', link: false },
@@ -228,10 +240,10 @@ export function renderOpMail(
   const logoUrl = escapeHtml(typeof params.logoUrl === 'string' && params.logoUrl ? String(params.logoUrl) : OP_MAIL_LOGO_URL)
 
   // The action URL is per-template (the setup link for invite/reset,
-  //  the confirmation link for verify_email / verify_added_email) —
+  //  the confirmation link for the verify_* family) —
   //  never "whichever param happens to be present" (a caller carrying
   //  both would mis-lift).
-  const actionKey = template === 'verify_email' || template === 'verify_added_email' ? 'verifyUrl' : 'setupUrl'
+  const actionKey = template === 'verify_email' || template === 'verify_added_email' || template === 'verify_primary_email' ? 'verifyUrl' : 'setupUrl'
   const actionUrl = keys.link && typeof params[actionKey] === 'string' ? String(params[actionKey]) : null
 
   // TODO.identity-sso/04 slice D: the security notices' "was this you?"

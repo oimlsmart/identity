@@ -84,6 +84,13 @@
 //   POST /api/op/account/emails/:email/verification
 //                                          — resend the added address's
 //                                            verification link
+//   POST /api/op/account/email/verification
+//                                          — TODO.identity-sso/04 wave A:
+//                                            the CURRENT primary's own
+//                                            verification link (the kernel
+//                                            0.2.4 'verify' kind; mail
+//                                            only, 503 honestly with no
+//                                            mailer)
 //   POST /api/op/account/emails/primary    — promote a VERIFIED
 //                                            additional to primary (the
 //                                            old primary stays a verified
@@ -1275,6 +1282,10 @@ export function createOpAccountsRouter(): Hono {
   // TODO.identity-features/01: a kind 'add' link verifies the ADDED
   // address instead (the account_emails row's stamp) — the audit names
   // the ceremony that ran.
+  // TODO.identity-sso/04 wave A: a kind 'verify' link (the kernel 0.2.4
+  // kind) re-proves the CURRENT primary — nothing moves (no email_changed
+  // notice: the address never changed hands), the audit is the same
+  // account.email_verified an 'add' completion writes.
   accounts.post('/api/op/email-change/:token', async (c) => {
     // The ceremony's kind rides the token row (read before the
     // completion burns it — the row persists, the consumed stamp is the
@@ -1283,7 +1294,8 @@ export function createOpAccountsRouter(): Hono {
     // TODO.identity-sso/04 slice D: the prior primary reads BEFORE the
     // completion — the change orphans the old address (the account row
     // carries the new one), and the notice to the OLD mailbox names it.
-    const priorUser = row && row.kind !== 'add' ? await getStore().getUserById(row.userId) : null
+    // Only the 'change' ceremony moves the address, so only it reads.
+    const priorUser = row && row.kind !== 'add' && row.kind !== 'verify' ? await getStore().getUserById(row.userId) : null
     const result = await getStore().completeEmailChange(c.req.param('token'))
     if (result.kind === 'expired') {
       return c.json({ error: 'expired', error_description: 'This verification link has expired (it lives 24 hours). Start the change again from your account page.' }, 410)
@@ -1294,7 +1306,7 @@ export function createOpAccountsRouter(): Hono {
     if (result.kind !== 'ok') {
       return c.json({ error: 'used', error_description: 'This verification link is not valid or was already used. Start the change again from your account page.' }, 410)
     }
-    if (row?.kind === 'add') {
+    if (row?.kind === 'add' || row?.kind === 'verify') {
       await audit('account.email_verified', result.userId, { userId: result.userId }, { email: result.newEmail, verified: result.verified })
     } else {
       await audit('account.email_changed', result.userId, { userId: result.userId }, { to: result.newEmail, verified: result.verified })
@@ -1331,14 +1343,20 @@ export function createOpAccountsRouter(): Hono {
   // primary switch keeps the old primary as a verified additional; the
   // primary itself is never removed from under the holder.
 
-  /** The per-address verification send (the add + the resend share it):
-   *  the link travels BY MAIL ONLY (a mailbox proof cannot ride a
-   *  screen — auth/op/emails.ts documents the departure from the change
-   *  flow's shown-link posture); the token mints ONLY on a sent link. */
+  /** The per-address verification send (the add, the resend, and the
+   *  primary's re-verification share it): the link travels BY MAIL ONLY
+   *  (a mailbox proof cannot ride a screen — auth/op/emails.ts documents
+   *  the departure from the change flow's shown-link posture); the token
+   *  mints ONLY on a sent link. The kind names the ceremony: 'add' (the
+   *  additional address's own stamp) or 'verify' (the kernel 0.2.4 kind —
+   *  the CURRENT primary's re-verification, TODO.identity-sso/04 wave A;
+   *  a fresh request voids the account's earlier pending 'verify' rows,
+   *  the kernel's own sweep). */
   async function sendEmailVerification(
     c: Context,
     user: { id: string; name: string },
     email: string,
+    kind: 'add' | 'verify' = 'add',
   ): Promise<EmailVerificationDelivery> {
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     const token = mintEnrollmentToken() // the enrollment doctrine: 256-bit random, the row is its proof
@@ -1349,6 +1367,7 @@ export function createOpAccountsRouter(): Hono {
       issuer,
       verificationUrl,
       hours: Math.round(OP_EMAIL_CHANGE_TTL_MS / 3_600_000),
+      ...(kind === 'verify' ? { template: 'verify_primary_email' as const } : {}),
     })
     if (delivery !== 'mailer') return 'unavailable'
     await getStore().createEmailChangeToken({
@@ -1356,7 +1375,7 @@ export function createOpAccountsRouter(): Hono {
       userId: user.id,
       newEmail: email,
       deliveredBy: 'mailer',
-      kind: 'add',
+      kind,
       ttlMs: OP_EMAIL_CHANGE_TTL_MS,
     })
     return 'mailer'
@@ -1413,6 +1432,33 @@ export function createOpAccountsRouter(): Hono {
     }
     await audit('account.email_verification_requested', user.id, { userId: user.id, userName: user.name }, { email, delivery })
     return c.json({ email, delivery }, 201)
+  })
+
+  // POST /api/op/account/email/verification — the CURRENT primary's own
+  // verification (TODO.identity-sso/04 wave A, the kernel 0.2.4 'verify'
+  // kind): the address of record never went through a mailbox proof (the
+  // invited-not-yet-set-up and the admin-re-addressed postures), so the
+  // holder asks for the one-time link themselves — the banner's resend
+  // button rides this. The same mail-only doctrine as the added
+  // address's ceremony: the link proves the mailbox, so a no-mailer
+  // deployment answers 503 honestly (never a shown link). An already
+  // verified primary is the honest 409; a fresh request voids the
+  // account's earlier pending 'verify' links (the kernel's sweep).
+  accounts.post('/api/op/account/email/verification', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    if (user.emailVerifiedAt) {
+      return c.json({ error: 'The primary address is already verified.' }, 409)
+    }
+    const delivery = await sendEmailVerification(c, user, user.email, 'verify')
+    if (delivery !== 'mailer') {
+      return c.json({
+        error: 'This deployment cannot send email, so the address stays unverified. Ask your administrator to prove the mailbox out of band — or configure a mailer.',
+        mailAvailable: false,
+      }, 503)
+    }
+    await audit('account.email_verification_requested', user.id, { userId: user.id, userName: user.name }, { email: user.email, delivery })
+    return c.json({ email: user.email, delivery }, 201)
   })
 
   // POST /api/op/account/emails/primary — the PRIMARY switch: a VERIFIED
