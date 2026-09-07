@@ -110,6 +110,15 @@ export function createApiApp(options: ApiAppOptions): Hono {
   app.use('/api/op/login/passkey', rateLimit)
   app.use('/api/op/login/passkey/options', rateLimit)
   app.use('/api/op/account/factors/totp/*/verify', rateLimit)
+  // The public join intake (the 2026-09-07 security cone audit's F10.5,
+  // smart#297): the ANONYMOUS submit mints join-request rows — and, on
+  // the manufacturer path, organization-registry rows — so it rides the
+  // same per-caller bucket (the generous default never bites the
+  // human-paced legitimate flow; a scripted flood trips the honest 429
+  // with the audit event). The decision routes authenticate through the
+  // queue grant; the bucket's guard rides in front of both.
+  app.use('/api/op/join-requests', rateLimit)
+  app.use('/api/op/join-requests/*', rateLimit)
 
   // The session + demo sign-in seam (routes/auth-lean.ts): the four
   // /api/auth endpoints the OP's own pages consume. The platform's RP

@@ -53,6 +53,28 @@
 // deployment profile carries the identity module (the op.ts posture —
 // one build, the profile decides).
 //
+// The anonymous-intake bounds (the 2026-09-07 security cone audit's
+// F10.5, smart#297 — VERIFIED, one bound added): the public submit is
+// bounded by design, and each bound is load-bearing —
+//   - one PENDING request per email (the duplicate guard; a decided
+//     request never blocks a fresh ask);
+//   - the registry path admits only an ACTIVE join-flow org and a role
+//     the org's kind bounds (the server re-checks what the selector
+//     offers);
+//   - the manufacturer path mints only the DECLARED standing — never
+//     the participant standing (the kind's honesty is the scheme's
+//     liability shield) — and the founder's ask lands with BIML like
+//     the not-listed path's (the review gate);
+//   - no account exists before the enrollment ceremony proves the
+//     mailbox (the one-time 24 h setup link), so the intake can never
+//     mint access;
+//   - RATE-BOUND (added with this adjudication): the OP rate limiter
+//     mounts on /api/op/join-requests* (app.ts) — without it the
+//     anonymous submit could mint unbounded join-request and
+//     manufacturer-org rows per caller. The per-caller token bucket
+//     (default 120/min, honest 429 + the audit event) is the row-count
+//     bound; the review gate above is the standing bound.
+//
 // WORKER-SAFE: the ServerStore seam only, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
