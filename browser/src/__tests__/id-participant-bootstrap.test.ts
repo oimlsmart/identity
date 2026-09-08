@@ -314,7 +314,13 @@ describe('the SQL emission', () => {
       })
       expect(sqlRow.contacts).toBe('[]') // the dataset carries no contacts
     }
-  })
+    // The 30s budget names the flake class (identity#72): the leg is
+    // compute-shaped — two 217-row plans + a scratch-db apply — so a
+    // contended CI host starves it past the 5s default (sighted once,
+    // 5 864ms, never semantic; the retry went green unchanged). The
+    // budget is the honest bound, never a blanket retry: a real
+    // slowness regression still trips it loudly.
+  }, 30_000)
 })
 
 // ── the chain rendering through the registry aggregates ─────────────
