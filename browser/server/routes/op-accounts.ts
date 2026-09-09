@@ -146,7 +146,7 @@ import { opRandomToken } from '../auth/op/keys'
 import { prepareBackchannelLogout } from '../auth/op/logout'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
-import { clearLoginThrottle, delayMs, loginThrottleWaitMs, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
+import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
@@ -347,13 +347,21 @@ export function createOpAccountsRouter(): Hono {
     // SILENT posture): the address's failures owe this attempt a bounded
     // wait, paid BEFORE the verify runs. The answer never changes shape
     // (the uniform 401, never a 429) — only its timing.
-    await delayMs(await loginThrottleWaitMs(store, loginEmail, resolveLoginBackoffBaseMs(runtimeEnv<EnvLike>(c)).baseMs))
-    const cred = await store.getPasswordLogin(body.email)
+    // The failing path pays TWO round-trip phases, not five serial reads
+    // and writes (the 2026-09-09 status-leg flap: the D1 primary is
+    // APAC-resident, so an EU vantage paid ~250 ms × 5 — past the 2 s
+    // warn budget): the ladder row and the credential read together, the
+    // rung write and the audit write together. The wait's full weight
+    // still lands in the answer's timing — the reads' order changes
+    // nothing observable.
+    const baseMs = resolveLoginBackoffBaseMs(runtimeEnv<EnvLike>(c)).baseMs
+    const [throttleRow, cred] = await Promise.all([
+      readLoginThrottleRow(store, loginEmail),
+      store.getPasswordLogin(body.email),
+    ])
+    await delayMs(loginThrottleWaitMsForRow(throttleRow, baseMs))
     const ok = await verifyPasswordLogin(body.password, cred?.hash ?? null)
     if (!cred || !ok) {
-      // The ladder's rung climbs (the audit below stays the durable
-      // record; the row is the timing one).
-      await recordLoginThrottleFailure(store, loginEmail)
       // The failure lands on the audit chain too (TODO.identity-sso/01's
       // failed-login signal + the holder's own security feed). The
       // caller's answer stays uniform; the journal keys on the account
@@ -366,11 +374,17 @@ export function createOpAccountsRouter(): Hono {
       const action = isStatusProbe(c.req.raw, runtimeEnv<EnvLike>(c))
         ? 'account.sign_in_probe'
         : 'account.sign_in_failed'
-      await audit(action, cred?.userId ?? loginEmail, {}, {
-        method: 'password',
-        email: loginEmail,
-        reason: 'invalid_credentials',
-      }, 'auth')
+      // The ladder's rung climbs off the request's own read and the
+      // audit lands — one phase (the chain stays the durable record;
+      // the row is the timing one).
+      await Promise.all([
+        recordLoginThrottleFailure(store, loginEmail, throttleRow),
+        audit(action, cred?.userId ?? loginEmail, {}, {
+          method: 'password',
+          email: loginEmail,
+          reason: 'invalid_credentials',
+        }, 'auth'),
+      ])
       return c.json({ error: 'Invalid email or password' }, 401)
     }
     if (!cred.active) {
