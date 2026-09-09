@@ -28,12 +28,15 @@
 // dev-reset with everything else. The read-modify-write is not atomic
 // (the entity seam carries no compare-and-swap): two concurrent
 // failures can lose one rung — a soft throttle's acceptable slop,
-// documented here.
+// documented here. Within one request the row is read ONCE (alongside
+// the credential read, one round-trip phase) and the rung write rides
+// the audit write's phase — the same slop class, never re-read.
 //
 // The estate's 60 s status probe (auth/op/probe.ts) rides the ladder
-// like every caller: its cadence exceeds the 30 s ceiling, so it never
-// actually waits — and the recognition keeps its own doctrine (it never
-// shapes the answer, the timing, or an error path).
+// like every caller: its fixed address long ago passed the spent cap
+// (failCount ≥ MFA_FAILURE_CAP ⇒ no wait owed), so the probe's timing
+// stays the route's own — and the recognition keeps its own doctrine
+// (it never shapes the answer, the timing, or an error path).
 //
 // The base is the deployment's (OP_LOGIN_BACKOFF_BASE_MS — the
 // OP_MFA_BACKOFF_BASE_MS precedent; the tests declare small values so
@@ -72,12 +75,14 @@ export function resolveLoginBackoffBaseMs(env: Record<string, string | undefined
 const THROTTLE_STORE = 'opLoginThrottle'
 
 /** The row IS the shared ladder's input shape (throttleState's row). */
-interface LoginThrottleRow {
+export interface LoginThrottleRow {
   failCount: number
   lastFailureAt: string | null
 }
 
-async function readRow(store: ServerStore, email: string): Promise<LoginThrottleRow | undefined> {
+/** The address's ladder row, read once per request (the route pairs it
+ *  with the credential read — one round-trip phase). Never throws. */
+export async function readLoginThrottleRow(store: ServerStore, email: string): Promise<LoginThrottleRow | undefined> {
   try {
     const row = await store.getEntity(THROTTLE_STORE, email)
     if (!row) return undefined
@@ -92,20 +97,18 @@ async function readRow(store: ServerStore, email: string): Promise<LoginThrottle
   }
 }
 
-/** The wait the address's next attempt owes NOW (0 = judge at once).
- *  Never throws. */
-export async function loginThrottleWaitMs(store: ServerStore, email: string, baseMs: number = LOGIN_BACKOFF_DEFAULTS.baseMs): Promise<number> {
-  const row = await readRow(store, email)
+/** The wait a read row owes the attempt NOW (0 = judge at once). Pure. */
+export function loginThrottleWaitMsForRow(row: LoginThrottleRow | undefined, baseMs: number = LOGIN_BACKOFF_DEFAULTS.baseMs): number {
   if (!row) return 0
   return throttleState(row, baseMs).waitMs
 }
 
-/** The failure's rung: the count climbs, the timestamp restarts the
- *  wait. Never throws (the audit chain's sign_in_failed row is the
- *  durable record either way). */
-export async function recordLoginThrottleFailure(store: ServerStore, email: string): Promise<void> {
+/** The failure's rung: the count climbs off the request's own read (the
+ *  row is not re-read — see the header's one-read doctrine), the
+ *  timestamp restarts the wait. Never throws (the audit chain's
+ *  sign_in_failed row is the durable record either way). */
+export async function recordLoginThrottleFailure(store: ServerStore, email: string, prior: LoginThrottleRow | undefined): Promise<void> {
   try {
-    const prior = await readRow(store, email)
     const row: LoginThrottleRow = { failCount: (prior?.failCount ?? 0) + 1, lastFailureAt: new Date().toISOString() }
     await store.putEntity(THROTTLE_STORE, email, null, JSON.stringify(row))
   } catch (err) {
@@ -116,7 +119,7 @@ export async function recordLoginThrottleFailure(store: ServerStore, email: stri
 /** A successful password verify clears the ladder outright. */
 export async function clearLoginThrottle(store: ServerStore, email: string): Promise<void> {
   try {
-    if (await readRow(store, email)) await store.deleteEntity(THROTTLE_STORE, email)
+    if (await readLoginThrottleRow(store, email)) await store.deleteEntity(THROTTLE_STORE, email)
   } catch (err) {
     console.error('[op] the login throttle clear failed:', (err as Error).message)
   }
