@@ -24,7 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import { expect } from 'vitest'
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from '../../server/store'
 
 /** One measured request's store-call report (the gate evidence's unit). */
 export interface StoreCallReport {

@@ -22,6 +22,8 @@ import { useRoute } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
+import { orgKindLabelKey } from '../../org-vocabulary'
+import { api } from '../../lib/api-client'
 
 interface OrgInfo {
   id: string
@@ -331,13 +333,12 @@ async function revokeKey(k: SigningKeyRow) {
 
 const KIND_OPTIONS = ['member-state', 'corresponding-member', 'issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'manufacturer'] as const
 
-/** The kind rendered honestly (TODO.identity-features/10): the OIML
- *  Member category's kinds read as the category + the kind, never a
- *  bare token; the participant kinds keep their registry token. */
+/** The kind rendered honestly (TODO.identity-features/10 +
+ *  TODO.restructure/07): ONE vocabulary for every surface — the shared
+ *  org-vocabulary module (the labels + the per-kind purpose gloss), the
+ *  same call the orgs list and the join page make. */
 function kindText(kind: string | null): string {
-  if (kind === 'member-state') return t('admin.org.kind.memberState')
-  if (kind === 'corresponding-member') return t('admin.org.kind.correspondingMember')
-  return kind ?? t('admin.org.details.kindNone')
+  return t(orgKindLabelKey(kind))
 }
 
 /** The designation-link field a kind carries (the server's
@@ -456,14 +457,6 @@ function fmtDate(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-async function api(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(path, {
-    credentials: 'include',
-    ...(init?.body ? { headers: { 'content-type': 'application/json' } } : {}),
-    ...init,
-  })
-}
-
 async function load(): Promise<void> {
   const res = await api(`/api/op/registry/orgs/${encodeURIComponent(orgId.value)}`)
   if (res.status === 401) {
@@ -506,7 +499,7 @@ async function saveMemberRoles(m: MemberRow) {
     memberRolesOpen.value = null
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -532,7 +525,7 @@ async function setMemberState(m: MemberRow, state: 'active' | 'disabled') {
       : `${m.name}'s membership is active again.`
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -687,7 +680,7 @@ onMounted(async () => {
     }
     await load()
   } catch (e) {
-    error.value = (e as Error).message || 'Network error. Is the server running?'
+    error.value = (e as Error).message || t('error.network')
   } finally {
     loading.value = false
   }

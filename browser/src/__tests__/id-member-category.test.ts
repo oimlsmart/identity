@@ -44,7 +44,7 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -56,16 +56,13 @@ process.env.OP_ISSUER = 'http://op.test'
 
 const ORIGIN = 'http://op.test'
 
-// The kernel package's canonical migration set (TODO.repos/01), resolved
-// WITHOUT evaluating the store module — its DB path binds at import time
-// and must see the env set above. createRequire resolves, never loads.
-const MIGRATIONS_DIR = join(
-  dirname(createRequire(import.meta.url).resolve('@oimlsmart/platform-server/package.json')),
-  'migrations',
-)
+// The repo's canonical migration set (TODO.restructure/15 wave 2 — identity
+// owns its migrations), resolved WITHOUT evaluating the store module — its
+// DB path binds at import time and must see the env set above.
+const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations')
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 async function demoLogin(email: string): Promise<string> {
   const res = await app.request(`${ORIGIN}/api/auth/demo`, {
@@ -86,9 +83,9 @@ async function json(res: Response, status: number): Promise<any> {
 let admin: string
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -132,7 +129,7 @@ demo_personas: true
 })
 
 afterAll(async () => {
-  const { resetInstanceProfileForTest } = await import('@oimlsmart/platform-server/profile')
+  const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.DATABASE_PATH

@@ -13,6 +13,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
+import { t } from '../../i18n'
 
 interface SetupContext {
   name: string
@@ -46,9 +47,9 @@ const strength = computed(() => {
   if (/[0-9]/.test(pw)) variety++
   if (/[^a-zA-Z0-9]/.test(pw)) variety++
   if (len < 12) return { score: 0, label: 'Too short', hint: `Passwords here are at least 12 characters — ${12 - len} more to go.` }
-  if (len < 16 && variety < 3) return { score: 1, label: 'Fair', hint: 'Longer is stronger — a passphrase of several words beats a short jumble.' }
-  if (len < 20) return { score: 2, label: 'Good', hint: variety < 3 ? 'Mix in numbers or symbols, or simply make it longer.' : 'A few more characters make it stronger still.' }
-  return { score: 3, label: 'Strong', hint: '' }
+  if (len < 16 && variety < 3) return { score: 1, label: t('setup.strength.fair'), hint: t('setup.strength.fair.hint') }
+  if (len < 20) return { score: 2, label: t('setup.strength.good'), hint: variety < 3 ? t('setup.strength.good.hintMix') : t('setup.strength.good.hintMore') }
+  return { score: 3, label: t('setup.strength.strong'), hint: '' }
 })
 
 const METER_COLORS = ['bg-red-400', 'bg-amber-400', 'bg-brand-400', 'bg-green-500']
@@ -56,7 +57,7 @@ const METER_COLORS = ['bg-red-400', 'bg-amber-400', 'bg-brand-400', 'bg-green-50
 onMounted(async () => {
   const token = route.query.token as string | undefined
   if (!token) {
-    failure.value = { kind: 'unknown', message: 'This page needs a setup link (no ?token= parameter). Ask your administrator for your invite.' }
+    failure.value = { kind: 'unknown', message: t('setup.noToken') }
     loading.value = false
     return
   }
@@ -66,7 +67,7 @@ onMounted(async () => {
       const body = await res.json().catch(() => null) as { error?: string; error_description?: string } | null
       failure.value = {
         kind: body?.error ?? 'unknown',
-        message: body?.error_description ?? 'This setup link is not valid. Ask your administrator for a new one.',
+        message: body?.error_description ?? t('setup.linkInvalid'),
       }
       loading.value = false
       return
@@ -74,7 +75,7 @@ onMounted(async () => {
     context.value = await res.json() as SetupContext
     loading.value = false
   } catch {
-    failure.value = { kind: 'unknown', message: 'Network error. Is the server running?' }
+    failure.value = { kind: 'unknown', message: t('error.network') }
     loading.value = false
   }
 })
@@ -83,11 +84,11 @@ async function submit() {
   if (!context.value || submitting.value) return
   error.value = null
   if (password.value.length < 12) {
-    error.value = 'The password needs at least 12 characters.'
+    error.value = t('setup.password.tooShort')
     return
   }
   if (password.value !== confirm.value) {
-    error.value = 'The two entries do not match.'
+    error.value = t('setup.password.mismatch')
     return
   }
   submitting.value = true
@@ -101,14 +102,14 @@ async function submit() {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => null) as { error?: string } | null
-      error.value = body?.error ?? 'The setup could not be completed. Ask your administrator for a fresh link.'
+      error.value = body?.error ?? t('setup.failed')
       submitting.value = false
       return
     }
     // The setup signs the account in — straight to the account page.
     router.replace('/op/account')
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
     submitting.value = false
   }
 }
@@ -124,7 +125,7 @@ async function submit() {
     <div v-else class="w-full max-w-sm" data-testid="op-setup">
       <div class="text-center mb-8">
         <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Set up your account</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('setup.title') }}</h1>
       </div>
 
       <!-- The honest failure cards (used / expired / unknown link). -->
@@ -145,7 +146,7 @@ async function submit() {
 
         <form @submit.prevent="submit" class="space-y-3">
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Choose a password</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('setup.password.label') }}</label>
             <input
               v-model="password"
               type="password"
@@ -172,7 +173,7 @@ async function submit() {
             </div>
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Repeat the password</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('setup.password.repeat') }}</label>
             <input
               v-model="confirm"
               type="password"
@@ -189,7 +190,7 @@ async function submit() {
             class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            {{ submitting ? 'Setting the password…' : 'Set the password' }}
+            {{ submitting ? t('setup.password.busy') : t('setup.password.submit') }}
           </button>
         </form>
 

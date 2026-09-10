@@ -50,7 +50,7 @@ const PUBS = {
 process.env.OP_CLIENT_SEED = JSON.stringify([HUB, PUBS])
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let installIdentityProfile: () => void
 let resetProfile: () => void
 
@@ -72,9 +72,9 @@ function whoami(init?: { cookie?: string; origin?: string }) {
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   installIdentityProfile = () => profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id

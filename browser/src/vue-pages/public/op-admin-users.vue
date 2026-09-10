@@ -23,7 +23,8 @@ import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 import type { MessageKey } from '../../i18n/en'
-import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
+import { APP_ROLES } from '../../../server/vocab'
+import { api } from '../../lib/api-client'
 
 interface JoinRequestRow {
   id: string
@@ -231,14 +232,6 @@ const pendingUnregistered = computed(() => unregistered.value.filter(r => r.stat
  *  registered org — the eligibility rule's visible state). */
 const orgAdminAccounts = computed(() => users.value.filter(u => u.roles.includes('org_admin')))
 
-async function api(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(path, {
-    credentials: 'include',
-    ...(init?.body ? { headers: { 'content-type': 'application/json' } } : {}),
-    ...init,
-  })
-}
-
 async function load(): Promise<void> {
   const [queueRes, usersRes, rolesRes, orgsRes] = await Promise.all([
     api('/api/op/join-requests'),
@@ -251,7 +244,7 @@ async function load(): Promise<void> {
     return
   }
   if (queueRes.status === 403) {
-    error.value = 'This console is for organization administrators and the scheme operator — your account holds neither grant.'
+    error.value = t('admin.users.consoleGrant')
     loading.value = false
     return
   }
@@ -308,7 +301,7 @@ async function approve(row: JoinRequestRow) {
     if (!row.orgId) {
       const orgId = approveOrgId.value[row.id]
       if (!orgId) {
-        error.value = 'Pick the organization’s register entry before approving — the participation must be registered first.'
+        error.value = t('admin.users.pickOrgFirst')
         return
       }
       payload.org_id = orgId
@@ -319,7 +312,7 @@ async function approve(row: JoinRequestRow) {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The approval failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.approveFailed', { status: res.status })
       return
     }
     const decided = await res.json() as JoinRequestRow & {
@@ -332,13 +325,13 @@ async function approve(row: JoinRequestRow) {
       lastInvite.value = { email: row.email, name: row.name, setupUrl: decided.invite.setupUrl, expiresAt: decided.invite.expiresAt ?? '', mail: decided.invite.mail ?? null }
     }
     notice.value = decided.membership
-      ? `${row.name} is now a member of ${row.orgName ?? row.orgId}: their existing account joined it as ${decided.membership.roles.join(', ') || 'a member'} — no new setup link was needed.`
+      ? t('admin.users.approvedJoined', { name: row.name, org: row.orgName ?? row.orgId ?? '', roles: decided.membership.roles.join(', ') || t('admin.users.aMember') })
       : decided.invite?.mail?.sent
-        ? `Invite issued: ${row.name}'s account is created and the setup email is on its way to ${row.email} (the link lives 24 h).`
-        : `Invite issued: ${row.name}'s account is created. Hand over the one-time setup link below (24 h); it is shown only now.`
+        ? t('admin.users.approvedMailed', { name: row.name, email: row.email })
+        : t('admin.users.approvedShown', { name: row.name })
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -348,7 +341,7 @@ async function refuse(row: JoinRequestRow) {
   if (acting.value) return
   const reason = (refuseReason.value[row.id] ?? '').trim()
   if (!reason) {
-    error.value = 'A refusal needs a reason — the requester sees it.'
+    error.value = t('admin.users.needReason')
     return
   }
   acting.value = row.id
@@ -361,14 +354,14 @@ async function refuse(row: JoinRequestRow) {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The refusal failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.refuseFailed', { status: res.status })
       return
     }
-    notice.value = `Request refused — ${row.name} is told why.`
+    notice.value = t('admin.users.refused', { name: row.name })
     refuseOpen.value[row.id] = false
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -391,7 +384,7 @@ async function inviteColleague() {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The invite failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.inviteFailed', { status: res.status })
       return
     }
     const created = await res.json() as { user: UserRow; invite?: { setupUrl?: string; expiresAt?: string; mail?: InviteMail | null } }
@@ -406,7 +399,7 @@ async function inviteColleague() {
     inviteRole.value = ''
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -430,7 +423,7 @@ async function createOrgAdmin() {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `Could not create the organization administrator (${res.status}).`
+      error.value = body.error ?? t('admin.users.orgAdminFailed', { status: res.status })
       return
     }
     const created = await res.json() as { user: UserRow; invite?: { setupUrl?: string; expiresAt?: string; mail?: InviteMail | null } }
@@ -446,7 +439,7 @@ async function createOrgAdmin() {
     orgAdminOrg.value = ''
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -492,9 +485,9 @@ function clientReceivesRoles(client: RegistryClient): boolean {
 function clientRoleState(acc: RegistryAccount, client: RegistryClient): string {
   const assigned = assignmentFor(acc, client.clientId)
   const effective = effectiveRolesFor(acc, client)
-  if (!clientReceivesRoles(client)) return 'no role claims — the client’s policy carries none'
-  if (assigned === null) return `the account default (${acc.roles.join(', ') || 'none'})`
-  if (assigned.length === 0) return 'explicitly no roles on this client'
+  if (!clientReceivesRoles(client)) return t('admin.users.noRoleClaims')
+  if (assigned === null) return t('admin.users.accountDefault', { roles: acc.roles.join(', ') || t('admin.users.noneRoles') })
+  if (assigned.length === 0) return t('admin.users.explicitNone')
   return `assigned: ${assigned.join(', ')}${effective.length === assigned.length ? '' : ` (the policy passes ${effective.join(', ') || 'none'})`}`
 }
 
@@ -517,7 +510,7 @@ async function registryInvite() {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The invite failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.inviteFailed', { status: res.status })
       return
     }
     const created = await res.json() as {
@@ -538,7 +531,7 @@ async function registryInvite() {
     regInviteOrg.value = ''
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -562,14 +555,14 @@ async function saveEdit(acc: RegistryAccount) {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The edit failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.editFailed', { status: res.status })
       return
     }
-    notice.value = `${editName.value.trim()} updated.`
+    notice.value = t('admin.users.updatedNotice', { name: editName.value.trim() })
     editingId.value = null
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -613,16 +606,16 @@ async function saveClientRoles(acc: RegistryAccount, clientId: string) {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The assignment failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.assignFailed', { status: res.status })
       return
     }
     const clientName = clients.value.find(cl => cl.clientId === clientId)?.name ?? clientId
     notice.value = roles.length
-      ? `${acc.name} holds ${roles.join(', ')} on ${clientName}.`
-      : `${acc.name} holds no roles on ${clientName} (the explicit none — the account default no longer carries there).`
+      ? t('admin.users.holdsRoles', { name: acc.name, roles: roles.join(', '), client: clientName })
+      : t('admin.users.holdsNone', { name: acc.name, client: clientName })
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -643,10 +636,10 @@ async function clearClientRoles(acc: RegistryAccount, clientId: string) {
       return
     }
     const clientName = clients.value.find(cl => cl.clientId === clientId)?.name ?? clientId
-    notice.value = `${acc.name}'s assignment on ${clientName} cleared — the account default carries there again.`
+    notice.value = t('admin.users.clearedNotice', { name: acc.name, client: clientName })
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -674,7 +667,7 @@ async function setRegistryActive(acc: RegistryAccount, active: boolean) {
       : `${acc.name} deactivated — sign-ins refuse and every session was revoked.`
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -700,7 +693,7 @@ async function freshSetupLink(acc: RegistryAccount) {
       ? `A fresh one-time setup link for ${acc.name}: the reset email is on its way to ${acc.email} (24 h).`
       : `A fresh one-time setup link for ${acc.name}: hand it over out-of-band (24 h).`
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -740,16 +733,16 @@ async function saveMemberRoles(m: MemberRow) {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The role assignment failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.roleAssignFailed', { status: res.status })
       return
     }
-    notice.value = `${m.name}'s roles in ${orgNameOf(m.orgId)} updated.`
+    notice.value = t('admin.users.rolesUpdated', { name: m.name, org: orgNameOf(m.orgId) })
     memberRolesOpen.value = null
     await load()
     // The explainer's answer changed with the roles — re-ask if open.
     if (explainOpen.value === m.userId) void fetchExplain(m)
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -806,7 +799,7 @@ async function saveMemberCone(m: MemberRow) {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The data-cone update failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.coneFailed', { status: res.status })
       return
     }
     const badgeKey = CONE_BADGE_KEYS[cone as keyof typeof CONE_BADGE_KEYS] ?? CONE_BADGE_KEYS['org-wide']
@@ -816,7 +809,7 @@ async function saveMemberCone(m: MemberRow) {
     // The explainer's answer changed with the cone — re-ask if open.
     if (explainOpen.value === m.userId) void fetchExplain(m)
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -895,13 +888,13 @@ async function fetchExplain(m: MemberRow): Promise<void> {
     const res = await api(`/api/op/org-memberships/${encodeURIComponent(m.userId)}/${encodeURIComponent(m.orgId)}/explain`)
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The explanation failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.explainFailed', { status: res.status })
       explainOpen.value = null
       return
     }
     explainData.value = { ...explainData.value, [m.userId]: (await res.json()) as ExplainPayload }
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
     explainOpen.value = null
   } finally {
     explainLoading.value = null
@@ -961,11 +954,11 @@ async function setMemberState(m: MemberRow, state: 'active' | 'disabled') {
       return
     }
     notice.value = state === 'disabled'
-      ? `${m.name}'s membership in ${orgNameOf(m.orgId)} is disabled — their sessions stopped acting as this organization.`
-      : `${m.name}'s membership in ${orgNameOf(m.orgId)} is active again.`
+      ? t('admin.users.membershipDisabled', { name: m.name, org: orgNameOf(m.orgId) })
+      : t('admin.users.membershipActive', { name: m.name, org: orgNameOf(m.orgId) })
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -986,15 +979,15 @@ async function inviteExistingMember() {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The membership invite failed (${res.status}).`
+      error.value = body.error ?? t('admin.users.memberInviteFailed', { status: res.status })
       return
     }
-    notice.value = `${addEmail.value.trim()} is invited to join ${grantOrgName.value ?? 'your organization'} — the invitation shows on their account console until they accept or decline it.`
+    notice.value = t('admin.users.membershipInvited', { email: addEmail.value.trim(), org: grantOrgName.value ?? t('admin.users.yourOrganization') })
     addEmail.value = ''
     addRoleChecks.value = []
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     acting.value = null
   }
@@ -1007,15 +1000,20 @@ function copySetupUrl() {
 
 onMounted(async () => {
   try {
-    const session = await fetch('/api/auth/session', { credentials: 'include' })
+    // The session gate and the first data bundle are INDEPENDENT — one
+    // latency phase (TODO.restructure/02). load() re-checks the 401
+    // posture itself.
+    const [session] = await Promise.all([
+      fetch('/api/auth/session', { credentials: 'include' }),
+      load(),
+    ])
     if (!session.ok) {
       window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/users')}`)
       return
     }
     account.value = await session.json() as { id: string; name: string; email: string; roles: string[] }
-    await load()
   } catch (e) {
-    error.value = (e as Error).message || 'Network error. Is the server running?'
+    error.value = (e as Error).message || t('error.network')
   } finally {
     loading.value = false
   }
@@ -1029,12 +1027,12 @@ onMounted(async () => {
     </div>
 
     <div v-else data-testid="op-admin-users">
-      <PageHeader title="Organization administration">
+      <PageHeader :title="t('admin.users.title')">
         <template #description>
           <span data-testid="op-admin-identity">
             <template v-if="account">{{ account.name }} &lt;{{ account.email }}&gt; — </template>{{ branding.productName }}
             <template v-if="grant === 'org' && grantOrgName"> · {{ grantOrgName }}</template>
-            <template v-else-if="grant === 'wide'"> · the scheme operator’s view</template>
+            <template v-else-if="grant === 'wide'"> · {{ t('admin.users.wideView') }}</template>
           </span>
         </template>
       </PageHeader>
@@ -1092,7 +1090,7 @@ onMounted(async () => {
              oversight of the org-bound ones) ═══ -->
         <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="org-queue">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-            {{ grant === 'org' ? `Join requests — ${grantOrgName ?? 'your organization'}` : 'Join requests — every organization' }}
+            {{ grant === 'org' ? t('admin.users.queueOrg', { org: grantOrgName ?? t('admin.users.yourOrganization') }) : t('admin.users.queueAll') }}
           </h2>
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
             <template v-if="grant === 'org'">
@@ -1105,7 +1103,7 @@ onMounted(async () => {
             </template>
           </p>
           <p v-if="!pendingOrgRequests.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="org-queue-empty">
-            No pending requests.
+            {{ t('admin.users.noRequests') }}
           </p>
           <ul v-else class="space-y-3">
             <li
@@ -1120,7 +1118,7 @@ onMounted(async () => {
                     {{ row.name }} <span class="font-normal text-slate-500 dark:text-slate-400">&lt;{{ row.email }}&gt;</span>
                   </p>
                   <p class="text-[11px] text-slate-400 dark:text-slate-500">
-                    asks for <code class="font-mono">{{ row.requestedRole }}</code>
+                    {{ t('admin.users.asksFor') }} <code class="font-mono">{{ row.requestedRole }}</code>
                     <template v-if="isWide && row.orgName"> · <strong class="text-slate-500 dark:text-slate-400">{{ row.orgName }}</strong></template>
                     · filed {{ row.createdAt.slice(0, 10) }}
                     <template v-if="row.orgKind === 'manufacturer'"> · <span class="text-sky-600 dark:text-sky-400" :data-testid="`join-request-kind-${row.id}`">manufacturer organization — not an OIML-CS participant</span></template>
@@ -1135,13 +1133,13 @@ onMounted(async () => {
                     :disabled="acting === row.id"
                     class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                     @click="approve(row)"
-                  >Approve</button>
+                  >{{ t('admin.users.approve') }}</button>
                   <button
                     :data-testid="`join-refuse-open-${row.id}`"
                     :disabled="acting === row.id"
                     class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
                     @click="refuseOpen[row.id] = !refuseOpen[row.id]"
-                  >Refuse</button>
+                  >{{ t('admin.users.refuse') }}</button>
                 </div>
               </div>
               <div v-if="refuseOpen[row.id]" class="mt-2 flex items-center gap-2">
@@ -1150,14 +1148,14 @@ onMounted(async () => {
                   type="text"
                   :data-testid="`join-refuse-reason-${row.id}`"
                   class="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  placeholder="The reason (the requester sees it)…"
+                  :placeholder="t('admin.users.reasonPlaceholder')"
                 />
                 <button
                   :data-testid="`join-refuse-${row.id}`"
                   :disabled="acting === row.id"
                   class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
                   @click="refuse(row)"
-                >Confirm refusal</button>
+                >{{ t('admin.users.confirmRefusal') }}</button>
               </div>
             </li>
           </ul>
@@ -1176,10 +1174,10 @@ onMounted(async () => {
              account surface is the identity registry below) ═══ -->
         <section v-if="grant === 'org'" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="org-users">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-            People — {{ grantOrgName ?? 'your organization' }}
+            {{ t('admin.users.peopleTitle', { org: grantOrgName ?? t('admin.users.yourOrganization') }) }}
           </h2>
           <p v-if="!members.length" class="text-sm text-slate-500 dark:text-slate-400 mb-2" data-testid="org-users-empty">
-            No members yet — the queue's approvals and the forms below grow this list.
+            {{ t('admin.users.noMembers') }}
           </p>
           <ul class="space-y-2" data-testid="org-users-list">
             <li
@@ -1241,7 +1239,7 @@ onMounted(async () => {
                     class="hover:underline disabled:opacity-50"
                     :class="m.state === 'active' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
                     @click="setMemberState(m, m.state === 'active' ? 'disabled' : 'active')"
-                  >{{ m.state === 'active' ? 'Disable membership' : 'Re-activate membership' }}</button>
+                  >{{ m.state === 'active' ? t('admin.users.disableMembership') : t('admin.users.reactivateMembership') }}</button>
                 </div>
               </div>
               <!-- The per-org roles editor (kind-bounded; the server
@@ -1264,7 +1262,7 @@ onMounted(async () => {
                   :data-testid="`org-user-roles-save-${m.userId}`"
                   class="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                   @click="saveMemberRoles(m)"
-                >Save the roles</button>
+                >{{ t('admin.users.saveRoles') }}</button>
               </div>
               <!-- The data-cone editor (TODO.identity-features/09): the
                    three postures with what each implies, honestly. The
@@ -1397,21 +1395,21 @@ onMounted(async () => {
           <!-- Add an EXISTING account (the membership invite — the holder
                accepts from their account console). -->
           <div class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4" data-testid="org-member-add">
-            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Add an existing account</h3>
+            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.users.addExisting') }}</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 v-model="addEmail"
                 type="email"
                 data-testid="member-add-email"
                 class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="The account’s email"
+                :placeholder="t('admin.users.emailPlaceholder')"
               />
               <button
                 :disabled="acting === 'member-invite' || !addEmail.includes('@')"
                 data-testid="member-add-submit"
                 class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                 @click="inviteExistingMember"
-              >{{ acting === 'member-invite' ? 'Inviting…' : 'Invite the membership' }}</button>
+              >{{ acting === 'member-invite' ? t('admin.users.inviting') : t('admin.users.inviteMembership') }}</button>
             </div>
             <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1">
               <label v-for="r in Object.keys(roleMap)" :key="r" class="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
@@ -1435,21 +1433,21 @@ onMounted(async () => {
           <!-- The invite form (org admin: kind-bounded roles; the server
                pins the account to the org) -->
           <div v-if="grant === 'org'" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4" data-testid="org-invite">
-            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Invite a colleague</h3>
+            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.users.inviteColleague') }}</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 v-model="inviteName"
                 type="text"
                 data-testid="invite-name"
                 class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="Full name"
+                :placeholder="t('admin.users.namePlaceholder')"
               />
               <input
                 v-model="inviteEmail"
                 type="email"
                 data-testid="invite-email"
                 class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="Work email"
+                :placeholder="t('admin.users.workEmailPlaceholder')"
               />
               <select
                 v-model="inviteRole"
@@ -1464,7 +1462,7 @@ onMounted(async () => {
                 data-testid="invite-submit"
                 class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                 @click="inviteColleague"
-              >Invite</button>
+              >{{ t('admin.users.inviteBtn') }}</button>
             </div>
             <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
               The role options are bounded by your organization’s kind; the account is pinned to your
@@ -1505,7 +1503,7 @@ onMounted(async () => {
              acts (invite, edit, assign, deactivate/reactivate) ═══ -->
         <section v-if="isWide" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="registry">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-            The identity registry
+            {{ t('admin.users.registryTitle') }}
           </h2>
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
             Every account on the identity service. Roles are assigned <strong>per registered client</strong>
@@ -1519,21 +1517,21 @@ onMounted(async () => {
 
           <!-- The invite form (02's enrollment seam; 10's org binding) -->
           <div class="mb-4 border border-slate-100 dark:border-slate-700 rounded-lg p-3" data-testid="registry-invite">
-            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Invite an account</h3>
+            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.users.inviteAccount') }}</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 v-model="regInviteName"
                 type="text"
                 data-testid="registry-invite-name"
                 class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="Full name"
+                :placeholder="t('admin.users.namePlaceholder')"
               />
               <input
                 v-model="regInviteEmail"
                 type="email"
                 data-testid="registry-invite-email"
                 class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="Email"
+                :placeholder="t('admin.users.emailPlaceholder')"
               />
               <select
                 v-model="regInviteRole"
@@ -1547,7 +1545,7 @@ onMounted(async () => {
                 data-testid="registry-invite-org"
                 class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
-                <option value="">No organization binding</option>
+                <option value="">{{ t('admin.users.noOrgBinding') }}</option>
                 <option v-for="org in registryOrgs" :key="org.id" :value="org.id">{{ org.name }}</option>
               </select>
               <button
@@ -1555,7 +1553,7 @@ onMounted(async () => {
                 data-testid="registry-invite-submit"
                 class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 sm:col-span-2"
                 @click="registryInvite"
-              >Invite — issue the one-time setup link</button>
+              >{{ t('admin.users.inviteIssueLink') }}</button>
             </div>
             <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
               The account's own role is its federation-wide default (viewer holds no privileges beyond the
@@ -1565,7 +1563,7 @@ onMounted(async () => {
 
           <!-- The accounts -->
           <p v-if="!registry.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="registry-empty">
-            No accounts yet — the first one arrives by the invite above.
+            {{ t('admin.users.noAccounts') }}
           </p>
           <ul v-else class="space-y-2" data-testid="registry-list">
             <li
@@ -1616,14 +1614,14 @@ onMounted(async () => {
                     :disabled="acting === acc.id"
                     class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
                     @click="toggleRolesEditor(acc)"
-                  >{{ rolesEditorFor === acc.id ? 'Close client roles' : 'Client roles' }}</button>
+                  >{{ rolesEditorFor === acc.id ? t('admin.users.closeClientRoles') : t('admin.users.clientRoles') }}</button>
                   <button
                     v-if="acc.provider === 'password'"
                     :data-testid="`registry-enroll-${acc.id}`"
                     :disabled="acting === acc.id"
                     class="text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline disabled:opacity-50"
                     @click="freshSetupLink(acc)"
-                  >Fresh setup link</button>
+                  >{{ t('admin.users.freshSetupLink') }}</button>
                   <button
                     v-if="acc.provider === 'password' && acc.id !== account?.id"
                     :data-testid="`registry-toggle-${acc.id}`"
@@ -1643,14 +1641,14 @@ onMounted(async () => {
                     type="text"
                     :data-testid="`registry-edit-name-${acc.id}`"
                     class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    placeholder="Full name"
+                    :placeholder="t('admin.users.namePlaceholder')"
                   />
                   <input
                     v-model="editEmail"
                     type="email"
                     :data-testid="`registry-edit-email-${acc.id}`"
                     class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    placeholder="Email"
+                    :placeholder="t('admin.users.emailPlaceholder')"
                   />
                   <button
                     :data-testid="`registry-edit-save-${acc.id}`"
@@ -1662,21 +1660,17 @@ onMounted(async () => {
                     :data-testid="`registry-edit-cancel-${acc.id}`"
                     class="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline"
                     @click="editingId = null"
-                  >Cancel</button>
+                  >{{ t('admin.users.cancel') }}</button>
                 </div>
               </div>
 
               <!-- The per-client roles editor -->
               <div v-if="rolesEditorFor === acc.id" class="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2" :data-testid="`registry-roles-${acc.id}`">
                 <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
-                  The roles this account holds <strong>per client</strong>. No assignment: the account default
-                  ({{ acc.roles.join(', ') || 'none' }}) carries. Saving an empty set is the explicit “no roles
-                  on this client”; clearing restores the default. A client’s claims policy bounds what may be
-                  assigned (its ID token never carries a role it is not configured to receive).
+                  {{ t('admin.users.perClientLead', { roles: acc.roles.join(', ') || t('admin.users.noneRoles') }) }}
                 </p>
                 <p v-if="!clients.length" class="text-xs text-slate-400 dark:text-slate-500" :data-testid="`registry-roles-noclients-${acc.id}`">
-                  No active clients are registered — the client registry (the deployment’s OP_CLIENT_SEED /
-                  the clients API) names them first.
+                  {{ t('admin.users.noClients') }}
                 </p>
                 <div
                   v-for="client in clients"
@@ -1727,7 +1721,7 @@ onMounted(async () => {
         <!-- ═══ BIML: the new-organizations queue ═══ -->
         <section v-if="isWide" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="biml-orgs-queue">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-            New organizations — the BIML queue
+            {{ t('admin.users.bimlQueueTitle') }}
           </h2>
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
             Requests naming an organization that is NOT on the participants register. Verify the
@@ -1759,7 +1753,7 @@ onMounted(async () => {
                   :data-testid="`join-approve-org-${row.id}`"
                   class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
-                  <option value="" disabled>Approve onto the registered org…</option>
+                  <option value="" disabled>{{ t('admin.users.approveOnto') }}</option>
                   <option v-for="org in registryOrgs" :key="org.id" :value="org.id">{{ org.name }}</option>
                 </select>
                 <button
@@ -1767,13 +1761,13 @@ onMounted(async () => {
                   :disabled="acting === row.id || !approveOrgId[row.id]"
                   class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                   @click="approve(row)"
-                >Approve — create the org admin</button>
+                >{{ t('admin.users.approveCreateAdmin') }}</button>
                 <button
                   :data-testid="`join-refuse-open-${row.id}`"
                   :disabled="acting === row.id"
                   class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
                   @click="refuseOpen[row.id] = !refuseOpen[row.id]"
-                >Refuse</button>
+                >{{ t('admin.users.refuse') }}</button>
               </div>
               <div v-if="refuseOpen[row.id]" class="mt-2 flex items-center gap-2">
                 <input
@@ -1788,7 +1782,7 @@ onMounted(async () => {
                   :disabled="acting === row.id"
                   class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
                   @click="refuse(row)"
-                >Confirm refusal</button>
+                >{{ t('admin.users.confirmRefusal') }}</button>
               </div>
             </li>
           </ul>
@@ -1797,7 +1791,7 @@ onMounted(async () => {
         <!-- ═══ BIML: create an org admin for a registered org ═══ -->
         <section v-if="isWide" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="biml-org-admins">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
-            Organization administrators
+            {{ t('admin.users.orgAdminsTitle') }}
           </h2>
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
             One administrator per registered participant org, created after verification (B 18:2025 §10.2).
@@ -1809,21 +1803,21 @@ onMounted(async () => {
               type="text"
               data-testid="orgadmin-name"
               class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="Full name"
+              :placeholder="t('admin.users.namePlaceholder')"
             />
             <input
               v-model="orgAdminEmail"
               type="email"
               data-testid="orgadmin-email"
               class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="Work email"
+              :placeholder="t('admin.users.workEmailPlaceholder')"
             />
             <select
               v-model="orgAdminOrg"
               data-testid="orgadmin-org"
               class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="" disabled>Registered organization…</option>
+              <option value="" disabled>{{ t('admin.users.registeredOrg') }}</option>
               <option v-for="org in registryOrgs" :key="org.id" :value="org.id" :data-testid="`orgadmin-org-${org.id}`">{{ org.name }}</option>
             </select>
             <button
@@ -1831,7 +1825,7 @@ onMounted(async () => {
               data-testid="orgadmin-submit"
               class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
               @click="createOrgAdmin"
-            >Create the org admin</button>
+            >{{ t('admin.users.createOrgAdmin') }}</button>
           </div>
         </section>
       </template>

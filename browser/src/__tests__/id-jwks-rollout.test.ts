@@ -36,7 +36,7 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 process.env.OP_ISSUER = 'http://op.test'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let kidFor: typeof import('../../server/auth/op/keys').kidFor
 let resetOpSigningKeyForTest: typeof import('../../server/auth/op/keys').resetOpSigningKeyForTest
 
@@ -57,9 +57,9 @@ interface JwksBody {
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id

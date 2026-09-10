@@ -35,7 +35,7 @@ const ISSUER = 'http://op.test'
 import { hashPassword } from '../../server/auth/passwords'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let idp: import('../../e2e/fixtures/stub-idp').StubIdp
 let github: import('../../e2e/fixtures/stub-github').StubGitHub
 
@@ -84,9 +84,9 @@ async function runFlow(startUrl: string, user: string, cookie?: string, method: 
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -131,7 +131,7 @@ demo_personas: true
 afterAll(async () => {
   await idp?.close()
   await github?.close()
-  const { resetInstanceProfileForTest } = await import('@oimlsmart/platform-server/profile')
+  const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   for (const name of ['FIXTURE_IDP_SECRET', 'GITHUB_UPSTREAM_SECRET', 'GITHUB_OAUTH_BASE_URL', 'GITHUB_API_BASE_URL', 'DATABASE_PATH']) {

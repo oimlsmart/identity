@@ -60,6 +60,18 @@ export function useEnvironmentLabel(): { environmentLabel: ComputedRef<string | 
   return { environmentLabel: computed(() => environmentLabel.value) }
 }
 
+// ── The admin console's declared sections (TODO.restructure/17 — the
+// kind-projected nav): the deployment's profile declares its section
+// set; undeclared (null) = the shell's full default set. The same
+// one-fetch probe carries it. ────────────────────────────────────────
+const consoleSections = shallowRef<string[] | null>(null)
+
+/** The reactive console-section set: `const { consoleSections } =
+ *  useConsoleSections()` — null = the full default set. */
+export function useConsoleSections(): { consoleSections: ComputedRef<string[] | null> } {
+  return { consoleSections: computed(() => consoleSections.value) }
+}
+
 /** The synchronous read (non-reactive contexts — tests). */
 export function currentBranding(): IdentityBranding {
   return serverBrand.value ?? DEFAULT_BRANDING
@@ -78,10 +90,13 @@ export function resolveBranding(): Promise<IdentityBranding> {
         const config = (await res.json()) as {
           branding?: Partial<IdentityBranding>
           environment?: { label?: string | null } | null
+          console?: { sections?: string[] | null } | null
         }
         if (config?.branding) serverBrand.value = { ...DEFAULT_BRANDING, ...config.branding }
         const label = config?.environment?.label
         environmentLabel.value = typeof label === 'string' && label.trim() ? label.trim() : null
+        const sections = config?.console?.sections
+        consoleSections.value = Array.isArray(sections) && sections.length ? sections : null
       }
     } catch {
       // The probe failed — the default brand stands.

@@ -26,7 +26,7 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -59,16 +59,13 @@ const CLIENT_CONE = {
 }
 process.env.OP_CLIENT_SEED = JSON.stringify([CLIENT, CLIENT_CONE])
 
-// The kernel package's canonical migration set (TODO.repos/01), resolved
-// WITHOUT evaluating the store module — its DB path binds at import time
-// and must see the env set above. createRequire resolves, never loads.
-const MIGRATIONS_DIR = join(
-  dirname(createRequire(import.meta.url).resolve('@oimlsmart/platform-server/package.json')),
-  'migrations',
-)
+// The repo's canonical migration set (TODO.restructure/15 wave 2 — identity
+// owns its migrations), resolved WITHOUT evaluating the store module — its
+// DB path binds at import time and must see the env set above.
+const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations')
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let resetProfile: () => void
 
 // ── the seeded participants register (the entity store) + the ────────
@@ -169,9 +166,9 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -282,7 +279,7 @@ describe('the migration backfill (0011)', () => {
 
     // The row-less account: written by raw SQL AFTER the boot (the
     // pre-migration posture — the mirror never saw it).
-    const { getDb } = await import('@oimlsmart/platform-server/store/sqlite')
+    const { getDb } = await import('../../server/store/sqlite')
     getDb().prepare(
       "INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-rowless', 'rowless@x.example.org', 'Rowless', 'password', 'viewer', '[\"viewer\"]', 'ut-nmi-nl')",
     ).run()

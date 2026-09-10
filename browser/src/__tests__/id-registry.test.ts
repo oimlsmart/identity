@@ -68,9 +68,9 @@ const EMAIL_ONLY = {
 process.env.OP_CLIENT_SEED = JSON.stringify([HUB, TL, EMAIL_ONLY])
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
-let validateIdToken: typeof import('@oimlsmart/platform-server/oidc').validateIdToken
-let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
+let store: ReturnType<typeof import('../../server/store').getStore>
+let validateIdToken: typeof import('../../server/oidc').validateIdToken
+let generatePkce: typeof import('../../server/oidc').generatePkce
 
 /** The fetch adapter the RP's validator runs against: the in-process
  *  app itself (discovery/JWKS ride the real routes). */
@@ -206,9 +206,9 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -219,7 +219,7 @@ branding: { name: OIML SMART Identity }
 demo_personas: true
 `))
 
-  const oidc = await import('@oimlsmart/platform-server/oidc')
+  const oidc = await import('../../server/oidc')
   validateIdToken = oidc.validateIdToken
   generatePkce = oidc.generatePkce
   oidc.clearOidcCaches()
@@ -263,7 +263,7 @@ demo_personas: true
 })
 
 afterAll(async () => {
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
@@ -748,7 +748,7 @@ describe('the org scope never reaches the registry (10’s reuse, honestly bound
 
 describe('the instance side honors the OP’s claims (never inventing, never silent)', () => {
   it('rolesFromClaims keeps only roles the instance’s RBAC map knows', async () => {
-    const { rolesFromClaims } = await import('@oimlsmart/platform-server/vocab')
+    const { rolesFromClaims } = await import('../../server/vocab')
     // The OP's shaped claim: the map-known role survives; anything else
     // is dropped, never erroring, never inventing.
     expect(rolesFromClaims({ roles: ['tl_operator', 'superroot'] })).toEqual(['tl_operator'])

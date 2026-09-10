@@ -27,7 +27,7 @@ import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/work
 import { hashPassword } from '../../server/auth/passwords'
 
 const TMP = mkdtempSync(join(tmpdir(), 'oiml-id-store-unavailable-'))
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'node_modules', '@oimlsmart', 'platform-server', 'migrations')
+const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations')
 
 /** The test budget: past any in-process write's honest latency, far
  *  under the production 5 s default. */
@@ -85,11 +85,11 @@ beforeAll(async () => {
     },
   } as unknown as D1Database
 
-  const { D1ServerStore } = await import('@oimlsmart/platform-server/store/d1')
-  const { installStore } = await import('@oimlsmart/platform-server/store')
+  const { D1ServerStore } = await import('../../server/store/d1')
+  const { installStore } = await import('../../server/store')
   const store = new D1ServerStore(binding, { writeBudgetMs: BUDGET_MS })
   installStore(store)
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id

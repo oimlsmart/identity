@@ -49,9 +49,9 @@ const PUBLIC = {
 process.env.OP_CLIENT_SEED = JSON.stringify([CONFIDENTIAL, PUBLIC])
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
-let validateIdToken: typeof import('@oimlsmart/platform-server/oidc').validateIdToken
-let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
+let store: ReturnType<typeof import('../../server/store').getStore>
+let validateIdToken: typeof import('../../server/oidc').validateIdToken
+let generatePkce: typeof import('../../server/oidc').generatePkce
 let installIdentityProfile: () => void
 let resetProfile: () => void
 
@@ -151,9 +151,9 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   installIdentityProfile = () => profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -166,7 +166,7 @@ demo_personas: true
   resetProfile = profileMod.resetInstanceProfileForTest
   installIdentityProfile()
 
-  const oidc = await import('@oimlsmart/platform-server/oidc')
+  const oidc = await import('../../server/oidc')
   validateIdToken = oidc.validateIdToken
   generatePkce = oidc.generatePkce
   oidc.clearOidcCaches()

@@ -31,6 +31,7 @@ import { onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
+import { api } from '../../lib/api-client'
 
 interface ClientRow {
   clientId: string
@@ -212,14 +213,6 @@ function editRow(row: ClientRow) {
   }
 }
 
-async function api(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(path, {
-    credentials: 'include',
-    ...(init?.body ? { headers: { 'content-type': 'application/json' } } : {}),
-    ...init,
-  })
-}
-
 async function load(): Promise<void> {
   const res = await api('/api/op/clients')
   if (res.status === 401) {
@@ -302,7 +295,7 @@ function validateUris(): string[] {
   }
   const uris = form.value.redirect_uris.split('\n').map(u => u.trim()).filter(Boolean)
   const problems: string[] = []
-  if (!uris.length) problems.push('At least one redirect URI is required.')
+  if (!uris.length) problems.push(t('admin.clients.vRedirectUris'))
   for (const uri of uris) {
     try { new URL(uri) } catch { problems.push(`Not an absolute URI: ${uri}`) }
   }
@@ -353,11 +346,11 @@ function validateLaunchForm(): string[] {
   const problems: string[] = []
   if (form.value.launchOn) {
     const url = form.value.launch_url.trim()
-    if (!url) problems.push('The launch URL is required (the service’s sign-in start).')
+    if (!url) problems.push(t('admin.clients.vLaunchRequired'))
     else {
       try {
         const parsed = new URL(url)
-        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') problems.push('The launch URL must be an http(s) URL.')
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') problems.push(t('admin.clients.vLaunchScheme'))
       } catch { problems.push(`Not an absolute URL: ${url}`) }
     }
   }
@@ -477,21 +470,21 @@ async function save() {
     const res = await api('/api/op/clients', { method: 'POST', body: JSON.stringify(payload) })
     const body = await res.json().catch(() => ({})) as { error?: string; secret?: string; clientId?: string }
     if (!res.ok) {
-      error.value = body.error ?? `The save was refused (${res.status}).`
+      error.value = body.error ?? t('admin.clients.saveRefused', { status: res.status })
       return
     }
     if (body.secret) {
       lastSecret.value = { clientId: body.clientId ?? form.value.client_id.trim(), secret: body.secret }
       notice.value = editing.value
-        ? `Re-keyed ${body.clientId} — the new secret is below, shown only now.`
-        : `Registered ${body.clientId} — its secret is below, shown only now.`
+        ? t('admin.clients.rekeyed', { client: body.clientId ?? form.value.client_id.trim() })
+        : t('admin.clients.registeredSecret', { client: body.clientId ?? form.value.client_id.trim() })
     } else {
-      notice.value = editing.value ? `${body.clientId} updated.` : `Registered ${body.clientId} (a public client — PKCE only).`
+      notice.value = editing.value ? t('admin.clients.updated', { client: body.clientId ?? form.value.client_id.trim() }) : t('admin.clients.registeredPublic', { client: body.clientId ?? form.value.client_id.trim() })
     }
     resetForm()
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     saving.value = false
   }
@@ -509,15 +502,15 @@ async function toggle(row: ClientRow) {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The toggle on ${row.clientId} was refused.`
+      error.value = body.error ?? t('admin.clients.toggleRefused', { client: row.clientId })
       return
     }
     notice.value = row.status === 'active'
-      ? `${row.clientId} disabled — authorize and token now refuse it; the rows are kept.`
-      : `${row.clientId} enabled.`
+      ? t('admin.clients.disabledNotice', { client: row.clientId })
+      : t('admin.clients.enabledNotice', { client: row.clientId })
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     saving.value = false
   }
@@ -529,23 +522,28 @@ function copySecret() {
 
 onMounted(async () => {
   try {
-    const session = await fetch('/api/auth/session', { credentials: 'include' })
+    // The session, the role vocabulary, the org select, and the first
+    // data page are INDEPENDENT reads — one latency phase
+    // (TODO.restructure/02). load() re-checks the 401 posture itself.
+    const [session, rolesRes, orgsRes] = await Promise.all([
+      fetch('/api/auth/session', { credentials: 'include' }),
+      api('/api/users/roles'),
+      // The machine bindings' org select rides the organization registry
+      // (the admin surface's own list — the server re-validates at write).
+      api('/api/op/registry/orgs'),
+      load(),
+    ])
     if (!session.ok) {
       window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/clients')}`)
       return
     }
-    const rolesRes = await api('/api/users/roles')
     if (rolesRes.ok) roleOptions.value = Object.keys(await rolesRes.json() as Record<string, string[]>)
-    // The machine bindings' org select rides the organization registry
-    // (the admin surface's own list — the server re-validates at write).
-    const orgsRes = await api('/api/op/registry/orgs')
     if (orgsRes.ok) {
       orgOptions.value = (await orgsRes.json() as Array<{ id: string; name: string }>).map(o => ({ id: o.id, name: o.name }))
     }
-    await load()
     void loadActivity()
   } catch (e) {
-    error.value = (e as Error).message || 'Network error. Is the server running?'
+    error.value = (e as Error).message || t('error.network')
   } finally {
     loading.value = false
   }
@@ -560,7 +558,7 @@ onMounted(async () => {
 
     <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Relying parties</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('admin.clients.title') }}</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
         <p class="text-sm text-amber-800 dark:text-amber-300" data-testid="op-clients-forbidden">
@@ -571,7 +569,7 @@ onMounted(async () => {
 
     <div v-else data-testid="op-clients">
       <PageHeader
-        title="Relying parties"
+        :title="t('admin.clients.title')"
         :description="`The instances that may ask ${branding.productName} to sign their users in (the OIDC client registry).`"
       />
 
@@ -594,7 +592,7 @@ onMounted(async () => {
             data-testid="op-client-secret-copy"
             class="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors"
             @click="copySecret"
-          >Copy</button>
+          >{{ t('admin.clients.copy') }}</button>
         </div>
         <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
           Store it as the instance’s OIDC client secret now. Only its hash is kept here; leaving this page loses it
@@ -604,7 +602,7 @@ onMounted(async () => {
 
       <!-- The registry -->
       <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Registered instances</h2>
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.clients.registeredTitle') }}</h2>
         <p v-if="!rows.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-clients-empty">
           No relying parties registered yet — register the first instance below.
         </p>
@@ -732,11 +730,11 @@ onMounted(async () => {
       <!-- The registration wizard / the edit form -->
       <form class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 space-y-3" data-testid="op-client-form" @submit.prevent="save">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          {{ editing ? `Edit ${editing}` : 'Register an instance' }}
+          {{ editing ? t('admin.clients.editTitle', { client: editing }) : t('admin.clients.registerTitle') }}
         </h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">client id (slug, rides the OAuth parameters)</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.idLegend') }}</label>
             <input
               v-model="form.client_id"
               :disabled="!!editing"
@@ -747,12 +745,12 @@ onMounted(async () => {
             />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">name (the consent page shows it)</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.nameLegend') }}</label>
             <input
               v-model="form.name"
               required
               data-testid="op-client-field-name"
-              placeholder="Example test-laboratory instance"
+              :placeholder="t('admin.clients.namePlaceholder')"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
             />
           </div>
@@ -881,7 +879,7 @@ onMounted(async () => {
             </ul>
           </fieldset>
           <div v-if="form.classKind === 'application'" class="sm:col-span-2">
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">redirect URIs (exact, one per line — an unregistered one is refused, never redirected to)</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.redirectLegend') }}</label>
             <textarea
               v-model="form.redirect_uris"
               rows="3"
@@ -957,7 +955,7 @@ onMounted(async () => {
             </ul>
           </fieldset>
           <fieldset v-if="form.classKind === 'application'" class="sm:col-span-2">
-            <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">SSO home (the launcher card a signed-in account meets after sign-in)</legend>
+            <legend class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.ssoHomeLegend') }}</legend>
             <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input v-model="form.launchOn" type="checkbox" data-testid="op-client-field-launch-on" class="rounded border-slate-300" />
               On the SSO home (the post-login launcher)
@@ -965,7 +963,7 @@ onMounted(async () => {
             <div v-if="form.launchOn" class="mt-2 space-y-2" data-testid="op-client-field-launch">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div class="sm:col-span-2">
-                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">launch URL (the service’s sign-in start — the live OP session lets the user straight in)</label>
+                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.launchLegend') }}</label>
                   <input
                     v-model="form.launch_url"
                     data-testid="op-client-field-launch-url"
@@ -976,22 +974,22 @@ onMounted(async () => {
                   />
                 </div>
                 <div class="sm:col-span-2">
-                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">description (one line on the card; optional)</label>
+                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.descriptionLegend') }}</label>
                   <input
                     v-model="form.launch_description"
                     data-testid="op-client-field-launch-description"
-                    placeholder="The certification hub: applications, cases, certificates."
+                    :placeholder="t('admin.clients.descriptionPlaceholder')"
                     class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">icon</label>
+                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.iconLegend') }}</label>
                   <select v-model="form.launch_icon" data-testid="op-client-field-launch-icon" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white">
                     <option v-for="icon in LAUNCH_ICON_OPTIONS" :key="icon" :value="icon">{{ icon }}</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">visibility (when the account’s roles do not admit it)</label>
+                  <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.clients.visibilityLegend') }}</label>
                   <select v-model="form.launch_visibility" data-testid="op-client-field-launch-visibility" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white">
                     <option v-for="v in LAUNCH_VISIBILITY_OPTIONS" :key="v" :value="v">{{ v }}</option>
                   </select>
@@ -1017,11 +1015,11 @@ onMounted(async () => {
             </p>
             <label v-else class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input v-model="form.confidential" type="checkbox" data-testid="op-client-field-confidential" class="rounded border-slate-300" />
-              Confidential client (holds a secret; the server generates it and shows it once)
+              {{ t('admin.clients.confidential') }}
             </label>
             <label v-if="editing && (form.confidential || form.classKind !== 'application')" class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input v-model="rekey" type="checkbox" data-testid="op-client-field-rekey" class="rounded border-slate-300" />
-              Re-key: generate a new secret (the old one stops working at once)
+              {{ t('admin.clients.rekeyLabel') }}
             </label>
           </div>
         </div>
@@ -1031,8 +1029,8 @@ onMounted(async () => {
             :disabled="saving"
             data-testid="op-client-save"
             class="py-2 px-4 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
-          >{{ saving ? 'Saving…' : editing ? 'Save changes' : 'Register the instance' }}</button>
-          <button v-if="editing" type="button" class="text-sm text-slate-500 hover:underline" data-testid="op-client-cancel" @click="resetForm">Cancel edit</button>
+          >{{ saving ? t('admin.clients.saving') : editing ? t('admin.clients.saveChanges') : t('admin.clients.register') }}</button>
+          <button v-if="editing" type="button" class="text-sm text-slate-500 hover:underline" data-testid="op-client-cancel" @click="resetForm">{{ t('admin.clients.cancelEdit') }}</button>
         </div>
       </form>
     </div>

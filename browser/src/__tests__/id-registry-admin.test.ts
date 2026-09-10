@@ -39,8 +39,8 @@ const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
-let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
+let store: ReturnType<typeof import('../../server/store').getStore>
+let generatePkce: typeof import('../../server/oidc').generatePkce
 
 async function demoLogin(email: string): Promise<string> {
   const res = await app.request('/api/auth/demo', {
@@ -88,9 +88,9 @@ async function journal(): Promise<Array<{ action: string; entity_type: string; e
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -101,7 +101,7 @@ branding: { name: OIML SMART Identity }
 demo_personas: true
 `))
 
-  const oidc = await import('@oimlsmart/platform-server/oidc')
+  const oidc = await import('../../server/oidc')
   generatePkce = oidc.generatePkce
 
   const { Hono } = await import('hono')
@@ -144,7 +144,7 @@ afterAll(async () => {
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
   delete process.env.DATABASE_PATH
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
 
@@ -826,7 +826,7 @@ describe('the factors slot on the detail aggregate', () => {
 
 describe('the module gate', () => {
   it('a non-identity profile answers 404 on the registry routes', async () => {
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.resetInstanceProfileForTest() // the hub default (no identity module)
     try {
       for (const [method, path] of [

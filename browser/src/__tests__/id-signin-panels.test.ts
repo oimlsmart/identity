@@ -28,9 +28,9 @@ import { eligiblePanels, pickPanel, localizePanel, type SigninPanel, type Signin
 let app: import('hono').Hono
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   installSqliteStore()
-  const { parseInstanceProfile } = await import('@oimlsmart/platform-server/profile')
+  const { parseInstanceProfile } = await import('../../server/profile')
   const { createApiApp } = await import('../../server/app')
   app = createApiApp({
     autoSeedDemo: false,

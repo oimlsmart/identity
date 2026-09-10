@@ -12,6 +12,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
+import { t } from '../../i18n'
 
 interface AuditEvent {
   id: string
@@ -35,13 +36,13 @@ const category = ref('')
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const CATEGORIES: Array<{ key: string; label: string; match: (e: AuditEvent) => boolean }> = [
-  { key: 'accounts', label: 'Accounts (invites, enrollment, passwords)', match: e => e.action.startsWith('account.') },
-  { key: 'roles', label: 'Role assignments', match: e => ['user.create', 'user.roles', 'user.deactivated', 'user.reactivated'].includes(e.action) },
-  { key: 'links', label: 'Linked identities', match: e => e.action.startsWith('upstream_link') || e.action.startsWith('upstream_unlink') || e.action.startsWith('account.link') },
-  { key: 'signins', label: 'Sign-ins and refusals', match: e => e.action.startsWith('upstream_sign_in') || e.action.startsWith('upstream_refused') },
-  { key: 'clients', label: 'Relying parties (the client registry)', match: e => e.action.startsWith('client.') },
-  { key: 'providers', label: 'Sign-in providers', match: e => e.action.startsWith('provider.') },
-  { key: 'organizations', label: 'Organization administration', match: e => e.action.startsWith('org_invite.') || e.action.startsWith('org_join_request.') },
+  { key: 'accounts', label: t('admin.act.cat.accounts'), match: e => e.action.startsWith('account.') },
+  { key: 'roles', label: t('admin.act.cat.roles'), match: e => ['user.create', 'user.roles', 'user.deactivated', 'user.reactivated'].includes(e.action) },
+  { key: 'links', label: t('admin.act.cat.links'), match: e => e.action.startsWith('upstream_link') || e.action.startsWith('upstream_unlink') || e.action.startsWith('account.link') },
+  { key: 'signins', label: t('admin.act.cat.signins'), match: e => e.action.startsWith('upstream_sign_in') || e.action.startsWith('upstream_refused') },
+  { key: 'clients', label: t('admin.act.cat.clients'), match: e => e.action.startsWith('client.') },
+  { key: 'providers', label: t('admin.act.cat.providers'), match: e => e.action.startsWith('provider.') },
+  { key: 'organizations', label: t('admin.act.cat.organizations'), match: e => e.action.startsWith('org_invite.') || e.action.startsWith('org_join_request.') },
 ]
 
 const visible = computed(() =>
@@ -60,7 +61,7 @@ async function load(): Promise<void> {
     forbidden.value = true
     return
   }
-  if (!res.ok) throw new Error(`the activity feed failed (${res.status})`)
+  if (!res.ok) throw new Error(t('admin.act.loadFailed', { status: res.status }))
   events.value = await res.json() as AuditEvent[]
 }
 
@@ -74,75 +75,75 @@ watch(search, queueReload)
 function describe(event: AuditEvent): string {
   const meta = event.metadata ?? {}
   switch (event.action) {
-    case 'account.invite': return `invited ${String(meta.email ?? event.entity_id)} (role ${String(meta.role ?? '')})`
-    case 'account.enrollment': return `issued a fresh setup link for ${String(meta.email ?? event.entity_id)}`
-    case 'account.enrolled': return 'completed the account setup (the password is set)'
-    case 'account.password': return 'changed the account password'
-    case 'account.password_reset': return `a password reset email was requested for ${String(meta.email ?? event.entity_id)}`
-    case 'account.avatar': return 'updated the profile picture'
-    case 'account.avatar_removed': return 'removed the profile picture'
-    case 'account.deleted': return `erased the account ${String(meta.email ?? event.entity_id)} — the row is an anonymized tombstone`
+    case 'account.invite': return t('admin.act.e.invite', { email: String(meta.email ?? event.entity_id), role: String(meta.role ?? '') })
+    case 'account.enrollment': return t('admin.act.e.enrollment', { email: String(meta.email ?? event.entity_id) })
+    case 'account.enrolled': return t('admin.act.e.enrolled')
+    case 'account.password': return t('admin.act.e.password')
+    case 'account.password_reset': return t('admin.act.e.passwordReset', { email: String(meta.email ?? event.entity_id) })
+    case 'account.avatar': return t('admin.act.e.avatar')
+    case 'account.avatar_removed': return t('admin.act.e.avatarRemoved')
+    case 'account.deleted': return t('admin.act.e.deleted', { email: String(meta.email ?? event.entity_id) })
     case 'account.updated': {
       const before = (meta.before ?? {}) as Record<string, unknown>
       const after = (meta.after ?? {}) as Record<string, unknown>
       const fields = Object.keys(after).filter(k => JSON.stringify(before[k]) !== JSON.stringify(after[k])).join(', ')
-      return `edited the account ${String((after.email ?? before.email) ?? event.entity_id)} (${fields})`
+      return t('admin.act.e.updated', { email: String((after.email ?? before.email) ?? event.entity_id), fields })
     }
     case 'account.deactivated': {
       const revoked = (meta.revoked ?? {}) as Record<string, unknown>
-      return `deactivated the account (revoked: ${Number(revoked.sessions ?? 0)} session(s), ${Number(revoked.accessTokens ?? 0)} token(s))`
+      return t('admin.act.e.deactivated', { sessions: Number(revoked.sessions ?? 0), tokens: Number(revoked.accessTokens ?? 0) })
     }
-    case 'account.reactivated': return 'reactivated the account'
-    case 'account.session_revoked': return meta.by === 'administrator' ? 'ended an account session (administrator)' : 'ended a session'
+    case 'account.reactivated': return t('admin.act.e.reactivated')
+    case 'account.session_revoked': return meta.by === 'administrator' ? t('admin.act.e.sessionRevokedAdmin') : t('admin.act.e.sessionRevoked')
     case 'account.sessions_revoked': return meta.by === 'administrator'
-      ? `ended every session of ${String(meta.email ?? event.entity_id)} (${Number(meta.count ?? 0)}, administrator)`
-      : `signed out ${Number(meta.count ?? 0)} other session(s)`
-    case 'account.sign_in': return `signed in with the password`
-    case 'account.sign_in_failed': return `a password sign-in failed for ${String(meta.email ?? event.entity_id)} (${meta.reason === 'deactivated' ? 'the account is deactivated' : 'invalid credentials'})`
+      ? t('admin.act.e.sessionsRevokedAdmin', { email: String(meta.email ?? event.entity_id), count: Number(meta.count ?? 0) })
+      : t('admin.act.e.sessionsRevoked', { count: Number(meta.count ?? 0) })
+    case 'account.sign_in': return t('admin.act.e.signIn')
+    case 'account.sign_in_failed': return t('admin.act.e.signInFailed', { email: String(meta.email ?? event.entity_id), reason: meta.reason === 'deactivated' ? t('admin.act.e.reasonDeactivated') : t('admin.act.e.reasonInvalid') })
     case 'account.client_roles': {
       const roles = (meta.roles as string[] ?? [])
-      return `granted roles on ${String(meta.client_id ?? '')}: ${roles.length ? roles.join(', ') : 'none (the explicit no-claim posture)'}`
+      return t('admin.act.e.clientRoles', { client: String(meta.client_id ?? ''), roles: roles.length ? roles.join(', ') : t('admin.act.e.noRoles') })
     }
-    case 'account.client_roles_cleared': return `cleared the role grant on ${String(meta.client_id ?? '')} (the account-wide set is the default again)`
-    case 'account.link_on_behalf': return `linked ${String(meta.provider ?? '')} account ${String(meta.provider_account_id ?? '')} on behalf of ${String(meta.email ?? event.entity_id)} — ${String(meta.justification ?? '')}`
-    case 'account.link_removed': return `removed the ${String(meta.provider ?? '')} link of ${String(meta.email ?? event.entity_id)}${meta.reason ? ` — ${String(meta.reason)}` : ''}`
-    case 'user.create': return `created the account ${String(meta.email ?? '')} (${(meta.roles as string[] ?? []).join(', ')})`
-    case 'user.roles': return `assigned roles: ${(meta.roles as string[] ?? []).join(', ')}`
-    case 'user.deactivated': return 'deactivated the account'
-    case 'user.reactivated': return 'reactivated the account'
-    case 'upstream_sign_in': return `signed in with ${String(meta.provider ?? '')} (${String(meta.handle ?? '')})`
-    case 'upstream_link': return `linked ${String(meta.provider ?? '')} (${String(meta.handle ?? '')})`
-    case 'upstream_unlink': return `unlinked ${String(meta.provider ?? '')}`
-    case 'upstream_refused': return `a ${String(meta.provider ?? '')} sign-in was refused (${String(meta.reason ?? '')}): ${String(meta.handle ?? '')}`
-    case 'upstream_link_conflict': return `a ${String(meta.provider ?? '')} link hit a conflict: ${String(meta.handle ?? '')}`
+    case 'account.client_roles_cleared': return t('admin.act.e.clientRolesCleared', { client: String(meta.client_id ?? '') })
+    case 'account.link_on_behalf': return t('admin.act.e.linkOnBehalf', { provider: String(meta.provider ?? ''), handle: String(meta.provider_account_id ?? ''), email: String(meta.email ?? event.entity_id), justification: String(meta.justification ?? '') })
+    case 'account.link_removed': return t('admin.act.e.linkRemoved', { provider: String(meta.provider ?? ''), email: String(meta.email ?? event.entity_id) }) + (meta.reason ? ` — ${String(meta.reason)}` : '')
+    case 'user.create': return t('admin.act.e.userCreate', { email: String(meta.email ?? ''), roles: (meta.roles as string[] ?? []).join(', ') })
+    case 'user.roles': return t('admin.act.e.userRoles', { roles: (meta.roles as string[] ?? []).join(', ') })
+    case 'user.deactivated': return t('admin.act.e.userDeactivated')
+    case 'user.reactivated': return t('admin.act.e.userReactivated')
+    case 'upstream_sign_in': return t('admin.act.e.upstreamSignIn', { provider: String(meta.provider ?? ''), handle: String(meta.handle ?? '') })
+    case 'upstream_link': return t('admin.act.e.upstreamLink', { provider: String(meta.provider ?? ''), handle: String(meta.handle ?? '') })
+    case 'upstream_unlink': return t('admin.act.e.upstreamUnlink', { provider: String(meta.provider ?? '') })
+    case 'upstream_refused': return t('admin.act.e.upstreamRefused', { provider: String(meta.provider ?? ''), reason: String(meta.reason ?? ''), handle: String(meta.handle ?? '') })
+    case 'upstream_link_conflict': return t('admin.act.e.upstreamConflict', { provider: String(meta.provider ?? ''), handle: String(meta.handle ?? '') })
     case 'client.registered': {
       if (meta.class === 'device') {
         const device = (meta.device ?? {}) as Record<string, unknown>
-        return `registered the device client ${event.entity_id} (device ${String(device.id ?? '')}, org ${String(device.org ?? '')}, model ${String(device.instrument_model ?? '')})`
+        return t('admin.act.e.clientRegDevice', { client: event.entity_id, device: String(device.id ?? ''), org: String(device.org ?? ''), model: String(device.instrument_model ?? '') })
       }
       if (meta.class === 'service') {
         const service = (meta.service ?? {}) as Record<string, unknown>
-        return `registered the service client ${event.entity_id} (service ${String(service.id ?? '')}, org ${String(service.org ?? '')}, audience ${String(service.audience ?? '')}, scopes ${(service.scopes as string[] ?? []).join(' ')})`
+        return t('admin.act.e.clientRegService', { client: event.entity_id, service: String(service.id ?? ''), org: String(service.org ?? ''), audience: String(service.audience ?? ''), scopes: (service.scopes as string[] ?? []).join(' ') })
       }
-      return `registered the relying party ${event.entity_id} (${meta.confidential ? 'confidential' : 'public'}; claims: ${(meta.claims as string[] ?? []).join(', ') || 'profile + email'})`
+      return t('admin.act.e.clientRegistered', { client: event.entity_id, kind: meta.confidential ? t('admin.act.e.confidential') : t('admin.act.e.public'), claims: (meta.claims as string[] ?? []).join(', ') || t('admin.act.e.defaultClaims') })
     }
     case 'client.token_issued': return meta.class === 'device'
-      ? `the token endpoint minted the device token for ${event.entity_id} (device ${String((meta.device as string | undefined) ?? '')}, org ${String((meta.org as string | undefined) ?? '')})`
+      ? t('admin.act.e.tokenIssuedDevice', { client: event.entity_id, device: String((meta.device as string | undefined) ?? ''), org: String((meta.org as string | undefined) ?? '') })
       : meta.class === 'service'
-        ? `the token endpoint minted the service token for ${event.entity_id} (service ${String((meta.service as string | undefined) ?? '')}, audience ${String((meta.audience as string | undefined) ?? '')}, scopes ${(meta.scopes as string[] ?? []).join(' ')})`
-        : `the token endpoint issued tokens for ${event.entity_id} (scope ${String(meta.scope ?? '')})`
-    case 'client.token_refused': return `the token endpoint refused ${event.entity_id} (${String(meta.error ?? '')})`
+        ? t('admin.act.e.tokenIssuedService', { client: event.entity_id, service: String((meta.service as string | undefined) ?? ''), audience: String((meta.audience as string | undefined) ?? ''), scopes: (meta.scopes as string[] ?? []).join(' ') })
+        : t('admin.act.e.tokenIssued', { client: event.entity_id, scope: String(meta.scope ?? '') })
+    case 'client.token_refused': return t('admin.act.e.tokenRefused', { client: event.entity_id, error: String(meta.error ?? '') })
     case 'client.updated': return meta.class === 'device'
-      ? `updated the device client ${event.entity_id}${meta.rekeyed ? ' (the secret rotated — the old one stops working at once)' : ''}`
+      ? t('admin.act.e.clientUpdatedDevice', { client: event.entity_id }) + (meta.rekeyed ? t('admin.act.e.rekeyedFull') : '')
       : meta.class === 'service'
-        ? `updated the service client ${event.entity_id}${meta.rekeyed ? ' (the secret rotated — the old one stops working at once)' : ''}`
-        : `updated the relying party ${event.entity_id}${meta.rekeyed ? ' (re-keyed)' : ''}${meta.made_public ? ' (made public)' : ''}`
-    case 'client.status': return `set ${meta.class === 'device' ? 'the device client' : meta.class === 'service' ? 'the service client' : 'the relying party'} ${event.entity_id} to ${String(meta.status ?? '')}`
-    case 'provider.registered': return `registered the sign-in provider ${event.entity_id}`
-    case 'provider.updated': return `updated the sign-in provider ${event.entity_id}`
-    case 'provider.status': return `${meta.enabled ? 'enabled' : 'disabled'} the sign-in provider ${event.entity_id}`
-    case 'provider.removed': return `removed the sign-in provider ${event.entity_id}`
-    case 'org_invite.issued': return `issued the organization invite for ${String(meta.email ?? '')} (${String(meta.role ?? '')})`
+        ? t('admin.act.e.clientUpdatedService', { client: event.entity_id }) + (meta.rekeyed ? t('admin.act.e.rekeyedFull') : '')
+        : t('admin.act.e.clientUpdated', { client: event.entity_id }) + (meta.rekeyed ? t('admin.act.e.rekeyed') : '') + (meta.made_public ? t('admin.act.e.madePublic') : '')
+    case 'client.status': return t('admin.act.e.clientStatus', { kind: meta.class === 'device' ? t('admin.act.e.kindDevice') : meta.class === 'service' ? t('admin.act.e.kindService') : t('admin.act.e.kindRp'), client: event.entity_id, status: String(meta.status ?? '') })
+    case 'provider.registered': return t('admin.act.e.providerRegistered', { provider: event.entity_id })
+    case 'provider.updated': return t('admin.act.e.providerUpdated', { provider: event.entity_id })
+    case 'provider.status': return t('admin.act.e.providerStatus', { state: meta.enabled ? t('admin.act.e.enabled') : t('admin.act.e.disabled'), provider: event.entity_id })
+    case 'provider.removed': return t('admin.act.e.providerRemoved', { provider: event.entity_id })
+    case 'org_invite.issued': return t('admin.act.e.orgInvite', { email: String(meta.email ?? ''), role: String(meta.role ?? '') })
     default: return event.action
   }
 }
@@ -157,14 +158,16 @@ function targetLink(event: AuditEvent): string | null {
 
 onMounted(async () => {
   try {
-    const session = await fetch('/api/auth/session', { credentials: 'include' })
+    // The session gate and the first data read are INDEPENDENT — one
+    // latency phase (TODO.restructure/02). load() re-checks the 401
+    // posture itself.
+    const [session] = await Promise.all([fetch('/api/auth/session', { credentials: 'include' }), load()])
     if (!session.ok) {
       window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/activity')}`)
       return
     }
-    await load()
   } catch (e) {
-    error.value = (e as Error).message || 'Network error. Is the server running?'
+    error.value = (e as Error).message || t('error.network')
   } finally {
     loading.value = false
   }
@@ -179,18 +182,18 @@ onMounted(async () => {
 
     <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Registry activity</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('admin.act.title') }}</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
         <p class="text-sm text-amber-800 dark:text-amber-300" data-testid="op-act-forbidden">
-          The registry’s activity is an administrator surface — your account does not hold the administrator role.
+          {{ t('admin.act.forbidden') }}
         </p>
       </div>
     </div>
 
     <div v-else data-testid="op-act">
       <PageHeader
-        title="Registry activity"
+        :title="t('admin.act.title')"
         :description="`Every administrative act on ${branding.productName}, and the sign-in events — newest first.`"
       />
 
@@ -205,14 +208,14 @@ onMounted(async () => {
             type="search"
             data-testid="op-act-filter"
             class="flex-1 min-w-56 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Filter by actor, action, or account…"
+            :placeholder="t('admin.act.filterPlaceholder')"
           />
           <select
             v-model="category"
             data-testid="op-act-category"
             class="max-w-full min-w-0 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
-            <option value="">every category</option>
+            <option value="">{{ t('admin.act.everyCategory') }}</option>
             <option v-for="c in CATEGORIES" :key="c.key" :value="c.key" :data-testid="`op-act-category-${c.key}`">{{ c.label }}</option>
           </select>
         </div>

@@ -76,7 +76,7 @@ interface FactorsRead {
 }
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 // ── the small drivers ────────────────────────────────────────────────
 
@@ -187,9 +187,9 @@ const DEE = { email: 'dee@factors.test', name: 'Dee Recovery', password: 'dee ha
 const UNVERIFIED = { email: 'vera@factors.test', name: 'Vera Unverified', password: 'vera has a proper passphrase' }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -222,7 +222,7 @@ afterAll(async () => {
   delete process.env.OP_CLIENT_SEED
   delete process.env.OP_MFA_BACKOFF_BASE_MS
   delete process.env.DATABASE_PATH
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
 
@@ -658,7 +658,7 @@ describe('the enrollment gates', () => {
   })
 
   it('the factors surface 404s on a non-identity deployment (the module gate)', async () => {
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-hub

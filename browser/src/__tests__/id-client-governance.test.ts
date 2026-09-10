@@ -57,8 +57,8 @@ const PETRA = 'petra.horvat@etl.example.org'
 const MARTIN = 'martin.berger@etl.example.org'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
-let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
+let store: ReturnType<typeof import('../../server/store').getStore>
+let generatePkce: typeof import('../../server/oidc').generatePkce
 let resetProfile: () => void
 
 async function demoLogin(email: string): Promise<string> {
@@ -186,9 +186,9 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -200,7 +200,7 @@ demo_personas: true
 `))
   resetProfile = profileMod.resetInstanceProfileForTest
 
-  const oidc = await import('@oimlsmart/platform-server/oidc')
+  const oidc = await import('../../server/oidc')
   generatePkce = oidc.generatePkce
   oidc.clearOidcCaches()
 

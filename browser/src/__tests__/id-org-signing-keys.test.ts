@@ -47,7 +47,7 @@ process.env.OP_ISSUER = 'http://op.test'
 const ORIGIN = 'http://op.test'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 /** A fresh ES256 pair's PUBLIC half (never the private one — the route
  *  refuses it). */
@@ -80,9 +80,9 @@ async function journal(): Promise<Array<{ action: string; entity_type: string; e
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -124,7 +124,7 @@ demo_personas: true
 })
 
 afterAll(async () => {
-  const { resetInstanceProfileForTest } = await import('@oimlsmart/platform-server/profile')
+  const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.DATABASE_PATH
@@ -464,7 +464,7 @@ describe('the registry aggregate', () => {
 
 describe('the identity-module gate', () => {
   it('a non-identity profile answers 404 on BOTH the management acts and the public endpoint', async () => {
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity: { org_id: biml, org_name: BIML, role_codes: [hub] }
 roles: [hub]

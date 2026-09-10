@@ -172,34 +172,48 @@ onMounted(async () => {
     error.value = t('login.failedRetry')
   }
 
-  try {
-    const res = await fetchBounded('/api/config')
-    if (res.ok) {
-      const cfg = await res.json() as { identity?: { demoAccountsEnabled?: boolean } }
-      demoEnabled.value = cfg.identity?.demoAccountsEnabled !== false
-    }
-  } catch { demoEnabled.value = true /* the offline posture keeps the demo path */ }
-
-  // The OP's enabled upstream providers.
-  try {
-    const res = await fetchBounded('/api/op/providers/public')
-    if (res.ok) {
-      const list = await res.json() as Array<{ id: string; kind: string; displayName: string; brandMark: string | null }>
-      upstreamProviders.value = Array.isArray(list) ? list : []
-    }
-  } catch { /* a registry read failure renders no extra buttons */ }
-
+  // The three boot reads are INDEPENDENT (the demo posture, the upstream
+  // providers, the live-session skip) — ONE latency phase, never a
+  // three-hop waterfall (TODO.restructure/01). Each leg swallows its own
+  // failure exactly as the sequential form did.
+  const [demo, providers, sessionLive] = await Promise.all([
+    (async () => {
+      try {
+        const res = await fetchBounded('/api/config')
+        if (res.ok) {
+          const cfg = await res.json() as { identity?: { demoAccountsEnabled?: boolean } }
+          return cfg.identity?.demoAccountsEnabled !== false
+        }
+      } catch { /* the offline posture keeps the demo path */ }
+      return true
+    })(),
+    (async () => {
+      try {
+        const res = await fetchBounded('/api/op/providers/public')
+        if (res.ok) {
+          const list = await res.json() as Array<{ id: string; kind: string; displayName: string; brandMark: string | null }>
+          return Array.isArray(list) ? list : []
+        }
+      } catch { /* a registry read failure renders no extra buttons */ }
+      return []
+    })(),
+    (async () => {
+      try {
+        const res = await fetchBounded('/api/auth/session', { credentials: 'include' })
+        return res.ok
+      } catch { return false /* no session — the form renders */ }
+    })(),
+  ])
+  demoEnabled.value = demo
+  upstreamProviders.value = providers
   // An existing session skips the form: the authorize flow's re-entry
   // target, else the SSO home (the launcher's post-login landing).
   // prompt=login (the wave-A tail's forced re-authentication) is the ONE
   // exception — the form stands and the session is re-proven.
-  try {
-    const res = await fetchBounded('/api/auth/session', { credentials: 'include' })
-    if (res.ok && !forceReauth) {
-      router.replace(redirectTarget())
-      return
-    }
-  } catch { /* no session — the form renders */ }
+  if (sessionLive && !forceReauth) {
+    router.replace(redirectTarget())
+    return
+  }
   loading.value = false
   // The conditional-UI passkey autofill (the progressive enhancement):
   // the email field offers the device's passkeys directly.
@@ -787,6 +801,13 @@ async function submitReset() {
         {{ t('login.joinPrompt') }}
         <router-link to="/op/join" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-join-link">{{ t('login.joinLink') }}</router-link>
         {{ t('login.joinNote') }}
+      </p>
+
+      <!-- The public self-registration (TODO.restructure/05): the
+           applicant's own account, no organization needed. -->
+      <p class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-register">
+        {{ t('login.registerPrompt') }}
+        <router-link to="/register" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-register-link">{{ t('login.registerLink') }}</router-link>
       </p>
 
       <p v-if="branding.supportUrl" class="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">

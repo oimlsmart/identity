@@ -24,12 +24,12 @@ process.env.OP_ISSUER = 'http://op.test'
 process.env.OP_RATE_LIMIT_CAPACITY = '4'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const { parseInstanceProfile, installInstanceProfile } = await import('@oimlsmart/platform-server/profile')
+  const { parseInstanceProfile, installInstanceProfile } = await import('../../server/profile')
   const profile = parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id

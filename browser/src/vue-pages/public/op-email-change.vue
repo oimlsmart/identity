@@ -21,6 +21,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
+import { t } from '../../i18n'
 
 interface ChangeContext {
   name: string
@@ -56,7 +57,7 @@ function fmtDate(iso: string): string {
 onMounted(async () => {
   const token = route.query.token as string | undefined
   if (!token) {
-    failure.value = { kind: 'unknown', message: 'This page needs a verification link (no ?token= parameter). Start the email change from your account page.' }
+    failure.value = { kind: 'unknown', message: t('emailChange.noToken') }
     loading.value = false
     return
   }
@@ -66,7 +67,7 @@ onMounted(async () => {
       const body = await res.json().catch(() => null) as { error?: string; error_description?: string } | null
       failure.value = {
         kind: body?.error ?? 'unknown',
-        message: body?.error_description ?? 'This verification link is not valid. Start the email change again from your account page.',
+        message: body?.error_description ?? t('emailChange.linkInvalid'),
       }
       loading.value = false
       return
@@ -74,7 +75,7 @@ onMounted(async () => {
     context.value = await res.json() as ChangeContext
     loading.value = false
   } catch {
-    error.value = 'The link could not be read. Is the server running?'
+    error.value = t('emailChange.readFailed')
     loading.value = false
   }
 })
@@ -89,9 +90,9 @@ async function confirm() {
     if (!res.ok) {
       const body = await res.json().catch(() => null) as { error?: string; error_description?: string } | null
       if (body?.error === 'conflict' || body?.error === 'used' || body?.error === 'expired') {
-        failure.value = { kind: body.error, message: body.error_description ?? 'This verification link is not valid.' }
+        failure.value = { kind: body.error, message: body.error_description ?? t('emailChange.linkInvalidShort') }
       } else {
-        error.value = body?.error_description ?? 'The change could not be completed. Try again.'
+        error.value = body?.error_description ?? t('emailChange.failed')
       }
       confirming.value = false
       return
@@ -99,7 +100,7 @@ async function confirm() {
     done.value = await res.json() as { email: string; verified: boolean }
     confirming.value = false
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
     confirming.value = false
   }
 }
@@ -120,64 +121,57 @@ async function confirm() {
         <!-- The honest failure cards (used / expired / unknown). -->
         <template v-else-if="failure">
           <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2" data-testid="op-email-change-failure-title">
-            {{ failure.kind === 'used' ? 'This link was already used' : failure.kind === 'expired' ? 'This link has expired' : failure.kind === 'conflict' ? 'The address was taken' : 'This link is not valid' }}
+            {{ failure.kind === 'used' ? t('emailChange.used') : failure.kind === 'expired' ? t('emailChange.expired') : failure.kind === 'conflict' ? t('emailChange.conflictTitle') : t('emailChange.invalid') }}
           </h1>
           <p class="text-sm text-slate-600 dark:text-slate-300" :data-testid="`op-email-change-${failure.kind}`">{{ failure.message }}</p>
           <p class="mt-4 text-center text-xs">
-            <a href="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-email-change-back">Back to your account</a>
+            <a href="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-email-change-back">{{ t('emailChange.back') }}</a>
           </p>
         </template>
 
         <!-- The completed ceremony. -->
         <template v-else-if="done">
-          <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2" data-testid="op-email-change-done">{{ done.kind === 'add' || done.kind === 'verify' ? 'Email address verified' : 'Email address changed' }}</h1>
+          <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2" data-testid="op-email-change-done">{{ done.kind === 'add' || done.kind === 'verify' ? t('emailChange.doneTitleVerified') : t('emailChange.doneTitleChanged') }}</h1>
           <p v-if="done.kind === 'add'" class="text-sm text-slate-600 dark:text-slate-300">
-            <span class="font-medium">{{ done.email }}</span> now signs in to your OIML SMART account alongside your other addresses, and receives the account's security notices.
+            {{ t('emailChange.doneAdd', { email: done.email }) }}
           </p>
           <p v-else-if="done.kind === 'verify'" class="text-sm text-slate-600 dark:text-slate-300">
-            <span class="font-medium">{{ done.email }}</span> is confirmed as the address of record on your OIML SMART account — nothing else about the account changed.
+            {{ t('emailChange.doneVerify', { email: done.email }) }}
           </p>
           <p v-else class="text-sm text-slate-600 dark:text-slate-300">
-            Your OIML SMART account now signs in with <span class="font-medium">{{ done.email }}</span>.
+            {{ t('emailChange.doneChanged', { email: done.email }) }}
           </p>
           <p v-if="done.verified && done.kind !== 'add' && done.kind !== 'verify'" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-email-change-verified">
-            The new address is verified: you opened the link that was emailed to it.
+            {{ t('emailChange.verifiedNote') }}
           </p>
           <p v-else-if="!done.verified" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-email-change-unverified">
-            This link was shown on screen (no mailer is configured), so the new address stays marked "not verified" until a mailed link can confirm it.
+            {{ t('emailChange.unverifiedNote') }}
           </p>
           <p class="mt-4 text-center text-xs">
-            <a href="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-email-change-back-done">Back to your account</a>
+            <a href="/op/account" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-email-change-back-done">{{ t('emailChange.back') }}</a>
           </p>
         </template>
 
         <!-- The confirmation. -->
         <template v-else-if="context">
-          <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2">{{ context.kind === 'add' ? 'Confirm the email address' : context.kind === 'verify' ? 'Verify your email address' : 'Change the email address' }}</h1>
+          <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white mb-2">{{ context.kind === 'add' ? t('emailChange.titleAdd') : context.kind === 'verify' ? t('emailChange.titleVerify') : t('emailChange.titleChange') }}</h1>
           <p v-if="context.kind === 'add'" class="text-sm text-slate-600 dark:text-slate-300 mb-4" data-testid="op-email-change-context">
-            <span class="font-medium">{{ context.name }}</span>, this link confirms
-            <span class="font-medium">{{ context.newEmail }}</span> as an address on your OIML SMART account.
+            {{ t('emailChange.contextAdd', { name: context.name, email: context.newEmail }) }}
           </p>
           <p v-else-if="context.kind === 'verify'" class="text-sm text-slate-600 dark:text-slate-300 mb-4" data-testid="op-email-change-context">
-            <span class="font-medium">{{ context.name }}</span>, this link proves
-            <span class="font-medium">{{ context.newEmail }}</span> — the address of record on your OIML SMART account — reaches you.
+            {{ t('emailChange.contextVerify', { name: context.name, email: context.newEmail }) }}
           </p>
           <p v-else class="text-sm text-slate-600 dark:text-slate-300 mb-4" data-testid="op-email-change-context">
-            <span class="font-medium">{{ context.name }}</span>, this link moves your OIML SMART account
-            from <span class="font-medium">{{ context.email }}</span>
-            to <span class="font-medium">{{ context.newEmail }}</span>.
+            {{ t('emailChange.contextChange', { name: context.name, from: context.email, to: context.newEmail }) }}
           </p>
           <p v-if="context.kind === 'add'" class="text-xs text-slate-500 dark:text-slate-400 mb-4">
-            The link works exactly once and expires {{ fmtDate(context.expiresAt) }}. Once confirmed, the
-            address signs in to the same account and receives its security notices.
+            {{ t('emailChange.expiryAdd', { date: fmtDate(context.expiresAt) }) }}
           </p>
           <p v-else-if="context.kind === 'verify'" class="text-xs text-slate-500 dark:text-slate-400 mb-4">
-            The link works exactly once and expires {{ fmtDate(context.expiresAt) }}. Once confirmed, the
-            address reads as verified to the services you sign in to; the address itself never changes.
+            {{ t('emailChange.expiryVerify', { date: fmtDate(context.expiresAt) }) }}
           </p>
           <p v-else class="text-xs text-slate-500 dark:text-slate-400 mb-4">
-            The link works exactly once and expires {{ fmtDate(context.expiresAt) }}. Sign-ins then use the
-            new address; nothing else about the account changes.
+            {{ t('emailChange.expiryChange', { date: fmtDate(context.expiresAt) }) }}
           </p>
 
           <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
@@ -191,7 +185,7 @@ async function confirm() {
             @click="confirm"
           >
             <div v-if="confirming" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            {{ confirming ? (context.kind === 'add' || context.kind === 'verify' ? 'Confirming…' : 'Changing…') : (context.kind === 'add' || context.kind === 'verify' ? 'Confirm the address' : 'Confirm the change') }}
+            {{ confirming ? (context.kind === 'add' || context.kind === 'verify' ? t('emailChange.busyConfirm') : t('emailChange.busyChange')) : (context.kind === 'add' || context.kind === 'verify' ? t('emailChange.actionConfirm') : t('emailChange.actionChange')) }}
           </button>
         </template>
 

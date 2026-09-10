@@ -15,6 +15,7 @@
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
+import { t } from '../../i18n'
 
 interface Overview {
   generatedAt: string
@@ -77,27 +78,11 @@ function stamp(iso: string): string {
 }
 
 onMounted(async () => {
-  try {
-    const session = await fetch('/api/auth/session', { credentials: 'include' })
-    if (!session.ok) {
-      window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/overview')}`)
-      return
-    }
-    const res = await fetch('/api/op/dashboard/overview', { credentials: 'include' })
-    if (res.status === 401) {
-      window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/overview')}`)
-      return
-    }
-    if (res.status === 403) {
-      forbidden.value = true
-      return
-    }
-    if (!res.ok) throw new Error(`the overview failed (${res.status})`)
-    overview.value = await res.json() as Overview
-    loading.value = false
-    // The SLO panel reads the heartbeat workflow's own history — a
-    // separate fetch, so a slow or failed GitHub read never holds the
-    // tiles back.
+  // The SLO panel reads the heartbeat workflow's own history — a
+  // separate fetch FIRED FIRST so it rides the same latency phase as the
+  // session+overview pair (its GitHub read is the slow one; the tiles
+  // never wait on it — its own catch lands whenever it lands).
+  void (async () => {
     try {
       const hb = await fetch('/api/op/dashboard/heartbeat', { credentials: 'include' })
       if (!hb.ok) throw new Error(String(hb.status))
@@ -105,8 +90,27 @@ onMounted(async () => {
     } catch {
       heartbeatFailed.value = true
     }
+  })()
+  try {
+    // The session gate and the overview are INDEPENDENT reads — one
+    // latency phase, never a two-hop waterfall (TODO.restructure/02).
+    const [session, res] = await Promise.all([
+      fetch('/api/auth/session', { credentials: 'include' }),
+      fetch('/api/op/dashboard/overview', { credentials: 'include' }),
+    ])
+    if (!session.ok || res.status === 401) {
+      window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/overview')}`)
+      return
+    }
+    if (res.status === 403) {
+      forbidden.value = true
+      return
+    }
+    if (!res.ok) throw new Error(t('admin.dash.loadFailed', { status: res.status }))
+    overview.value = await res.json() as Overview
+    loading.value = false
   } catch (e) {
-    error.value = (e as Error).message || 'Network error. Is the server running?'
+    error.value = (e as Error).message || t('error.network')
     loading.value = false
   }
 })
@@ -121,19 +125,19 @@ onMounted(async () => {
     <!-- The honest refusal (the API's 403) -->
     <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Administration overview</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('admin.dash.title') }}</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
         <p class="text-sm text-amber-800 dark:text-amber-300" data-testid="op-dash-forbidden">
-          The administration dashboard is an administrator surface — your account does not hold the administrator role.
+          {{ t('admin.dash.forbidden') }}
         </p>
       </div>
     </div>
 
     <div v-else data-testid="op-dash">
       <PageHeader
-        title="Administration overview"
-        :description="`${branding.productName} at a glance — the registry, the sign-ins, the service level, today’s anomalies.`"
+        :title="t('admin.dash.title')"
+        :description="t('admin.dash.description', { product: branding.productName })"
       />
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
@@ -144,40 +148,40 @@ onMounted(async () => {
         <!-- The tiles -->
         <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" data-testid="op-dash-tiles">
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-accounts">
-            <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Accounts</p>
+            <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">{{ t('admin.dash.tileAccounts') }}</p>
             <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{{ overview.accounts.total }}</p>
             <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400" data-testid="op-dash-tile-accounts-split">
-              {{ overview.accounts.active }} active · {{ overview.accounts.invited }} invited · {{ overview.accounts.deactivated }} deactivated
+              {{ t('admin.dash.accountsSplit', { active: overview.accounts.active, invited: overview.accounts.invited, deactivated: overview.accounts.deactivated }) }}
             </p>
           </div>
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-signins">
-            <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Sign-ins (14 d)</p>
+            <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">{{ t('admin.dash.tileSignins') }}</p>
             <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{{ overview.signIns.totals.succeeded }}</p>
             <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-              <span :class="overview.signIns.totals.failed ? 'text-red-500 dark:text-red-400 font-semibold' : ''">{{ overview.signIns.totals.failed }} failed</span>
+              <span :class="overview.signIns.totals.failed ? 'text-red-500 dark:text-red-400 font-semibold' : ''">{{ t('admin.dash.failedCount', { count: overview.signIns.totals.failed }) }}</span>
             </p>
           </div>
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-sessions">
-            <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Live sessions</p>
+            <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">{{ t('admin.dash.tileSessions') }}</p>
             <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white" data-testid="op-dash-live-sessions">{{ overview.liveSessions }}</p>
             <p class="mt-1 text-[11px] text-brand-600 dark:text-brand-300">
               <router-link to="/op/admin/sessions" class="hover:underline" data-testid="op-dash-open-sessions">who is signed in now</router-link>
             </p>
           </div>
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-dash-tile-anomalies">
-            <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">Anomalies today</p>
+            <p class="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">{{ t('admin.dash.tileAnomalies') }}</p>
             <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white" data-testid="op-dash-anomalies-total">
               {{ overview.anomaliesToday.failedSignIns + overview.anomaliesToday.rateLimited + overview.anomaliesToday.tokenRefusals }}
             </p>
             <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400" data-testid="op-dash-anomalies-split">
-              {{ overview.anomaliesToday.failedSignIns }} failed sign-ins · {{ overview.anomaliesToday.rateLimited }} rate limits · {{ overview.anomaliesToday.tokenRefusals }} token refusals
+              {{ t('admin.dash.anomaliesSplit', { failedSignIns: overview.anomaliesToday.failedSignIns, rateLimits: overview.anomaliesToday.rateLimited, tokenRefusals: overview.anomaliesToday.tokenRefusals }) }}
             </p>
           </div>
         </section>
 
         <!-- The sign-in series -->
         <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-dash-signins">
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sign-ins, succeeded vs failed</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.dash.sectionSignins') }}</h2>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-4">{{ overview.signIns.note }}.</p>
           <div class="flex items-end gap-1 h-24" data-testid="op-dash-signins-chart">
             <div v-for="(day, i) in overview.signIns.days" :key="day.date" class="flex-1 flex flex-col items-center justify-end h-full min-w-0">
@@ -185,30 +189,30 @@ onMounted(async () => {
                 <div
                   class="w-full bg-red-400 dark:bg-red-500/80"
                   :style="{ height: `${(day.failed / seriesMax) * 100}%` }"
-                  :title="`${day.date}: ${day.failed} failed`"
+                  :title="t('admin.dash.dayFailed', { date: day.date, count: day.failed })"
                 />
                 <div
                   class="w-full bg-emerald-400 dark:bg-emerald-500/80"
                   :style="{ height: `${(day.succeeded / seriesMax) * 100}%` }"
-                  :title="`${day.date}: ${day.succeeded} succeeded`"
+                  :title="t('admin.dash.daySucceeded', { date: day.date, count: day.succeeded })"
                 />
               </div>
               <p class="mt-1 text-[9px] text-slate-400 dark:text-slate-500 truncate w-full text-center">{{ dayLabel(day.date, i) }}</p>
             </div>
           </div>
           <p v-if="!overview.signIns.totals.succeeded && !overview.signIns.totals.failed" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-dash-signins-empty">
-            No sign-ins on the record in this window yet.
+            {{ t('admin.dash.signinsEmpty') }}
           </p>
         </section>
 
         <!-- The SLO panel -->
         <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-dash-slo">
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Service level — the independent heartbeat</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.dash.sectionSlo') }}</h2>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-4">
             The stated SLO is 99.9% monthly, measured by the identity-heartbeat workflow’s 15-minute probes of the public OIDC surface; the probe’s results live in the workflow’s own history, read at the source.
           </p>
 
-          <p v-if="!heartbeat && !heartbeatFailed" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-dash-slo-loading">Reading the workflow history…</p>
+          <p v-if="!heartbeat && !heartbeatFailed" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-dash-slo-loading">{{ t('admin.dash.sloLoading') }}</p>
 
           <div v-else-if="heartbeat?.available && heartbeat.totals" data-testid="op-dash-slo-live">
             <div class="flex flex-wrap items-baseline gap-x-6 gap-y-2">
@@ -217,26 +221,26 @@ onMounted(async () => {
                 'text-amber-600 dark:text-amber-400': heartbeatTone === 'amber',
                 'text-red-600 dark:text-red-400': heartbeatTone === 'red',
               }" data-testid="op-dash-slo-rate">
-                {{ heartbeat.totals.successRate !== null ? pct(heartbeat.totals.successRate) : 'no completed probes' }}
+                {{ heartbeat.totals.successRate !== null ? pct(heartbeat.totals.successRate) : t('admin.dash.sloNoProbes') }}
               </p>
               <p class="text-xs text-slate-500 dark:text-slate-400" data-testid="op-dash-slo-window">
-                {{ heartbeat.totals.succeeded }}/{{ heartbeat.totals.completed }} probes green — {{ heartbeat.window?.note }}<template v-if="heartbeat.window?.since">, since {{ stamp(heartbeat.window.since) }}</template>
+                {{ t('admin.dash.sloProbes', { succeeded: heartbeat.totals.succeeded, completed: heartbeat.totals.completed, note: heartbeat.window?.note ?? '' }) }}<template v-if="heartbeat.window?.since">{{ t('admin.dash.sloSince', { since: stamp(heartbeat.window.since) }) }}</template>
               </p>
             </div>
             <p v-if="heartbeat.lastRun" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-dash-slo-last">
-              Last probe {{ stamp(heartbeat.lastRun.at) }}:
-              <span :class="heartbeat.lastRun.conclusion === 'success' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'">{{ heartbeat.lastRun.conclusion ?? 'running' }}</span>
+              {{ t('admin.dash.sloLastProbe', { at: stamp(heartbeat.lastRun.at) }) }}:
+              <span :class="heartbeat.lastRun.conclusion === 'success' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'">{{ heartbeat.lastRun.conclusion ?? t('admin.dash.sloRunning') }}</span>
             </p>
             <ul v-if="heartbeat.failures?.length" class="mt-2 space-y-1" data-testid="op-dash-slo-failures">
               <li v-for="failure in heartbeat.failures" :key="failure.url" class="text-[11px] text-red-600 dark:text-red-400">
-                {{ stamp(failure.at) }} — <a :href="failure.url" target="_blank" rel="noopener" class="underline">the failed run</a>
+                {{ stamp(failure.at) }} — <a :href="failure.url" target="_blank" rel="noopener" class="underline">{{ t('admin.dash.sloFailedRun') }}</a>
               </li>
             </ul>
           </div>
 
           <div v-else class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" data-testid="op-dash-slo-unavailable">
             <p class="text-sm text-amber-800 dark:text-amber-300">
-              The workflow history is not readable from here{{ heartbeat?.reason ? ` — ${heartbeat.reason}` : '' }}.
+              {{ t('admin.dash.sloUnreadable') }}{{ heartbeat?.reason ? ` — ${heartbeat.reason}` : '' }}.
             </p>
           </div>
 

@@ -29,6 +29,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { t, type MessageKey } from '../i18n'
+import { useConsoleSections } from '../branding'
 
 type ConsoleArea = 'home' | 'account' | 'admin'
 
@@ -86,9 +87,19 @@ const isAdmin = computed(() => user.value?.role === 'admin' || user.value?.role 
 // switch alone. The gate is the same role computation as the switch's
 // (the default RBAC map: admin | cs_admin hold users.manage, org_admin
 // only org.users.manage).
+// The admin rail's entries (TODO.restructure/17 — the kind-projected
+// nav): the deployment's profile DECLARES its console-section set
+// (profiles/*.yaml, a configuration act); undeclared = the full default
+// set. The component never branches on the instance's kind — it filters
+// by the projected set.
+const { consoleSections } = useConsoleSections()
+const adminEntries = computed<ReadonlyArray<NavEntry>>(() => {
+  const declared = consoleSections.value
+  return declared ? ADMIN_ENTRIES.filter(e => declared.includes(e.key)) : ADMIN_ENTRIES
+})
 const sections = computed<ReadonlyArray<NavEntry>>(() =>
   props.area === 'admin'
-    ? (isAdmin.value ? ADMIN_ENTRIES : [])
+    ? (isAdmin.value ? adminEntries.value : [])
     : props.area === 'account' ? ACCOUNT_ENTRIES : [])
 
 /** The header's current-section label (the area's name). */

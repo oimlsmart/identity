@@ -55,8 +55,8 @@ process.env.OP_ISSUER = ISSUER
 process.env.OP_LOGIN_BACKOFF_BASE_MS = '1'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
-let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
+let store: ReturnType<typeof import('../../server/store').getStore>
+let generatePkce: typeof import('../../server/oidc').generatePkce
 
 /** The stubbed GitHub Actions API (the heartbeat route's source). */
 let ghStub: Server
@@ -151,9 +151,9 @@ async function driveCodeExchange(clientId: string, secret: string, userCookie: s
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -164,7 +164,7 @@ branding: { name: OIML SMART Identity }
 demo_personas: true
 `))
 
-  const oidc = await import('@oimlsmart/platform-server/oidc')
+  const oidc = await import('../../server/oidc')
   generatePkce = oidc.generatePkce
 
   const { Hono } = await import('hono')
@@ -217,7 +217,7 @@ afterAll(async () => {
   delete process.env.OP_HEARTBEAT_API_BASE
   delete process.env.OP_HEARTBEAT_WORKFLOW
   delete process.env.OP_HEARTBEAT_REPO
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
 
@@ -729,7 +729,7 @@ describe('the heartbeat read', () => {
 
 describe('the module gate', () => {
   it('a non-identity profile answers 404 on the dashboard routes', async () => {
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.resetInstanceProfileForTest() // the hub default (no identity module)
     try {
       for (const [method, path] of [
