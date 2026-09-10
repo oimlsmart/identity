@@ -38,9 +38,9 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type ServerStore } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { getStore, type ServerStore } from '../store'
+import { getInstanceProfile } from '../profile'
+import { sessionUser } from '../session'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 
 type EnvLike = Record<string, string | undefined>

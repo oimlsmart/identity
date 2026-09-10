@@ -18,10 +18,10 @@
 
 import { Hono } from 'hono'
 import type { D1Database, Fetcher, R2Bucket, SendEmail } from '@cloudflare/workers-types'
-import { installStore } from '@oimlsmart/platform-server/store'
-import { d1StoreFor, resolveStoreWriteBudgetMs } from '@oimlsmart/platform-server/store/d1'
+import { installStore } from './store'
+import { d1StoreFor, resolveStoreWriteBudgetMs } from './store/d1'
 import { createApiApp } from './app'
-import { installInstanceProfile, resolveInstanceProfileFromEnv } from '@oimlsmart/platform-server/profile'
+import { installInstanceProfile, resolveInstanceProfileFromEnv } from './profile'
 import { installBlobStore, r2BlobStore } from './blobs'
 
 /** The worker's env (wrangler.toml [vars] + bindings + secrets). A type

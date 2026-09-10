@@ -26,10 +26,10 @@
 import { Hono } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { clientInfo } from '@oimlsmart/platform-server/client-info'
-import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '@oimlsmart/platform-server/session'
+import { getStore } from '../store'
+import { getInstanceProfile } from '../profile'
+import { clientInfo } from '../client-info'
+import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
 import { prepareBackchannelLogout } from '../auth/op/logout'
 
 type EnvLike = Record<string, string | undefined>

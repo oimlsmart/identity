@@ -41,7 +41,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { load as parseYaml } from 'js-yaml'
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from './store'
 import { isRegistryOrgKind, validateOrgLinks, type RegistryOrgKind } from './auth/org-registry'
 
 // ── the dataset shape ────────────────────────────────────────────────

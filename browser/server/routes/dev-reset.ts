@@ -20,8 +20,8 @@
 
 import { Hono } from 'hono'
 import { rm } from 'node:fs/promises'
-import { getDb } from '@oimlsmart/platform-server/store/sqlite'
-import { getStore } from '@oimlsmart/platform-server/store'
+import { getDb } from '../store/sqlite'
+import { getStore } from '../store'
 import { seedOrgRegisterSnapshot, seedOrgRegistryFromSnapshot, seedOrgSigningKeysDemo } from '../seed-org-register'
 import { nodeBlobsRoot } from '../blobs-node'
 

@@ -80,7 +80,7 @@
 // WORKER-SAFE: no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from '../../store'
 import { hashClientSecret } from './secrets'
 import { validateLaunch, type LaunchInput } from './launch'
 import { DEVICE_CLASS, validateDeviceBlock, type DeviceClientClaims, type OpClientPolicy } from './device-clients'

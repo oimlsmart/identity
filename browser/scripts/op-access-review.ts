@@ -42,7 +42,7 @@ import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
-import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
+import { APP_ROLES } from '../server/vocab'
 
 /** The roles whose holders the review names (the OP's gates above). */
 const PRIVILEGED_ROLES = ['admin', 'cs_admin', 'org_admin'] as const

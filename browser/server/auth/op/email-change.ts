@@ -22,7 +22,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { sendOpMail } from './mail'
-import type { MailEnv } from '@oimlsmart/platform-server/mailer'
+import type { MailEnv } from '../../mailer'
 
 export const OP_EMAIL_CHANGE_TTL_MS = 24 * 60 * 60 * 1000
 

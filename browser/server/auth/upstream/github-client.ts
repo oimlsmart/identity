@@ -19,7 +19,7 @@
 // WORKER-SAFE: fetch only, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import { gitHubEndpoints, type GitHubEndpoints } from '@oimlsmart/platform-server/github'
+import { gitHubEndpoints, type GitHubEndpoints } from '../../github'
 
 export { gitHubEndpoints }
 export type { GitHubEndpoints }

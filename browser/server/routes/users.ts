@@ -34,11 +34,11 @@
 
 import { Hono, type Context } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload } from '@oimlsmart/platform-server/store'
-import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
-import { effectiveRolesOf, mapRoles, roleHolders, type RolePermissionMap } from '@oimlsmart/platform-server/vocab'
+import { getStore, type AuthUserPayload } from '../store'
+import { effectiveRbacMap } from '../rbac'
+import { effectiveRolesOf, mapRoles, roleHolders, type RolePermissionMap } from '../vocab'
 import { isActiveRegistryOrg, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { sessionUser } from '../session'
 
 /** The caller's grant over these routes: 'wide' (users.manage — the
  *  whole instance) or 'org' (org.users.manage — scoped to the account's

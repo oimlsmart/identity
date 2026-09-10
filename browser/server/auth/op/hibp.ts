@@ -34,7 +34,7 @@
 // built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from '../../store'
 
 export type HibpVerdict = 'clean' | 'breached' | 'unknown' | 'disabled'
 

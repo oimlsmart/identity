@@ -29,10 +29,10 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
-import { getStore, type AuthUserPayload } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { getStore, type AuthUserPayload } from '../store'
+import { getInstanceProfile } from '../profile'
+import { effectiveRolesOf } from '../vocab'
+import { sessionUser } from '../session'
 import {
   createOrgEndorsement,
   listOrgEndorsements,

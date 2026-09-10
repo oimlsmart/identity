@@ -122,15 +122,15 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload, type OpClientRoleAssignment, type OrgRegistryContact, type UserAdminRow } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
+import { getStore, type AuthUserPayload, type OpClientRoleAssignment, type OrgRegistryContact, type UserAdminRow } from '../store'
+import { getInstanceProfile } from '../profile'
 import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, validateOrgLinks, type RegistryOrg, type RegistryOrgKind } from '../auth/org-registry'
 import { listOrgSigningKeys } from '../auth/org-signing-keys'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
 import { prepareBackchannelLogout } from '../auth/op/logout'
 import { orgAuditSlice } from '../auth/op/org-audit'
 import { patListRow } from '../auth/op/tokens'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { sessionUser } from '../session'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -235,13 +235,18 @@ export function createOpRegistryRouter(): Hono {
     }
   }
 
-  /** A list row's sign-in posture (never any credential material). */
-  async function listRow(user: UserAdminRow) {
+  /** A list row's sign-in posture (never any credential material). The
+   *  TODO.restructure/06 bulk pair arrives as OPTIONAL parameters — the
+   *  list reads them ONCE for the whole page; a single-row caller keeps
+   *  its plain point reads. */
+  async function listRow(
+    user: UserAdminRow,
+    posture?: Map<string, { password: boolean; links: number; passkeys: number }>,
+    linksByUser?: Map<string, Array<{ provider: string; providerAccountId: string; linkedAt: string; linkedBy: string | null }>>,
+  ) {
     const store = getStore()
-    const [methods, links] = await Promise.all([
-      store.countSignInMethods(user.id),
-      store.listIdentityLinks(user.id),
-    ])
+    const methods = posture?.get(user.id) ?? await store.countSignInMethods(user.id)
+    const links = linksByUser?.get(user.id) ?? await store.listIdentityLinks(user.id)
     return {
       id: user.id,
       email: user.email,
@@ -346,6 +351,12 @@ export function createOpRegistryRouter(): Hono {
     // the sum of all rows'. The map preserves the list's order; the
     // sort below is stable, so the answer is byte-identical to the
     // sequential loop's.
+    // TODO.restructure/06 (landed via 15 wave 1): the bulk pair, once
+    // per page, over identity's OWN store.
+    const [posture, linksByUser] = await Promise.all([
+      getStore().countSignInMethodsBulk(users.map(u => u.id)),
+      getStore().listIdentityLinksBulk(users.map(u => u.id)),
+    ])
     const built = await Promise.all(users.map(async (user) => {
       if (status === 'active' && !user.active) return null
       if (status === 'deactivated' && user.active) return null
@@ -353,7 +364,7 @@ export function createOpRegistryRouter(): Hono {
         const roles = user.roles?.length ? user.roles : [user.role]
         if (!roles.includes(role)) return null
       }
-      const row = await listRow(user)
+      const row = await listRow(user, posture, linksByUser)
       if (q) {
         const hay = [user.name, user.email, ...row.links.map(l => l.providerAccountId)]
         if (!hay.some(s => s.toLowerCase().includes(q))) return null

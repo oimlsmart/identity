@@ -31,8 +31,8 @@
 // WORKER-SAFE: pure functions, no I/O, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { OidcClientClaimsPolicy } from '@oimlsmart/platform-server/store'
-import { encodeOrgMemberCone, type OrgMemberCone } from '@oimlsmart/platform-server/store'
+import type { OidcClientClaimsPolicy } from '../../store'
+import { encodeOrgMemberCone, type OrgMemberCone } from '../../store'
 
 /** The account's OP-side role set (the federation-wide default): the
  *  full assigned set when present, else the primary role. */

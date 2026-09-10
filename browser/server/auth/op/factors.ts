@@ -20,7 +20,7 @@
 // WORKER-SAFE: the store seam + WebCrypto only, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import { getStore, type ServerStore } from '@oimlsmart/platform-server/store'
+import { getStore, type ServerStore } from '../../store'
 import { generateRecoveryCodes, hashRecoveryCode } from './recovery'
 
 export const WEBAUTHN_CHALLENGE_TTL_MS = 5 * 60 * 1000

@@ -27,7 +27,7 @@
 // WORKER-SAFE: WebCrypto only.
 // ═══════════════════════════════════════════════════════════════════
 
-import { OAUTH_STATE_TTL_MS } from '@oimlsmart/platform-server/github'
+import { OAUTH_STATE_TTL_MS } from '../../github'
 
 function base64url(bytes: Uint8Array): string {
   let bin = ''

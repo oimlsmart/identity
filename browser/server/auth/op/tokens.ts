@@ -64,9 +64,9 @@ import {
   type PatScope,
   type PersonalAccessToken,
   type ServerStore,
-} from '@oimlsmart/platform-server/store'
-import { permissionsForRoles, rolesCan, type ActionPermission } from '@oimlsmart/platform-server/vocab'
-import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
+} from '../../store'
+import { permissionsForRoles, rolesCan, type ActionPermission } from '../../vocab'
+import { effectiveRbacMap } from '../../rbac'
 import { rolesForClient } from './claims'
 import { deviceClassOf } from './device-clients'
 

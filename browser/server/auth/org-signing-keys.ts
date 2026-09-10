@@ -32,7 +32,7 @@
 // WORKER-SAFE: the ServerStore seam only — no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from '../store'
 import { kidFor } from './op/keys'
 
 /** The entity-store collection (the generic seam — the same machinery

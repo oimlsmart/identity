@@ -29,7 +29,7 @@
 // WORKER-SAFE: WebCrypto + the store seam only, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import { getStore, type OidcClientClaimsPolicy } from '@oimlsmart/platform-server/store'
+import { getStore, type OidcClientClaimsPolicy } from '../../store'
 import { opRequestOrigin, resolveOpConfig } from './config'
 import { opJwks, resolveOpSigningKey, signOpJwt, type OpSigningKey } from './keys'
 

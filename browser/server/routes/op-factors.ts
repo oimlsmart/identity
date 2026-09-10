@@ -51,10 +51,10 @@
 
 import { Hono, type Context } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { clientInfo } from '@oimlsmart/platform-server/client-info'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { getStore } from '../store'
+import { getInstanceProfile } from '../profile'
+import { clientInfo } from '../client-info'
+import { sessionUser } from '../session'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { opRandomToken } from '../auth/op/keys'
 import { generateTotpSecret, otpauthUri, verifyTotp } from '../auth/op/totp'
@@ -71,7 +71,7 @@ import {
   WEBAUTHN_CHALLENGE_TTL_MS,
 } from '../auth/op/factors'
 import { sendOpSecurityMail } from '../auth/op/mail'
-import type { MailEnv } from '@oimlsmart/platform-server/mailer'
+import type { MailEnv } from '../mailer'
 import { base64urlEncode } from '../auth/op/webauthn'
 
 type EnvLike = Record<string, string | undefined>

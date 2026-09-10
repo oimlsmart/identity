@@ -41,9 +41,9 @@ import { createStatusSummaryRouter } from './routes/status-summary'
 import { createOpRateLimiter } from './rate-limit'
 import { getBlobStore } from './blobs'
 import signinPanels from './signin-panels.json'
-import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
-import { StoreUnavailable } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile, projectModuleToggles, publicProfileView, type InstanceProfile } from '@oimlsmart/platform-server/profile'
+import { effectiveRbacMap } from './rbac'
+import { StoreUnavailable } from './store'
+import { getInstanceProfile, projectModuleToggles, publicProfileView, type InstanceProfile } from './profile'
 
 export interface ApiAppOptions {
   /** Provision the demo accounts on first request (the node posture's
@@ -106,6 +106,11 @@ export function createApiApp(options: ApiAppOptions): Hono {
   app.use('/op/token', rateLimit)
   app.use('/api/op/login', rateLimit)
   app.use('/api/op/login/reset', rateLimit)
+  // The public self-registration (TODO.restructure/05): the anonymous
+  // POST mints account + credential + token rows — the same per-caller
+  // bucket as the join intake (the duplicate guard answers the second
+  // ask per address; the bucket answers the scripted flood).
+  app.use('/api/op/register', rateLimit)
   app.use('/api/op/login/mfa/*', rateLimit)
   app.use('/api/op/login/passkey', rateLimit)
   app.use('/api/op/login/passkey/options', rateLimit)
@@ -232,6 +237,13 @@ export function createApiApp(options: ApiAppOptions): Hono {
         githubEnabled: false,
       },
       branding: {
+        // The whitelabel fields (TODO.restructure/17): every one the
+        // profile declares rides (spread first — the derived names
+        // settle once below); the client merges over the service's own
+        // defaults (branding.ts) — undeclared fields keep the identity
+        // service's brand.
+        ...instanceProfile.branding,
+        name: undefined,
         productName: instanceProfile.branding.name,
         shortName: instanceProfile.branding.name,
         // The support affordance (the ISO-benchmark quick win, smart's
@@ -241,6 +253,9 @@ export function createApiApp(options: ApiAppOptions): Hono {
         // link renders.
         ...(env.SUPPORT_URL?.trim() ? { supportUrl: env.SUPPORT_URL.trim() } : {}),
       },
+      // The admin console's declared sections (TODO.restructure/17 —
+      // the kind-projected nav): null = the full default set.
+      console: instanceProfile.console ? { sections: instanceProfile.console.sections } : null,
       // The environment ribbon (item 5): the deployment declares
       // ENVIRONMENT_LABEL ("Preview", "Test" — the operator's own word)
       // and the shell renders it as a thin strip; production declares

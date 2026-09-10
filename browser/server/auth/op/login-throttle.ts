@@ -45,7 +45,7 @@
 // WORKER-SAFE: the store seam + setTimeout only, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from '../../store'
 import { MFA_BACKOFF_DEFAULTS, throttleState } from './factors'
 
 /** The ladder's tuning: the base doubles per failure (the 30 s cap lives

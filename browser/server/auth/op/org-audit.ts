@@ -20,7 +20,7 @@
 // WORKER-SAFE: the store seam only, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from '../../store'
 
 /** The audit journal's parsed row (the shape every writer serializes
  *  into the entity's data — the twin of routes/op-registry.ts's and
