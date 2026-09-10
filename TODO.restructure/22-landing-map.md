@@ -36,13 +36,16 @@ verified before each commit. No AI attribution anywhere.
 7. **The program record** — `TODO.restructure/` + `CLAUDE.md` (if not
    already in 1). `x/` is NOT ours: untracked, untouched, never staged.
 
-## The kernel repo: OUT of this program's scope
+## The kernel repo: not this program's to manage UNASKED
 
-The owner's word, 2026-09-10: "KERNEL isn't part of identity service."
-This program neither commits, branches, nor manages anything in
-`oimlsmart/platform-server` — its working tree is that repo's own
-business. Identity's landing is self-contained: the copy lives here,
-the dependency pin is gone, and nothing here reaches across repos.
+The owner's word, 2026-09-10: "KERNEL isn't part of identity service" —
+identity's CODE stands alone (the split), and the platform obtains its
+permissions FROM identity through CONFIGURATION (the RP registration:
+issuer, client pair, claims policy), never shared code. The earlier
+plan to commit in that repo unasked was the mistake; this program makes
+no cross-repo changes. The doctrine's OTHER half is TODO 23: the
+platform taxonomy the wholesale copy left hardcoded in identity's own
+profile module — configuration, never hardcoding.
 
 ## The owner acts that remain after this (standing law, never delegated)
 
