@@ -36,15 +36,18 @@ verified before each commit. No AI attribution anywhere.
 7. **The program record** — `TODO.restructure/` + `CLAUDE.md` (if not
    already in 1). `x/` is NOT ours: untracked, untouched, never staged.
 
-## The kernel repo (its own branch, no push)
+## The kernel repo: OUT of this program's scope
 
-`op-cone-bulk-reads` — one commit preserving the six bulk-read files
-(seam, sqlite ×2 + wiring, d1, the parity test). Reference value for
-the owner's diet wave; no version bump, no publish — the owner's acts.
+The owner's word, 2026-09-10: "KERNEL isn't part of identity service."
+This program neither commits, branches, nor manages anything in
+`oimlsmart/platform-server` — its working tree is that repo's own
+business. Identity's landing is self-contained: the copy lives here,
+the dependency pin is gone, and nothing here reaches across repos.
 
 ## The owner acts that remain after this (standing law, never delegated)
 
-- The kernel's diet wave (15 wave 5) at the owner's version call.
+- The kernel repo's own management, entirely at its owner's
+  discretion, from its own sessions.
 - The `id-v*` deploy tag when the PR merges.
 - The remote read-only `wrangler d1 migrations list` before/after check
   at the first post-split deploy.
