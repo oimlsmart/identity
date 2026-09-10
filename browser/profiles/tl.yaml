@@ -1,0 +1,21 @@
+# The Test-Laboratory whitelabel flavor (TODO.restructure/17) — a
+# TENANT'S STARTING POINT: copy, fill in the TL's own values, point
+# INSTANCE_PROFILE at the copy (docs/deployment/identity-whitelabel.md).
+#
+# What this flavor says: this deployment is the test laboratory's own
+# OP — its operator workforce, its brand, its RP clients. The console
+# narrows to the TL's operating set (no organizations registry of its
+# own to administer beyond its people, no client governance beyond its
+# own RPs' surface — declare what the TL actually runs).
+identity:
+  org_id: ex-tl            # the TL's own slug (its registry id)
+  org_name: Example Test Laboratory
+  role_codes: [tl]
+  country: FR
+roles: [identity]
+branding:
+  name: Example TL Sign-In
+  login_tagline: The Example Test Laboratory's single sign-on
+demo_personas: false
+console:
+  sections: [overview, users, sessions, security, activity]
