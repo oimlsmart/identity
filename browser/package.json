@@ -19,13 +19,13 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",
-    "@oimlsmart/platform-server": "^0.2.10",
     "@oimlsmart/site-shell": "^0.1.0",
     "dotenv": "^17.4.2",
     "hono": "^4.12.23",
     "js-yaml": "^4.1.1",
     "vue": "^3.5.32",
-    "vue-router": "^4.6.4"
+    "vue-router": "^4.6.4",
+    "bcryptjs": "^3.0.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",

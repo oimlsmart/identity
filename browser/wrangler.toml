@@ -16,10 +16,12 @@
 # live account registry — it never moves. Since the wave-03 cutover
 # (2026-08-24, tag id-v2026.08.24-1) it is owned by THIS repo's
 # deployment alone (the monorepo's OP code is inert pending wave 04).
-# TODO.repos/01: the migration set ships in the kernel package
-# (node_modules/@oimlsmart/platform-server/migrations — wrangler keys
-# the bookkeeping on FILENAMES, and the names never changed across the
-# move); future files append expand-only, never renumber.
+# TODO.restructure/15: the migration set is THIS repo's own
+# (browser/migrations — copied verbatim from the kernel package, the
+# filenames ARE the live D1's d1_migrations journal keys and never
+# changed across the move); future files append expand-only, never
+# renumber. The kernel's copy remains the monorepo fleet's journal
+# anchor; the two sets diverge deliberately from 0031 onward.
 # ─────────────────────────────────────────────────────────────────────
 
 # The DEFAULT env is the dev posture (local `wrangler dev` against the
@@ -52,7 +54,7 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "oiml-smart-platform-identity"
 database_id = "6d24ab5f-f275-472f-82b1-fd0e3ca6ed96" # created 2026-08-16 via `wrangler d1 create`
-migrations_dir = "node_modules/@oimlsmart/platform-server/migrations"
+migrations_dir = "migrations"
 
 [vars]
 ENTITY_BACKEND = "server"
@@ -83,7 +85,7 @@ name = "oiml-smart-platform-identity"
 binding = "DB"
 database_name = "oiml-smart-platform-identity"
 database_id = "6d24ab5f-f275-472f-82b1-fd0e3ca6ed96" # created 2026-08-16 via `wrangler d1 create`
-migrations_dir = "node_modules/@oimlsmart/platform-server/migrations"
+migrations_dir = "migrations"
 
 # TODO.identity/09 — transactional email. TWO provider postures:
 #   1. the Cloudflare Email Service — the binding below, live once the
@@ -166,7 +168,7 @@ database_name = "oiml-smart-platform-identity-preview"
 # oiml-smart-platform-identity-preview`; the workflow's
 # IDENTITY_PREVIEW_URL var completes the posture.
 database_id = "d88056fc-cff7-48c6-9a67-8f7c817ed248"
-migrations_dir = "node_modules/@oimlsmart/platform-server/migrations"
+migrations_dir = "migrations"
 
 [env.identity-preview.vars]
 ENTITY_BACKEND = "server"
