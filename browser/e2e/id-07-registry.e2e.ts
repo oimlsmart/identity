@@ -64,7 +64,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
-import { generatePkce } from '@oimlsmart/platform-server/oidc'
+import { generatePkce } from '../server/oidc'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')

@@ -73,7 +73,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delay } from './helpers'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
-import { generatePkce, validateIdToken, clearOidcCaches } from '@oimlsmart/platform-server/oidc'
+import { generatePkce, validateIdToken, clearOidcCaches } from '../server/oidc'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO_ROOT = resolve(BROWSER_DIR, '..')

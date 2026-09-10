@@ -353,7 +353,7 @@ describe('TODO.identity/01 — the OIDC Provider (the identity profile)', () => 
     const cookie = login.headers.get('set-cookie')!.split(';')[0]!
 
     // The RP-side values (the same builders the RP uses).
-    const { generatePkce } = await import('@oimlsmart/platform-server/oidc')
+    const { generatePkce } = await import('../server/oidc')
     const pkce = await generatePkce()
     const query = new URLSearchParams({
       response_type: 'code',
