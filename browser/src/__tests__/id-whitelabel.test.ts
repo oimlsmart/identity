@@ -100,6 +100,35 @@ branding: { name: OIML SMART Identity }
     expect(cfg.console).toBeNull()
   })
 
+  it('TODO.restructure/23 — the platform residue is gone: configuration, never hardcoding', async () => {
+    const profileMod = await import('../../server/profile')
+    // The fallback default is the IDENTITY service's own — never a platform posture.
+    const fallback = profileMod.defaultInstanceProfile()
+    expect(fallback.roles).toEqual(['identity'])
+    expect(fallback.branding.name).toBe('OIML SMART Identity')
+    expect(fallback.identity.org_id).toBe('oimlsmart-id')
+    expect(fallback.modules).toEqual(['identity'])
+    // The catalog carries identity's OP surface alone.
+    expect([...profileMod.INSTANCE_MODULES]).toEqual(['identity'])
+    // A platform posture is refused loudly — this service is an OP deployment.
+    expect(() => parseProfile(`
+identity:
+  org_id: biml
+  org_name: BIML
+  role_codes: [hub]
+roles: [hub]
+`)).toThrow(/roles must be exactly \[identity\]/)
+    // The org's participant kind (role_codes) remains the ORG's fact —
+    // the whitelabel flavors' shape parses and projects.
+    const ia = parseProfile(IA_PROFILE)
+    expect(ia.roles).toEqual(['identity'])
+    expect(ia.identity.role_codes).toEqual(['ia'])
+    expect(profileMod.projectModuleToggles(ia)).toEqual({ identity: true })
+    // The implicit seed is the demo cast ONLY — no derived staff.
+    expect(profileMod.seedAccountsForProfile({ ...ia, demoPersonas: false })).toEqual([])
+    expect(profileMod.seedAccountsForProfile({ ...ia, demoPersonas: true })).toEqual(await import('../../server/store').then(m => m.DEMO_ACCOUNTS))
+  })
+
   it('THE GATE: an unknown section key fails the parse loudly', () => {
     expect(() => parseProfile(`
 identity:

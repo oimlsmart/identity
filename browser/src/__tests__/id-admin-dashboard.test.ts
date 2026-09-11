@@ -730,7 +730,7 @@ describe('the heartbeat read', () => {
 describe('the module gate', () => {
   it('a non-identity profile answers 404 on the dashboard routes', async () => {
     const profileMod = await import('../../server/profile')
-    profileMod.resetInstanceProfileForTest() // the hub default (no identity module)
+    profileMod.installInstanceProfile(profileMod.parseInstanceProfile('identity: { org_id: plain, org_name: Plain instance, role_codes: [identity] }\nroles: [identity]\nmodules: []')) // the explicit-off posture (the platform hub fallback is gone, TODO.restructure/23)
     try {
       for (const [method, path] of [
         ['GET', '/api/op/dashboard/overview'],

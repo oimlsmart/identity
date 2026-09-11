@@ -3,9 +3,14 @@
 **Priority:** P0 (the owner's doctrine, restated 2026-09-10: "Do you
 understand configuration vs hardcoding? Clearly the oimlsmart platform
 requires the identity service to obtain permissions.")
-**Status:** SCOPED — the audit complete, the waves below; a follow-up
-to PR #79 (the split's "whole-copy first, surgery second" rule named
-this pruning as the second step).
+**Status:** COMPLETE (2026-09-11) — all three waves landed, pushed to
+PR #79. Proof: vue-tsc clean, **581/581** (the whitelabel suite's 23-leg
+pins the fallback default, the refused platform posture, the one-module
+catalog, and the demo-cast-only implicit seed), both builds, astro
+check, the contract golden untouched. The eleven module-gate tests
+moved from the platform postures to the EXPLICIT-OFF configuration
+(`roles: [identity]` + `modules: []`) — the gate's semantics preserved
+as configuration, exactly the doctrine.
 
 ## The doctrine (the owner's law, corrected twice)
 
@@ -23,8 +28,10 @@ owner explicitly asks.
 The split copied the kernel's profile module WHOLESALE — it carries the
 PLATFORM's deployment vocabulary, hardcoded:
 
-- `server/profile.ts:34` — PROFILE_ROLES includes the platform's
-  'hub'/'ia'/'tl' postures alongside identity's own
+- `server/profile.ts:34` — PROFILE_ROLES included the platform's
+  'hub'/'ia'/'tl' postures alongside identity's own (NOW: the union is
+  documented as the ORG participant kinds for `role_codes`; the DEPLOYMENT
+  role is enforced to be exactly ['identity'])
 - `:40-53` — INSTANCE_MODULES: 11 of 12 modules are PLATFORM surfaces
   (portal, ia-console, tl-workbench, biml-console, register, cs-admin,
   engagement, federation, cnml, twin, engine); only 'identity' is

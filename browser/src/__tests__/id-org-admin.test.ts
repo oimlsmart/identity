@@ -601,8 +601,9 @@ describe('the identity-module gate', () => {
   it('a non-identity profile answers 404 on the join surface', async () => {
     const profileMod = await import('../../server/profile')
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
-identity: { org_id: biml, org_name: BIML, role_codes: [hub] }
-roles: [hub]
+identity: { org_id: biml, org_name: BIML, role_codes: [identity] }
+roles: [identity]
+modules: []
 `))
     try {
       for (const path of ['/api/op/organizations', '/api/op/join-requests']) {

@@ -710,7 +710,7 @@ describe('the picture claim (the per-client family)', () => {
 
 describe('the module gate', () => {
   it('a non-identity profile answers 404 on every OP path', async () => {
-    resetProfile() // the hub default (no identity module)
+    (await import('../../server/profile')).installInstanceProfile((await import('../../server/profile')).parseInstanceProfile('identity: { org_id: plain, org_name: Plain instance, role_codes: [identity] }\nroles: [identity]\nmodules: []')) // explicit-off (TODO.restructure/23)
     try {
       for (const [method, path] of [
         ['GET', '/.well-known/openid-configuration'],

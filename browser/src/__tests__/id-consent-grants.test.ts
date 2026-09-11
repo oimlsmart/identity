@@ -358,8 +358,9 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
 identity:
   org_id: hub-org
   org_name: A plain hub
-  role_codes: [hub]
-roles: [hub]
+  role_codes: [identity]
+roles: [identity]
+modules: []
 branding: { name: A plain hub }
 `))
     try {

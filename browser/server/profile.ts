@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════
-// The deployment profile (TODO.federation/01) — one codebase, four
-// deployment configurations (TODO.federation/00): the BIML-operated
-// hub, an NMI's Issuing-Authority instance, a contracted Test
-// Laboratory's instance, and the combined NMI-as-IA+TL. The profile
-// declares who THIS instance is (its own organization identity), which
-// role(s) it plays, which modules are on, its federation peers, and its
-// branding. Profiles gate routes, nav, consoles, and seeds.
+// The deployment profile — the IDENTITY service's own (TODO.restructure/23
+// pruned the platform's four-posture taxonomy this module was born with):
+// every deployment of this service is an OIDC Provider instance — the
+// central one, or a whitelabeled IA/TL tenant (TODO.restructure/16-21).
+// The profile declares who THIS instance is (its own organization
+// identity + participant kind), its brand, its console sections, its
+// peers. The PLATFORM integrates the other way: by CONFIGURATION — its
+// RP registration — never by entries hardcoded here. Profiles gate
+// routes, nav, consoles, and seeds.
 //
 // This module is the WORKER-SAFE core: the schema, the module catalog,
 // the defaults per role set (the 00 module map), the parser (profile
@@ -31,24 +33,21 @@ import { DEMO_ACCOUNTS } from './store'
 
 // ── The vocabulary ──────────────────────────────────────────────────
 
+// TODO.restructure/23 — TWO vocabularies, one union: the values are the
+// OIML participant kinds an organization may play (the org-facing
+// `role_codes`); a DEPLOYMENT of this service always plays exactly one
+// role: 'identity' (the parse enforces it). The platform's hub/ia/tl
+// deployment postures were the kernel's, never this service's.
 export const PROFILE_ROLES = ['hub', 'ia', 'tl', 'identity'] as const
 export type ProfileRole = (typeof PROFILE_ROLES)[number]
 
-/** The modules profiles toggle (TODO.federation/00's module map; the
- *  `identity` module is TODO.identity/01's OIDC Provider). The
- *  catalog order is the canonical display/serialization order. */
+/** The modules this service toggles — its OP surface alone (the
+ *  catalog order is the canonical display/serialization order). */
+// TODO.restructure/23 — the platform's module taxonomy is NOT identity's
+// (the platform integrates by CONFIGURATION: its RP registration, never
+// module entries hardcoded here). Identity's own catalog is its OP
+// surface alone.
 export const INSTANCE_MODULES = [
-  'portal',      // the applicant self-service portal
-  'ia-console',  // the Issuing Authority console (applications → certificates)
-  'tl-workbench',// the Test Laboratory workbench (requests → reports)
-  'biml-console',// the BIML portal
-  'register',    // the certificate register + the public verify page (TODO.adoption/05: every certification body publishes one — the hub the OIML-CS register, the NMI its own schemes')
-  'cs-admin',    // the OIML-CS scheme-administration console (the participants registry…)
-  'engagement',  // the pre-application phase (inquiry → quotation → agreement; item 02)
-  'federation',  // the peer registry / outbox / inbox (items 04–06; hub carries the intake)
-  'cnml',        // CNML signing at certificate issue
-  'twin',        // the twin/sim binding (twin console, twin lab, sim bench)
-  'engine',      // the monitoring daemon (server-side; env-driven, listed for the settings view)
   'identity',    // the OIDC Provider (TODO.identity/01): discovery, JWKS, authorize/consent, token, userinfo
 ] as const
 export type InstanceModule = (typeof INSTANCE_MODULES)[number]
@@ -68,15 +67,6 @@ export interface ProfileIdentity {
   country?: string
 }
 
-export interface StaffAccount {
-  email: string
-  name: string
-  role: string
-  /** Defaults to the identity org for the org-scoped roles
-   *  (ia_officer → org_id, tl_operator → the TL org id). */
-  org_id?: string
-}
-
 export interface FederationPeer {
   id: string
   name?: string
@@ -92,17 +82,9 @@ export interface ResolvedIdentity extends ProfileIdentity {
   country: string
 }
 
-/** The resolved staff row (post-parse): org_id settled to string|null. */
-export interface ResolvedStaffAccount {
-  email: string
-  name: string
-  role: string
-  org_id: string | null
-}
-
 /** The EFFECTIVE profile — parsed, validated, and resolved (modules
- *  expanded from the role-set defaults when not spelled out, staff
- *  derived when not declared, the demo-personas flag settled). */
+ *  expanded from the role-set defaults when not spelled out and the
+ *  demo-personas flag settled). */
 export interface InstanceProfile {
   identity: ResolvedIdentity
   roles: ProfileRole[]
@@ -147,64 +129,34 @@ export interface InstanceProfile {
    *  banner (operator-facing, transient), and a training instance could
    *  carry the banner without the cast. Defaults off everywhere. */
   demo: boolean
-  /** The instance's own accounts (non-hub profiles): the declared
-   *  `staff:` or one derived account per played role + an instance
-   *  admin. Empty on the hub (its cast is DEMO_ACCOUNTS). */
-  staff: ResolvedStaffAccount[]
 }
 
 // ── The defaults (the TODO.federation/00 module map) ────────────────
 
-/** The module set a role set boots with when the profile does not spell
- *  `modules:` out — the 00 map, verbatim:
- *    hub   : portal + ia-console + tl-workbench + biml-console + cs-admin
- *            + federation (intake) + cnml + twin
- *    ia    : ia-console + engagement + federation + cnml + twin
- *            (portal OFF — the white-gloves posture; opt in by listing it)
- *    tl    : tl-workbench + federation + twin
- *    ia+tl : the ia set + tl-workbench
- *    identity : identity only (TODO.identity/01 — the OIDC Provider
- *            instance serves the OP contract and nothing else)
- *  `engine` stays optional everywhere (the daemon mounts on
- *  ENGINE_CONFIG regardless; list it to advertise it in the settings
- *  view). cs-admin's read-only "directory cache" mode for ia/tl lands
- *  with the peer registry (TODO.federation/04) — until then the ia/tl
- *  profiles keep the module off. */
+/** The module set a profile boots with when it does not spell
+ *  `modules:` out: the OP surface, always (TODO.restructure/23 — the
+ *  00 module map was the platform's). */
 export function defaultModulesForRoles(roles: ProfileRole[]): InstanceModule[] {
-  const on = new Set<InstanceModule>()
-  if (roles.includes('identity')) {
-    on.add('identity')
-  } else if (roles.includes('hub')) {
-    for (const m of ['portal', 'ia-console', 'tl-workbench', 'biml-console', 'register', 'cs-admin', 'federation', 'cnml', 'twin'] as const) on.add(m)
-  } else {
-    on.add('federation')
-    on.add('twin')
-    if (roles.includes('ia')) {
-      on.add('ia-console')
-      on.add('engagement')
-      on.add('cnml')
-      // TODO.adoption/05: the NMI publishes its own register (its schemes'
-      // certificates with their access tiers); a pure laboratory has none.
-      on.add('register')
-    }
-    if (roles.includes('tl')) on.add('tl-workbench')
-  }
-  return INSTANCE_MODULES.filter(m => on.has(m))
+  // TODO.restructure/23: an identity deployment serves the OP contract
+  // and nothing else — the platform's surfaces are the platform's
+  // configuration, never identity's defaults.
+  return roles.includes('identity') ? ['identity'] : []
 }
 
-/** The built-in hub profile — the default when no profile file exists.
- *  Everything the pre-profiles app did, named. */
+/**
+ * The built-in fallback — the IDENTITY SERVICE's own profile (never a
+ * platform posture; TODO.restructure/23), used only when no profile
+ * file loads at all (a dev boot without INSTANCE_PROFILE). */
 export function defaultInstanceProfile(): InstanceProfile {
   return {
-    identity: { org_id: 'biml', org_name: 'BIML', role_codes: ['hub'], country: '' },
-    roles: ['hub'],
-    modules: defaultModulesForRoles(['hub']),
+    identity: { org_id: 'oimlsmart-id', org_name: 'OIML SMART Identity', role_codes: ['identity'], country: '' },
+    roles: ['identity'],
+    modules: ['identity'],
     peers: [],
-    branding: { name: 'OIML-CS SMART Platform' },
+    branding: { name: 'OIML SMART Identity' },
     console: null,
     demoPersonas: true,
     demo: false,
-    staff: [],
   }
 }
 
@@ -221,29 +173,9 @@ function asStringList(value: unknown, field: string): string[] {
   return value as string[]
 }
 
-/** org_id → the local-part slug for derived account emails. */
-function emailSlug(orgId: string): string {
-  const slug = orgId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-  return slug || 'instance'
-}
-
 /** The TL organization id for the identity (the oiml_id string form). */
 export function tlOrgIdOf(identity: ProfileIdentity): string {
   return identity.tl_org_id ?? identity.org_id
-}
-
-function deriveStaff(identity: ProfileIdentity, roles: ProfileRole[]): InstanceProfile['staff'] {
-  const slug = emailSlug(identity.org_id)
-  const staff: InstanceProfile['staff'] = [
-    { email: `admin@${slug}.example.org`, name: `${identity.org_name} Administrator`, role: 'admin', org_id: null },
-  ]
-  if (roles.includes('ia')) {
-    staff.push({ email: `officer@${slug}.example.org`, name: `${identity.org_name} Officer`, role: 'ia_officer', org_id: identity.org_id })
-  }
-  if (roles.includes('tl')) {
-    staff.push({ email: `operator@${slug}.example.org`, name: `${identity.org_name} Operator`, role: 'tl_operator', org_id: tlOrgIdOf(identity) })
-  }
-  return staff
 }
 
 export interface ParseEnv {
@@ -292,21 +224,18 @@ export function parseInstanceProfile(yamlText: string | undefined, env?: ParseEn
   // roles (optional — defaults to the identity's role_codes, else hub)
   const rolesIn = typeof doc.roles === 'undefined' ? undefined : asStringList(doc.roles, 'roles')
   const roleCodesIn = asStringList(identityIn.role_codes ?? [], 'identity.role_codes') as ProfileRole[]
-  const roles = (rolesIn ?? (roleCodesIn.length ? roleCodesIn : ['hub'])) as ProfileRole[]
-  if (!roles.length) fail('roles must name at least one of [hub, ia, tl, identity]')
+  const roles = (rolesIn ?? (roleCodesIn.length ? roleCodesIn : ['identity'])) as ProfileRole[]
+  if (!roles.length) fail('roles must name the deployment role')
   for (const r of roles) {
     if (!(PROFILE_ROLES as readonly string[]).includes(r)) fail(`roles: unknown role "${r}"`)
   }
-  if (roles.includes('hub') && roles.length > 1) fail('the hub role stands alone — a hub instance plays no ia/tl role')
-  // TODO.identity/01: the OIDC Provider is its own deployment — an
-  // identity instance plays no hub/ia/tl role alongside.
-  if (roles.includes('identity') && roles.length > 1) fail('the identity role stands alone — an identity instance plays no hub/ia/tl role')
+  // TODO.identity/01 + TODO.restructure/23: every deployment of this
+  // service is an OIDC Provider instance — the platform's hub/ia/tl
+  // postures are not identity's, and the service never plays two roles.
+  if (roles.length !== 1 || roles[0] !== 'identity') fail("roles must be exactly [identity] — this service is an OIDC Provider deployment (the platform postures are the platform's, never this service's)")
 
-  const isHub = roles.includes('hub')
-  if (!isHub) {
-    if (typeof orgId !== 'string' || !orgId) fail('identity.org_id (or identity.id) is required on an ia/tl/identity instance (the org the workflow records reference)')
-    if (typeof orgName !== 'string' || !orgName) fail('identity.org_name (or identity.name) is required on an ia/tl/identity instance')
-  }
+  if (typeof orgId !== 'string' || !orgId) fail('identity.org_id (or identity.id) is required (the org this instance is)')
+  if (typeof orgName !== 'string' || !orgName) fail('identity.org_name (or identity.name) is required')
   for (const rc of roleCodesIn) {
     if (!(PROFILE_ROLES as readonly string[]).includes(rc)) fail(`identity.role_codes: unknown role code "${rc}"`)
   }
@@ -336,8 +265,8 @@ export function parseInstanceProfile(yamlText: string | undefined, env?: ParseEn
   // modules (optional — defaults per the role set). TWO forms converge
   // on the same section: a LIST is the exact enabled set; a MAP of
   // {module: boolean} is a delta over the role-set defaults (the
-  // TODO.federation/02 toggle spelling — `portal: true` opts the portal
-  // in on an NMI, `engagement: false` switches it off on the hub).
+  // (the explicit `modules:` spelling remains supported — the OP
+  // surface is the only value in identity's catalog).
   let modules: InstanceModule[]
   if (typeof doc.modules === 'undefined') {
     modules = defaultModulesForRoles(roles)
@@ -419,31 +348,6 @@ export function parseInstanceProfile(yamlText: string | undefined, env?: ParseEn
   }
   const demo = doc.demo === true
 
-  // staff (non-hub): declared, else derived from the identity.
-  let staff: InstanceProfile['staff'] = []
-  if (!roles.includes('hub')) {
-    const staffRaw = doc.staff
-    if (typeof staffRaw !== 'undefined') {
-      if (!Array.isArray(staffRaw)) fail('staff must be a list of {email, name, role, org_id?}')
-      staff = staffRaw.map((s, i) => {
-        if (typeof s !== 'object' || s === null) fail(`staff[${i}] must be a mapping`)
-        const rec = s as Record<string, unknown>
-        if (typeof rec.email !== 'string' || !rec.email) fail(`staff[${i}].email is required`)
-        if (typeof rec.name !== 'string' || !rec.name) fail(`staff[${i}].name is required`)
-        if (typeof rec.role !== 'string' || !rec.role) fail(`staff[${i}].role is required`)
-        const orgId = typeof rec.org_id === 'string' && rec.org_id
-          ? rec.org_id
-          : rec.role === 'tl_operator'
-            ? tlOrgIdOf(identity)
-            : rec.role === 'ia_officer'
-              ? identity.org_id
-              : null
-        return { email: rec.email, name: rec.name, role: rec.role, org_id: orgId }
-      })
-    } else {
-      staff = deriveStaff(identity, roles)
-    }
-  }
 
   return {
     identity: {
@@ -460,7 +364,6 @@ export function parseInstanceProfile(yamlText: string | undefined, env?: ParseEn
     console: consoleSections,
     demoPersonas,
     demo,
-    staff,
   }
 }
 
@@ -498,8 +401,7 @@ export function resetInstanceProfileForTest(): void {
 
 // ── The public view (the /api/config payload) ───────────────────────
 
-/** The profile shape the client sees. `staff` never leaves the server
- *  (accounts are not public); everything else is deployment metadata. */
+/** The profile shape the client sees: deployment metadata only. */
 export interface InstanceProfileView {
   identity: InstanceProfile['identity']
   roles: ProfileRole[]
@@ -549,30 +451,14 @@ export interface AccountSeed {
 
 /**
  * The accounts a profile seeds. The hub seeds the demo cast, exactly as
- * the pre-profiles app always did — UNLESS the hub profile carries
- * `demo_personas: false` (TODO.demo-ops/01, the production posture: no
- * demo cast at all, and the demo sign-in endpoints refuse alongside —
- * auth/identity.ts). An ia/tl instance seeds its own staff (declared or
- * derived from the identity); the demo cast joins only when the profile
- * carries the demo-personas flag.
  */
 export function seedAccountsForProfile(profile: InstanceProfile): AccountSeed[] {
-  if (profile.roles.includes('hub')) {
-    return profile.demoPersonas ? [...DEMO_ACCOUNTS] : []
-  }
-  const accounts: AccountSeed[] = profile.staff.map(s => ({
-    email: s.email,
-    name: s.name,
-    role: s.role,
-    orgId: s.org_id,
-  }))
-  if (profile.demoPersonas) {
-    const seen = new Set(accounts.map(a => a.email))
-    for (const account of DEMO_ACCOUNTS) {
-      if (!seen.has(account.email)) accounts.push(account)
-    }
-  }
-  return accounts
+  // TODO.restructure/23: identity's implicit seed is the demo cast (the
+  // dev posture) and NOTHING else — real accounts arrive by
+  // CONFIGURATION: OP_ACCOUNT_SEED (the bootstrap invites) or the
+  // self-registration/join ceremonies. The platform's per-role staff
+  // derivation is gone with its postures.
+  return profile.demoPersonas ? [...DEMO_ACCOUNTS] : []
 }
 
 /**

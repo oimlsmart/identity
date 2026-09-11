@@ -191,8 +191,9 @@ describe('the launcher feed', () => {
   it('a non-identity deployment answers 404 (the profile gate)', async () => {
     const profileMod = await import('../../server/profile')
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
-identity: { org_id: plain, org_name: Plain instance, role_codes: [hub] }
-roles: [hub]
+identity: { org_id: plain, org_name: Plain instance, role_codes: [identity] }
+roles: [identity]
+modules: []
 `))
     const res = await app.request(`${ISSUER}/api/op/home`)
     expect(res.status).toBe(404)

@@ -213,7 +213,7 @@ describe('the whoami beacon', () => {
   })
 
   it('the module gate: a non-identity profile answers 404', async () => {
-    resetProfile() // the hub default (no identity module)
+    (await import('../../server/profile')).installInstanceProfile((await import('../../server/profile')).parseInstanceProfile('identity: { org_id: plain, org_name: Plain instance, role_codes: [identity] }\nroles: [identity]\nmodules: []')) // explicit-off (TODO.restructure/23)
     try {
       expect((await whoami()).status).toBe(404)
       expect((await app.request(`${ISSUER}/op/whoami`, { method: 'OPTIONS', headers: { origin: 'https://hub.example' } })).status).toBe(404)

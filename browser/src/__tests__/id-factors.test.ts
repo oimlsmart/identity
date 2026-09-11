@@ -663,7 +663,9 @@ describe('the enrollment gates', () => {
 identity:
   org_id: oimlsmart-hub
   org_name: OIML SMART
-roles: [hub]
+roles: [identity]
+modules: []
+demo_personas: true
 branding: { name: OIML SMART }
 `))
     try {
