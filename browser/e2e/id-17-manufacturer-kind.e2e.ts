@@ -341,10 +341,10 @@ describe('TODO.register/01 — the manufacturer org kind (the identity profile)'
     await page.goto(`${stack.base}/op/admin/organizations`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector(`[data-testid="op-orgs-row-${MFR_ID}"]`, { timeout: SETTLE, polling: 500 })
     const kindLine = await page.$eval(`[data-testid="op-orgs-kind-${MFR_ID}"]`, el => el.textContent ?? '')
-    expect(kindLine).toContain('manufacturer')
+    expect(kindLine).toContain('Manufacturer') // the vocabulary's label (TODO.restructure/07)
     expect(kindLine).toContain('declared standing')
     const demoRow = await page.$eval('[data-testid="op-orgs-kind-mfr-acme"]', el => el.textContent ?? '')
-    expect(demoRow).toContain('manufacturer')
+    expect(demoRow).toContain('Manufacturer')
 
     // The per-org page: the Standing line is the honest declared text.
     await page.goto(`${stack.base}/op/admin/registry/orgs/${MFR_ID}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
