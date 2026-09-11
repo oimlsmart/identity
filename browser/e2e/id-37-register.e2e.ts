@@ -323,10 +323,17 @@ describe('TODO.restructure/05 — the public self-registration (the identity pro
     await withPage(async (page) => {
       flog(page, 'leg2: the short-password refusal')
       await page.goto(`${stack.base}/register`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      // The policy gate is CLIENT-side on this form: a short password
+      // disables the submit (the server's own 400 is the unit spec's
+      // leg — the UI never sends the request to refuse).
       await fillRegister(page, APPLICANT.name, APPLICANT.email, 'short')
-      await page.waitForSelector('[data-testid="register-error"]', { timeout: SETTLE, polling: 500 })
-      const errorText = await page.$eval('[data-testid="register-error"]', el => el.textContent ?? '')
-      expect(errorText).toContain('12')
+      const disabled = await page.waitForFunction(
+        () => (document.querySelector('[data-testid="register-submit"]') as HTMLButtonElement | null)?.disabled === true,
+        { timeout: SETTLE, polling: 500 },
+      )
+      expect(disabled, 'the short password keeps the submit disabled').toBeTruthy()
+      const hint = await page.$eval('[data-testid="register-password"]', el => (el.parentElement?.querySelector('p')?.textContent ?? ''))
+      expect(hint).toContain('12')
     })
     // The refused password never touched state: the login attempt 401s.
     const login = await fetch(`${stack.base}/api/op/login`, {
