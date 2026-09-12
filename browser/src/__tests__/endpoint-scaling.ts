@@ -7,13 +7,17 @@
 // import): a handler awaiting a store read PER ROW inside a loop, every
 // leg a fresh D1 round trip.
 //
-// THE MEASUREMENT SEAM: the kernel's store seam is injectable
-// (installStore), so the gate wraps the REAL SQLite store in a counting
-// facade — test-side only, the kernel's production code untouched. One
-// counted call = one ServerStore method invocation (the D1 round-trip
-// unit in production; the sqlite backend runs the same call shape
-// in-process). Per-request constants (the session resolution chain)
-// cancel out of the assertion, which is on the DELTA between scales.
+// THE MEASUREMENT SEAM: the store seam is injectable (installStore),
+// so the gate wraps the REAL SQLite store in the counting facade —
+// server/store-timing.ts's StoreCallCounter, the production instrument
+// behind SERVER_TIMING's store phase (TODO.restructure/27 items 5–8),
+// re-exported below so the gate and the header share ONE counting
+// implementation (DRY — the gate's semantics are the header's
+// semantics). One counted call = one ServerStore method invocation
+// (the D1 round-trip unit in production; the sqlite backend runs the
+// same call shape in-process). Per-request constants (the session
+// resolution chain) cancel out of the assertion, which is on the DELTA
+// between scales.
 //
 // THE ASSERTION (scaling invariance): run the endpoint against a small
 // fixture, then against the same fixture grown 10×. The call-count
@@ -24,60 +28,10 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import { expect } from 'vitest'
-import type { ServerStore } from '../../server/store'
+import { StoreCallCounter, type StoreTimingReport as StoreCallReport } from '../../server/store-timing'
 
-/** One measured request's store-call report (the gate evidence's unit). */
-export interface StoreCallReport {
-  total: number
-  byMethod: Record<string, number>
-}
-
-/** The counting facade over the real store. Wrap the installed store
- *  ONCE at suite boot (installStore(counter.wrap(realStore))); every
- *  handler's getStore() then rides the counter. */
-export class StoreCallCounter {
-  private counts = new Map<string, number>()
-  private depth = 0
-
-  wrap(inner: ServerStore): ServerStore {
-    const counter = this
-    return new Proxy(inner, {
-      get(target, prop, receiver) {
-        const value = Reflect.get(target, prop, receiver)
-        if (typeof value !== 'function' || typeof prop !== 'string') return value
-        return (...args: unknown[]) => {
-          // Only the OUTERMOST call counts when a store method calls a
-          // sibling (the depth guard): the seam's contract is the method.
-          if (counter.depth === 0) {
-            counter.counts.set(prop, (counter.counts.get(prop) ?? 0) + 1)
-          }
-          counter.depth += 1
-          try {
-            return (value as (...a: unknown[]) => unknown).apply(target, args)
-          } finally {
-            counter.depth -= 1
-          }
-        }
-      },
-    }) as ServerStore
-  }
-
-  /** Run one request leg and answer its store-call delta. */
-  async measure<T>(run: () => Promise<T> | T): Promise<{ result: T; report: StoreCallReport }> {
-    const before = new Map(this.counts)
-    const result = await run()
-    const byMethod: Record<string, number> = {}
-    let total = 0
-    for (const [method, count] of this.counts) {
-      const delta = count - (before.get(method) ?? 0)
-      if (delta > 0) {
-        byMethod[method] = delta
-        total += delta
-      }
-    }
-    return { result, report: { total, byMethod } }
-  }
-}
+export { StoreCallCounter }
+export type { StoreCallReport }
 
 export interface ScalingLeg {
   /** The leg's name in the gate report (the endpoint + the session posture). */

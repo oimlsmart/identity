@@ -20,6 +20,8 @@
 // every platform carries it.
 // ═══════════════════════════════════════════════════════════════════
 
+import { timedStore } from './store-timing'
+
 /** The INITIAL role/org for an OAuth-provisioned account
  *  (findOrCreateOAuthUser): applied ONLY when the account is created —
  *  an existing account keeps its locally assigned role/org (the
@@ -2385,7 +2387,11 @@ export function installStore(store: ServerStore): void {
 
 /** The installed store. Throws honestly when no composition root ran —
  *  a route hit without an installed store is a wiring bug, never a
- *  silent fallback. */
+ *  silent fallback. While a SERVER_TIMING-measured request is in
+ *  flight, the store resolves through the counting proxy
+ *  (server/store-timing.ts — the store phase of the Server-Timing
+ *  header); at every other moment the installed store itself passes
+ *  through, untouched. */
 export function getStore(): ServerStore {
   if (!current) {
     throw new Error(
@@ -2393,5 +2399,5 @@ export function getStore(): ServerStore {
       + '(server/index.ts installs SQLite on node; server/cloudflare.ts installs D1 on the Worker)',
     )
   }
-  return current
+  return timedStore(current)
 }

@@ -43,6 +43,7 @@ import { getBlobStore } from './blobs'
 import signinPanels from './signin-panels.json'
 import { effectiveRbacMap } from './rbac'
 import { StoreUnavailable } from './store'
+import { measureStorePhase, serverTimingEnabled } from './store-timing'
 import { getInstanceProfile, projectModuleToggles, publicProfileView, type InstanceProfile } from './profile'
 
 export interface ApiAppOptions {
@@ -66,10 +67,25 @@ export function createApiApp(options: ApiAppOptions): Hono {
 
   // TODO.restructure/27: every answer carries its own wall time — the
   // next performance claim reads a measurement, not an inference.
+  // SERVER_TIMING (server/store-timing.ts, default OFF) adds the store
+  // phase to the SAME header, comma-joined per the Server-Timing spec:
+  //   app;dur=X, store;dur=Y;desc="N calls"
+  // — the request's store-seam call count + summed wall time, measured
+  // through the counting proxy getStore() resolves while the window is
+  // open (the middleware closure is the per-request scope). Unset, the
+  // answer stays byte-identical to the minimal form.
   app.use('*', async (c, next) => {
     const start = Date.now()
-    await next()
-    c.header('Server-Timing', `app;dur=${Date.now() - start}`)
+    if (!serverTimingEnabled(runtimeEnv<Record<string, string | undefined>>(c))) {
+      await next()
+      c.header('Server-Timing', `app;dur=${Date.now() - start}`)
+      return
+    }
+    const { report } = await measureStorePhase(() => next())
+    c.header(
+      'Server-Timing',
+      `app;dur=${Date.now() - start}, store;dur=${report.totalMs.toFixed(1)};desc="${report.total} calls"`,
+    )
   })
 
   // The bounded-write discipline's route-surface answer (the 2026-09-01
