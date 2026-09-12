@@ -32,8 +32,23 @@ CI's whole e2e pack green on both merged PRs.
    waits on the OWNER's required reviewers** — the human gate that
    stays the owner's even under "do not hold off"
 
-## The post-deploy verifications (after production approval)
+## SHIPPED — id-v2026.09.12-2 (2026-09-12): all five stages green
 
-- The issuer stands (`https://id.oimlsmart.org` discovery `issuer`).
-- The registry's journal advanced (0027/0028 applied — read-only list).
-- Preview parity: id-preview.oimlsmart.org serves the same surface.
+The first tag (-1) tripped the production zero-pending-migrations guard
+BY DESIGN (the live registry had never applied 0027/0028 — the tag came
+before the out-of-band apply, inverting the runbook's step 2; the
+preview stage had already exercised both files). The sanctioned recovery
+executed: both applied to the live registry out of band (✅✅), the list
+answered zero pending, and -2 ran the full pipeline — contract-gate,
+identity-e2e, build, deploy-preview, deploy-production — ALL SUCCESS.
+
+Post-deploy verifications (2026-09-12):
+- discovery `issuer: https://id.oimlsmart.org` — the load-bearing
+  issuer stands, unchanged
+- JWKS serves 1 active key; the sign-in page answers 200
+- /api/config: brand "OIML SMART Identity", modules exactly
+  ['identity'] — the pruned module catalog, live
+- the live registry's journal: "No migrations to apply!" — zero pending
+
+Production runs the program: kernel-free, whitelabel-ready, bilingual,
+O(1) in row count on every list endpoint.
