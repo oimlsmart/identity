@@ -2,12 +2,28 @@
 
 **Priority:** P2 (cleanliness/DRY — dead code shipped in the Worker
 bundle; zero runtime behavior change)
-**Status:** AUDIT COMPLETE, the deletion itself OPEN — deliberately:
-the automated span-deletion hung on an unbounded comment walk and was
-stopped before corrupting the open PR's tree (the files were restored
-byte-clean from HEAD, type-check green). The manifest below is the
-work; the surgery is a careful follow-up PR, one family at a time,
-each brace-bounded and suite-proven.
+**Status:** COMPLETE (2026-09-12) — executed on branch
+`restructure/seam-diet` (its own PR over the green program branch).
+
+## The root cause of the earlier hangs (recorded for posterity)
+
+The deleter resolved the doc-block start BEFORE the span end — so the
+span walk began at the doc OPENER, whose balanced parens made it look
+like a complete single-line span; openers deleted piecemeal, re-triggers
+cascaded, and the first version's brace-matcher then walked brace-less
+interface signatures across whole files. The fix is ORDER: span-end
+from the DECLARATION line first, doc-start second. (v3, proven on a
+smoke pair with diff inspection before scaling.)
+
+## The result
+
+**2,534 lines deleted, 8 files** (the interface, the D1 class, the
+sqlite assembly, four sqlite modules — and events.ts + notify.ts
+deleted whole as empty shells). The audit RE-RUN: **142 interface
+verbs, ZERO dead remaining**. Gates at the head: vue-tsc clean,
+**581/581**, both builds, the contract golden untouched. One commit
+(the batch verified as a whole — the one-family-per-commit recipe
+collapsed into a whole-batch verification, honestly noted).
 
 ## The audit (measured 2026-09-12)
 
