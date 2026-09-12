@@ -64,6 +64,14 @@ export function createApiApp(options: ApiAppOptions): Hono {
 
   for (const mw of options.middleware ?? []) app.use('*', mw)
 
+  // TODO.restructure/27: every answer carries its own wall time — the
+  // next performance claim reads a measurement, not an inference.
+  app.use('*', async (c, next) => {
+    const start = Date.now()
+    await next()
+    c.header('Server-Timing', `app;dur=${Date.now() - start}`)
+  })
+
   // The bounded-write discipline's route-surface answer (the 2026-09-01
   // outage's lesson — a hung store write must answer an honest error in
   // seconds, never spin the caller): the kernel's D1 store throws the

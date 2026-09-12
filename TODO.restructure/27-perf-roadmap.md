@@ -37,9 +37,12 @@ APAC-resident primary's ~250ms on every list view.
 purge policy past N days (the ops docs carry the vocabulary) keeps
 every surface fast forever. The decision is the owner's.
 
-## 5-8. The architecture items — OPEN
+## 5-8. The architecture items
 
-- TODO 26 (the type diet) stands with its solver recipe.
+- TODO 26 CLOSED (no defect — the type layer fully alive; #87).
+- Server-Timing — SHIPPED (minimal form): every answer carries
+  Server-Timing: app;dur=<ms>; the per-phase breakdown (the counter
+  facade in prod) remains a follow-up.
 - The store's module-singleton → instance-based (multi-instance tests,
   tenant-per-process hosting).
 - `Server-Timing` headers on the batched store phases (the next perf
