@@ -353,6 +353,50 @@ AUDIT_RETENTION_DAYS=30 npx tsx scripts/op-audit-retention.ts \
   --db .cache/id-01/identity.db            # dry-run; --apply purges
 ```
 
+### D1 replica reads (TODO.restructure/28-E)
+
+The store's D1 statements can ride Cloudflare's Sessions API —
+`withSession('first-primary')`, one session per store instance (the
+isolate's): the first query of the isolate pins the primary (the
+freshest bookmark), every query after it may serve from a read
+replica, writes land on the primary and advance the session's
+bookmark, and the session's sequential consistency carries the
+read-my-own-writes guarantee — a write-then-read sequence always
+observes its own write. The bounded-write discipline is unchanged:
+session-routed writes race the same STORE_WRITE_BUDGET_MS budget.
+
+The flag is `D1_REPLICA_READS` in the Worker vars — exactly `1`
+enables, UNSET (the shipping default) keeps every statement on the
+raw binding exactly as before. Two reasons it ships OFF:
+
+1. The verification gap: local suites prove the routing on SQLite
+   facades only; actual replica serving is the D1 runtime's, proven
+   only in the deploy pipeline.
+2. Read replication must ALSO be enabled on the database itself
+   (dashboard: D1 → the database → Settings → Enable Read Replication;
+   or REST `read_replication.mode: auto`) — without it, sessions are
+   a harmless no-op (every query continues on the primary). The
+   database-level switch is the owner's act, never a code change.
+
+The rollout is preview-first, and every enabling act is the OWNER's:
+
+1. Enable read replication on the PREVIEW database
+   (`oiml-smart-platform-identity-preview`) and set
+   `D1_REPLICA_READS = "1"` in `[env.identity-preview.vars]`
+   (browser/wrangler.toml) — one release cycle riding the preview.
+2. Watch `meta.served_by_region` / `meta.served_by_primary` on the
+   preview's D1 queries (wrangler tail, the Workers logs) and the
+   surface's ordinary probes — the flag's only observable effects are
+   where reads serve from and the read-path latency.
+3. Production follows the same two acts on
+   `oiml-smart-platform-identity` and `[env.identity.vars]` — again
+   only after the owner says so.
+
+Turning the flag back off is equally the owner's act: unset the var
+(a fresh deploy/isolate picks it up) — the database-level read
+replication may stay (an unreplicated-reader database is the
+Sessions-less posture; billing is identical either way).
+
 ## The participant registry's bootstrap (TODO.identity-features/10)
 
 The organization registry's production population is the authoritative

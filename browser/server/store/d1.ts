@@ -305,6 +305,55 @@ export interface D1WriteBudgetOptions {
   writeBudgetMs?: number
 }
 
+// ── D1 replica reads (TODO.restructure/28-E) ────────────────────────
+// Cloudflare's Sessions API (the current docs, verified 2026-09-12):
+// `withSession(constraint)` answers a session whose queries carry a
+// bookmark — sequential consistency, the docs' own list including
+// read-my-own-writes ("all writes done through the session will be
+// visible in subsequent reads" — the workers-types contract on
+// withSession). Replicas are read-only, so a write through the session
+// lands on the primary anyway and ADVANCES the session's bookmark: the
+// read-after-write sequence needs no special casing, it rides the same
+// session and observes its own write. 'first-primary' pins only the
+// FIRST query to the primary ("Use this option if you need to start
+// the Session with the most up-to-date data") — an identity service's
+// first read is the auth gate, so it starts fresh; every query after
+// it may serve from a replica causally after that bookmark.
+//
+// THE SESSION'S SCOPE: one per store INSTANCE — instance state, never
+// a module global. d1StoreFor memoizes one store per binding, so the
+// session spans the isolate's request population: every query the
+// isolate issues rides one sequentially-consistent thread, and the
+// per-request installStore flip stays harmless (the memo answers the
+// same object every request). Per-REQUEST sessions would need a
+// request-scoped store install — the store-instance refactor's
+// (TODO.restructure/28-D) territory, a named follow-up, never smuggled
+// in here: with today's module-global install, per-request stores
+// would bleed a sibling request's session across a mid-request await
+// and a write-then-read pair could straddle the flip.
+//
+// The flag ships OFF (D1_REPLICA_READS unset): local suites prove the
+// ROUTING on SQLite facades only — actual replica serving is the D1
+// runtime's, proven in the preview cycle first (the ops runbook's
+// preview-first rollout).
+export interface D1ReplicaReadOptions {
+  /** Route the store's statements through one withSession('first-primary')
+   *  session per store instance (the discipline note above). Absent:
+   *  off — statements ride the raw binding's bounded facade exactly as
+   *  before. */
+  replicaReads?: boolean
+}
+
+export type D1StoreOptions = D1WriteBudgetOptions & D1ReplicaReadOptions
+
+/** The consumer-side env resolution (the resolveStoreWriteBudgetMs
+ *  posture): D1_REPLICA_READS=1 — exactly '1', whitespace-trimmed —
+ *  enables the replica-reads posture. Unset, empty, or any other
+ *  value: OFF, the shipping default. */
+export function d1ReplicaReadsEnabled(env?: { D1_REPLICA_READS?: string }): boolean {
+  return env?.D1_REPLICA_READS?.trim() === '1'
+}
+
 /** The consumer-side env resolution (the resolveInstanceProfileFromEnv
  *  posture — the kernel never reads process.env; the Worker-safe
  *  modules take the env binding as an argument). Unset/garbage resolves
@@ -486,13 +535,22 @@ export class D1ServerStore implements ServerStore {
   /** The RAW binding — the ensure memos (and d1StoreFor's map) key on
    *  it: the facade below is per-instance and would never hit. */
   private readonly binding: D1Database
-  /** The bounded-write facade over the binding (the discipline note
-   *  above) — every statement/batch the store issues flows through it. */
-  private readonly db: D1Database
+  /** The bounded statement surface the store issues against — the
+   *  binding's facade, or (D1_REPLICA_READS=1) the bounded session
+   *  over it. Only prepare/batch are the store's verbs; the type keeps
+   *  exec/dump out (a session has neither — they are not the store's). */
+  private readonly db: Pick<D1Database, 'prepare' | 'batch'>
 
-  constructor(binding: D1Database, opts?: D1WriteBudgetOptions) {
+  constructor(binding: D1Database, opts?: D1StoreOptions) {
     this.binding = binding
-    this.db = boundedD1Writes(binding, opts?.writeBudgetMs ?? DEFAULT_STORE_WRITE_BUDGET_MS)
+    const bounded = boundedD1Writes(binding, opts?.writeBudgetMs ?? DEFAULT_STORE_WRITE_BUDGET_MS)
+    // TODO.restructure/28-E: the replica-reads posture resolves the
+    // session ONCE, at construction — one session per store instance,
+    // instance state, never a global (the discipline note above). The
+    // bounded facade's own withSession wrapper keeps the write-budget
+    // discipline on session-routed writes. Off: the facade itself,
+    // byte-identical routing to before.
+    this.db = opts?.replicaReads ? bounded.withSession('first-primary') : bounded
   }
 
   private stmt(sql: string, ...params: unknown[]): D1PreparedStatement {
@@ -3383,13 +3441,16 @@ export class D1ServerStore implements ServerStore {
 
 /** The worker entry's install: one store per binding, memoized (the
  *  store is a stateless facade over the binding — safe to share across
- *  the isolate's concurrent requests). The write budget comes from the
- *  FIRST resolution's opts: the memoized store keeps it (the
- *  deployment's env is constant, so every request passes the same
- *  value — a changed budget needs a fresh binding/isolate). */
+ *  the isolate's concurrent requests; under D1_REPLICA_READS the
+ *  shared store carries the isolate's ONE session, the TODO.restructure/
+ *  28-E discipline note). The opts — the write budget, the
+ *  replica-reads flag — come from the FIRST resolution: the memoized
+ *  store keeps them (the deployment's env is constant, so every
+ *  request passes the same values; a changed posture needs a fresh
+ *  binding/isolate). */
 const byBinding = new WeakMap<D1Database, D1ServerStore>()
 
-export function d1StoreFor(binding: D1Database, opts?: D1WriteBudgetOptions): D1ServerStore {
+export function d1StoreFor(binding: D1Database, opts?: D1StoreOptions): D1ServerStore {
   let store = byBinding.get(binding)
   if (!store) {
     store = new D1ServerStore(binding, opts)
