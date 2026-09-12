@@ -26,13 +26,6 @@ import type { EntityRow, EntityChange, EntityListOptions, EntityWriteInput, Jour
  *  landing in this process. */
 const journalListeners = new Set<(appends: readonly JournalAppend[]) => void>()
 
-/** The seam's registration verb: the answer is the unregister
- *  (idempotent). */
-export function onJournalAppend(listener: (appends: readonly JournalAppend[]) => void): () => void {
-  journalListeners.add(listener)
-  return () => { journalListeners.delete(listener) }
-}
-
 /** Fires the registry with one write's appended triples, AFTER the
  *  write stands (the transaction committed). A listener's throw is
  *  swallowed per listener — the write path never breaks for a
@@ -97,12 +90,6 @@ export function getEntity(store: string, id: string): EntityRow | undefined {
     .get(store, id) as EntityRow | undefined
 }
 
-/** The register's keyed number lookup — one index walk, never the
- *  listEntities scan + per-row JSON parse. */
-export function findCertificatesByNumber(number: string): EntityRow[] {
-  return getDb().prepare(CERTIFICATE_NUMBER_SQL).all(number) as EntityRow[]
-}
-
 export function putEntity(store: string, id: string, orgId: string | null, data: string): void {
   const db = getDb()
   const write = db.transaction(() => {
@@ -111,32 +98,6 @@ export function putEntity(store: string, id: string, orgId: string | null, data:
   })
   write()
   emitJournalAppends([{ store, type: 'persist', id }])
-}
-
-/** The multi-row write (the seam's putEntities, the 2026-09-07 audit's
- *  J1): each row lands exactly as putEntity would land it, in INPUT
- *  order, one transaction per PUT_ENTITIES_CHUNK rows — the chunk is
- *  the atomic unit, matching the D1 batch's all-or-nothing; a failed
- *  chunk throws with its rows unlanded, earlier chunks standing, later
- *  chunks never issued. The chunks run serially, so the journal's seq
- *  order IS the input's row order. */
-export function putEntities(store: string, rows: readonly EntityWriteInput[]): void {
-  if (rows.length === 0) return
-  const db = getDb()
-  const upsert = db.prepare(ENTITY_UPSERT_SQL)
-  const journal = db.prepare(ENTITY_CHANGE_SQL)
-  for (let i = 0; i < rows.length; i += PUT_ENTITIES_CHUNK) {
-    const chunk = rows.slice(i, i + PUT_ENTITIES_CHUNK)
-    db.transaction(() => {
-      for (const row of chunk) {
-        upsert.run(store, row.id, row.orgId, row.data)
-        journal.run(store, 'persist', row.id)
-      }
-    })()
-    // The fan-out fires per LANDED chunk (the D1 half's posture) — a
-    // failed chunk throws before its emit.
-    emitJournalAppends(chunk.map((row): JournalAppend => ({ store, type: 'persist', id: row.id })))
-  }
 }
 
 export function deleteEntity(store: string, id: string): boolean {
@@ -152,27 +113,4 @@ export function deleteEntity(store: string, id: string): boolean {
   write()
   if (gone) emitJournalAppends([{ store, type: 'remove', id }])
   return gone
-}
-
-/** The journal tail for the SSE stream: changes past a cursor. */
-export function changesAfter(seq: number, limit = 500): EntityChange[] {
-  return getDb()
-    .prepare('SELECT seq, store, type, id, at FROM entity_changes WHERE seq > ? ORDER BY seq LIMIT ?')
-    .all(seq, limit) as EntityChange[]
-}
-
-export function latestChangeSeq(): number {
-  const row = getDb().prepare('SELECT MAX(seq) AS seq FROM entity_changes').get() as { seq: number | null }
-  return row.seq ?? 0
-}
-
-/** The per-store projection of the one journal (the seam's contract):
- *  MAX(seq) over the store's own slice, 0 on a store with no writes.
- *  Walks idx_entity_changes_store_seq — one indexed probe, never a
- *  journal scan. */
-export function latestChangeSeqFor(store: string): number {
-  const row = getDb()
-    .prepare('SELECT MAX(seq) AS seq FROM entity_changes WHERE store = ?')
-    .get(store) as { seq: number | null }
-  return row.seq ?? 0
 }
