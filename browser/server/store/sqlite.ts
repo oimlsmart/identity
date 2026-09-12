@@ -12,50 +12,27 @@
 
 import { fileURLToPath } from 'url'
 import {
-  attributeCertificateHolderOrg,
   authenticateDemo,
   cleanExpiredSessions,
-  consumeSsoState,
-  createCertificateHolderClaim,
   createLocalUser,
   createOrgJoinRequest,
   createOrgMembership,
   createOrgRegistryOrg,
-  createInstrumentRegistration,
-  createInstrumentRegistrations,
   createSession,
-  decideCertificateHolderClaim,
-  decideIdentityApproval,
   decideOrgJoinRequest,
   deleteOrgMembership,
   deleteOrgRegistryOrg,
   deleteSession,
-  findOrCreateOAuthUser,
-  findPendingCertificateHolderClaim,
   findPendingOrgJoinRequestByEmail,
   findUserByEmail,
   findUserByProvider,
-  getCertificateHolderClaim,
-  getCertificateHolderOrg,
   getDb,
-  getFederationPeer,
-  getIdentityApproval,
-  getInstrumentRegistration,
   getOrgJoinRequest,
   getOrgMembership,
   getOrgRegistryOrg,
   getSessionActiveOrg,
-  getSessionIdTokenHint,
   getSessionUser,
   getUserById,
-  linkProviderIdentity,
-  listCertificateHolderClaims,
-  listCertificateHolderOrgs,
-  listFederationPeers,
-  listIdentityApprovals,
-  listInstrumentRegistrations,
-  listInstrumentRegistrationsForCertificate,
-  listInstrumentRegistrationsForHolder,
   listOrgJoinRequests,
   listAllOrgMemberships,
   listOrgMembers,
@@ -63,10 +40,7 @@ import {
   listOrgRegistryOrgs,
   listUsers,
   provisionSsoUser,
-  putSsoState,
-  revokeFederationPeer,
   seedDemoAccounts,
-  setInstrumentRegistrationLifecycle,
   setOrgMembershipRoles,
   setOrgMembershipState,
   setOrgMembershipCone,
@@ -77,51 +51,13 @@ import {
   touchLastLogin,
   updateOrgRegistryOrg,
   updateUserRoleOrg,
-  upsertFederationPeer,
-  upsertIdentityApproval,
 } from './sqlite/store'
 import {
-  changesAfter,
   deleteEntity,
-  findCertificatesByNumber,
   getEntity,
-  latestChangeSeq,
-  latestChangeSeqFor,
   listEntities,
-  onJournalAppend,
-  putEntities,
   putEntity,
 } from './sqlite/entities'
-import {
-  appendEvent,
-  appendEvents,
-  eventsAfter,
-  eventsMatching,
-  getEvent,
-  getEvents,
-  latestEventSeq,
-} from './sqlite/events'
-import {
-  deleteNotifyEntityMute,
-  deleteNotifyRule,
-  getNotifyDelivery,
-  getNotifyPreferences,
-  listNotifyDeliveriesForEvent,
-  listNotifyEntityMutes,
-  listNotifyInboxStates,
-  listNotifyRules,
-  markNotifyDelivery,
-  notifyDigestPendingForUser,
-  notifyDigestPendingUsers,
-  notifyEntityMutesForEvent,
-  notifyFailedDeliveries,
-  notifyRulesForEvent,
-  putNotifyDelivery,
-  putNotifyEntityMute,
-  putNotifyInboxState,
-  putNotifyPreferences,
-  putNotifyRule,
-} from './sqlite/notify'
 import {
   consumeOidcCode,
   consumeOidcRefreshToken,
@@ -137,10 +73,8 @@ import {
   getOidcAccessToken,
   getOidcAuthorization,
   getOidcClient,
-  listOidcAccessTokens,
   listOidcClients,
   listOidcKeys,
-  retireOidcKey,
   revokeOidcRefreshToken,
   setOidcClientStatus,
   setOidcClientLaunch,
@@ -260,16 +194,6 @@ export function createSqliteServerStore(): ServerStore {
     async authenticateDemo(email: string, password: string): Promise<AuthUserPayload | null> {
       return authenticateDemo(email, password)
     },
-    async findOrCreateOAuthUser(
-      provider: string,
-      providerAccountId: string,
-      email: string,
-      name: string,
-      avatarUrl?: string,
-      initial?: OAuthInitialAssignment,
-    ): Promise<AuthUserPayload> {
-      return findOrCreateOAuthUser(provider, providerAccountId, email, name, avatarUrl, initial)
-    },
     async createSession(
       userId: string,
       opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null },
@@ -281,9 +205,6 @@ export function createSqliteServerStore(): ServerStore {
     },
     async getSessionUser(token: string): Promise<AuthUserPayload | null> {
       return getSessionUser(token)
-    },
-    async getSessionIdTokenHint(token: string): Promise<string | null> {
-      return getSessionIdTokenHint(token)
     },
     async deleteSession(token: string): Promise<void> {
       deleteSession(token)
@@ -317,65 +238,11 @@ export function createSqliteServerStore(): ServerStore {
     }): Promise<AuthUserPayload> {
       return provisionSsoUser(input)
     },
-    async linkProviderIdentity(userId: string, provider: string, providerAccountId: string): Promise<void> {
-      linkProviderIdentity(userId, provider, providerAccountId)
-    },
     async updateUserRoleOrg(userId: string, role: string, orgId: string | null): Promise<void> {
       updateUserRoleOrg(userId, role, orgId)
     },
-    async upsertIdentityApproval(input: {
-      email: string
-      name: string
-      issuer: string
-      sub: string
-      claimsJson: string | null
-    }): Promise<IdentityApproval> {
-      return upsertIdentityApproval(input)
-    },
-    async getIdentityApproval(issuer: string, sub: string): Promise<IdentityApproval | null> {
-      return getIdentityApproval(issuer, sub)
-    },
-    async listIdentityApprovals(status?: IdentityApproval['status']): Promise<IdentityApproval[]> {
-      return listIdentityApprovals(status)
-    },
-    async decideIdentityApproval(
-      id: string,
-      decision: { status: 'approved' | 'rejected'; role?: string; orgId?: string | null; decidedBy: string },
-    ): Promise<IdentityApproval | null> {
-      return decideIdentityApproval(id, decision)
-    },
-
     // ── the SSO sign-in state jar (TODO.identity/04) ──
-    async putSsoState(input: { state: string; nonce: string; verifier: string; ttlMs: number }): Promise<void> {
-      putSsoState(input)
-    },
-    async consumeSsoState(state: string): Promise<SsoSignInState | null> {
-      return consumeSsoState(state)
-    },
-
     // ── federation peers (TODO.federation/04) ──
-    async listFederationPeers(status?: FederationPeer['status']): Promise<FederationPeer[]> {
-      return listFederationPeers(status)
-    },
-    async getFederationPeer(id: string): Promise<FederationPeer | null> {
-      return getFederationPeer(id)
-    },
-    async upsertFederationPeer(input: {
-      id: string
-      name: string
-      roles: string
-      descriptorUrl: string | null
-      descriptorJson: string
-      pinnedVia: FederationPeer['pinnedVia']
-      connectivity: FederationPeer['connectivity']
-      addedBy: string | null
-    }): Promise<FederationPeer> {
-      return upsertFederationPeer(input)
-    },
-    async revokeFederationPeer(id: string, revokedBy: string): Promise<FederationPeer | null> {
-      return revokeFederationPeer(id, revokedBy)
-    },
-
     // ── user administration (TODO.federation/12) ──
     async listUsers(): Promise<UserAdminRow[]> {
       return listUsers()
@@ -519,79 +386,7 @@ export function createSqliteServerStore(): ServerStore {
     },
 
     // ── the register's holder-org attribution (TODO.register/02) ──
-    async attributeCertificateHolderOrg(input: {
-      certificateId: string
-      orgId: string
-      orgName: string
-      source: CertificateHolderOrg['source']
-      attributedAt: string
-      attributedBy?: string | null
-      claimId?: string | null
-    }): Promise<CertificateHolderOrg | null> {
-      return attributeCertificateHolderOrg(input)
-    },
-    async getCertificateHolderOrg(certificateId: string): Promise<CertificateHolderOrg | null> {
-      return getCertificateHolderOrg(certificateId)
-    },
-    async listCertificateHolderOrgs(filter?: { orgId?: string }): Promise<CertificateHolderOrg[]> {
-      return listCertificateHolderOrgs(filter)
-    },
-    async createCertificateHolderClaim(input: {
-      certificateId: string
-      claimantOrgId: string
-      claimantOrgName: string
-      matchedHolderName: string
-      claimedBy: string
-    }): Promise<CertificateHolderClaim> {
-      return createCertificateHolderClaim(input)
-    },
-    async getCertificateHolderClaim(id: string): Promise<CertificateHolderClaim | null> {
-      return getCertificateHolderClaim(id)
-    },
-    async listCertificateHolderClaims(filter?: {
-      state?: CertificateHolderClaim['state']
-      claimantOrgId?: string
-      certificateId?: string
-    }): Promise<CertificateHolderClaim[]> {
-      return listCertificateHolderClaims(filter)
-    },
-    async decideCertificateHolderClaim(
-      id: string,
-      decision: { status: 'confirmed' | 'refused'; decidedBy: string; refusalReason?: string | null },
-    ): Promise<CertificateHolderClaim | null> {
-      return decideCertificateHolderClaim(id, decision)
-    },
-    async findPendingCertificateHolderClaim(certificateId: string): Promise<CertificateHolderClaim | null> {
-      return findPendingCertificateHolderClaim(certificateId)
-    },
-
     // ── the instrument register (TODO.register/03) ──
-    async listInstrumentRegistrations(): Promise<InstrumentRegistration[]> {
-      return listInstrumentRegistrations()
-    },
-    async listInstrumentRegistrationsForCertificate(certificateId: string): Promise<InstrumentRegistration[]> {
-      return listInstrumentRegistrationsForCertificate(certificateId)
-    },
-    async listInstrumentRegistrationsForHolder(holderOrgId: string): Promise<InstrumentRegistration[]> {
-      return listInstrumentRegistrationsForHolder(holderOrgId)
-    },
-    async getInstrumentRegistration(id: string): Promise<InstrumentRegistration | null> {
-      return getInstrumentRegistration(id)
-    },
-    async createInstrumentRegistration(input: InstrumentRegistrationWriteInput): Promise<InstrumentRegistration | null> {
-      return createInstrumentRegistration(input)
-    },
-    async createInstrumentRegistrations(rows: readonly InstrumentRegistrationWriteInput[]): Promise<(InstrumentRegistration | null)[]> {
-      return createInstrumentRegistrations(rows)
-    },
-    async setInstrumentRegistrationLifecycle(
-      id: string,
-      lifecycle: InstrumentRegistrationLifecycle,
-      actor?: string | null,
-    ): Promise<InstrumentRegistration | null> {
-      return setInstrumentRegistrationLifecycle(id, lifecycle, actor)
-    },
-
     // ── the OIDC Provider (TODO.identity/01) ──
     async getOidcClient(clientId: string): Promise<OidcClient | null> {
       return getOidcClient(clientId)
@@ -668,9 +463,6 @@ export function createSqliteServerStore(): ServerStore {
     async getOidcAccessToken(token: string): Promise<OidcAccessToken | null> {
       return getOidcAccessToken(token)
     },
-    async listOidcAccessTokens(userId: string): Promise<OidcAccessToken[]> {
-      return listOidcAccessTokens(userId)
-    },
     async deleteOidcAccessToken(token: string, clientId: string): Promise<boolean> {
       return deleteOidcAccessToken(token, clientId)
     },
@@ -708,10 +500,6 @@ export function createSqliteServerStore(): ServerStore {
     async upsertOidcKey(input: { kid: string; publicJwk: string }): Promise<void> {
       upsertOidcKey(input)
     },
-    async retireOidcKey(kid: string): Promise<void> {
-      retireOidcKey(kid)
-    },
-
     // ── the remembered consent grants (TODO.identity-features/12) ──
     async getConsentGrant(userId: string, clientId: string, scope: string): Promise<OidcConsentGrant | null> {
       return getConsentGrant(userId, clientId, scope)
@@ -1029,166 +817,17 @@ export function createSqliteServerStore(): ServerStore {
     async getEntity(store: string, id: string): Promise<EntityRow | undefined> {
       return getEntity(store, id)
     },
-    async findCertificatesByNumber(number: string): Promise<EntityRow[]> {
-      return findCertificatesByNumber(number)
-    },
     async putEntity(store: string, id: string, orgId: string | null, data: string): Promise<void> {
       putEntity(store, id, orgId, data)
-    },
-    async putEntities(store: string, rows: readonly EntityWriteInput[]): Promise<void> {
-      putEntities(store, rows)
     },
     async deleteEntity(store: string, id: string): Promise<boolean> {
       return deleteEntity(store, id)
     },
-    async changesAfter(seq: number, limit = 500): Promise<EntityChange[]> {
-      return changesAfter(seq, limit)
-    },
-    async latestChangeSeq(): Promise<number> {
-      return latestChangeSeq()
-    },
-    async latestChangeSeqFor(store: string): Promise<number> {
-      return latestChangeSeqFor(store)
-    },
-    onJournalAppend(listener: (appends: readonly JournalAppend[]) => void): () => void {
-      return onJournalAppend(listener)
-    },
-
     // ── the platform event store (TODO.notify/01) ──
-    async appendEvent(input: EventWriteInput): Promise<PlatformEvent> {
-      return appendEvent(input)
-    },
-    async appendEvents(events: readonly EventWriteInput[]): Promise<PlatformEvent[]> {
-      return appendEvents(events)
-    },
-    async eventsAfter(seq: number, limit = 500): Promise<PlatformEvent[]> {
-      return eventsAfter(seq, limit)
-    },
-    async latestEventSeq(): Promise<number> {
-      return latestEventSeq()
-    },
-    async getEvent(id: string): Promise<PlatformEvent | null> {
-      return getEvent(id)
-    },
-    async getEvents(ids: readonly string[]): Promise<(PlatformEvent | null)[]> {
-      return getEvents(ids)
-    },
-    async eventsMatching(filter: EventKeyFilter | { keys: readonly EventEntityKey[] }, limit = 500): Promise<PlatformEvent[]> {
-      return eventsMatching(filter, limit)
-    },
-
     // ── the notification subscriptions store (TODO.notify/02) ──
-    async listNotifyRules(userId: string): Promise<NotifyRule[]> {
-      return listNotifyRules(userId)
-    },
-    async putNotifyRule(input: {
-      id: string
-      userId: string
-      pattern: string
-      domain: string
-      entityId: string | null
-      action: string | null
-      mode: NotifyRule['mode']
-      channelOverrides: string | null
-    }): Promise<NotifyRule> {
-      return putNotifyRule(input)
-    },
-    async deleteNotifyRule(userId: string, pattern: string): Promise<boolean> {
-      return deleteNotifyRule(userId, pattern)
-    },
-    async notifyRulesForEvent(filter: { domain: string; entityId: string; action: string }): Promise<NotifyRule[]> {
-      return notifyRulesForEvent(filter)
-    },
-    async listNotifyEntityMutes(userId: string): Promise<NotifyEntityMute[]> {
-      return listNotifyEntityMutes(userId)
-    },
-    async putNotifyEntityMute(input: { id: string; userId: string; domain: string; entityId: string }): Promise<NotifyEntityMute> {
-      return putNotifyEntityMute(input)
-    },
-    async deleteNotifyEntityMute(userId: string, domain: string, entityId: string): Promise<boolean> {
-      return deleteNotifyEntityMute(userId, domain, entityId)
-    },
-    async notifyEntityMutesForEvent(domain: string, entityId: string): Promise<NotifyEntityMute[]> {
-      return notifyEntityMutesForEvent(domain, entityId)
-    },
-    async getNotifyPreferences(userId: string): Promise<NotifyPreferences | null> {
-      return getNotifyPreferences(userId)
-    },
-    async putNotifyPreferences(userId: string, channels: string): Promise<NotifyPreferences> {
-      return putNotifyPreferences(userId, channels)
-    },
-
     // ── the inbox state (TODO.notify/03) ──
-    async listNotifyInboxStates(userId: string): Promise<NotifyInboxState[]> {
-      return listNotifyInboxStates(userId)
-    },
-    async putNotifyInboxState(input: {
-      userId: string
-      eventId: string
-      read?: boolean
-      done?: boolean
-    }): Promise<NotifyInboxState> {
-      return putNotifyInboxState(input)
-    },
-
     // ── the email channel's delivery store (TODO.notify/04) ──
-    async putNotifyDelivery(input: {
-      id: string
-      eventId: string
-      userId: string
-      reason: string
-      email: NotifyDelivery['email']
-      emailStatus: NotifyDeliveryStatus | null
-    }): Promise<NotifyDelivery> {
-      return putNotifyDelivery(input)
-    },
-    async getNotifyDelivery(eventId: string, userId: string): Promise<NotifyDelivery | null> {
-      return getNotifyDelivery(eventId, userId)
-    },
-    async listNotifyDeliveriesForEvent(eventId: string): Promise<NotifyDelivery[]> {
-      return listNotifyDeliveriesForEvent(eventId)
-    },
-    async notifyDigestPendingUsers(): Promise<string[]> {
-      return notifyDigestPendingUsers()
-    },
-    async notifyDigestPendingForUser(userId: string): Promise<NotifyDelivery[]> {
-      return notifyDigestPendingForUser(userId)
-    },
-    async notifyFailedDeliveries(limit?: number): Promise<NotifyDelivery[]> {
-      return notifyFailedDeliveries(limit)
-    },
-    async markNotifyDelivery(id: string, status: NotifyDeliveryStatus): Promise<void> {
-      markNotifyDelivery(id, status)
-    },
-
     // ── provisioning / dev support ──
-    async wipeWorkflowStores(range?: { after: number; through: number }): Promise<number> {
-      const db = getDb()
-      let rows = 0
-      // One transaction, the same atomicity the D1 batch gives.
-      db.transaction(() => {
-        for (const table of WIPE_TABLES) {
-          rows += range
-            ? db.prepare(`DELETE FROM ${table} WHERE rowid > ? AND rowid <= ?`).run(range.after, range.through).changes
-            : db.prepare(`DELETE FROM ${table}`).run().changes
-        }
-      })()
-      return rows
-    },
-    async workflowStoreRowCeiling(): Promise<number> {
-      // The D1 half's twin (one rule, two backends): the scalar max()
-      // over per-table scalar subqueries, NEVER a compound SELECT — D1
-      // caps a compound's term count at 5 (the 2026-09 demo-reset
-      // wall), and the table list derives from WIPE_TABLES so the
-      // wipe set and the ceiling set never drift apart by hand.
-      const row = getDb().prepare(
-        `SELECT MAX(${WIPE_TABLES.map(t => `COALESCE((SELECT MAX(rowid) FROM ${t}), 0)`).join(', ')}) AS ceiling`,
-      ).get() as { ceiling: number | null }
-      return row.ceiling ?? 0
-    },
-    async countEntities(): Promise<number> {
-      return (getDb().prepare('SELECT COUNT(*) AS n FROM entities').get() as { n: number }).n
-    },
   }
 }
 
@@ -1209,7 +848,6 @@ export function installSqliteStore(): ServerStore {
 // tests) import unchanged names from the package.
 export * from './sqlite/store'
 export * from './sqlite/entities'
-export * from './sqlite/events'
 export * from './sqlite/op-store'
 export * from './sqlite/op-accounts-store'
 export * from './sqlite/factors-store'

@@ -258,46 +258,6 @@ export function authenticateDemo(email: string, password: string): AuthUserPaylo
   return null
 }
 
-export function findOrCreateOAuthUser(
-  provider: string,
-  providerAccountId: string,
-  email: string,
-  name: string,
-  avatarUrl?: string,
-  // The INITIAL role/org (backend.ts's OAuthInitialAssignment) — applied
-  // only on CREATE; an existing account keeps its local assignment.
-  initial?: import('../../store').OAuthInitialAssignment,
-): AuthUserPayload {
-  const db = getDb()
-
-  const existing = db.prepare(
-    'SELECT * FROM users WHERE provider = ? AND provider_account_id = ?'
-  ).get(provider, providerAccountId) as any
-
-  if (existing) {
-    db.prepare('UPDATE users SET last_login = datetime(\'now\'), avatar_url = ? WHERE id = ?')
-      .run(avatarUrl ?? null, existing.id)
-    return {
-      id: existing.id,
-      email: existing.email,
-      name: existing.name,
-      role: existing.role,
-      orgId: existing.org_id ?? null,
-      avatarUrl: avatarUrl ?? existing.avatar_url,
-    }
-  }
-
-  const id = randomUUID()
-  const role = initial?.role ?? 'user'
-  const orgId = initial?.orgId ?? null
-  db.prepare(
-    'INSERT INTO users (id, email, name, avatar_url, provider, provider_account_id, role, org_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, email, name, avatarUrl ?? null, provider, providerAccountId, role, orgId)
-  if (orgId) syncPrimaryMembership(id) // TODO.identity/11 — the mirror
-
-  return { id, email, name, role, orgId, avatarUrl }
-}
-
 export function createSession(
   userId: string,
   opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null },
@@ -390,14 +350,6 @@ function userPayload(row: UserRow): AuthUserPayload {
   }
 }
 
-export function getSessionIdTokenHint(token: string): string | null {
-  const db = getDb()
-  const row = db.prepare(
-    "SELECT id_token_hint FROM sessions WHERE token = ? AND expires_at > datetime('now')",
-  ).get(token) as { id_token_hint: string | null } | undefined
-  return row?.id_token_hint ?? null
-}
-
 export function findUserByEmail(email: string): AuthUserPayload | null {
   const row = getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined
   return row ? userPayload(row) : null
@@ -432,12 +384,6 @@ export function provisionSsoUser(input: {
   ).run(id, input.email, input.name, input.provider, input.providerAccountId, input.role, input.orgId)
   if (input.orgId) syncPrimaryMembership(id) // TODO.identity/11 — the mirror
   return { id, email: input.email, name: input.name, role: input.role, orgId: input.orgId }
-}
-
-export function linkProviderIdentity(userId: string, provider: string, providerAccountId: string): void {
-  const db = getDb()
-  db.prepare('UPDATE users SET provider = ?, provider_account_id = ?, last_login = datetime(\'now\') WHERE id = ?')
-    .run(provider, providerAccountId, userId)
 }
 
 export function updateUserRoleOrg(userId: string, role: string, orgId: string | null): void {
@@ -479,52 +425,6 @@ function approvalPayload(row: IdentityApprovalRow): IdentityApproval {
   }
 }
 
-export function upsertIdentityApproval(input: {
-  email: string
-  name: string
-  issuer: string
-  sub: string
-  claimsJson: string | null
-}): IdentityApproval {
-  const db = getDb()
-  db.prepare(
-    `INSERT INTO identity_approvals (id, email, name, issuer, sub, claims_json, last_seen)
-     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-     ON CONFLICT (issuer, sub) DO UPDATE SET
-       email = excluded.email, name = excluded.name, claims_json = excluded.claims_json,
-       last_seen = datetime('now')`,
-  ).run(randomUUID(), input.email, input.name, input.issuer, input.sub, input.claimsJson)
-  const row = db.prepare('SELECT * FROM identity_approvals WHERE issuer = ? AND sub = ?')
-    .get(input.issuer, input.sub) as IdentityApprovalRow
-  return approvalPayload(row)
-}
-
-export function getIdentityApproval(issuer: string, sub: string): IdentityApproval | null {
-  const row = getDb().prepare('SELECT * FROM identity_approvals WHERE issuer = ? AND sub = ?')
-    .get(issuer, sub) as IdentityApprovalRow | undefined
-  return row ? approvalPayload(row) : null
-}
-
-export function listIdentityApprovals(status?: IdentityApproval['status']): IdentityApproval[] {
-  const rows = (status
-    ? getDb().prepare('SELECT * FROM identity_approvals WHERE status = ? ORDER BY created_at').all(status)
-    : getDb().prepare('SELECT * FROM identity_approvals ORDER BY created_at').all()) as IdentityApprovalRow[]
-  return rows.map(approvalPayload)
-}
-
-export function decideIdentityApproval(
-  id: string,
-  decision: { status: 'approved' | 'rejected'; role?: string; orgId?: string | null; decidedBy: string },
-): IdentityApproval | null {
-  const db = getDb()
-  db.prepare(
-    `UPDATE identity_approvals SET status = ?, decided_role = ?, decided_org = ?, decided_by = ?, decided_at = datetime('now')
-     WHERE id = ?`,
-  ).run(decision.status, decision.role ?? null, decision.orgId ?? null, decision.decidedBy, id)
-  const row = db.prepare('SELECT * FROM identity_approvals WHERE id = ?').get(id) as IdentityApprovalRow | undefined
-  return row ? approvalPayload(row) : null
-}
-
 // ── the SSO sign-in state jar (TODO.identity/04) ────────────────────
 
 import type { SsoSignInState } from '../../store'
@@ -534,29 +434,6 @@ interface SsoStateRow {
   nonce: string
   verifier: string
   expires_at: string
-}
-
-export function putSsoState(input: { state: string; nonce: string; verifier: string; ttlMs: number }): void {
-  const db = getDb()
-  // The expiry sweep rides the write (the per-process Map's discipline):
-  // stale rows are inert — consume checks the expiry — but never
-  // accumulate.
-  db.prepare('DELETE FROM sso_states WHERE expires_at <= ?').run(new Date().toISOString())
-  db.prepare('INSERT INTO sso_states (state, nonce, verifier, expires_at) VALUES (?, ?, ?, ?)')
-    .run(input.state, input.nonce, input.verifier, new Date(Date.now() + input.ttlMs).toISOString())
-}
-
-/** Atomically consume the state: the UPDATE flips consumed_at exactly
- *  once (a replay loses the race and answers null). An EXPIRED row is
- *  consumed too — never a second chance. */
-export function consumeSsoState(state: string): SsoSignInState | null {
-  const db = getDb()
-  const res = db.prepare("UPDATE sso_states SET consumed_at = datetime('now') WHERE state = ? AND consumed_at IS NULL").run(state)
-  if (res.changes === 0) return null
-  const row = db.prepare('SELECT state, nonce, verifier, expires_at FROM sso_states WHERE state = ?').get(state) as SsoStateRow | undefined
-  if (!row) return null
-  if (new Date(row.expires_at).getTime() <= Date.now()) return null
-  return { state: row.state, nonce: row.nonce, verifier: row.verifier, expiresAt: row.expires_at }
 }
 
 // ── federation peers (TODO.federation/04) ────────────────────────────
@@ -595,54 +472,6 @@ function peerPayload(row: FederationPeerRow): FederationPeer {
     revokedAt: row.revoked_at,
     revokedBy: row.revoked_by,
   }
-}
-
-export function listFederationPeers(status?: FederationPeer['status']): FederationPeer[] {
-  const rows = (status
-    ? getDb().prepare('SELECT * FROM federation_peers WHERE status = ? ORDER BY added_at').all(status)
-    : getDb().prepare('SELECT * FROM federation_peers ORDER BY added_at').all()) as FederationPeerRow[]
-  return rows.map(peerPayload)
-}
-
-export function getFederationPeer(id: string): FederationPeer | null {
-  const row = getDb().prepare('SELECT * FROM federation_peers WHERE id = ?').get(id) as FederationPeerRow | undefined
-  return row ? peerPayload(row) : null
-}
-
-export function upsertFederationPeer(input: {
-  id: string
-  name: string
-  roles: string
-  descriptorUrl: string | null
-  descriptorJson: string
-  pinnedVia: FederationPeer['pinnedVia']
-  connectivity: FederationPeer['connectivity']
-  addedBy: string | null
-}): FederationPeer {
-  const db = getDb()
-  // The refresh path (an existing, ACTIVE row) re-pins the descriptor and
-  // stamps refreshed_at; a REVOKED peer is never resurrected by an upsert
-  // — re-adding a revoked peer is a deliberate new pin (delete-then-add
-  // is refused; the admin revokes, and a refresh of a revoked peer is
-  // refused by the route).
-  db.prepare(
-    `INSERT INTO federation_peers (id, name, roles, descriptor_url, descriptor_json, pinned_via, connectivity, added_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (id) DO UPDATE SET
-       name = excluded.name, roles = excluded.roles,
-       descriptor_url = excluded.descriptor_url, descriptor_json = excluded.descriptor_json,
-       pinned_via = excluded.pinned_via, connectivity = excluded.connectivity,
-       refreshed_at = datetime('now')`,
-  ).run(input.id, input.name, input.roles, input.descriptorUrl, input.descriptorJson, input.pinnedVia, input.connectivity, input.addedBy)
-  return getFederationPeer(input.id)!
-}
-
-export function revokeFederationPeer(id: string, revokedBy: string): FederationPeer | null {
-  const db = getDb()
-  db.prepare(
-    `UPDATE federation_peers SET status = 'revoked', revoked_at = datetime('now'), revoked_by = ? WHERE id = ?`,
-  ).run(revokedBy, id)
-  return getFederationPeer(id)
 }
 
 // ── User administration (TODO.federation/12 — multi-user instances) ──
@@ -1231,42 +1060,6 @@ function holderOrgPayload(row: HolderOrgRow): CertificateHolderOrg {
   }
 }
 
-/** INSERT-IF-ABSENT: the first attribution wins. NULL when the
- *  certificate already carries one (never a silent overwrite). */
-export function attributeCertificateHolderOrg(input: {
-  certificateId: string
-  orgId: string
-  orgName: string
-  source: CertificateHolderOrg['source']
-  attributedAt: string
-  attributedBy?: string | null
-  claimId?: string | null
-}): CertificateHolderOrg | null {
-  const res = getDb().prepare(
-    `INSERT OR IGNORE INTO certificate_holder_orgs
-       (certificate_id, org_id, org_name, source, attributed_at, attributed_by, claim_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    input.certificateId, input.orgId, input.orgName, input.source,
-    input.attributedAt, input.attributedBy ?? null, input.claimId ?? null,
-  )
-  if (res.changes === 0) return null
-  return getCertificateHolderOrg(input.certificateId)
-}
-
-export function getCertificateHolderOrg(certificateId: string): CertificateHolderOrg | null {
-  const row = getDb().prepare('SELECT * FROM certificate_holder_orgs WHERE certificate_id = ?')
-    .get(certificateId) as HolderOrgRow | undefined
-  return row ? holderOrgPayload(row) : null
-}
-
-export function listCertificateHolderOrgs(filter?: { orgId?: string }): CertificateHolderOrg[] {
-  const rows = (filter?.orgId
-    ? getDb().prepare('SELECT * FROM certificate_holder_orgs WHERE org_id = ?').all(filter.orgId)
-    : getDb().prepare('SELECT * FROM certificate_holder_orgs').all()) as HolderOrgRow[]
-  return rows.map(holderOrgPayload)
-}
-
 interface HolderClaimRow {
   id: string
   certificate_id: string
@@ -1295,65 +1088,6 @@ function holderClaimPayload(row: HolderClaimRow): CertificateHolderClaim {
     refusalReason: row.refusal_reason,
     createdAt: row.created_at,
   }
-}
-
-export function createCertificateHolderClaim(input: {
-  certificateId: string
-  claimantOrgId: string
-  claimantOrgName: string
-  matchedHolderName: string
-  claimedBy: string
-}): CertificateHolderClaim {
-  const id = randomUUID()
-  getDb().prepare(
-    `INSERT INTO certificate_holder_claims
-       (id, certificate_id, claimant_org_id, claimant_org_name, matched_holder_name, claimed_by)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(id, input.certificateId, input.claimantOrgId, input.claimantOrgName, input.matchedHolderName, input.claimedBy)
-  return getCertificateHolderClaim(id)!
-}
-
-export function getCertificateHolderClaim(id: string): CertificateHolderClaim | null {
-  const row = getDb().prepare('SELECT * FROM certificate_holder_claims WHERE id = ?')
-    .get(id) as HolderClaimRow | undefined
-  return row ? holderClaimPayload(row) : null
-}
-
-export function listCertificateHolderClaims(filter?: {
-  state?: CertificateHolderClaim['state']
-  claimantOrgId?: string
-  certificateId?: string
-}): CertificateHolderClaim[] {
-  const where: string[] = []
-  const args: unknown[] = []
-  if (filter?.state) { where.push('state = ?'); args.push(filter.state) }
-  if (filter?.claimantOrgId) { where.push('claimant_org_id = ?'); args.push(filter.claimantOrgId) }
-  if (filter?.certificateId) { where.push('certificate_id = ?'); args.push(filter.certificateId) }
-  const sql = `SELECT * FROM certificate_holder_claims${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at`
-  const rows = getDb().prepare(sql).all(...args) as HolderClaimRow[]
-  return rows.map(holderClaimPayload)
-}
-
-/** The estate admin's decision, ATOMIC on 'pending' — a double decision
- *  loses the race and answers null. */
-export function decideCertificateHolderClaim(
-  id: string,
-  decision: { status: 'confirmed' | 'refused'; decidedBy: string; refusalReason?: string | null },
-): CertificateHolderClaim | null {
-  const res = getDb().prepare(
-    `UPDATE certificate_holder_claims
-     SET state = ?, decided_by = ?, decided_at = datetime('now'), refusal_reason = ?
-     WHERE id = ? AND state = 'pending'`,
-  ).run(decision.status, decision.decidedBy, decision.refusalReason ?? null, id)
-  if (res.changes === 0) return null
-  return getCertificateHolderClaim(id)
-}
-
-export function findPendingCertificateHolderClaim(certificateId: string): CertificateHolderClaim | null {
-  const row = getDb().prepare(
-    "SELECT * FROM certificate_holder_claims WHERE certificate_id = ? AND state = 'pending'",
-  ).get(certificateId) as HolderClaimRow | undefined
-  return row ? holderClaimPayload(row) : null
 }
 
 // ── the instrument register (TODO.register/03) ─────────────────────────
@@ -1417,93 +1151,4 @@ function instrumentRegistrationPayload(row: InstrumentRegistrationRow): Instrume
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
   }
-}
-
-export function listInstrumentRegistrations(): InstrumentRegistration[] {
-  const rows = getDb().prepare('SELECT * FROM instrument_registrations').all() as InstrumentRegistrationRow[]
-  return rows
-    .map(instrumentRegistrationPayload)
-    .sort((a, b) => a.certificateId.localeCompare(b.certificateId) || a.serialNumber.localeCompare(b.serialNumber))
-}
-
-export function listInstrumentRegistrationsForCertificate(certificateId: string): InstrumentRegistration[] {
-  const rows = getDb().prepare('SELECT * FROM instrument_registrations WHERE certificate_id = ?').all(certificateId) as InstrumentRegistrationRow[]
-  return rows.map(instrumentRegistrationPayload).sort((a, b) => a.serialNumber.localeCompare(b.serialNumber))
-}
-
-export function listInstrumentRegistrationsForHolder(holderOrgId: string): InstrumentRegistration[] {
-  const rows = getDb().prepare('SELECT * FROM instrument_registrations WHERE holder_org_id = ?').all(holderOrgId) as InstrumentRegistrationRow[]
-  return rows.map(instrumentRegistrationPayload).sort((a, b) => a.serialNumber.localeCompare(b.serialNumber))
-}
-
-export function getInstrumentRegistration(id: string): InstrumentRegistration | null {
-  const row = getDb().prepare('SELECT * FROM instrument_registrations WHERE id = ?').get(id) as InstrumentRegistrationRow | undefined
-  return row ? instrumentRegistrationPayload(row) : null
-}
-
-/** Register the instrument; NULL on the (certificate, serial) conflict
- *  (the same physical unit never registers twice under one certificate —
- *  the route's honest 409). */
-export function createInstrumentRegistration(input: InstrumentRegistrationWriteInput): InstrumentRegistration | null {
-  const res = getDb().prepare(
-    `INSERT OR IGNORE INTO instrument_registrations
-       (id, certificate_id, holder_org_id, standard_id, serial_number, manufacture_date, designations, scope_status, scope_detail, registered_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    input.id, input.certificateId, input.holderOrgId, input.standardId, input.serialNumber,
-    input.manufactureDate ?? null, JSON.stringify(input.designations ?? {}),
-    input.scopeStatus, input.scopeDetail ?? null, input.registeredBy ?? null,
-  )
-  if (res.changes === 0) return null
-  return getInstrumentRegistration(input.id)
-}
-
-/** The batch register write (the seam's createInstrumentRegistrations,
- *  the 2026-09-07 audit's REAL J1): each row lands exactly as
- *  createInstrumentRegistration would land it — the INSERT OR IGNORE …
- *  RETURNING * answers the stored row off the write itself (NULL when it
- *  comes back empty: the (certificate, serial) conflict), the per-row
- *  answers aligned with the INPUT order — one transaction per
- *  INSTRUMENT_REGISTRATIONS_CHUNK rows. The chunk is the atomic unit,
- *  matching the D1 batch's all-or-nothing; a failed chunk throws with
- *  its rows unlanded, earlier chunks standing, later chunks never
- *  issued. The chunks run serially, so the register's insertion order
- *  IS the input's row order. */
-export function createInstrumentRegistrations(rows: readonly InstrumentRegistrationWriteInput[]): (InstrumentRegistration | null)[] {
-  if (rows.length === 0) return []
-  const db = getDb()
-  const insert = db.prepare(
-    `INSERT OR IGNORE INTO instrument_registrations
-       (id, certificate_id, holder_org_id, standard_id, serial_number, manufacture_date, designations, scope_status, scope_detail, registered_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-  )
-  const out: (InstrumentRegistration | null)[] = []
-  for (let i = 0; i < rows.length; i += INSTRUMENT_REGISTRATIONS_CHUNK) {
-    const chunk = rows.slice(i, i + INSTRUMENT_REGISTRATIONS_CHUNK)
-    db.transaction(() => {
-      for (const row of chunk) {
-        const stored = insert.get(
-          row.id, row.certificateId, row.holderOrgId, row.standardId, row.serialNumber,
-          row.manufactureDate ?? null, JSON.stringify(row.designations ?? {}),
-          row.scopeStatus, row.scopeDetail ?? null, row.registeredBy ?? null,
-        ) as InstrumentRegistrationRow | undefined
-        out.push(stored ? instrumentRegistrationPayload(stored) : null)
-      }
-    })()
-  }
-  return out
-}
-
-/** The lifecycle act (the transition rule is the route's); stamps
- *  updated_at/by. NULL when the register does not carry the id. */
-export function setInstrumentRegistrationLifecycle(
-  id: string,
-  lifecycle: InstrumentRegistrationLifecycle,
-  actor?: string | null,
-): InstrumentRegistration | null {
-  const res = getDb().prepare(
-    "UPDATE instrument_registrations SET lifecycle = ?, updated_at = datetime('now'), updated_by = ? WHERE id = ?",
-  ).run(lifecycle, actor ?? null, id)
-  if (res.changes === 0) return null
-  return getInstrumentRegistration(id)
 }

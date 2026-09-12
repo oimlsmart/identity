@@ -1591,15 +1591,6 @@ export interface ServerStore {
   // ── users / sessions (schema.sql's auth half) ──
   seedDemoAccounts(): Promise<void>
   authenticateDemo(email: string, password: string): Promise<AuthUserPayload | null>
-  findOrCreateOAuthUser(
-    provider: string,
-    providerAccountId: string,
-    email: string,
-    name: string,
-    avatarUrl?: string,
-    /** The INITIAL role/org (OAuthInitialAssignment) — create-time only. */
-    initial?: OAuthInitialAssignment,
-  ): Promise<AuthUserPayload>
   /** TODO.identity/06: the sign-in context (the account console's
    *  sessions section): the user agent + the client IP, stamped at
    *  creation (server/auth/client-info.ts). TODO.identity-sso/02+03:
@@ -1614,10 +1605,6 @@ export interface ServerStore {
    *  completed sign-in; the demo/OAuth paths bump it inline already. */
   touchLastLogin(userId: string): Promise<void>
   getSessionUser(token: string): Promise<AuthUserPayload | null>
-  /** The SSO logout hint (TODO.federation/10): the id_token of the SSO
-   *  sign-in this session came from, for RP-initiated logout — NEVER
-   *  part of AuthUserPayload (the client never sees it). */
-  getSessionIdTokenHint(token: string): Promise<string | null>
   deleteSession(token: string): Promise<void>
   cleanExpiredSessions(): Promise<void>
   listDemoAccounts(): Promise<Array<{ email: string; name: string; role: string }>>
@@ -1638,55 +1625,10 @@ export interface ServerStore {
     role: string
     orgId: string | null
   }): Promise<AuthUserPayload>
-  /** Link an SSO identity to an EXISTING account (verified-email
-   *  linking): the row takes the provider pair; its role/org stay as
-   *  the local assignment. */
-  linkProviderIdentity(userId: string, provider: string, providerAccountId: string): Promise<void>
   /** The approval decision's write: the account's role (+ org). */
   updateUserRoleOrg(userId: string, role: string, orgId: string | null): Promise<void>
-  /** Record/refresh the pending-approval row for (issuer, sub). */
-  upsertIdentityApproval(input: {
-    email: string
-    name: string
-    issuer: string
-    sub: string
-    claimsJson: string | null
-  }): Promise<IdentityApproval>
-  getIdentityApproval(issuer: string, sub: string): Promise<IdentityApproval | null>
-  listIdentityApprovals(status?: IdentityApproval['status']): Promise<IdentityApproval[]>
-  decideIdentityApproval(
-    id: string,
-    decision: { status: 'approved' | 'rejected'; role?: string; orgId?: string | null; decidedBy: string },
-  ): Promise<IdentityApproval | null>
-
   // ── the SSO sign-in state jar (TODO.identity/04) ──
-  /** Store one OIDC sign-in attempt's one-time state (the nonce + the
-   *  PKCE verifier). STORE-BACKED so every Worker isolate sees it — the
-   *  per-process Map it replaces could lose the callback's state check
-   *  to a sibling isolate. */
-  putSsoState(input: { state: string; nonce: string; verifier: string; ttlMs: number }): Promise<void>
-  /** Atomically consume the state: answers the row exactly once (a
-   *  replay loses the consumed_at race), and an EXPIRED row is consumed
-   *  too — never a second chance. */
-  consumeSsoState(state: string): Promise<SsoSignInState | null>
-
   // ── federation peers (TODO.federation/04) ──
-  listFederationPeers(status?: FederationPeer['status']): Promise<FederationPeer[]>
-  getFederationPeer(id: string): Promise<FederationPeer | null>
-  /** Add + refresh share this write (the pin path re-validates before
-   *  calling); refreshedAt stamps on update. */
-  upsertFederationPeer(input: {
-    id: string
-    name: string
-    roles: string
-    descriptorUrl: string | null
-    descriptorJson: string
-    pinnedVia: FederationPeer['pinnedVia']
-    connectivity: FederationPeer['connectivity']
-    addedBy: string | null
-  }): Promise<FederationPeer>
-  revokeFederationPeer(id: string, revokedBy: string): Promise<FederationPeer | null>
-
   // ── user administration (TODO.federation/12 — multi-user instances) ──
   listUsers(): Promise<UserAdminRow[]>
   createLocalUser(input: {
@@ -1780,12 +1722,6 @@ export interface ServerStore {
     ttlMs: number
   }): Promise<void>
   getOidcAccessToken(token: string): Promise<OidcAccessToken | null>
-  /** The account's LIVE access tokens (unexpired, never revoked — the
-   *  row's absence IS the revocation), newest first. The account console's
-   *  per-app read and the client-registry governance view's per-user
-   *  slice; the introspection endpoint never lists (it resolves ONE
-   *  presented token). */
-  listOidcAccessTokens(userId: string): Promise<OidcAccessToken[]>
   /** The RFC 7009 access-token revocation: delete the row, client-bound —
    *  a client revokes only its OWN tokens (a token minted for another
    *  client answers false). An absent row answers false too (the endpoint
@@ -1839,8 +1775,6 @@ export interface ServerStore {
   /** The key rotation history (public halves). */
   listOidcKeys(): Promise<OidcKeyRow[]>
   upsertOidcKey(input: { kid: string; publicJwk: string }): Promise<void>
-  retireOidcKey(kid: string): Promise<void>
-
   // ── the remembered consent grants (TODO.identity-features/12) ──
   /** The authorize endpoint's remembered-consent read: the account's
    *  LIVE grant for this client whose scope set COVERS the requested set
@@ -2411,53 +2345,6 @@ export interface ServerStore {
   // The certificate_holder_orgs / certificate_holder_claims tables (the
   // 0015 migration): the hub's record of WHICH OP org a registered
   // certificate belongs to, and the legacy-row claim act's state machine.
-  /** The attribution write — INSERT-IF-ABSENT (the first attribution
-   *  wins): the new row, or NULL when the certificate already carries
-   *  one (the claim's confirmation reports the conflict honestly). */
-  attributeCertificateHolderOrg(input: {
-    certificateId: string
-    orgId: string
-    orgName: string
-    source: CertificateHolderOrg['source']
-    attributedAt: string
-    attributedBy?: string | null
-    claimId?: string | null
-  }): Promise<CertificateHolderOrg | null>
-  getCertificateHolderOrg(certificateId: string): Promise<CertificateHolderOrg | null>
-  /** The surface's reads: one org's attributions (the manufacturer cone),
-   *  or every row (the estate cone — no filter). */
-  listCertificateHolderOrgs(filter?: { orgId?: string }): Promise<CertificateHolderOrg[]>
-  /** File the legacy-row claim (the manufacturer org admin's act). */
-  createCertificateHolderClaim(input: {
-    certificateId: string
-    claimantOrgId: string
-    claimantOrgName: string
-    matchedHolderName: string
-    claimedBy: string
-  }): Promise<CertificateHolderClaim>
-  getCertificateHolderClaim(id: string): Promise<CertificateHolderClaim | null>
-  /** The queues: the estate admin's pending list (state filter), the
-   *  claiming org's own claims (claimantOrgId filter), one certificate's
-   *  claim history (certificateId filter). */
-  listCertificateHolderClaims(filter?: {
-    state?: CertificateHolderClaimState
-    claimantOrgId?: string
-    certificateId?: string
-  }): Promise<CertificateHolderClaim[]>
-  /** The estate admin's decision — ATOMIC on 'pending': an
-   *  already-decided claim answers null (a double confirm/refuse loses
-   *  the race honestly). */
-  decideCertificateHolderClaim(
-    id: string,
-    decision: {
-      status: 'confirmed' | 'refused'
-      decidedBy: string
-      refusalReason?: string | null
-    },
-  ): Promise<CertificateHolderClaim | null>
-  /** A PENDING claim on this certificate exists (the one-active-claim
-   *  guard — decided claims never block a fresh claim). */
-  findPendingCertificateHolderClaim(certificateId: string): Promise<CertificateHolderClaim | null>
   // ── the instrument register (TODO.register/03) ──
   // The platform-side serial register (the instrument_registrations
   // table): one row per registered instrument under a type certificate.
@@ -2465,57 +2352,6 @@ export interface ServerStore {
   // registrations.ts); the store keeps the rows. Every row the store
   // returns is a registration that STOOD — the refused declaration never
   // lands (the route answers it with the reason).
-  /** Every registered instrument (the BIML/operator cone); ordered by
-   *  certificate then serial. */
-  listInstrumentRegistrations(): Promise<InstrumentRegistration[]>
-  /** The serials registered under one certificate (the certificate
-   *  detail's serials tab + the issuing IA's oversight cone). */
-  listInstrumentRegistrationsForCertificate(certificateId: string): Promise<InstrumentRegistration[]>
-  /** The serials one holder organization registered (the manufacturer's
-   *  own cone). */
-  listInstrumentRegistrationsForHolder(holderOrgId: string): Promise<InstrumentRegistration[]>
-  getInstrumentRegistration(id: string): Promise<InstrumentRegistration | null>
-  /** Register the instrument. NULL on the (certificate_id,
-   *  serial_number) conflict — the same physical unit never registers
-   *  twice under one certificate (the route's honest 409). */
-  createInstrumentRegistration(input: InstrumentRegistrationWriteInput): Promise<InstrumentRegistration | null>
-  /** The BATCH register write (the 2026-09-07 performance audit's REAL
-   *  J1 — the CSV commit awaited createInstrumentRegistration per
-   *  imported row: ~10⁴ rows = minutes of serial D1 writes at demo
-   *  latency, two round trips each): every row lands exactly as the
-   *  single-row verb would land it, but the rows ride ONE db.batch per
-   *  INSTRUMENT_REGISTRATIONS_CHUNK rows, the INSERT OR IGNORE …
-   *  RETURNING * answering the stored row off the write itself (the
-   *  appendEvent halving — never the INSERT + SELECT-by-id pair).
-   *
-   *  The per-row answer, aligned with the INPUT order: the stored row,
-   *  or NULL on the (certificate_id, serial_number) conflict — the
-   *  single verb's honest null, so the route's per-row refusal leg (the
-   *  serial registered between the evaluation and the commit) rides
-   *  unchanged.
-   *
-   *  The ordering contract: the statements ride each batch in input
-   *  order and the chunks issue SERIALLY, so the register's insertion
-   *  order IS the input's row order (the CSV row order; the commit's
-   *  chain events sequence after it, same order). A caller
-   *  parallelizing the call itself forfeits the contract.
-   *
-   *  The failure contract mirrors putEntities: the chunk is the ATOMIC
-   *  unit (a D1 batch is all-or-nothing; the SQLite half wraps each
-   *  chunk in a transaction). A failed chunk lands NOTHING of its rows
-   *  and the call throws — earlier chunks' writes STAND, later chunks
-   *  never issue. An empty rows list resolves to [] without issuing a
-   *  statement. */
-  createInstrumentRegistrations(rows: readonly InstrumentRegistrationWriteInput[]): Promise<(InstrumentRegistration | null)[]>
-  /** The lifecycle act (registered ⇄ out_of_service → withdrawn; the
-   *  transition RULE is the route's — withdrawn is terminal): stamps
-   *  updated_at/by. NULL when the register does not carry the id. */
-  setInstrumentRegistrationLifecycle(
-    id: string,
-    lifecycle: InstrumentRegistrationLifecycle,
-    actor?: string | null,
-  ): Promise<InstrumentRegistration | null>
-
   // ── the workflow entity store + change journal ──
   /** The store's rows, in the seam's declared order: (org_id, rowid) —
    *  the read's observable order since migration 0001 (NULL org ids
@@ -2528,254 +2364,13 @@ export interface ServerStore {
    *  order's restriction to the candidates. */
   listEntities(store: string, options?: EntityListOptions): Promise<EntityRow[]>
   getEntity(store: string, id: string): Promise<EntityRow | undefined>
-  /** The public register's certificate-number lookup (the verify
-   *  surfaces' keyed read — the 2026-09-07 performance audit's
-   *  public-lookup seam): the register resolved a number by
-   *  full-scanning listEntities('certificates') and JSON-parsing every
-   *  row to case-fold certificate_number — O(store rows) per lookup.
-   *  The keyed read walks idx_entities_store_certificate_number
-   *  (migration 0028): the json_valid-guarded extract, COLLATE NOCASE
-   *  (the register's number match is case-insensitive; the fold is
-   *  ASCII, the number grammar's alphabet). Answers every match in the
-   *  seam's list order (org_id, rowid), so the first match IS the
-   *  retiring scan's first match. The statement INDEXED BY-pins the
-   *  walk: a database behind migration 0028 errors honestly, never
-   *  scans silently. The hardcoded store name follows the
-   *  lastAccountSignIns 'auditEvents' precedent — the read's semantics
-   *  ARE the consumer's data convention. */
-  findCertificatesByNumber(number: string): Promise<EntityRow[]>
   putEntity(store: string, id: string, orgId: string | null, data: string): Promise<void>
-  /** The MULTI-ROW write (the 2026-09-07 performance audit's J1 — the
-   *  CSV registration commit awaited putEntity per imported row, ~10⁴
-   *  rows = minutes of serial D1 writes at demo latency): every row
-   *  lands exactly as putEntity would land it (the upsert + its
-   *  journal 'persist' entry, one journal row per input row, a
-   *  duplicate id re-journals and the last write wins), but the rows
-   *  ride ONE db.batch per PUT_ENTITIES_CHUNK rows instead of one
-   *  round trip per row.
-   *
-   *  The ordering contract — a semantic property of the audit chain,
-   *  never an implementation detail: the journal's seq order IS the
-   *  input's row order. The statements ride each batch in input order
-   *  and the chunks issue SERIALLY (parallel chunks would interleave
-   *  the seq assignment); a caller parallelizing the call itself
-   *  forfeits the contract.
-   *
-   *  The failure contract: the chunk is the ATOMIC unit (a D1 batch is
-   *  all-or-nothing; the SQLite half wraps each chunk in a
-   *  transaction). A failed chunk lands NOTHING of its rows and the
-   *  call throws — but earlier chunks' writes STAND, and later chunks
-   *  never issue. A caller needing the whole import all-or-nothing
-   *  keeps it under one chunk (or compensates above the seam; the
-   *  retry re-journals, the same caveat as any putEntity retry — the
-   *  bounded-write facade's StoreUnavailable "may have landed"
-   *  posture). An empty rows list resolves without issuing a
-   *  statement. */
-  putEntities(store: string, rows: readonly EntityWriteInput[]): Promise<void>
   deleteEntity(store: string, id: string): Promise<boolean>
-  changesAfter(seq: number, limit?: number): Promise<EntityChange[]>
-  /** The GLOBAL journal high-water: the bootstrap snapshot's ETag leg
-   *  (any write anywhere bumps the one seq — conservative, never
-   *  stale). */
-  latestChangeSeq(): Promise<number>
-  /** The PER-STORE high-water: MAX(seq) over one store's slice of the
-   *  SAME journal. The seq stays global and monotone — the per-store
-   *  read is a PROJECTION of the one journal, never a second sequence.
-   *  A store with no writes answers 0 (the empty journal's floor, the
-   *  same as the global form's). The read is one indexed probe over
-   *  idx_entity_changes_store_seq (migration 0026 — the (store, seq)
-   *  walk rode that commit, expand-only per the migration contract),
-   *  so a per-store conditional revalidation / SSE resume probe never
-   *  pays a journal scan. Landed for the 2026-09-07 performance
-   *  audit's G1: the smart side's bootstrap composite ETag switches
-   *  from the global seq to the per-set composite of these. */
-  latestChangeSeqFor(store: string): Promise<number>
-  /** The journal fan-out (the SSE stream's true-push wake): registers a
-   *  listener on the ISOLATE-scope registry — every entity_changes
-   *  append landing in THIS isolate (putEntity's entry, each putEntities
-   *  chunk's entries as the chunk lands, deleteEntity's remove) fires it
-   *  synchronously AFTER the write stands, with the appended (store,
-   *  type, id) triples in the write's input order. The answer is the
-   *  unregister (idempotent).
-   *
-   *  The honesty boundary: the journal's source of truth is the
-   *  DATABASE — a write landing in ANOTHER isolate (a sibling Worker)
-   *  never fires this isolate's listeners, so a consumer keeps its poll
-   *  as the fallback and treats the fan-out as a wake-up hint, never a
-   *  correctness channel. A listener's throw is swallowed per listener:
-   *  the write path never breaks for a listener. */
-  onJournalAppend(listener: (appends: readonly JournalAppend[]) => void): () => void
-
   // ── the platform event store (TODO.notify/01) ──
-  /** Append one declared event (the emitter's write; one row inside the
-   *  acting request's envelope). Answers the stored row (seq + at read
-   *  back) off the INSERT's own RETURNING — ONE round trip, never the
-   *  INSERT + SELECT-by-id pair. */
-  appendEvent(input: EventWriteInput): Promise<PlatformEvent>
-  /** The BULK append (the 2026-09-07 performance audit's chain half —
-   *  the CSV registration commit's one chain event per imported serial,
-   *  a second serial loop after the register writes): every event lands
-   *  exactly as appendEvent would land it, the rows riding ONE
-   *  db.batch per APPEND_EVENTS_CHUNK rows. Answers the stored rows in
-   *  INPUT order — the seqs strictly increase in it (the statements
-   *  ride each batch in input order, the chunks SERIALLY; the same
-   *  semantic contract as putEntities').
-   *
-   *  The failure contract mirrors putEntities: the chunk is the ATOMIC
-   *  unit; a failed chunk lands NOTHING of its events and the call
-   *  throws — earlier chunks stand, later chunks never issue. An empty
-   *  list resolves to [] without issuing a statement. */
-  appendEvents(events: readonly EventWriteInput[]): Promise<PlatformEvent[]>
-  /** The feed's raw leg: events past the cursor, seq-ordered. The
-   *  visibility gate is the READER's layer (server/notify-feed.ts) —
-   *  never waived here, never duplicated into the SQL. */
-  eventsAfter(seq: number, limit?: number): Promise<PlatformEvent[]>
-  latestEventSeq(): Promise<number>
-  /** The by-id read (the inbox state write's guard — TODO.notify/03: a
-   *  marker lands only on an event that exists and is the caller's). */
-  getEvent(id: string): Promise<PlatformEvent | null>
-  /** The BULK by-id read (the notify digest's event join): the digest
-   *  run awaited getEvent once per queued delivery row — N serial round
-   *  trips for N rows. The bulk form resolves every id in ONE statement
-   *  per chunk of EVENTS_ID_CHUNK ids (the IN walk against the id UNIQUE
-   *  index; never a compound SELECT — the D1 5-term cap rule).
-   *
-   *  The answer contract: INPUT-ALIGNED — position i answers the row for
-   *  ids[i], null where no event carries the id (exactly the per-id
-   *  getEvent loop's answers; a duplicate id answers its row at every
-   *  position). An empty list answers [] without issuing a statement. */
-  getEvents(ids: readonly string[]): Promise<(PlatformEvent | null)[]>
-  /** The subscription grammar's SQL resolution: the columns the pattern
-   *  pins, equality-matched (`WHERE domain = ? AND entity_id = ?` — the
-   *  column split's whole point, never a string scan on a composed key). */
-  eventsMatching(filter: EventKeyFilter, limit?: number): Promise<PlatformEvent[]>
-  /** The BULK history read (the 2026-09-06 performance audit's
-   *  notify-inbox seam): the participant-history class awaits the
-   *  single-key form once per DISTINCT entity — ~100 D1 round trips for
-   *  a 500-event window. The bulk form resolves every pinned (domain,
-   *  entityId) pair in ONE statement per chunk of EVENTS_BULK_KEY_CHUNK
-   *  (the OR-of-ANDs WHERE walks idx_events_domain_entity per term;
-   *  never a compound SELECT — the D1 5-term cap rule).
-   *
-   *  The ordering contract: the answer is the MERGED matched set,
-   *  seq-ordered (never grouped per key); `limit` truncates the merged
-   *  set exactly as the single-key form truncates its own; duplicate
-   *  keys match their rows once (the OR is a set union, not a concat);
-   *  an empty keys list answers [] without issuing a statement. */
-  eventsMatching(filter: { keys: readonly EventEntityKey[] }, limit?: number): Promise<PlatformEvent[]>
-
   // ── the notification subscriptions store (TODO.notify/02) ──
-  /** The user's own rule rows (both modes) — the settings page's list. */
-  listNotifyRules(userId: string): Promise<NotifyRule[]>
-  /** The upsert on UNIQUE (user_id, pattern): subscribe/unsubscribe and
-   *  pattern-mute ride the same write; the caller (the route) has already
-   *  compiled the pattern into its split legs. Answers the stored row. */
-  putNotifyRule(input: {
-    id: string
-    userId: string
-    pattern: string
-    domain: string
-    entityId: string | null
-    action: string | null
-    mode: NotifyRuleMode
-    channelOverrides: string | null
-  }): Promise<NotifyRule>
-  /** Remove the user's rule on the exact pattern (unsubscribe /
-   *  un-mute). Idempotent: answers false when no row existed. */
-  deleteNotifyRule(userId: string, pattern: string): Promise<boolean>
-  /** THE RESOLUTION'S READ (cross-user): every rule row whose pinned
-   *  legs the event satisfies — `domain = ? AND (entity_id IS NULL OR
-   *  entity_id = ?) AND (action IS NULL OR action = ?)`. The split
-   *  columns make the reverse match an index walk. */
-  notifyRulesForEvent(filter: { domain: string; entityId: string; action: string }): Promise<NotifyRule[]>
-  /** The user's per-entity mutes (the settings page's muted-threads
-   *  list). */
-  listNotifyEntityMutes(userId: string): Promise<NotifyEntityMute[]>
-  /** The entity mute's write (the bell's Muted state, the email
-   *  footer's one-click unsubscribe). Idempotent on UNIQUE
-   *  (user_id, domain, entity_id). */
-  putNotifyEntityMute(input: { id: string; userId: string; domain: string; entityId: string }): Promise<NotifyEntityMute>
-  /** Clear the entity mute. Idempotent: false when nothing was muted. */
-  deleteNotifyEntityMute(userId: string, domain: string, entityId: string): Promise<boolean>
-  /** THE RESOLUTION'S entity-mute read (cross-user): every mute naming
-   *  the event's entity. */
-  notifyEntityMutesForEvent(domain: string, entityId: string): Promise<NotifyEntityMute[]>
-  /** The user's preferences row — NULL until the first preference write
-   *  (every category then follows the catalog defaults). */
-  getNotifyPreferences(userId: string): Promise<NotifyPreferences | null>
-  /** The preferences write (the whole channels map, validated by the
-   *  route). Answers the stored row. */
-  putNotifyPreferences(userId: string, channels: string): Promise<NotifyPreferences>
-
   // ── the inbox state (TODO.notify/03) ──
-  /** The user's inbox markers (the feed's join: read/done/saved per
-   *  event). Written lazily at the first act — most events carry no row. */
-  listNotifyInboxStates(userId: string): Promise<NotifyInboxState[]>
-  /** The marker write (the upsert on PRIMARY KEY (user_id, event_id)):
-   *  each PRESENT flag sets its stamp (datetime('now')) or clears it
-   *  (NULL); absent flags keep. `saved` (migration 0027, TODO.notify/05's
-   *  remainders) is the per-event saved flag, the same stamp/clear
-   *  posture. Answers the stored row. */
-  putNotifyInboxState(input: {
-    userId: string
-    eventId: string
-    read?: boolean
-    done?: boolean
-    saved?: boolean
-  }): Promise<NotifyInboxState>
-
   // ── the email channel's delivery store (TODO.notify/04) ──
-  /** The fan-out's write (the upsert on UNIQUE (event_id, user_id) — a
-   *  re-driven event updates, never duplicates). Answers the stored row. */
-  putNotifyDelivery(input: {
-    id: string
-    eventId: string
-    userId: string
-    reason: string
-    email: NotifyChannelPreference
-    emailStatus: NotifyDeliveryStatus | null
-  }): Promise<NotifyDelivery>
-  /** The by-pair read (the idempotence leg + the proofs). */
-  getNotifyDelivery(eventId: string, userId: string): Promise<NotifyDelivery | null>
-  /** One event's delivery rows (the proofs; the fan-out's own log). */
-  listNotifyDeliveriesForEvent(eventId: string): Promise<NotifyDelivery[]>
-  /** THE DIGEST SWEEP's reads: the users holding digest-pending rows,
-   *  then one user's pending rows (created_at order — the day's story). */
-  notifyDigestPendingUsers(): Promise<string[]>
-  notifyDigestPendingForUser(userId: string): Promise<NotifyDelivery[]>
-  /** THE RETRY SWEEP's read: the failed immediate rows, oldest first
-   *  (bounded — the sweep re-attempts per run, the mailer's rate limits
-   *  stand per attempt). */
-  notifyFailedDeliveries(limit?: number): Promise<NotifyDelivery[]>
-  /** The terminal/pending mark: the status + the stamp (email_at sets on
-   *  the terminal marks — sent/failed/rate_limited/unavailable/
-   *  digest_sent/digest_failed/digest_dropped — and CLEARS back to NULL
-   *  when a row re-enters digest_pending, so a retry's re-queue is
-   *  honest). */
-  markNotifyDelivery(id: string, status: NotifyDeliveryStatus): Promise<void>
-
   // ── provisioning / dev support ──
-  /** The mutable workflow stores emptied (the dev-reset + demo reseed
-   *  leg): entities, entity_changes, evidence_records, events, and
-   *  instrument_registrations (TODO.register/03 — the register is
-   *  mutable workflow state; the e2e isolation resets it with the
-   *  rest). Users and sessions persist.
-   *  With `range`, ONE bounded round instead: only rows whose rowid
-   *  falls in (range.after, range.through] go, per table. The demo
-   *  reseed's reset phase walks these rounds under the slice budget —
-   *  an unbounded DELETE on a grown store dies against D1's per-
-   *  statement execution limits (the 2026-08 demo-reset flake), and
-   *  rowid ranges are stable under deletion, so rounds resume and
-   *  replay exactly. Returns the rows deleted (all tables summed). */
-  wipeWorkflowStores(range?: { after: number; through: number }): Promise<number>
-  /** The rowid ceiling across the wiped tables — the reset phase's
-   *  round planning (rounds = ceil(ceiling / chunk)). 0 on empty
-   *  stores. One statement, NEVER a compound SELECT: D1 caps a
-   *  compound's terms at 5 (the 2026-09 demo-reset wall), so the
-   *  implementations read per-table scalar subqueries under the scalar
-   *  max(), derived from the wipe's own table set. */
-  workflowStoreRowCeiling(): Promise<number>
-  countEntities(): Promise<number>
 }
 
 let current: ServerStore | null = null

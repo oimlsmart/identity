@@ -880,37 +880,6 @@ export class D1ServerStore implements ServerStore {
     return toPayload(user)
   }
 
-  async findOrCreateOAuthUser(
-    provider: string,
-    providerAccountId: string,
-    email: string,
-    name: string,
-    avatarUrl?: string,
-    // The INITIAL role/org — applied only on CREATE (an existing
-    // account keeps its local assignment).
-    initial?: OAuthInitialAssignment,
-  ): Promise<AuthUserPayload> {
-    const existing = await this.stmt(
-      'SELECT * FROM users WHERE provider = ? AND provider_account_id = ?', provider, providerAccountId,
-    ).first<UserRecord>()
-
-    if (existing) {
-      await this.stmt("UPDATE users SET last_login = datetime('now'), avatar_url = ? WHERE id = ?",
-        avatarUrl ?? null, existing.id).run()
-      return toPayload(existing, avatarUrl)
-    }
-
-    const id = crypto.randomUUID()
-    const role = initial?.role ?? 'user'
-    const orgId = initial?.orgId ?? null
-    await this.stmt(
-      "INSERT INTO users (id, email, name, avatar_url, provider, provider_account_id, role, org_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      id, email, name, avatarUrl ?? null, provider, providerAccountId, role, orgId,
-    ).run()
-    if (orgId) await this.syncPrimaryMembership(id) // TODO.identity/11 — the mirror
-    return { id, email, name, role, orgId, avatarUrl }
-  }
-
   async createSession(
     userId: string,
     opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null },
@@ -928,14 +897,6 @@ export class D1ServerStore implements ServerStore {
 
   async touchLastLogin(userId: string): Promise<void> {
     await this.stmt("UPDATE users SET last_login = datetime('now') WHERE id = ?", userId).run()
-  }
-
-  async getSessionIdTokenHint(token: string): Promise<string | null> {
-    const row = await this.stmt(
-      "SELECT id_token_hint FROM sessions WHERE token = ? AND expires_at > datetime('now')",
-      token,
-    ).first<{ id_token_hint: string | null }>()
-    return row?.id_token_hint ?? null
   }
 
   /** TODO.identity/06's last-active stamp, throttled to one ISSUED write
@@ -1063,13 +1024,6 @@ export class D1ServerStore implements ServerStore {
     return { id, email: input.email, name: input.name, role: input.role, orgId: input.orgId }
   }
 
-  async linkProviderIdentity(userId: string, provider: string, providerAccountId: string): Promise<void> {
-    await this.stmt(
-      "UPDATE users SET provider = ?, provider_account_id = ?, last_login = datetime('now') WHERE id = ?",
-      provider, providerAccountId, userId,
-    ).run()
-  }
-
   async updateUserRoleOrg(userId: string, role: string, orgId: string | null): Promise<void> {
     await this.stmt('UPDATE users SET role = ?, org_id = ? WHERE id = ?', role, orgId, userId).run()
     if (orgId) await this.syncPrimaryMembership(userId) // TODO.identity/11 — the mirror
@@ -1083,128 +1037,12 @@ export class D1ServerStore implements ServerStore {
     return row ? toIdentityApproval(row) : null
   }
 
-  async upsertIdentityApproval(input: {
-    email: string
-    name: string
-    issuer: string
-    sub: string
-    claimsJson: string | null
-  }): Promise<IdentityApproval> {
-    await this.stmt(
-      `INSERT INTO identity_approvals (id, email, name, issuer, sub, claims_json, last_seen)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-       ON CONFLICT (issuer, sub) DO UPDATE SET
-         email = excluded.email, name = excluded.name, claims_json = excluded.claims_json,
-         last_seen = datetime('now')`,
-      crypto.randomUUID(), input.email, input.name, input.issuer, input.sub, input.claimsJson,
-    ).run()
-    return (await this.approvalRow('issuer = ? AND sub = ?', input.issuer, input.sub))!
-  }
-
-  async getIdentityApproval(issuer: string, sub: string): Promise<IdentityApproval | null> {
-    return this.approvalRow('issuer = ? AND sub = ?', issuer, sub)
-  }
-
-  async listIdentityApprovals(status?: IdentityApproval['status']): Promise<IdentityApproval[]> {
-    const res = status
-      ? await this.stmt('SELECT * FROM identity_approvals WHERE status = ? ORDER BY created_at', status).all<Record<string, unknown>>()
-      : await this.stmt('SELECT * FROM identity_approvals ORDER BY created_at').all<Record<string, unknown>>()
-    return res.results.map(toIdentityApproval)
-  }
-
-  async decideIdentityApproval(
-    id: string,
-    decision: { status: 'approved' | 'rejected'; role?: string; orgId?: string | null; decidedBy: string },
-  ): Promise<IdentityApproval | null> {
-    await this.stmt(
-      `UPDATE identity_approvals SET status = ?, decided_role = ?, decided_org = ?, decided_by = ?, decided_at = datetime('now')
-       WHERE id = ?`,
-      decision.status, decision.role ?? null, decision.orgId ?? null, decision.decidedBy, id,
-    ).run()
-    return this.approvalRow('id = ?', id)
-  }
-
   // ── the SSO sign-in state jar (TODO.identity/04) ───────────────────
   // The rows port directly (D1 is SQLite); the consume's UPDATE flip is
   // the atomic single-use guarantee across isolates.
 
-  async putSsoState(input: { state: string; nonce: string; verifier: string; ttlMs: number }): Promise<void> {
-    // The expiry sweep rides the write: stale rows are inert (consume
-    // checks the expiry) but never accumulate.
-    await this.stmt('DELETE FROM sso_states WHERE expires_at <= ?', new Date().toISOString()).run()
-    await this.stmt(
-      'INSERT INTO sso_states (state, nonce, verifier, expires_at) VALUES (?, ?, ?, ?)',
-      input.state, input.nonce, input.verifier, new Date(Date.now() + input.ttlMs).toISOString(),
-    ).run()
-  }
-
-  /** Atomically consume the state: the UPDATE flips consumed_at exactly
-   *  once (a replay loses the race and answers null). An EXPIRED row is
-   *  consumed too — never a second chance. */
-  async consumeSsoState(state: string): Promise<SsoSignInState | null> {
-    const res = await this.stmt(
-      "UPDATE sso_states SET consumed_at = datetime('now') WHERE state = ? AND consumed_at IS NULL", state,
-    ).run()
-    if ((res.meta.changes ?? 0) === 0) return null
-    const row = await this.stmt('SELECT state, nonce, verifier, expires_at FROM sso_states WHERE state = ?', state)
-      .first<Record<string, unknown>>()
-    if (!row) return null
-    if (new Date(row.expires_at as string).getTime() <= Date.now()) return null
-    return {
-      state: row.state as string,
-      nonce: row.nonce as string,
-      verifier: row.verifier as string,
-      expiresAt: row.expires_at as string,
-    }
-  }
-
   // ── federation peers (TODO.federation/04) ───────────────────────────
   // The peer rows port directly (D1 is SQLite).
-
-  async listFederationPeers(status?: FederationPeer['status']): Promise<FederationPeer[]> {
-    const res = status
-      ? await this.stmt('SELECT * FROM federation_peers WHERE status = ? ORDER BY added_at', status).all<Record<string, unknown>>()
-      : await this.stmt('SELECT * FROM federation_peers ORDER BY added_at').all<Record<string, unknown>>()
-    return res.results.map(toFederationPeer)
-  }
-
-  async getFederationPeer(id: string): Promise<FederationPeer | null> {
-    const row = await this.stmt('SELECT * FROM federation_peers WHERE id = ?', id).first<Record<string, unknown>>()
-    return row ? toFederationPeer(row) : null
-  }
-
-  async upsertFederationPeer(input: {
-    id: string
-    name: string
-    roles: string
-    descriptorUrl: string | null
-    descriptorJson: string
-    pinnedVia: FederationPeer['pinnedVia']
-    connectivity: FederationPeer['connectivity']
-    addedBy: string | null
-  }): Promise<FederationPeer> {
-    // The same upsert semantics as the SQLite store: an update stamps
-    // refreshed_at and never resurrects a revoked peer.
-    await this.stmt(
-      `INSERT INTO federation_peers (id, name, roles, descriptor_url, descriptor_json, pinned_via, connectivity, added_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (id) DO UPDATE SET
-         name = excluded.name, roles = excluded.roles,
-         descriptor_url = excluded.descriptor_url, descriptor_json = excluded.descriptor_json,
-         pinned_via = excluded.pinned_via, connectivity = excluded.connectivity,
-         refreshed_at = datetime('now')`,
-      input.id, input.name, input.roles, input.descriptorUrl, input.descriptorJson, input.pinnedVia, input.connectivity, input.addedBy,
-    ).run()
-    return (await this.getFederationPeer(input.id))!
-  }
-
-  async revokeFederationPeer(id: string, revokedBy: string): Promise<FederationPeer | null> {
-    await this.stmt(
-      `UPDATE federation_peers SET status = 'revoked', revoked_at = datetime('now'), revoked_by = ? WHERE id = ?`,
-      revokedBy, id,
-    ).run()
-    return this.getFederationPeer(id)
-  }
 
   // ── user administration (TODO.federation/12) ─────────────────────
 
@@ -1487,25 +1325,6 @@ export class D1ServerStore implements ServerStore {
     }
   }
 
-  /** The account console's per-app read + the governance view's per-user
-   *  slice: the account's LIVE access tokens, newest first — created_at
-   *  is second-resolution, the rowid breaks the tie. */
-  async listOidcAccessTokens(userId: string): Promise<OidcAccessToken[]> {
-    await this.ensureMembershipSupport()
-    const res = await this.stmt(
-      "SELECT * FROM oidc_access_tokens WHERE user_id = ? AND datetime(expires_at) > datetime('now') ORDER BY created_at DESC, rowid DESC", userId,
-    ).all<Record<string, unknown>>()
-    return res.results.map(row => ({
-      token: row.token as string,
-      userId: row.user_id as string,
-      clientId: row.client_id as string,
-      scope: row.scope as string,
-      contextOrg: (row.context_org as string | null) ?? null,
-      amr: parseRoles((row.amr as string | null) ?? null) ?? null,
-      expiresAt: row.expires_at as string,
-    }))
-  }
-
   /** The RFC 7009 access-token revocation: the row goes, client-bound. */
   async deleteOidcAccessToken(token: string, clientId: string): Promise<boolean> {
     await this.ensureMembershipSupport()
@@ -1640,12 +1459,6 @@ export class D1ServerStore implements ServerStore {
 
   async upsertOidcKey(input: { kid: string; publicJwk: string }): Promise<void> {
     await this.stmt('INSERT OR IGNORE INTO oidc_keys (kid, public_jwk) VALUES (?, ?)', input.kid, input.publicJwk).run()
-  }
-
-  async retireOidcKey(kid: string): Promise<void> {
-    await this.stmt(
-      "UPDATE oidc_keys SET status = 'retired', retired_at = datetime('now') WHERE kid = ? AND status = 'active'", kid,
-    ).run()
   }
 
   // ── the remembered consent grants (TODO.identity-features/12) ─────
@@ -3354,44 +3167,6 @@ export class D1ServerStore implements ServerStore {
     }
   }
 
-  /** INSERT-IF-ABSENT — the first attribution wins (NULL on an existing
-   *  row, never a silent overwrite). */
-  async attributeCertificateHolderOrg(input: {
-    certificateId: string
-    orgId: string
-    orgName: string
-    source: CertificateHolderOrg['source']
-    attributedAt: string
-    attributedBy?: string | null
-    claimId?: string | null
-  }): Promise<CertificateHolderOrg | null> {
-    await this.ensureHolderAttributionSupport()
-    const res = await this.stmt(
-      `INSERT OR IGNORE INTO certificate_holder_orgs
-         (certificate_id, org_id, org_name, source, attributed_at, attributed_by, claim_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      input.certificateId, input.orgId, input.orgName, input.source,
-      input.attributedAt, input.attributedBy ?? null, input.claimId ?? null,
-    ).run()
-    if ((res.meta.changes ?? 0) === 0) return null
-    return this.getCertificateHolderOrg(input.certificateId)
-  }
-
-  async getCertificateHolderOrg(certificateId: string): Promise<CertificateHolderOrg | null> {
-    await this.ensureHolderAttributionSupport()
-    const row = await this.stmt('SELECT * FROM certificate_holder_orgs WHERE certificate_id = ?', certificateId)
-      .first<Record<string, unknown>>()
-    return row ? D1ServerStore.toCertificateHolderOrg(row) : null
-  }
-
-  async listCertificateHolderOrgs(filter?: { orgId?: string }): Promise<CertificateHolderOrg[]> {
-    await this.ensureHolderAttributionSupport()
-    const res = filter?.orgId
-      ? await this.stmt('SELECT * FROM certificate_holder_orgs WHERE org_id = ?', filter.orgId).all<Record<string, unknown>>()
-      : await this.stmt('SELECT * FROM certificate_holder_orgs').all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toCertificateHolderOrg)
-  }
-
   private static toCertificateHolderClaim(row: Record<string, unknown>): CertificateHolderClaim {
     return {
       id: row.id as string,
@@ -3406,75 +3181,6 @@ export class D1ServerStore implements ServerStore {
       refusalReason: (row.refusal_reason as string | null) ?? null,
       createdAt: row.created_at as string,
     }
-  }
-
-  async createCertificateHolderClaim(input: {
-    certificateId: string
-    claimantOrgId: string
-    claimantOrgName: string
-    matchedHolderName: string
-    claimedBy: string
-  }): Promise<CertificateHolderClaim> {
-    await this.ensureHolderAttributionSupport()
-    const id = crypto.randomUUID()
-    await this.stmt(
-      `INSERT INTO certificate_holder_claims
-         (id, certificate_id, claimant_org_id, claimant_org_name, matched_holder_name, claimed_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      id, input.certificateId, input.claimantOrgId, input.claimantOrgName, input.matchedHolderName, input.claimedBy,
-    ).run()
-    return (await this.getCertificateHolderClaim(id))!
-  }
-
-  async getCertificateHolderClaim(id: string): Promise<CertificateHolderClaim | null> {
-    await this.ensureHolderAttributionSupport()
-    const row = await this.stmt('SELECT * FROM certificate_holder_claims WHERE id = ?', id)
-      .first<Record<string, unknown>>()
-    return row ? D1ServerStore.toCertificateHolderClaim(row) : null
-  }
-
-  async listCertificateHolderClaims(filter?: {
-    state?: CertificateHolderClaim['state']
-    claimantOrgId?: string
-    certificateId?: string
-  }): Promise<CertificateHolderClaim[]> {
-    await this.ensureHolderAttributionSupport()
-    const where: string[] = []
-    const params: unknown[] = []
-    if (filter?.state) { where.push('state = ?'); params.push(filter.state) }
-    if (filter?.claimantOrgId) { where.push('claimant_org_id = ?'); params.push(filter.claimantOrgId) }
-    if (filter?.certificateId) { where.push('certificate_id = ?'); params.push(filter.certificateId) }
-    const res = await this.stmt(
-      `SELECT * FROM certificate_holder_claims${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at`,
-      ...params,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toCertificateHolderClaim)
-  }
-
-  /** The estate admin's decision — ATOMIC on 'pending' (a double
-   *  decision loses the race, answering null). */
-  async decideCertificateHolderClaim(
-    id: string,
-    decision: { status: 'confirmed' | 'refused'; decidedBy: string; refusalReason?: string | null },
-  ): Promise<CertificateHolderClaim | null> {
-    await this.ensureHolderAttributionSupport()
-    const res = await this.stmt(
-      `UPDATE certificate_holder_claims
-       SET state = ?, decided_by = ?, decided_at = datetime('now'), refusal_reason = ?
-       WHERE id = ? AND state = 'pending'`,
-      decision.status, decision.decidedBy, decision.refusalReason ?? null, id,
-    ).run()
-    if ((res.meta.changes ?? 0) === 0) return null
-    return this.getCertificateHolderClaim(id)
-  }
-
-  async findPendingCertificateHolderClaim(certificateId: string): Promise<CertificateHolderClaim | null> {
-    await this.ensureHolderAttributionSupport()
-    const row = await this.stmt(
-      "SELECT * FROM certificate_holder_claims WHERE certificate_id = ? AND state = 'pending'",
-      certificateId,
-    ).first<Record<string, unknown>>()
-    return row ? D1ServerStore.toCertificateHolderClaim(row) : null
   }
 
   // ── the instrument register (TODO.register/03) ─────────────────────
@@ -3505,93 +3211,6 @@ export class D1ServerStore implements ServerStore {
       updatedAt: (row.updated_at as string | null) ?? null,
       updatedBy: (row.updated_by as string | null) ?? null,
     }
-  }
-
-  async listInstrumentRegistrations(): Promise<InstrumentRegistration[]> {
-    await this.ensureInstrumentRegistrationSupport()
-    const res = await this.stmt('SELECT * FROM instrument_registrations').all<Record<string, unknown>>()
-    return res.results
-      .map(D1ServerStore.toInstrumentRegistration)
-      .sort((a, b) => a.certificateId.localeCompare(b.certificateId) || a.serialNumber.localeCompare(b.serialNumber))
-  }
-
-  async listInstrumentRegistrationsForCertificate(certificateId: string): Promise<InstrumentRegistration[]> {
-    await this.ensureInstrumentRegistrationSupport()
-    const res = await this.stmt('SELECT * FROM instrument_registrations WHERE certificate_id = ?', certificateId).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toInstrumentRegistration).sort((a, b) => a.serialNumber.localeCompare(b.serialNumber))
-  }
-
-  async listInstrumentRegistrationsForHolder(holderOrgId: string): Promise<InstrumentRegistration[]> {
-    await this.ensureInstrumentRegistrationSupport()
-    const res = await this.stmt('SELECT * FROM instrument_registrations WHERE holder_org_id = ?', holderOrgId).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toInstrumentRegistration).sort((a, b) => a.serialNumber.localeCompare(b.serialNumber))
-  }
-
-  async getInstrumentRegistration(id: string): Promise<InstrumentRegistration | null> {
-    await this.ensureInstrumentRegistrationSupport()
-    const row = await this.stmt('SELECT * FROM instrument_registrations WHERE id = ?', id).first<Record<string, unknown>>()
-    return row ? D1ServerStore.toInstrumentRegistration(row) : null
-  }
-
-  /** Register the instrument; NULL on the (certificate, serial)
-   *  conflict (the route's honest 409). */
-  async createInstrumentRegistration(input: InstrumentRegistrationWriteInput): Promise<InstrumentRegistration | null> {
-    await this.ensureInstrumentRegistrationSupport()
-    const res = await this.stmt(
-      INSTRUMENT_REGISTRATION_INSERT_SQL,
-      input.id, input.certificateId, input.holderOrgId, input.standardId, input.serialNumber,
-      input.manufactureDate ?? null, JSON.stringify(input.designations ?? {}),
-      input.scopeStatus, input.scopeDetail ?? null, input.registeredBy ?? null,
-    ).run()
-    if ((res.meta.changes ?? 0) === 0) return null
-    return this.getInstrumentRegistration(input.id)
-  }
-
-  /** The batch register write (the seam's contract, mechanically):
-   *  each row's INSERT OR IGNORE … RETURNING * rides ONE db.batch per
-   *  INSTRUMENT_REGISTRATIONS_CHUNK rows, the statements in INPUT order,
-   *  the chunks SERIALLY — the register's insertion order IS the CSV's
-   *  row order. The per-row answer comes off the batch's own results:
-   *  the stored row, or NULL when the RETURNING came back empty (the
-   *  (certificate, serial) conflict — the single verb's honest null).
-   *  The chunk is the atomic unit: a D1 batch lands all-or-nothing; a
-   *  failed chunk throws with its rows unlanded, earlier chunks
-   *  standing, later chunks never issued. */
-  async createInstrumentRegistrations(rows: readonly InstrumentRegistrationWriteInput[]): Promise<(InstrumentRegistration | null)[]> {
-    await this.ensureInstrumentRegistrationSupport()
-    if (rows.length === 0) return []
-    const out: (InstrumentRegistration | null)[] = []
-    for (let i = 0; i < rows.length; i += INSTRUMENT_REGISTRATIONS_CHUNK) {
-      const chunk = rows.slice(i, i + INSTRUMENT_REGISTRATIONS_CHUNK)
-      const statements = chunk.map(row => this.stmt(
-        `${INSTRUMENT_REGISTRATION_INSERT_SQL} RETURNING *`,
-        row.id, row.certificateId, row.holderOrgId, row.standardId, row.serialNumber,
-        row.manufactureDate ?? null, JSON.stringify(row.designations ?? {}),
-        row.scopeStatus, row.scopeDetail ?? null, row.registeredBy ?? null,
-      ))
-      const results = await this.db.batch(statements)
-      for (const res of results) {
-        const stored = res.results[0] as Record<string, unknown> | undefined
-        out.push(stored ? D1ServerStore.toInstrumentRegistration(stored) : null)
-      }
-    }
-    return out
-  }
-
-  /** The lifecycle act (the transition rule is the route's); stamps
-   *  updated_at/by. NULL when the register does not carry the id. */
-  async setInstrumentRegistrationLifecycle(
-    id: string,
-    lifecycle: InstrumentRegistrationLifecycle,
-    actor?: string | null,
-  ): Promise<InstrumentRegistration | null> {
-    await this.ensureInstrumentRegistrationSupport()
-    const res = await this.stmt(
-      "UPDATE instrument_registrations SET lifecycle = ?, updated_at = datetime('now'), updated_by = ? WHERE id = ?",
-      lifecycle, actor ?? null, id,
-    ).run()
-    if ((res.meta.changes ?? 0) === 0) return null
-    return this.getInstrumentRegistration(id)
   }
 
   // ── the workflow entity store + change journal ───────────────────
@@ -3631,11 +3250,6 @@ export class D1ServerStore implements ServerStore {
     return row ?? undefined
   }
 
-  async findCertificatesByNumber(number: string): Promise<EntityRow[]> {
-    const res = await this.stmt(CERTIFICATE_NUMBER_SQL, number).all<EntityRow>()
-    return res.results
-  }
-
   async putEntity(store: string, id: string, orgId: string | null, data: string): Promise<void> {
     // The upsert + its journal entry ride ONE batch — D1 batches are
     // all-or-nothing, the same atomicity the SQLite path gets from its
@@ -3647,33 +3261,6 @@ export class D1ServerStore implements ServerStore {
     emitJournalAppends([{ store, type: 'persist', id }])
   }
 
-  async putEntities(store: string, rows: readonly EntityWriteInput[]): Promise<void> {
-    // The seam's contract, mechanically: each row lands exactly as
-    // putEntity would land it (the upsert, then its journal entry), the
-    // statements ride each batch in INPUT order, and the chunks issue
-    // SERIALLY — so the journal's seq order IS the input's row order
-    // (the audit-chain property the CSV commit relies on). The chunk is
-    // the atomic unit: a D1 batch lands all-or-nothing; a failed chunk
-    // throws with its rows unlanded, earlier chunks standing, later
-    // chunks never issued.
-    if (rows.length === 0) return
-    for (let i = 0; i < rows.length; i += PUT_ENTITIES_CHUNK) {
-      const chunk = rows.slice(i, i + PUT_ENTITIES_CHUNK)
-      const statements: D1PreparedStatement[] = []
-      for (const row of chunk) {
-        statements.push(
-          this.stmt(ENTITY_UPSERT_SQL, store, row.id, row.orgId, row.data),
-          this.stmt(ENTITY_CHANGE_SQL, store, 'persist', row.id),
-        )
-      }
-      await this.db.batch(statements)
-      // The fan-out fires per LANDED chunk (the triples in input order)
-      // — a failed chunk throws before its emit, so a listener never
-      //  hears of rows that did not stand.
-      emitJournalAppends(chunk.map((row): JournalAppend => ({ store, type: 'persist', id: row.id })))
-    }
-  }
-
   async deleteEntity(store: string, id: string): Promise<boolean> {
     const res = await this.stmt('DELETE FROM entities WHERE store = ? AND id = ?', store, id).run()
     const gone = (res.meta.changes ?? 0) > 0
@@ -3682,33 +3269,6 @@ export class D1ServerStore implements ServerStore {
       emitJournalAppends([{ store, type: 'remove', id }])
     }
     return gone
-  }
-
-  async changesAfter(seq: number, limit = 500): Promise<EntityChange[]> {
-    const res = await this.stmt(
-      'SELECT seq, store, type, id, at FROM entity_changes WHERE seq > ? ORDER BY seq LIMIT ?', seq, limit,
-    ).all<EntityChange>()
-    return res.results
-  }
-
-  async latestChangeSeq(): Promise<number> {
-    const row = await this.stmt('SELECT MAX(seq) AS seq FROM entity_changes').first<{ seq: number | null }>()
-    return row?.seq ?? 0
-  }
-
-  async latestChangeSeqFor(store: string): Promise<number> {
-    // One indexed probe over idx_entity_changes_store_seq (migration
-    // 0026) — the per-store projection of the one journal; 0 when the
-    // store carries no rows (MAX answers NULL on the empty set).
-    const row = await this.stmt(
-      'SELECT MAX(seq) AS seq FROM entity_changes WHERE store = ?', store,
-    ).first<{ seq: number | null }>()
-    return row?.seq ?? 0
-  }
-
-  onJournalAppend(listener: (appends: readonly JournalAppend[]) => void): () => void {
-    journalListeners.add(listener)
-    return () => { journalListeners.delete(listener) }
   }
 
   // ── the platform event store (TODO.notify/01) ─────────────────────
@@ -3728,114 +3288,6 @@ export class D1ServerStore implements ServerStore {
     }
   }
 
-  async appendEvent(input: EventWriteInput): Promise<PlatformEvent> {
-    // ONE round trip: the RETURNING clause (SQLite ≥ 3.35, D1 included)
-    // answers the stored row — seq + the default at — off the INSERT
-    // itself; the SELECT-by-id read-back retired (the 2026-09-06 audit:
-    // two round trips per event, halved).
-    const row = await this.stmt(
-      EVENT_INSERT_SQL,
-      input.id, input.domain, input.entityId, input.action, input.payload, input.mentions ?? null,
-    ).first<Record<string, unknown>>()
-    return D1ServerStore.toPlatformEvent(row!)
-  }
-
-  /** The bulk append (the seam's contract, mechanically): each event's
-   *  INSERT … RETURNING * rides ONE db.batch per APPEND_EVENTS_CHUNK
-   *  rows, the statements in INPUT order, the chunks SERIALLY — the
-   *  events' seq order IS the input order. The answer is the stored
-   *  rows, input-aligned. The chunk is the atomic unit: a D1 batch
-   *  lands all-or-nothing; a failed chunk throws with its events
-   *  unlanded, earlier chunks standing, later chunks never issued. */
-  async appendEvents(events: readonly EventWriteInput[]): Promise<PlatformEvent[]> {
-    if (events.length === 0) return []
-    const out: PlatformEvent[] = []
-    for (let i = 0; i < events.length; i += APPEND_EVENTS_CHUNK) {
-      const chunk = events.slice(i, i + APPEND_EVENTS_CHUNK)
-      const statements = chunk.map(e => this.stmt(
-        EVENT_INSERT_SQL,
-        e.id, e.domain, e.entityId, e.action, e.payload, e.mentions ?? null,
-      ))
-      const results = await this.db.batch(statements)
-      for (const res of results) {
-        out.push(D1ServerStore.toPlatformEvent(res.results[0] as Record<string, unknown>))
-      }
-    }
-    return out
-  }
-
-  async eventsAfter(seq: number, limit = 500): Promise<PlatformEvent[]> {
-    const res = await this.stmt(
-      'SELECT * FROM events WHERE seq > ? ORDER BY seq LIMIT ?', seq, limit,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toPlatformEvent)
-  }
-
-  async latestEventSeq(): Promise<number> {
-    const row = await this.stmt('SELECT MAX(seq) AS seq FROM events').first<{ seq: number | null }>()
-    return row?.seq ?? 0
-  }
-
-  async getEvent(id: string): Promise<PlatformEvent | null> {
-    const row = await this.stmt('SELECT * FROM events WHERE id = ?', id).first<Record<string, unknown>>()
-    return row ? D1ServerStore.toPlatformEvent(row) : null
-  }
-
-  /** The bulk by-id read (the seam's contract, mechanically): every id
-   *  resolves in ONE statement per EVENTS_ID_CHUNK ids — the IN walk
-   *  against the id UNIQUE index (never a compound SELECT: the D1
-   *  5-term cap rule), the chunks serial — and the answer is
-   *  INPUT-ALIGNED: position i carries the row for ids[i], null where
-   *  no event carries the id (the per-id getEvent loop's exact
-   *  answers; a duplicate id answers its row at every position). An
-   *  empty list answers [] without issuing a statement. */
-  async getEvents(ids: readonly string[]): Promise<(PlatformEvent | null)[]> {
-    if (ids.length === 0) return []
-    const byId = new Map<string, PlatformEvent>()
-    for (let i = 0; i < ids.length; i += EVENTS_ID_CHUNK) {
-      const chunk = ids.slice(i, i + EVENTS_ID_CHUNK)
-      const marks = chunk.map(() => '?').join(', ')
-      const res = await this.stmt(
-        `SELECT * FROM events WHERE id IN (${marks})`, ...chunk,
-      ).all<Record<string, unknown>>()
-      for (const row of res.results) byId.set(row.id as string, D1ServerStore.toPlatformEvent(row))
-    }
-    return ids.map(id => byId.get(id) ?? null)
-  }
-
-  /** The subscription grammar's SQL resolution: the pinned columns match
-   *  by equality; the free legs stay out of the WHERE. The BULK form
-   *  (the 2026-09-06 audit's notify-inbox seam) resolves every pinned
-   *  (domain, entityId) pair in ONE statement per EVENTS_BULK_KEY_CHUNK
-   *  keys — the OR-of-ANDs WHERE walks idx_events_domain_entity per term
-   *  (never a compound SELECT: the D1 5-term cap rule) — and answers the
-   *  MERGED set, seq-ordered, limit-truncated after the merge. */
-  async eventsMatching(filter: EventKeyFilter | { keys: readonly EventEntityKey[] }, limit = 500): Promise<PlatformEvent[]> {
-    if ('keys' in filter) {
-      if (filter.keys.length === 0) return []
-      const merged: PlatformEvent[] = []
-      for (let i = 0; i < filter.keys.length; i += EVENTS_BULK_KEY_CHUNK) {
-        const chunk = filter.keys.slice(i, i + EVENTS_BULK_KEY_CHUNK)
-        const where = chunk.map(() => '(domain = ? AND entity_id = ?)').join(' OR ')
-        const args = chunk.flatMap(k => [k.domain, k.entityId])
-        const res = await this.stmt(
-          `SELECT * FROM events WHERE ${where} ORDER BY seq LIMIT ?`, ...args, limit,
-        ).all<Record<string, unknown>>()
-        merged.push(...res.results.map(D1ServerStore.toPlatformEvent))
-      }
-      merged.sort((a, b) => a.seq - b.seq)
-      return merged.slice(0, limit)
-    }
-    const where: string[] = []
-    const args: unknown[] = []
-    if (filter.domain !== undefined) { where.push('domain = ?'); args.push(filter.domain) }
-    if (filter.entityId !== undefined) { where.push('entity_id = ?'); args.push(filter.entityId) }
-    if (filter.action !== undefined) { where.push('action = ?'); args.push(filter.action) }
-    const sql = `SELECT * FROM events${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY seq LIMIT ?`
-    const res = await this.stmt(sql, ...args, limit).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toPlatformEvent)
-  }
-
   // ── the notification subscriptions store (TODO.notify/02) ─────────
   // The SAME statements as sqlite/notify.ts's sync half (D1 is SQLite).
 
@@ -3853,59 +3305,6 @@ export class D1ServerStore implements ServerStore {
     }
   }
 
-  async listNotifyRules(userId: string): Promise<NotifyRule[]> {
-    const res = await this.stmt(
-      'SELECT * FROM notify_rules WHERE user_id = ? ORDER BY created_at, id', userId,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toNotifyRule)
-  }
-
-  async putNotifyRule(input: {
-    id: string
-    userId: string
-    pattern: string
-    domain: string
-    entityId: string | null
-    action: string | null
-    mode: NotifyRule['mode']
-    channelOverrides: string | null
-  }): Promise<NotifyRule> {
-    await this.stmt(
-      `INSERT INTO notify_rules (id, user_id, pattern, domain, entity_id, action, mode, channel_overrides)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (user_id, pattern) DO UPDATE SET
-         domain = excluded.domain,
-         entity_id = excluded.entity_id,
-         action = excluded.action,
-         mode = excluded.mode,
-         channel_overrides = excluded.channel_overrides`,
-      input.id, input.userId, input.pattern, input.domain, input.entityId, input.action, input.mode, input.channelOverrides,
-    ).run()
-    const row = await this.stmt(
-      'SELECT * FROM notify_rules WHERE user_id = ? AND pattern = ?', input.userId, input.pattern,
-    ).first<Record<string, unknown>>()
-    return D1ServerStore.toNotifyRule(row!)
-  }
-
-  async deleteNotifyRule(userId: string, pattern: string): Promise<boolean> {
-    const res = await this.stmt(
-      'DELETE FROM notify_rules WHERE user_id = ? AND pattern = ?', userId, pattern,
-    ).run()
-    return (res.meta.changes ?? 0) > 0
-  }
-
-  /** The resolution's reverse match: a rule covers the event when its
-   *  pinned legs equal the event's columns (NULL = the wild leg). */
-  async notifyRulesForEvent(filter: { domain: string; entityId: string; action: string }): Promise<NotifyRule[]> {
-    const res = await this.stmt(
-      `SELECT * FROM notify_rules
-       WHERE domain = ? AND (entity_id IS NULL OR entity_id = ?) AND (action IS NULL OR action = ?)
-       ORDER BY created_at, id`,
-      filter.domain, filter.entityId, filter.action,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toNotifyRule)
-  }
-
   private static toNotifyEntityMute(row: Record<string, unknown>): NotifyEntityMute {
     return {
       id: row.id as string,
@@ -3916,67 +3315,12 @@ export class D1ServerStore implements ServerStore {
     }
   }
 
-  async listNotifyEntityMutes(userId: string): Promise<NotifyEntityMute[]> {
-    const res = await this.stmt(
-      'SELECT * FROM notify_entity_mutes WHERE user_id = ? ORDER BY created_at, id', userId,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toNotifyEntityMute)
-  }
-
-  async putNotifyEntityMute(input: { id: string; userId: string; domain: string; entityId: string }): Promise<NotifyEntityMute> {
-    await this.stmt(
-      `INSERT INTO notify_entity_mutes (id, user_id, domain, entity_id) VALUES (?, ?, ?, ?)
-       ON CONFLICT (user_id, domain, entity_id) DO NOTHING`,
-      input.id, input.userId, input.domain, input.entityId,
-    ).run()
-    const row = await this.stmt(
-      'SELECT * FROM notify_entity_mutes WHERE user_id = ? AND domain = ? AND entity_id = ?',
-      input.userId, input.domain, input.entityId,
-    ).first<Record<string, unknown>>()
-    return D1ServerStore.toNotifyEntityMute(row!)
-  }
-
-  async deleteNotifyEntityMute(userId: string, domain: string, entityId: string): Promise<boolean> {
-    const res = await this.stmt(
-      'DELETE FROM notify_entity_mutes WHERE user_id = ? AND domain = ? AND entity_id = ?',
-      userId, domain, entityId,
-    ).run()
-    return (res.meta.changes ?? 0) > 0
-  }
-
-  async notifyEntityMutesForEvent(domain: string, entityId: string): Promise<NotifyEntityMute[]> {
-    const res = await this.stmt(
-      'SELECT * FROM notify_entity_mutes WHERE domain = ? AND entity_id = ? ORDER BY created_at, id',
-      domain, entityId,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toNotifyEntityMute)
-  }
-
   private static toNotifyPreferences(row: Record<string, unknown>): NotifyPreferences {
     return {
       userId: row.user_id as string,
       channels: row.channels as string,
       updatedAt: row.updated_at as string,
     }
-  }
-
-  async getNotifyPreferences(userId: string): Promise<NotifyPreferences | null> {
-    const row = await this.stmt(
-      'SELECT * FROM notify_preferences WHERE user_id = ?', userId,
-    ).first<Record<string, unknown>>()
-    return row ? D1ServerStore.toNotifyPreferences(row) : null
-  }
-
-  async putNotifyPreferences(userId: string, channels: string): Promise<NotifyPreferences> {
-    await this.stmt(
-      `INSERT INTO notify_preferences (user_id, channels) VALUES (?, ?)
-       ON CONFLICT (user_id) DO UPDATE SET channels = excluded.channels, updated_at = datetime('now')`,
-      userId, channels,
-    ).run()
-    const row = await this.stmt(
-      'SELECT * FROM notify_preferences WHERE user_id = ?', userId,
-    ).first<Record<string, unknown>>()
-    return D1ServerStore.toNotifyPreferences(row!)
   }
 
   // ── the inbox state (TODO.notify/03) ──────────────────────────────
@@ -3991,51 +3335,6 @@ export class D1ServerStore implements ServerStore {
       savedAt: (row.saved_at as string | null) ?? null,
       createdAt: row.created_at as string,
     }
-  }
-
-  async listNotifyInboxStates(userId: string): Promise<NotifyInboxState[]> {
-    const res = await this.stmt(
-      'SELECT * FROM notify_inbox_state WHERE user_id = ? ORDER BY created_at, event_id', userId,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toNotifyInboxState)
-  }
-
-  /** The marker write: each PRESENT flag stamps (datetime('now')) or
-   *  clears (NULL) its column; absent flags keep. */
-  async putNotifyInboxState(input: {
-    userId: string
-    eventId: string
-    read?: boolean
-    done?: boolean
-    saved?: boolean
-  }): Promise<NotifyInboxState> {
-    await this.stmt(
-      'INSERT OR IGNORE INTO notify_inbox_state (user_id, event_id) VALUES (?, ?)',
-      input.userId, input.eventId,
-    ).run()
-    if (input.read !== undefined) {
-      await this.stmt(
-        "UPDATE notify_inbox_state SET read_at = CASE WHEN ? THEN datetime('now') ELSE NULL END WHERE user_id = ? AND event_id = ?",
-        input.read ? 1 : 0, input.userId, input.eventId,
-      ).run()
-    }
-    if (input.done !== undefined) {
-      await this.stmt(
-        "UPDATE notify_inbox_state SET done_at = CASE WHEN ? THEN datetime('now') ELSE NULL END WHERE user_id = ? AND event_id = ?",
-        input.done ? 1 : 0, input.userId, input.eventId,
-      ).run()
-    }
-    if (input.saved !== undefined) {
-      await this.stmt(
-        "UPDATE notify_inbox_state SET saved_at = CASE WHEN ? THEN datetime('now') ELSE NULL END WHERE user_id = ? AND event_id = ?",
-        input.saved ? 1 : 0, input.userId, input.eventId,
-      ).run()
-    }
-    const row = await this.stmt(
-      'SELECT * FROM notify_inbox_state WHERE user_id = ? AND event_id = ?',
-      input.userId, input.eventId,
-    ).first<Record<string, unknown>>()
-    return D1ServerStore.toNotifyInboxState(row!)
   }
 
   // ── the email channel's delivery store (TODO.notify/04) ───────────
@@ -4078,124 +3377,8 @@ export class D1ServerStore implements ServerStore {
     }
   }
 
-  async putNotifyDelivery(input: {
-    id: string
-    eventId: string
-    userId: string
-    reason: string
-    email: NotifyDelivery['email']
-    emailStatus: NotifyDelivery['emailStatus']
-  }): Promise<NotifyDelivery> {
-    await this.ensureNotifyDeliverySupport()
-    await this.stmt(
-      `INSERT INTO notify_deliveries (id, event_id, user_id, reason, email, email_status, email_at)
-       VALUES (?, ?, ?, ?, ?, ?, CASE WHEN ? IS NULL OR ? = 'digest_pending' THEN NULL ELSE datetime('now') END)
-       ON CONFLICT (event_id, user_id) DO UPDATE SET
-         reason = excluded.reason,
-         email = excluded.email`,
-      input.id, input.eventId, input.userId, input.reason, input.email, input.emailStatus, input.emailStatus, input.emailStatus,
-    ).run()
-    const row = await this.stmt(
-      'SELECT * FROM notify_deliveries WHERE event_id = ? AND user_id = ?', input.eventId, input.userId,
-    ).first<Record<string, unknown>>()
-    return D1ServerStore.toNotifyDelivery(row!)
-  }
-
-  async getNotifyDelivery(eventId: string, userId: string): Promise<NotifyDelivery | null> {
-    await this.ensureNotifyDeliverySupport()
-    const row = await this.stmt(
-      'SELECT * FROM notify_deliveries WHERE event_id = ? AND user_id = ?', eventId, userId,
-    ).first<Record<string, unknown>>()
-    return row ? D1ServerStore.toNotifyDelivery(row) : null
-  }
-
-  async listNotifyDeliveriesForEvent(eventId: string): Promise<NotifyDelivery[]> {
-    await this.ensureNotifyDeliverySupport()
-    const res = await this.stmt(
-      'SELECT * FROM notify_deliveries WHERE event_id = ? ORDER BY created_at, id', eventId,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toNotifyDelivery)
-  }
-
-  async notifyDigestPendingUsers(): Promise<string[]> {
-    await this.ensureNotifyDeliverySupport()
-    const res = await this.stmt(
-      "SELECT DISTINCT user_id FROM notify_deliveries WHERE email_status = 'digest_pending' ORDER BY user_id",
-    ).all<{ user_id: string }>()
-    return res.results.map(r => r.user_id)
-  }
-
-  async notifyDigestPendingForUser(userId: string): Promise<NotifyDelivery[]> {
-    await this.ensureNotifyDeliverySupport()
-    const res = await this.stmt(
-      "SELECT * FROM notify_deliveries WHERE user_id = ? AND email_status = 'digest_pending' ORDER BY created_at, id", userId,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toNotifyDelivery)
-  }
-
-  async notifyFailedDeliveries(limit = 100): Promise<NotifyDelivery[]> {
-    await this.ensureNotifyDeliverySupport()
-    const res = await this.stmt(
-      "SELECT * FROM notify_deliveries WHERE email_status = 'failed' ORDER BY created_at, id LIMIT ?", limit,
-    ).all<Record<string, unknown>>()
-    return res.results.map(D1ServerStore.toNotifyDelivery)
-  }
-
-  /** The status mark: the terminal marks stamp email_at; a re-queue to
-   *  'digest_pending' CLEARS it (a pending row carries no stamp). */
-  async markNotifyDelivery(id: string, status: NotifyDeliveryStatus): Promise<void> {
-    await this.ensureNotifyDeliverySupport()
-    if (status === 'digest_pending') {
-      await this.stmt('UPDATE notify_deliveries SET email_status = ?, email_at = NULL WHERE id = ?', status, id).run()
-    } else {
-      await this.stmt("UPDATE notify_deliveries SET email_status = ?, email_at = datetime('now') WHERE id = ?", status, id).run()
-    }
-  }
-
   // ── provisioning / dev support ───────────────────────────────────
 
-  async wipeWorkflowStores(range?: { after: number; through: number }): Promise<number> {
-    // The register table joins the wipe defensively (a dev D1 migrated
-    // from before migration 0016 lacks it — the ensure posture). The
-    // delivery store (0018) the same.
-    await this.ensureInstrumentRegistrationSupport()
-    await this.ensureNotifyDeliverySupport()
-    // The wipe's tables in one batch (all-or-nothing, the putEntity
-    // pattern). A ranged round charges one bounded statement per table;
-    // the range-less form is the direct-call default (small stores,
-    // tests) — the budgeted reset phase always passes a range.
-    const statements = range
-      ? WIPE_TABLES.map(t => this.db.prepare(`DELETE FROM ${t} WHERE rowid > ? AND rowid <= ?`).bind(range.after, range.through))
-      : WIPE_TABLES.map(t => this.db.prepare(`DELETE FROM ${t}`))
-    const results = await this.db.batch(statements)
-    return results.reduce((rows, r) => rows + (r.meta.changes ?? 0), 0)
-  }
-
-  async workflowStoreRowCeiling(): Promise<number> {
-    await this.ensureInstrumentRegistrationSupport()
-    await this.ensureNotifyDeliverySupport()
-    // NEVER a compound SELECT here: D1 caps a compound's term count at
-    // 5 (stock SQLite allows 500 — measured on the live fleet
-    // 2026-09-04: five terms answer, six fail with "too many terms in
-    // compound SELECT"). The six-table UNION ALL form this replaces
-    // crossed that cap the night the demo hub's redeploy brought it
-    // (the 2026-09-03/04 demo-reset reds: the reset phase's FIRST read
-    // died, slice 1 answered 400, the wipe never started). The scalar
-    // max() over per-table scalar subqueries keeps ONE round-trip with
-    // a term count of one, and the table list derives from WIPE_TABLES
-    // — a wipe-set addition can never again grow the statement past
-    // the cap by hand. COALESCE keeps an empty table at 0 (the scalar
-    // max() answers NULL on ANY NULL argument).
-    const row = await this.stmt(
-      `SELECT MAX(${WIPE_TABLES.map(t => `COALESCE((SELECT MAX(rowid) FROM ${t}), 0)`).join(', ')}) AS ceiling`,
-    ).first<{ ceiling: number | null }>()
-    return row?.ceiling ?? 0
-  }
-
-  async countEntities(): Promise<number> {
-    const row = await this.stmt('SELECT COUNT(*) AS n FROM entities').first<{ n: number }>()
-    return row?.n ?? 0
-  }
 }
 
 /** The worker entry's install: one store per binding, memoized (the

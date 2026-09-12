@@ -251,24 +251,6 @@ export function getOidcAccessToken(token: string): OidcAccessToken | null {
   }
 }
 
-/** The account console's per-app read + the governance view's per-user
- *  slice: the account's LIVE access tokens, newest first — created_at is
- *  second-resolution, the rowid breaks the tie. */
-export function listOidcAccessTokens(userId: string): OidcAccessToken[] {
-  const rows = getDb().prepare(
-    "SELECT * FROM oidc_access_tokens WHERE user_id = ? AND datetime(expires_at) > datetime('now') ORDER BY created_at DESC, rowid DESC",
-  ).all(userId) as Array<Record<string, unknown>>
-  return rows.map(row => ({
-    token: row.token as string,
-    userId: row.user_id as string,
-    clientId: row.client_id as string,
-    scope: row.scope as string,
-    contextOrg: (row.context_org as string | null) ?? null,
-    amr: parseJsonStringList(row.amr),
-    expiresAt: row.expires_at as string,
-  }))
-}
-
 /** The RFC 7009 access-token revocation: the row goes, client-bound. */
 export function deleteOidcAccessToken(token: string, clientId: string): boolean {
   const res = getDb().prepare('DELETE FROM oidc_access_tokens WHERE token = ? AND client_id = ?').run(token, clientId)
@@ -402,8 +384,4 @@ export function upsertOidcKey(input: { kid: string; publicJwk: string }): void {
   getDb().prepare(
     'INSERT OR IGNORE INTO oidc_keys (kid, public_jwk) VALUES (?, ?)',
   ).run(input.kid, input.publicJwk)
-}
-
-export function retireOidcKey(kid: string): void {
-  getDb().prepare("UPDATE oidc_keys SET status = 'retired', retired_at = datetime('now') WHERE kid = ? AND status = 'active'").run(kid)
 }
