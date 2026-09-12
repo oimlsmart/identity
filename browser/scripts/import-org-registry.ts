@@ -30,7 +30,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from '../server/store'
 import {
   applyOrgRegistryPlan,
   parseBootstrapDataset,
@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     // SQLite file. DATABASE_PATH binds at the store module's evaluation
     // — set before the dynamic import.
     process.env.DATABASE_PATH = resolve(dbPath)
-    const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+    const { installSqliteStore } = await import('../server/store/sqlite')
     const store = installSqliteStore()
     const plan = await planOrgRegistryBootstrap(store, dataset)
     printPlan(plan, `the local registry ${dbPath}`)

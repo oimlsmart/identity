@@ -60,7 +60,7 @@ import {
   randomToken,
   validateIdToken,
   type OidcIdTokenClaims,
-} from '@oimlsmart/platform-server/oidc'
+} from '../../server/oidc'
 
 export interface StubRpFlow {
   state: string

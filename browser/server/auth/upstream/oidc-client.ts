@@ -32,8 +32,8 @@ import {
   type OidcIdTokenClaims,
   type OidcMetadata,
   type PkcePair,
-} from '@oimlsmart/platform-server/oidc'
-import type { IdentityProvider } from '@oimlsmart/platform-server/store'
+} from '../../oidc'
+import type { IdentityProvider } from '../../store'
 import { isAppleProvider, providerScopes } from './registry'
 
 export { discoverIssuer, generatePkce, randomToken, validateIdToken, OidcError }

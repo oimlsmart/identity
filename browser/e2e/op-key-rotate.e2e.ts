@@ -40,7 +40,7 @@ import {
   buildRetirementNote,
 } from '../scripts/op-key-rotate'
 import { resolveOpSigningKey, signOpIdToken } from '../server/auth/op/keys'
-import { validateIdToken, clearOidcCaches } from '@oimlsmart/platform-server/oidc'
+import { validateIdToken, clearOidcCaches } from '../server/oidc'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DB_DIR = join(BROWSER_DIR, '.cache', 'op-key-rotate')

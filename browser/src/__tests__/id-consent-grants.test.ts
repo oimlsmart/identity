@@ -49,8 +49,8 @@ const PUBLIC = {
 process.env.OP_CLIENT_SEED = JSON.stringify([CONFIDENTIAL, PUBLIC])
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
-let validateIdToken: typeof import('@oimlsmart/platform-server/oidc').validateIdToken
+let store: ReturnType<typeof import('../../server/store').getStore>
+let validateIdToken: typeof import('../../server/oidc').validateIdToken
 
 const appFetch = (async (input: RequestInfo | URL): Promise<Response> => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
@@ -134,9 +134,9 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -147,7 +147,7 @@ branding: { name: OIML SMART Identity }
 demo_personas: true
 `))
 
-  const oidc = await import('@oimlsmart/platform-server/oidc')
+  const oidc = await import('../../server/oidc')
   validateIdToken = oidc.validateIdToken
   oidc.clearOidcCaches()
   CHALLENGE = Buffer.from(
@@ -169,7 +169,7 @@ demo_personas: true
 })
 
 afterAll(async () => {
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
@@ -352,14 +352,15 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
   })
 
   it('the profile gate: a non-identity deployment answers the grants routes 404', async () => {
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.resetInstanceProfileForTest()
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: hub-org
   org_name: A plain hub
-  role_codes: [hub]
-roles: [hub]
+  role_codes: [identity]
+roles: [identity]
+modules: []
 branding: { name: A plain hub }
 `))
     try {

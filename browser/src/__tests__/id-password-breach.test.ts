@@ -37,7 +37,7 @@ const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 // ── the HIBP range stub (the real API's shape: GET /{prefix5} → the
 //    SUFFIX:count lines, CRLF included) ──────────────────────────────
@@ -150,9 +150,9 @@ beforeAll(async () => {
   closedPort = (probe.address() as AddressInfo).port
   await new Promise<void>((resolve) => { probe.close(() => resolve()) })
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -182,7 +182,7 @@ afterAll(async () => {
   // leaked deletion would turn a later file in this worker's process
   // toward the LIVE corpus.
   process.env.HIBP_RANGE_URL = 'off'
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
 

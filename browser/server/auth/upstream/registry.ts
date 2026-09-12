@@ -38,7 +38,7 @@
 // WORKER-SAFE: no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { IdentityProvider, ServerStore } from '@oimlsmart/platform-server/store'
+import type { IdentityProvider, ServerStore } from '../../store'
 
 type EnvLike = Record<string, string | undefined>
 

@@ -32,8 +32,8 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_ROLE_PERMISSIONS } from '@oimlsmart/platform-server/vocab'
-import type { OrgMembership } from '@oimlsmart/platform-server/store'
+import { DEFAULT_ROLE_PERMISSIONS } from '../../server/vocab'
+import type { OrgMembership } from '../../server/store'
 import {
   explainOrgMember,
   ORG_BOUND_PRIMARY_ROLES,

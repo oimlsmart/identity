@@ -19,6 +19,7 @@
 import { onMounted, ref, watch } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
+import { t } from '../../i18n'
 
 interface AuditEvent {
   id: string
@@ -89,24 +90,24 @@ const to = ref('')
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const ACTION_PREFIXES = [
-  { value: '', label: 'every action' },
-  { value: 'account.', label: 'account.* (the registry’s acts)' },
-  { value: 'account.sign_in', label: 'sign-ins (password)' },
-  { value: 'account.sign_in_probe', label: 'the status probe’s sign-in checks' },
-  { value: 'upstream_', label: 'upstream_* (linked methods)' },
-  { value: 'client.', label: 'client.* (relying parties)' },
-  { value: 'provider.', label: 'provider.* (sign-in providers)' },
-  { value: 'org_', label: 'org_* (organization administration)' },
+  { value: '', label: t('admin.sec.opt.everyAction') },
+  { value: 'account.', label: t('admin.sec.opt.account') },
+  { value: 'account.sign_in', label: t('admin.sec.opt.signins') },
+  { value: 'account.sign_in_probe', label: t('admin.sec.opt.probe') },
+  { value: 'upstream_', label: t('admin.sec.opt.upstream') },
+  { value: 'client.', label: t('admin.sec.opt.clients') },
+  { value: 'provider.', label: t('admin.sec.opt.providers') },
+  { value: 'org_', label: t('admin.sec.opt.orgs') },
   { value: 'rate_limited', label: 'rate_limited' },
 ]
 
 const ENTITY_TYPES = [
-  { value: '', label: 'every entity type' },
+  { value: '', label: t('admin.sec.opt.everyType') },
   { value: 'account', label: 'account' },
   { value: 'auth', label: 'auth' },
   { value: 'client', label: 'client' },
   { value: 'provider', label: 'provider' },
-  { value: 'op', label: 'op (the rate limiter)' },
+  { value: 'op', label: t('admin.sec.opt.opType') },
   { value: 'users', label: 'users' },
 ]
 
@@ -124,7 +125,7 @@ async function loadAudit(): Promise<void> {
   auditError.value = null
   const res = await fetch(`/api/op/dashboard/audit?${auditParams()}`, { credentials: 'include' })
   if (!res.ok) {
-    auditError.value = `the audit log failed (${res.status})`
+    auditError.value = t('admin.sec.auditFailed', { status: res.status })
     return
   }
   audit.value = await res.json() as AuditAnswer
@@ -153,21 +154,21 @@ function stamp(iso: string): string {
 function describe(event: AuditEvent): string {
   const meta = event.metadata ?? {}
   switch (event.action) {
-    case 'account.sign_in': return `signed in with the password`
-    case 'account.sign_in_failed': return `a password sign-in failed for ${String(meta.email ?? event.entity_id)} (${meta.reason === 'deactivated' ? 'the account is deactivated' : 'invalid credentials'})`
-    case 'account.sign_in_probe': return `the status probe exercised the sign-in route for ${String(meta.email ?? event.entity_id)} (the estate's monitoring cadence — never counted as a failure)`
-    case 'account.sessions_revoked': return meta.by === 'administrator' ? `the administrator ended every session of ${String(meta.email ?? event.entity_id)} (${String(meta.count ?? 0)})` : `signed out ${String(meta.count ?? 0)} other session(s)`
-    case 'account.session_revoked': return meta.by === 'administrator' ? 'a session ended (the administrator)' : 'a session ended'
-    case 'upstream_sign_in': return `signed in with ${String(meta.provider ?? '')} (${String(meta.handle ?? '')})`
-    case 'upstream_refused': return `a ${String(meta.provider ?? '')} sign-in was refused (${String(meta.reason ?? '')})`
-    case 'upstream_link': return `linked ${String(meta.provider ?? '')} (${String(meta.handle ?? '')})`
-    case 'account.link_on_behalf': return `linked ${String(meta.provider ?? '')} on behalf of ${String(meta.email ?? event.entity_id)} — ${String(meta.justification ?? '')}`
-    case 'client.token_issued': return `issued tokens (scope ${String(meta.scope ?? '')})`
-    case 'client.token_refused': return `the token endpoint refused (${String(meta.error ?? '')})`
-    case 'client.registered': return `registered the relying party`
-    case 'client.updated': return `updated the relying party`
-    case 'client.status': return `set the relying party to ${String(meta.status ?? '')}`
-    case 'rate_limited': return `the rate limiter tripped on ${String(meta.path ?? '')}`
+    case 'account.sign_in': return t('admin.sec.e.signIn')
+    case 'account.sign_in_failed': return t('admin.act.e.signInFailed', { email: String(meta.email ?? event.entity_id), reason: meta.reason === 'deactivated' ? t('admin.act.e.reasonDeactivated') : t('admin.act.e.reasonInvalid') })
+    case 'account.sign_in_probe': return t('admin.sec.e.probe', { email: String(meta.email ?? event.entity_id) })
+    case 'account.sessions_revoked': return meta.by === 'administrator' ? t('admin.sec.e.sessionsRevokedAdmin', { email: String(meta.email ?? event.entity_id), count: String(meta.count ?? 0) }) : t('admin.act.e.sessionsRevoked', { count: Number(meta.count ?? 0) })
+    case 'account.session_revoked': return meta.by === 'administrator' ? t('admin.sec.e.sessionAdmin') : t('admin.sec.e.session')
+    case 'upstream_sign_in': return t('admin.act.e.upstreamSignIn', { provider: String(meta.provider ?? ''), handle: String(meta.handle ?? '') })
+    case 'upstream_refused': return t('admin.sec.e.upstreamRefused', { provider: String(meta.provider ?? ''), reason: String(meta.reason ?? '') })
+    case 'upstream_link': return t('admin.act.e.upstreamLink', { provider: String(meta.provider ?? ''), handle: String(meta.handle ?? '') })
+    case 'account.link_on_behalf': return t('admin.sec.e.linkOnBehalf', { provider: String(meta.provider ?? ''), email: String(meta.email ?? event.entity_id), justification: String(meta.justification ?? '') })
+    case 'client.token_issued': return t('admin.sec.e.tokensIssued', { scope: String(meta.scope ?? '') })
+    case 'client.token_refused': return t('admin.sec.e.tokenRefused', { error: String(meta.error ?? '') })
+    case 'client.registered': return t('admin.sec.e.clientRegistered')
+    case 'client.updated': return t('admin.sec.e.clientUpdated')
+    case 'client.status': return t('admin.sec.e.clientStatus', { status: String(meta.status ?? '') })
+    case 'rate_limited': return t('admin.sec.e.rateLimited', { path: String(meta.path ?? '') })
     default: return event.action
   }
 }
@@ -182,13 +183,14 @@ function targetLink(event: AuditEvent): string | null {
 
 onMounted(async () => {
   try {
-    const session = await fetch('/api/auth/session', { credentials: 'include' })
-    if (!session.ok) {
-      window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/security')}`)
-      return
-    }
-    const res = await fetch('/api/op/dashboard/security', { credentials: 'include' })
-    if (res.status === 401) {
+    // The session gate, the signals, and the access review are
+    // INDEPENDENT reads — one latency phase (TODO.restructure/02).
+    const [session, res, reviewRes] = await Promise.all([
+      fetch('/api/auth/session', { credentials: 'include' }),
+      fetch('/api/op/dashboard/security', { credentials: 'include' }),
+      fetch('/api/op/dashboard/access-review', { credentials: 'include' }),
+    ])
+    if (!session.ok || res.status === 401) {
       window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/security')}`)
       return
     }
@@ -198,12 +200,11 @@ onMounted(async () => {
     }
     if (!res.ok) throw new Error(`the security signals failed (${res.status})`)
     security.value = await res.json() as Security
-    // The log + the review follow; neither holds the signals back.
+    // The log follows; it never holds the signals back.
     void loadAudit()
-    const reviewRes = await fetch('/api/op/dashboard/access-review', { credentials: 'include' })
     if (reviewRes.ok) review.value = await reviewRes.json() as AccessReview
   } catch (e) {
-    error.value = (e as Error).message || 'Network error. Is the server running?'
+    error.value = (e as Error).message || t('error.network')
   } finally {
     loading.value = false
   }
@@ -218,7 +219,7 @@ onMounted(async () => {
 
     <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Security and audit</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('admin.sec.title') }}</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
         <p class="text-sm text-amber-800 dark:text-amber-300" data-testid="op-sec-forbidden">
@@ -229,7 +230,7 @@ onMounted(async () => {
 
     <div v-else data-testid="op-sec">
       <PageHeader
-        title="Security and audit"
+        :title="t('admin.sec.title')"
         :description="`The signals over ${branding.productName}'s own audit journal, the queryable log, and the live access review.`"
       />
 
@@ -243,7 +244,7 @@ onMounted(async () => {
              column to its max-content on phones) -->
         <section class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6" data-testid="op-sec-signals">
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-failed-logins">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Failed sign-ins</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('admin.sec.failedTitle') }}</h2>
             <p class="mt-1 text-2xl font-semibold" :class="security.signals.failedSignIns.day ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'">{{ security.signals.failedSignIns.day }}</p>
             <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ security.windows.day }} · {{ security.signals.failedSignIns.week }} over {{ security.windows.week }}</p>
             <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{{ security.signals.failedSignIns.rule }}.</p>
@@ -252,11 +253,11 @@ onMounted(async () => {
                 {{ burst.account ?? burst.key }} — {{ burst.count24h }} failed in 24 h
               </li>
             </ul>
-            <p v-else class="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400" data-testid="op-sec-bursts-none">no bursts in the window</p>
+            <p v-else class="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400" data-testid="op-sec-bursts-none">{{ t('admin.sec.noBursts') }}</p>
           </div>
 
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-token-refusals">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Token-endpoint refusals</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('admin.sec.tokenTitle') }}</h2>
             <p class="mt-1 text-2xl font-semibold" :class="security.signals.tokenRefusals.day ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'">{{ security.signals.tokenRefusals.day }}</p>
             <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ security.windows.day }} · {{ security.signals.tokenRefusals.week }} over {{ security.windows.week }}</p>
             <p v-if="Object.keys(security.signals.tokenRefusals.byError).length" class="mt-2 text-[11px] text-slate-500 dark:text-slate-400" data-testid="op-sec-token-refusals-split">
@@ -266,7 +267,7 @@ onMounted(async () => {
           </div>
 
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-rate-limits">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rate-limit trips</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('admin.sec.rateTitle') }}</h2>
             <p class="mt-1 text-2xl font-semibold" :class="security.signals.rateLimited.day ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'">{{ security.signals.rateLimited.day }}</p>
             <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ security.windows.day }} · {{ security.signals.rateLimited.week }} over {{ security.windows.week }}</p>
             <p v-if="Object.keys(security.signals.rateLimited.byCaller).length" class="mt-2 text-[11px] text-slate-500 dark:text-slate-400" data-testid="op-sec-rate-limits-split">
@@ -276,7 +277,7 @@ onMounted(async () => {
           </div>
 
           <div class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-4" data-testid="op-sec-new-links">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">New links and clients ({{ security.windows.week }})</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('admin.sec.newTitle', { window: security.windows.week }) }}</h2>
             <p class="mt-1 text-sm text-slate-700 dark:text-slate-300" data-testid="op-sec-new-links-count">
               {{ security.signals.newLinks.week }} upstream link(s) · {{ security.signals.newClients.week }} client registration(s)
             </p>
@@ -295,7 +296,7 @@ onMounted(async () => {
 
       <!-- The queryable audit log -->
       <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-sec-audit">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">The audit log</h2>
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.sec.auditTitle') }}</h2>
         <div class="flex flex-wrap items-center gap-2 mb-3">
           <input
             v-model="q"
@@ -317,7 +318,7 @@ onMounted(async () => {
             data-testid="op-sec-audit-export"
             class="px-3 py-2 rounded-lg text-xs font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors"
             @click="exportCsv"
-          >Export CSV</button>
+          >{{ t('admin.sec.exportCsv') }}</button>
         </div>
 
         <div v-if="auditError" class="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
@@ -333,7 +334,7 @@ onMounted(async () => {
           <li v-for="event in audit.events" :key="event.id" class="rounded-lg border border-slate-100 dark:border-slate-700/60 px-3 py-2" :data-testid="`op-sec-audit-event-${event.id}`">
             <p class="text-xs text-slate-700 dark:text-slate-300">
               <span class="text-slate-400 dark:text-slate-500">{{ stamp(event.timestamp) }}</span>
-              · <strong>{{ event.user_name ?? 'the system' }}</strong>:
+              · <strong>{{ event.user_name ?? t('admin.sec.theSystem') }}</strong>:
               {{ describe(event) }}
             </p>
             <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
@@ -349,12 +350,12 @@ onMounted(async () => {
 
       <!-- The live access review -->
       <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-sec-review">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">The access review, live</h2>
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.sec.reviewTitle') }}</h2>
         <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-4" data-testid="op-sec-review-source">
           <template v-if="review">{{ review.source }}. Generated {{ stamp(review.generatedAt) }}.</template>
         </p>
         <template v-if="review">
-          <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Privileged holders ({{ review.privilegedHolders.length }}) — {{ review.privilegedRoles.join(', ') }}</h3>
+          <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.sec.holdersTitle', { count: review.privilegedHolders.length, roles: review.privilegedRoles.join(', ') }) }}</h3>
           <ul class="mb-4 space-y-1" data-testid="op-sec-review-holders">
             <li v-for="holder in review.privilegedHolders" :key="holder.id" class="text-xs text-slate-700 dark:text-slate-300" :data-testid="`op-sec-review-holder-${holder.id}`">
               <strong>{{ holder.name }}</strong> &lt;{{ holder.email }}&gt; — {{ holder.roles.join(', ') }}
@@ -363,14 +364,14 @@ onMounted(async () => {
             </li>
           </ul>
           <template v-if="review.perClientPrivileged.length">
-            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Per-client privileged assignments ({{ review.perClientPrivileged.length }})</h3>
+            <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.sec.perClientTitle', { count: review.perClientPrivileged.length }) }}</h3>
             <ul class="mb-4 space-y-1" data-testid="op-sec-review-client-grants">
               <li v-for="grant in review.perClientPrivileged" :key="`${grant.account}-${grant.clientId}`" class="text-xs text-slate-700 dark:text-slate-300">
                 {{ grant.account }} — {{ grant.roles.join(', ') }} on {{ grant.clientId }}
               </li>
             </ul>
           </template>
-          <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Findings ({{ review.findings.length }})</h3>
+          <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ t('admin.sec.findingsTitle', { count: review.findings.length }) }}</h3>
           <ul v-if="review.findings.length" class="mb-4 space-y-1" data-testid="op-sec-review-findings">
             <li v-for="finding in review.findings" :key="finding" class="text-xs text-amber-700 dark:text-amber-300">{{ finding }}</li>
           </ul>

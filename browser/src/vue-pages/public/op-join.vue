@@ -29,6 +29,8 @@
 import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../../components/BrandLogo.vue'
 import { useBranding } from '../../branding'
+import { t } from '../../i18n'
+import { orgKindLabelKey, orgRoleGlossKey } from '../../org-vocabulary'
 
 interface SelectorOrg {
   id: string
@@ -64,27 +66,18 @@ const error = ref<string | null>(null)
 /** The success panel's copy once the request is filed. */
 const filed = ref<{ queue: 'org' | 'biml' | 'manufacturer'; orgName: string; orgCreated?: boolean } | null>(null)
 
-const KIND_LABELS: Record<SelectorOrg['kind'], string> = {
-  // The OIML Member category (TODO.identity-features/10): the member's
-  // personnel join on the read/access posture, never a workflow role.
-  'member-state': 'OIML Member — Member State',
-  'corresponding-member': 'OIML Member — Corresponding Member',
-  'issuing-authority': 'Issuing Authority',
-  'test-laboratory': 'Test Laboratory',
-  utilizer: 'Utilizer',
-  associate: 'Associate',
+// The kind and role vocabulary rides the ONE shared module
+// (TODO.restructure/07 — src/org-vocabulary.ts): the same labels and
+// glosses the admin consoles render, EN/FR through the catalogs. The
+// OIML Member category's personnel join on the read/access posture,
+// never a workflow role; the glosses disambiguate the NMI split.
+function kindLabel(kind: SelectorOrg['kind']): string {
+  return t(orgKindLabelKey(kind))
 }
 
-/** A one-line gloss per role id (the audience knows the vocabulary; the
- *  gloss disambiguates the NMI split). */
-const ROLE_GLOSSES: Record<string, string> = {
-  ia_officer: 'Issuing Authority officer — runs type evaluations end to end',
-  case_officer: 'Case officer — reviews and dispatches, never the decision',
-  certification_officer: 'Certification officer — the evaluation decision and issuance',
-  signatory: 'Signatory — the report signature authority',
-  tl_operator: 'Test laboratory operator — performs the dispatched tests',
-  viewer: 'Read-only access — review certificates and reports',
-  org_admin: 'Organization administrator — manages the organization’s people',
+function roleGloss(role: string): string {
+  const key = orgRoleGlossKey(role)
+  return key ? t(key) : role
 }
 
 const selectedOrg = computed(() => orgs.value.find(o => o.id === selectedOrgId.value) ?? null)
@@ -99,7 +92,7 @@ const filteredOrgs = computed(() => {
     o.name.toLowerCase().includes(q)
     || o.shortName.toLowerCase().includes(q)
     || o.country.toLowerCase().includes(q)
-    || KIND_LABELS[o.kind].toLowerCase().includes(q),
+    || kindLabel(o.kind).toLowerCase().includes(q),
   )
 })
 
@@ -178,7 +171,7 @@ async function submit() {
         : { queue: 'org', orgName: selectedOrg.value?.name ?? 'your organization' }
     }
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     submitting.value = false
   }
@@ -309,7 +302,7 @@ onMounted(async () => {
                   @click="pickOrg(org.id)"
                 >
                   <span class="font-medium text-slate-900 dark:text-white">{{ org.name }}</span>
-                  <span class="block text-[11px] text-slate-400 dark:text-slate-500">{{ KIND_LABELS[org.kind] }}<template v-if="org.country"> · {{ org.country }}</template></span>
+                  <span class="block text-[11px] text-slate-400 dark:text-slate-500">{{ kindLabel(org.kind) }}<template v-if="org.country"> · {{ org.country }}</template></span>
                 </button>
               </li>
             </ul>
@@ -400,11 +393,11 @@ onMounted(async () => {
             >
               <option value="" disabled>Choose a role…</option>
               <option v-for="role in roleOptions" :key="role" :value="role" :data-testid="`join-role-option-${role}`">
-                {{ role }} — {{ ROLE_GLOSSES[role] ?? role }}
+                {{ role }} — {{ roleGloss(role) }}
               </option>
             </select>
             <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-              The options are bounded by the organization’s kind ({{ KIND_LABELS[selectedOrg.kind] }}); your
+              The options are bounded by the organization’s kind ({{ kindLabel(selectedOrg.kind) }}); your
               administrator confirms the assignment.
             </p>
           </div>

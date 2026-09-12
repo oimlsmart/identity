@@ -96,8 +96,8 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, normalizeOidcScopeSet, normalizePatScopes, type AuthUserPayload, type OidcClient, type OidcClientLaunch, type PatScope } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
+import { getStore, normalizeOidcScopeSet, normalizePatScopes, type AuthUserPayload, type OidcClient, type OidcClientLaunch, type PatScope } from '../store'
+import { getInstanceProfile } from '../profile'
 import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/config'
 import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, verifyOpJwt, type OpSigningKey } from '../auth/op/keys'
 import { hashClientSecret, verifyClientSecret } from '../auth/op/secrets'
@@ -127,10 +127,10 @@ import {
   validateLogoutBlock, verifyOpIdTokenHint, type OpLogoutBlock, type OpLogoutPolicy,
 } from '../auth/op/logout'
 import { sendOpSecurityMail } from '../auth/op/mail'
-import type { MailEnv } from '@oimlsmart/platform-server/mailer'
+import type { MailEnv } from '../mailer'
 import { resolveRegistryOrg } from '../auth/org-registry'
-import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
-import { SESSION_COOKIE, sessionUser } from '@oimlsmart/platform-server/session'
+import { APP_ROLES } from '../vocab'
+import { SESSION_COOKIE, sessionUser } from '../session'
 import { deleteCookie, getCookie } from 'hono/cookie'
 
 type EnvLike = Record<string, string | undefined>
@@ -321,7 +321,15 @@ export function createOpRouter(): Hono {
     if (!clientId) {
       return authorizeRefusal(c, 'Cannot authorize this request', 'The request names no <code>client_id</code>.')
     }
-    const client = await getStore().getOidcClient(clientId)
+    // The client read and the session read are INDEPENDENT — ONE phase
+    // on every authorize (TODO.restructure/12: this is the estate's
+    // hottest path, every RP sign-in pays it). The validation order
+    // below is unchanged; a refused client just also paid the session
+    // read, never an observable difference (a read, no state).
+    const [client, user] = await Promise.all([
+      getStore().getOidcClient(clientId),
+      sessionUser(c),
+    ])
     if (!client || client.status !== 'active') {
       return authorizeRefusal(c, 'Cannot authorize this request', `The client <code>${escapeHtml(clientId)}</code> is not registered on this identity provider (or is disabled).`)
     }
@@ -372,7 +380,8 @@ export function createOpRouter(): Hono {
     //    remaining prompt values (consent) ride on.
     const prompts = (prompt ?? '').split(/\s+/).filter(Boolean)
     const forceLogin = prompts.includes('login')
-    const user = await sessionUser(c)
+    // `user` arrived with the client read above (TODO.restructure/12's
+    // one-phase boot).
     if (!user || forceLogin) {
       const here = new URL(c.req.url)
       if (forceLogin) {
@@ -1166,7 +1175,14 @@ export function createOpRouter(): Hono {
       return refuseToken(400, 'invalid_grant', 'the PKCE verifier does not match the challenge', client!.clientId)
     }
 
-    const user = await store.getUserById(code.userId)
+    // The user read and the per-client roles read are INDEPENDENT (both
+    // key on the consumed code's userId) — ONE phase on every exchange
+    // (TODO.restructure/14). claimsContextFor stays behind the user read:
+    // it resolves the org context against the user object.
+    const [user, assigned] = await Promise.all([
+      store.getUserById(code.userId),
+      store.getOpClientRoles(code.userId, client!.clientId),
+    ])
     if (!user) return refuseToken(400, 'invalid_grant', 'the code’s account no longer exists', client!.clientId)
 
     // The claims the client is allowed: profile+email per the scopes;
@@ -1202,7 +1218,6 @@ export function createOpRouter(): Hono {
       // (the platform's link-by-verified-email rule depends on it).
       claims.email_verified = Boolean(user.emailVerifiedAt)
     }
-    const assigned = await store.getOpClientRoles(user.id, client!.clientId)
     const context = await claimsContextFor(store, user, code.contextOrg ?? null)
     Object.assign(claims, roleClaimsForContext(assigned, context, client!.claimsPolicy))
     // The picture family (auth/op/claims.ts): the public avatar route's

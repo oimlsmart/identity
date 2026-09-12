@@ -25,7 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { opRandomToken } from './keys'
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from '../../store'
 
 type EnvLike = Record<string, string | undefined>
 

@@ -353,7 +353,7 @@ describe('TODO.identity-sso (the wave-A tail) — the logout cone + prompt=login
     // token carries NO nonce — the strict nonce compare passes on
     // undefined===undefined (the builder's type names a string; the
     // logout token is not an ID token).
-    const { discoverIssuer, validateIdToken } = await import('@oimlsmart/platform-server/oidc')
+    const { discoverIssuer, validateIdToken } = await import('../server/oidc')
     const metadata = await discoverIssuer(ISSUER)
     const claims = await validateIdToken(token, {
       issuer: ISSUER,

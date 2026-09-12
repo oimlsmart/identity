@@ -56,12 +56,12 @@ const CONFIDENTIAL = {
 }
 process.env.OP_CLIENT_SEED = JSON.stringify([CONFIDENTIAL])
 
-import { resetMailerForTest } from '@oimlsmart/platform-server/mailer'
+import { resetMailerForTest } from '../../server/mailer'
 import { startStubMailer, type StubMailer } from '../../e2e/fixtures/stub-mailer'
 import { totpAtStep } from '../../server/auth/op/totp'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let stub: StubMailer
 let idp: import('../../e2e/fixtures/stub-idp').StubIdp
 
@@ -179,9 +179,9 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -231,7 +231,7 @@ afterAll(async () => {
   resetMailerForTest()
   rmSync(TMP, { recursive: true, force: true })
   for (const k of ['OP_ISSUER', 'OP_SIGNING_KEY', 'OP_CLIENT_SEED', 'DATABASE_PATH', 'OP_LOGIN_BACKOFF_BASE_MS', 'FIXTURE_IDP_SECRET']) delete process.env[k]
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
 

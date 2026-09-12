@@ -34,7 +34,7 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 const ORIGIN = 'http://op.test'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 // ── the seeded organization registry ────────────────────────────────
 // TODO.identity-features/05: the identity service's OWN registry (the
@@ -69,9 +69,9 @@ async function json(res: Response, status: number): Promise<any> {
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -118,7 +118,7 @@ demo_personas: true
 })
 
 afterAll(async () => {
-  const { resetInstanceProfileForTest } = await import('@oimlsmart/platform-server/profile')
+  const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.DATABASE_PATH
@@ -599,10 +599,11 @@ describe('the org invites (POST /api/op/org-invites)', () => {
 
 describe('the identity-module gate', () => {
   it('a non-identity profile answers 404 on the join surface', async () => {
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
-identity: { org_id: biml, org_name: BIML, role_codes: [hub] }
-roles: [hub]
+identity: { org_id: biml, org_name: BIML, role_codes: [identity] }
+roles: [identity]
+modules: []
 `))
     try {
       for (const path of ['/api/op/organizations', '/api/op/join-requests']) {

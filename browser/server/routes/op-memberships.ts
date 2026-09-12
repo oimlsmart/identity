@@ -32,14 +32,14 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, encodeOrgMemberCone, parseOrgMemberCone, type AuthUserPayload, type OrgMembership, type ServerStore, type UserAdminRow } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
-import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
+import { getStore, encodeOrgMemberCone, parseOrgMemberCone, type AuthUserPayload, type OrgMembership, type ServerStore, type UserAdminRow } from '../store'
+import { getInstanceProfile } from '../profile'
+import { effectiveRbacMap } from '../rbac'
+import { effectiveRolesOf } from '../vocab'
 import { orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { orgAuditSlice } from '../auth/op/org-audit'
 import { explainAccountOf, explainOrgMember } from '../auth/op/explain'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { sessionUser } from '../session'
 
 /** The caller's grant over these routes: 'wide' (the identity admin) or
  *  'org' (the org admin, pinned to the org it acts AS). */

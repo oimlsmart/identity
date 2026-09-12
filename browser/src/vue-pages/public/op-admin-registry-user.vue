@@ -47,6 +47,7 @@ import { useRoute } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
 import { t, type MessageKey } from '../../i18n'
+import { api } from '../../lib/api-client'
 
 interface AuditEvent {
   id: string
@@ -400,14 +401,6 @@ function appReason(row: AppAccessRow): string {
 
 function clientName(clientId: string): string {
   return detail.value?.appAccess.find(cl => cl.clientId === clientId)?.name ?? clientId
-}
-
-async function api(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(path, {
-    credentials: 'include',
-    ...(init?.body ? { headers: { 'content-type': 'application/json' } } : {}),
-    ...init,
-  })
 }
 
 async function load(): Promise<void> {
@@ -811,24 +804,27 @@ function activityLine(event: AuditEvent): string {
 
 onMounted(async () => {
   try {
-    const session = await fetch('/api/auth/session', { credentials: 'include' })
+    // The session, the vocabularies, and the user detail are INDEPENDENT
+    // reads — one latency phase (TODO.restructure/02). load() re-checks
+    // the 401 posture itself.
+    const [session, rolesRes, providersRes, orgsRes] = await Promise.all([
+      fetch('/api/auth/session', { credentials: 'include' }),
+      api('/api/users/roles'),
+      api('/api/op/providers'),
+      // TODO.identity/11: the registered orgs (the memberships section's
+      // add-to-org + role-editor options).
+      fetch('/api/op/organizations'),
+      load(),
+    ])
     if (!session.ok) {
       window.location.assign(`/?redirect=${encodeURIComponent(`/op/admin/registry/users/${userId.value}`)}`)
       return
     }
     const me = await session.json() as { id: string }
     isSelf.value = me.id === userId.value
-    const [rolesRes, providersRes, orgsRes] = await Promise.all([
-      api('/api/users/roles'),
-      api('/api/op/providers'),
-      // TODO.identity/11: the registered orgs (the memberships section's
-      // add-to-org + role-editor options).
-      fetch('/api/op/organizations'),
-    ])
     if (rolesRes.ok) roleMap.value = await rolesRes.json() as Record<string, string[]>
     if (providersRes.ok) providers.value = (await providersRes.json() as ProviderRow[]).filter(p => p.enabled)
     if (orgsRes.ok) registryOrgs.value = await orgsRes.json() as SelectableOrg[]
-    await load()
   } catch (e) {
     error.value = (e as Error).message || t('account.networkError')
   } finally {

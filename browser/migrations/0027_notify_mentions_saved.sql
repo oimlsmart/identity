@@ -1,0 +1,33 @@
+-- TODO.notify/05's remainders (platform-server#25 — the smart side's
+-- TODO.notify/00 banner: the mentions-parse half and the per-event saved
+-- flag ride a KERNEL migration). Expand-only per the migration contract
+-- (append, never renumber): two columns, both NULL-defaulted, existing
+-- rows untouched.
+--
+--   events.mentions            the act's @user mentions (TODO.notify/00's
+--                              "Mentions land as the 'mentioned' reason"):
+--                              a JSON array of the mentioned USER IDS,
+--                              resolved by the comment surfaces' parse at
+--                              event time and recorded ON THE ROW — the
+--                              inbox feed computes its reasons at READ,
+--                              and a mention is a fact of the act, never
+--                              re-derivable from the entity. NULL = none
+--                              (every pre-0027 row, every mention-free
+--                              act). The recipient resolution's
+--                              'mentioned' candidate class reads it; the
+--                              mutes and the visibility gate still win
+--                              (a mention never widens access).
+--
+--   notify_inbox_state.saved_at  the per-event saved flag (TODO.notify/
+--                              00's inbox state "read / done / saved",
+--                              the GitHub Save): stamps at the save act,
+--                              clears at the un-save. Independent of
+--                              read/done — a saved row that is done stays
+--                              saved in the archive. The marker row's
+--                              posture is unchanged (the user's own state,
+--                              lazily written, no foreign keys).
+--
+-- The schema's SQLite mirror (src/store/sqlite/schema.sql) updates in
+-- the same commit; test/migrations.test.ts fails the package otherwise.
+ALTER TABLE events ADD COLUMN mentions TEXT;
+ALTER TABLE notify_inbox_state ADD COLUMN saved_at TEXT;

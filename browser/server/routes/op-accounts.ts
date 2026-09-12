@@ -111,8 +111,13 @@
 //                                            audit chain, newest first)
 //
 // The rules that make it honest:
-//   - enrollment is INVITE-ONLY (no open signup, ever — the admin or the
-//     OP_ACCOUNT_SEED bootstrap mints the one-time links);
+//   - the ORGANIZATION binding is invite/request-gated (the join intake,
+//     the org admins); the ACCOUNT itself has TWO creation paths — the
+//     administrator's invite (enrollment, the one-time setup links) and
+//     the applicant's own self-registration (POST /api/op/register,
+//     TODO.restructure/05: no privileges beyond the account page, the
+//     mailbox proven by the same 'verify' ceremony or the claims stay
+//     unverified);
 //   - the setup link is EMAILED to the account when a mail provider is
 //     configured (TODO.identity/09, auth/op/mail.ts → @oimlsmart/platform-server/mailer),
 //     and shown to the admin for the out-of-band handover when it is not
@@ -130,10 +135,10 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload, type ServerStore } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
+import { getStore, type AuthUserPayload, type ServerStore } from '../store'
+import { getInstanceProfile } from '../profile'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
-import { clientInfo } from '@oimlsmart/platform-server/client-info'
+import { clientInfo } from '../client-info'
 import { deliverEmailChangeLink, OP_EMAIL_CHANGE_TTL_MS } from '../auth/op/email-change'
 import { deliverEmailVerificationLink, type EmailVerificationDelivery } from '../auth/op/emails'
 import {
@@ -149,15 +154,15 @@ import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markB
 import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
-import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
+import { resolveMailerConfig, type MailEnv } from '../mailer'
 import { isActiveRegistryOrg, listRegistryOrganizations, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
 import { hashPassword, passwordPolicy, verifyPasswordLogin } from '../auth/passwords'
 import { isStatusProbe } from '../auth/op/probe'
 import { avatarKey, avatarKeys, avatarMaxBytes, AVATAR_TYPES, sniffAvatar } from '../auth/op/avatars'
 import { getBlobStore } from '../blobs'
-import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
-import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '@oimlsmart/platform-server/session'
+import { APP_ROLES } from '../vocab'
+import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -395,21 +400,28 @@ export function createOpAccountsRouter(): Hono {
       }, 'auth')
       return c.json({ error: 'This account is deactivated — contact your administrator.' }, 403)
     }
-    // The password verified: the ladder clears outright (a success ends
-    // the backoff — the second factor's own ladder stands behind it).
-    await clearLoginThrottle(store, loginEmail)
+    // The password verified: the happy path's independent reads/writes
+    // run as ONE phase each (TODO.restructure/04 — the ladder clear, the
+    // deferred breach re-check, and the factor count never read each
+    // other's answer; the session's creation and the last-login stamp
+    // are likewise independent, as are the audit row and the user read).
+    // A success ends the backoff outright — the second factor's own
+    // ladder stands behind it.
     // TODO.identity-sso/04 slice B: the deferred breach re-check — a
     // password chosen while the corpus was unreachable re-runs the query
     // on the presented password (the marker decides; absent = no call).
     // Never strands the sign-in.
-    await recheckBreachedPassword(c, store, cred.userId, body.password)
+    const [, , counts] = await Promise.all([
+      clearLoginThrottle(store, loginEmail),
+      recheckBreachedPassword(c, store, cred.userId, body.password),
+      factorCounts(store, cred.userId),
+    ])
     // The second-factor branch (the factor registry, TODO.identity-sso/02+03):
     // a verified TOTP app or a registered passkey turns the password into
     // the FIRST leg — the session waits on the factor. The pending row's
     // amr carries the provenance so far; the completion appends the
     // factor's own. The recovery remainder rides along so the page can
     // offer the recovery floor honestly.
-    const counts = await factorCounts(store, cred.userId)
     if (counts.passkeys + counts.totp > 0) {
       const mfaToken = opRandomToken()
       await store.createMfaPending({ token: mfaToken, userId: cred.userId, amr: ['pwd'], ttlMs: MFA_PENDING_TTL_MS })
@@ -423,14 +435,24 @@ export function createOpAccountsRouter(): Hono {
         },
       })
     }
-    await store.touchLastLogin(cred.userId)
-    const token = await store.createSession(cred.userId, { ...clientInfo(c), amr: ['pwd'] })
+    // The session-minting phase, writes SERIAL (the store seam makes no
+    // concurrent-write promise — touchLastLogin ‖ createSession broke the
+    // sqlite path in test), the user READ parallel to the write chain
+    // (reads alongside writes proved safe in the phase above). The
+    // invocation order keeps the bounded-write facade's first-tripped
+    // write the UPDATE users stamp — the outage posture's own spec.
+    const [token, user] = await Promise.all([
+      (async () => {
+        await store.touchLastLogin(cred.userId)
+        return store.createSession(cred.userId, { ...clientInfo(c), amr: ['pwd'] })
+      })(),
+      store.getUserById(cred.userId),
+    ])
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
     // Every OP-side sign-in lands on the audit chain: TODO.identity/03's
     // registry reads it back for the last-sign-in column, and
     // TODO.identity/06's console shows it on the account's activity feed.
     await audit('account.sign_in', cred.userId, { userId: cred.userId }, { method: 'password', amr: ['pwd'] })
-    const user = await store.getUserById(cred.userId)
     // TODO.identity/09 — the account holder learns of every entry. The
     // notification never blocks or fails the sign-in (sendOpMail's
     // results are honest; the console posture just logs).
@@ -651,11 +673,15 @@ export function createOpAccountsRouter(): Hono {
     ])
     const rolesByUser = new Map<string, typeof allClientRoles>()
     for (const a of allClientRoles) rolesByUser.set(a.userId, [...(rolesByUser.get(a.userId) ?? []), a])
-    const built = await Promise.all(rows.map(async (row) => {
-      const [methods, links] = await Promise.all([
-        store.countSignInMethods(row.id),
-        store.listIdentityLinks(row.id),
-      ])
+    // TODO.restructure/06 (landed via 15 wave 1): the per-row posture +
+    // link reads collapse to TWO bulk reads over identity's OWN store.
+    const [posture, linksByUser] = await Promise.all([
+      store.countSignInMethodsBulk(rows.map(r => r.id)),
+      store.listIdentityLinksBulk(rows.map(r => r.id)),
+    ])
+    const built = rows.map((row) => {
+      const methods = posture.get(row.id)!
+      const links = linksByUser.get(row.id)!
       return {
         id: row.id,
         email: row.email,
@@ -670,7 +696,7 @@ export function createOpAccountsRouter(): Hono {
         lastSignIn: signIns[row.id] ?? row.lastLogin ?? null,
         clientRoles: (rolesByUser.get(row.id) ?? []).map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt })),
       }
-    }))
+    })
     return c.json(built)
   })
 
@@ -1004,6 +1030,71 @@ export function createOpAccountsRouter(): Hono {
     // completion (the holder's first proof the credential is live).
     if (enrolled) await notifyPasswordChanged(c, enrolled)
     return c.json(enrolled)
+  })
+
+  // ── the public self-registration (TODO.restructure/05) ──────────────
+
+  // POST /api/op/register — an applicant creates their OWN account. The
+  // invite-only doctrine narrows to what it always protected: the
+  // ORGANIZATION binding (the join intake, the org admins) — the ACCOUNT
+  // itself is the applicant's own act, with no privileges beyond the
+  // account page (the viewer default). The mailbox proof is the same
+  // kernel 'verify' ceremony the invited accounts ride: the account
+  // signs in at once with email_verified FALSE (the honest claim; the
+  // strong factors stay locked until the link completes), and the
+  // mailed one-time link — 24 h, voiding the account's earlier pending
+  // 'verify' links — flips it. The OP rate limiter mounts on the route
+  // (app.ts). A no-mailer deployment answers 503 BEFORE any row lands:
+  // an unprovable mailbox would strand the account in the unverified
+  // state with no way out. NEVER a session in the answer, never the
+  // link on screen (the mailbox is its only channel).
+  accounts.post('/api/op/register', async (c) => {
+    const body = await c.req.json<{ name?: string; email?: string; password?: string }>().catch(() => null)
+    const name = typeof body?.name === 'string' ? body.name.trim() : ''
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+    if (!name || !email.includes('@') || email.length > 254) {
+      return c.json({ error: 'A name and a valid email address are required.' }, 400)
+    }
+    if (typeof body?.password !== 'string' || !body.password) {
+      return c.json({ error: 'A password is required.' }, 400)
+    }
+    // The enroll route's own order: a refused password never touches
+    // state (the policy, then the corpus; an unreachable corpus accepts
+    // and arms the sign-in re-check).
+    const policy = passwordPolicy(body.password)
+    if (!policy.ok) {
+      return c.json({ error: `The password needs ${policy.problems.join(' and ')}.` }, 400)
+    }
+    const breach = await hibpPasswordVerdict(body.password, runtimeEnv<EnvLike>(c))
+    if (breach === 'breached') {
+      return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
+    }
+    if (resolveMailerConfig(runtimeEnv<EnvLike>(c)).posture === 'console') {
+      return c.json({
+        error: 'This deployment cannot send email, so a self-registered account could never prove its mailbox. Ask your administrator for an invite instead.',
+        mailAvailable: false,
+      }, 503)
+    }
+    const store = getStore()
+    const created = await store.createOpAccount({ email, name, role: 'viewer', createdBy: null })
+    if (!created) {
+      // The honest conflict (the invite route's own 409 posture): the
+      // address already names an account, so the act is a sign-in or a
+      // reset, never a second account.
+      return c.json({ error: 'An account with this address already exists — sign in instead, or request a password reset if you forgot it.' }, 409)
+    }
+    await store.setPasswordHash(created.id, await hashPassword(body.password))
+    if (breach === 'unknown') await markBreachRecheck(store, created.id)
+    // 'pending' is the transient-send posture: the account stands, the
+    // holder signs in, and the console banner's resend carries the link
+    // once the mailer answers again.
+    const delivery = await sendEmailVerification(c, created, email, 'verify')
+    await audit('account.self_registered', created.id, { userId: created.id, userName: created.name }, {
+      method: 'register',
+      email,
+      delivery,
+    }, 'auth')
+    return c.json({ email, verification: delivery === 'mailer' ? 'mailed' : 'pending' }, 201)
   })
 
   // ── the account self-service (TODO.identity/02 + the 06 console) ───

@@ -27,7 +27,7 @@
 
 import type { Context, MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore } from '@oimlsmart/platform-server/store'
+import { getStore } from './store'
 
 export interface OpRateLimitConfig {
   capacity: number

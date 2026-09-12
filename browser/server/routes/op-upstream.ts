@@ -37,14 +37,14 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { setCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload, type IdentityProvider } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
+import { getStore, type AuthUserPayload, type IdentityProvider } from '../store'
+import { getInstanceProfile } from '../profile'
 import { opRequestOrigin } from '../auth/op/config'
-import { clientInfo } from '@oimlsmart/platform-server/client-info'
+import { clientInfo } from '../client-info'
 import { resolveOpSigningKey } from '../auth/op/keys'
 import { sendOpSecurityMail } from '../auth/op/mail'
-import type { MailEnv } from '@oimlsmart/platform-server/mailer'
-import { roleHome } from '@oimlsmart/platform-server/vocab'
+import type { MailEnv } from '../mailer'
+import { roleHome } from '../vocab'
 import {
   isAppleProvider,
   providerScopes,
@@ -64,7 +64,7 @@ import {
 } from '../auth/upstream/oidc-client'
 import { generateAppleClientSecret, resolveAppleSecretConfig } from '../auth/upstream/apple'
 import { buildGitHubAuthorizeUrl, fetchGitHubIdentity, gitHubEndpoints, GitHubUpstreamError } from '../auth/upstream/github-client'
-import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '@oimlsmart/platform-server/session'
+import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
 
 type EnvLike = Record<string, string | undefined>
 

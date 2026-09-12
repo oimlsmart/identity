@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { load as parseYaml } from 'js-yaml'
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import type { ServerStore } from './store'
 import { registerOrgSigningKey, resolveOrgSigningKey } from './auth/org-signing-keys'
 
 const SNAPSHOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'org-register.snapshot.yaml')

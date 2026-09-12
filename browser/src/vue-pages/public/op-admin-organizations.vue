@@ -21,6 +21,8 @@ import { onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
+import { orgKindLabelKey, orgKindPurposeKey } from '../../org-vocabulary'
+import { api } from '../../lib/api-client'
 
 interface OrgRow {
   id: string
@@ -100,14 +102,6 @@ function chainSuffix(row: OrgRow): string {
   return parts.length ? ` · ${parts.join(' · ')}` : ''
 }
 
-async function api(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(path, {
-    credentials: 'include',
-    ...(init?.body ? { headers: { 'content-type': 'application/json' } } : {}),
-    ...init,
-  })
-}
-
 async function load(): Promise<void> {
   const res = await api('/api/op/registry/orgs')
   if (res.status === 401) {
@@ -175,13 +169,18 @@ async function addOrganization() {
 
 onMounted(async () => {
   try {
-    const session = await fetch('/api/auth/session', { credentials: 'include' })
+    // The session gate and the first data read are INDEPENDENT — one
+    // latency phase (TODO.restructure/02). load() re-checks the 401
+    // posture itself.
+    const [session] = await Promise.all([
+      fetch('/api/auth/session', { credentials: 'include' }),
+      load(),
+    ])
     if (!session.ok) {
       window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/organizations')}`)
       return
     }
     account.value = await session.json() as { id: string; name: string; email: string }
-    await load()
   } catch (e) {
     error.value = (e as Error).message || t('account.networkError')
   } finally {
@@ -252,7 +251,7 @@ onMounted(async () => {
             class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">{{ t('admin.orgs.kindNone') }}</option>
-            <option v-for="k in KIND_OPTIONS" :key="k" :value="k">{{ k }}</option>
+            <option v-for="k in KIND_OPTIONS" :key="k" :value="k">{{ t(orgKindLabelKey(k)) }}</option>
           </select>
           <input
             v-model="addCountry"
@@ -341,8 +340,12 @@ onMounted(async () => {
                     {{ row.name }}
                     <span class="ml-1 text-[11px] font-normal text-slate-400 dark:text-slate-500">{{ row.id }}</span>
                   </p>
-                  <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`op-orgs-kind-${row.id}`">
-                    {{ row.kind ?? t('admin.orgs.kindNone') }}<template v-if="row.country"> · {{ row.country }}</template>
+                  <p
+                    class="text-[11px] text-slate-400 dark:text-slate-500"
+                    :data-testid="`op-orgs-kind-${row.id}`"
+                    :title="orgKindPurposeKey(row.kind) ? t(orgKindPurposeKey(row.kind)!) : undefined"
+                  >
+                    {{ t(orgKindLabelKey(row.kind)) }}<template v-if="row.country"> · {{ row.country }}</template>
                     <template v-if="row.participantRef"> · ⛓ {{ row.participantRef }}</template>
                     {{ standingSuffix(row) }}{{ chainSuffix(row) }}
                   </p>

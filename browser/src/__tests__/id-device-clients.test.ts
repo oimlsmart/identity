@@ -52,7 +52,7 @@ const DEVICE = { id: 'acme-lc500-sn-0001', org: 'mfr-acme', instrument_model: 'a
 const DEVICE_CLIENT_ID = 'device-acme-lc500-0001'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let parseOpClientSeed: typeof import('../../server/auth/op/registry').parseOpClientSeed
 let seedOidcClientsFromEnv: typeof import('../../server/auth/op/registry').seedOidcClientsFromEnv
 
@@ -138,9 +138,9 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id

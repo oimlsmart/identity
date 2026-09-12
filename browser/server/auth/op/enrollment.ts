@@ -17,7 +17,7 @@
 // WORKER-SAFE: the ServerStore seam + 02's worker-safe helpers only.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { ServerStore, UserAdminRow } from '@oimlsmart/platform-server/store'
+import type { ServerStore, UserAdminRow } from '../../store'
 import { mintEnrollmentToken, OP_ENROLLMENT_TTL_MS } from './accounts'
 
 export interface IssuedInvite {

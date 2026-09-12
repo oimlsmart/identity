@@ -36,9 +36,9 @@
 
 import { Hono, type Context } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, normalizePatScopes, type OrgContextResolution } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { getStore, normalizePatScopes, type OrgContextResolution } from '../store'
+import { getInstanceProfile } from '../profile'
+import { sessionUser } from '../session'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import {
   auditPat,
@@ -51,7 +51,7 @@ import {
   resolvePatScopesForAccount,
 } from '../auth/op/tokens'
 import { sendOpSecurityMail } from '../auth/op/mail'
-import type { MailEnv } from '@oimlsmart/platform-server/mailer'
+import type { MailEnv } from '../mailer'
 
 type EnvLike = Record<string, string | undefined>
 

@@ -21,7 +21,7 @@
 // WORKER-SAFE: the store seam only, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import { getStore, normalizeOidcScopeSet, type OidcConsentGrant } from '@oimlsmart/platform-server/store'
+import { getStore, normalizeOidcScopeSet, type OidcConsentGrant } from '../../store'
 
 /** The grant acts' audit trail (the account's own activity feed shows
  *  them — the same discipline as auth/op/tokens.ts's auditPat: the audit

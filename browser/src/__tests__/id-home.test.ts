@@ -74,7 +74,7 @@ const MACHINE = {
 process.env.OP_CLIENT_SEED = JSON.stringify([HUB, TL, ASSISTANT, MACHINE])
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 async function demoLogin(email: string): Promise<string> {
   const res = await app.request('/api/auth/demo', {
@@ -127,9 +127,9 @@ async function grantClientRoles(admin: string, accountId: string, clientId: stri
 let nadia: { id: string; cookie: string } // the invited OP account (OP-side role: viewer)
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -162,7 +162,7 @@ demo_personas: true
 })
 
 afterAll(async () => {
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
@@ -189,10 +189,11 @@ describe('the launcher feed', () => {
   })
 
   it('a non-identity deployment answers 404 (the profile gate)', async () => {
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
-identity: { org_id: plain, org_name: Plain instance, role_codes: [hub] }
-roles: [hub]
+identity: { org_id: plain, org_name: Plain instance, role_codes: [identity] }
+roles: [identity]
+modules: []
 `))
     const res = await app.request(`${ISSUER}/api/op/home`)
     expect(res.status).toBe(404)

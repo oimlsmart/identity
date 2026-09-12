@@ -61,7 +61,7 @@
 // WORKER-SAFE: pure functions, no I/O, no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { OidcClientClaimsPolicy } from '@oimlsmart/platform-server/store'
+import type { OidcClientClaimsPolicy } from '../../store'
 
 /** The class marker's value (claims_policy.class). ABSENT = the
  *  application class (the relying-party posture); 'device' = the device

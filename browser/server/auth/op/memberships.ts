@@ -24,7 +24,7 @@ import {
   resolveOrgContext,
   type OrgContextResolution,
   type ServerStore,
-} from '@oimlsmart/platform-server/store'
+} from '../../store'
 
 /** The account-shaped input the rule reads (the RAW account row). */
 export interface ContextAccount {

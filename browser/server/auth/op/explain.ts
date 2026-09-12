@@ -54,13 +54,13 @@ import {
   encodeOrgMemberCone,
   type OrgMemberCone,
   type OrgMembership,
-} from '@oimlsmart/platform-server/store'
+} from '../../store'
 import {
   PERMISSION_INFO,
   IA_DESK_ROLES,
   type ActionPermission,
   type RolePermissionMap,
-} from '@oimlsmart/platform-server/vocab'
+} from '../../vocab'
 import { orgAssignableRoles, type RegistryOrg } from '../org-registry'
 
 /** The org-scoped primary roles — the platform's read/write gates bind

@@ -69,6 +69,16 @@ import AccountTokens, { type TokensPayload } from '../components/AccountTokens.v
 import AccountApps, { type GrantsPayload } from '../components/AccountApps.vue'
 import AccountEmails, { type AccountEmailRow } from '../components/AccountEmails.vue'
 import { t, type MessageKey } from '../i18n'
+import { orgRoleGlossKey } from '../org-vocabulary'
+
+/** The org-role vocabulary's one-line gloss (TODO.restructure/07 — the
+ *  same module the join page and the admin consoles read): the console's
+ *  role lines render `code — gloss` so the code (the support and admin
+ *  cross-reference) and the meaning travel together. */
+function roleGloss(role: string): string {
+  const key = orgRoleGlossKey(role)
+  return key ? t(key) : role
+}
 
 interface AccountContext {
   account: {
@@ -1301,7 +1311,7 @@ async function revokeOthers() {
                     >{{ t('account.organizations.actingBadge') }}</span>
                   </p>
                   <p class="text-xs text-slate-400 dark:text-slate-500" :data-testid="`account-org-roles-${m.orgId}`">
-                    {{ m.roles.length ? m.roles.join(', ') : t('account.organizations.noRoles') }}
+                    {{ m.roles.length ? m.roles.map(r => `${r} — ${roleGloss(r)}`).join(' · ') : t('account.organizations.noRoles') }}
                   </p>
                 </div>
                 <div class="shrink-0 flex items-center gap-2">
@@ -1458,7 +1468,7 @@ async function revokeOthers() {
               :data-testid="`account-org-request-${r.id}`"
             >
               <p class="text-xs text-slate-600 dark:text-slate-300">
-                {{ r.orgName ?? r.orgNameText ?? r.orgId }} · {{ r.requestedRole }}
+                {{ r.orgName ?? r.orgNameText ?? r.orgId }} · {{ r.requestedRole }} — {{ roleGloss(r.requestedRole) }}
               </p>
               <p class="shrink-0 pl-3 text-xs" :data-testid="`account-org-request-status-${r.id}`">
                 <span v-if="r.status === 'pending'" class="text-amber-600 dark:text-amber-400">{{ t('account.organizations.requestPending', { date: fmtDate(r.createdAt) }) }}</span>
@@ -1488,7 +1498,7 @@ async function revokeOthers() {
                 class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
               >
                 <option value="" disabled>{{ t('account.organizations.roleLabel') }}</option>
-                <option v-for="r in joinRoles" :key="r" :value="r">{{ r }}</option>
+                <option v-for="r in joinRoles" :key="r" :value="r">{{ r }} — {{ roleGloss(r) }}</option>
               </select>
             </div>
             <input

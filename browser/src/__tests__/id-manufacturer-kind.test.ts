@@ -46,7 +46,7 @@ process.env.OP_ISSUER = 'http://op.test'
 const ORIGIN = 'http://op.test'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 async function demoLogin(email: string): Promise<string> {
   const res = await app.request(`${ORIGIN}/api/auth/demo`, {
@@ -71,9 +71,9 @@ async function journal(): Promise<Array<{ action: string; entity_type: string; e
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -114,7 +114,7 @@ demo_personas: true
 })
 
 afterAll(async () => {
-  const { resetInstanceProfileForTest } = await import('@oimlsmart/platform-server/profile')
+  const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.DATABASE_PATH
@@ -529,10 +529,11 @@ describe('the IA endorsement acts', () => {
 
 describe('the identity-module gate', () => {
   it('a non-identity profile answers 404 on the endorsement surface', async () => {
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
-identity: { org_id: biml, org_name: BIML, role_codes: [hub] }
-roles: [hub]
+identity: { org_id: biml, org_name: BIML, role_codes: [identity] }
+roles: [identity]
+modules: []
 `))
     try {
       const res = await app.request(`${ORIGIN}/api/op/org-endorsements`, { method: 'POST' })

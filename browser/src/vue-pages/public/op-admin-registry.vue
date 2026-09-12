@@ -16,6 +16,8 @@
 import { onMounted, ref, watch } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
+import { api } from '../../lib/api-client'
+import { t } from '../../i18n'
 
 interface RegistryRow {
   id: string
@@ -58,14 +60,6 @@ const inviteRole = ref('viewer')
 const inviting = ref(false)
 const lastInvite = ref<{ email: string; name: string; setupUrl: string; expiresAt: string } | null>(null)
 
-async function api(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(path, {
-    credentials: 'include',
-    ...(init?.body ? { headers: { 'content-type': 'application/json' } } : {}),
-    ...init,
-  })
-}
-
 async function load(): Promise<void> {
   const params = new URLSearchParams()
   if (search.value.trim()) params.set('q', search.value.trim())
@@ -80,7 +74,7 @@ async function load(): Promise<void> {
     forbidden.value = true
     return
   }
-  if (!res.ok) throw new Error(`the registry failed (${res.status})`)
+  if (!res.ok) throw new Error(t('admin.reg.loadFailed', { status: res.status }))
   rows.value = await res.json() as RegistryRow[]
 }
 
@@ -107,7 +101,7 @@ async function invite() {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The invite failed (${res.status}).`
+      error.value = body.error ?? t('admin.reg.inviteFailed', { status: res.status })
       return
     }
     const created = await res.json() as {
@@ -121,12 +115,12 @@ async function invite() {
       setupUrl: created.setupUrl,
       expiresAt: created.expiresAt,
     }
-    notice.value = `${created.account.name} is invited. Hand over the one-time setup link below (24 hours); it is shown only now.`
+    notice.value = t('admin.reg.invited', { name: created.account.name })
     inviteName.value = ''
     inviteEmail.value = ''
     await load()
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
   } finally {
     inviting.value = false
   }
@@ -138,22 +132,27 @@ function copySetupUrl() {
 
 /** The last-sign-in cell: the date, or the honest "never". */
 function lastSignIn(row: RegistryRow): string {
-  return row.lastLogin ? row.lastLogin.slice(0, 16).replace('T', ' ') : 'never'
+  return row.lastLogin ? row.lastLogin.slice(0, 16).replace('T', ' ') : t('admin.reg.never')
 }
 
 onMounted(async () => {
   try {
-    const session = await fetch('/api/auth/session', { credentials: 'include' })
+    // The session, the role vocabulary, and the first data page are
+    // INDEPENDENT reads — one latency phase (TODO.restructure/02).
+    // load() re-checks the 401 posture itself.
+    const [session, rolesRes] = await Promise.all([
+      fetch('/api/auth/session', { credentials: 'include' }),
+      api('/api/users/roles'),
+      load(),
+    ])
     if (!session.ok) {
       window.location.assign(`/?redirect=${encodeURIComponent('/op/admin/registry')}`)
       return
     }
     account.value = await session.json() as { id: string; name: string; email: string }
-    const rolesRes = await api('/api/users/roles')
     if (rolesRes.ok) roleOptions.value = Object.keys(await rolesRes.json() as Record<string, string[]>)
-    await load()
   } catch (e) {
-    error.value = (e as Error).message || 'Network error. Is the server running?'
+    error.value = (e as Error).message || t('error.network')
   } finally {
     loading.value = false
   }
@@ -169,17 +168,17 @@ onMounted(async () => {
     <!-- The honest refusal (the API's 403) -->
     <div v-else-if="forbidden" class="max-w-md mx-auto py-16">
       <div class="text-center mb-8">
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Identity registry</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('admin.reg.title') }}</h1>
       </div>
       <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
         <p class="text-sm text-amber-800 dark:text-amber-300" data-testid="op-reg-forbidden">
-          The identity registry is an administrator surface — your account does not hold the administrator role.
+          {{ t('admin.reg.forbidden') }}
         </p>
       </div>
     </div>
 
     <div v-else data-testid="op-reg">
-      <PageHeader title="Identity registry">
+      <PageHeader :title="t('admin.reg.title')">
         <template #description>
           <span data-testid="op-reg-identity"><template v-if="account">{{ account.name }} &lt;{{ account.email }}&gt; — </template>{{ branding.productName }}</span>
         </template>
@@ -214,21 +213,21 @@ onMounted(async () => {
 
       <!-- The invite action -->
       <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-invite">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Invite an account</h2>
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.reg.inviteTitle') }}</h2>
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
           <input
             v-model="inviteName"
             type="text"
             data-testid="op-reg-invite-name"
             class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Full name"
+            :placeholder="t('admin.reg.fieldName')"
           />
           <input
             v-model="inviteEmail"
             type="email"
             data-testid="op-reg-invite-email"
             class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Email"
+            :placeholder="t('admin.reg.fieldEmail')"
           />
           <select
             v-model="inviteRole"
@@ -242,10 +241,10 @@ onMounted(async () => {
             data-testid="op-reg-invite-submit"
             class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
             @click="invite"
-          >{{ inviting ? 'Inviting…' : 'Invite' }}</button>
+          >{{ inviting ? t('admin.reg.inviting') : t('admin.reg.invite') }}</button>
         </div>
         <p class="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-          Enrollment is invite-only: the account is created now, the one-time setup link (24 hours) is handed over out-of-band.
+          {{ t('admin.reg.inviteNote') }}
         </p>
       </section>
 
@@ -257,29 +256,29 @@ onMounted(async () => {
             type="search"
             data-testid="op-reg-search"
             class="flex-1 min-w-56 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Search name, email, or linked handle…"
+            :placeholder="t('admin.reg.searchPlaceholder')"
           />
           <select
             v-model="status"
             data-testid="op-reg-filter-status"
             class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
-            <option value="all">every status</option>
-            <option value="active">active</option>
-            <option value="deactivated">deactivated</option>
+            <option value="all">{{ t('admin.reg.everyStatus') }}</option>
+            <option value="active">{{ t('admin.reg.statusActive') }}</option>
+            <option value="deactivated">{{ t('admin.reg.statusDeactivated') }}</option>
           </select>
           <select
             v-model="role"
             data-testid="op-reg-filter-role"
             class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
-            <option value="">every role</option>
+            <option value="">{{ t('admin.reg.everyRole') }}</option>
             <option v-for="r in roleOptions" :key="r" :value="r">{{ r }}</option>
           </select>
         </div>
 
         <p v-if="!rows.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-reg-empty">
-          No accounts match — adjust the search or filters, or invite the account above.
+          {{ t('admin.reg.empty') }}
         </p>
 
         <!-- The directory: CARDS below md, the table from md up (the
@@ -317,7 +316,7 @@ onMounted(async () => {
               >Open</router-link>
             </div>
             <p class="mt-1.5 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-reg-card-roles-${row.id}`">
-              <span class="text-slate-400 dark:text-slate-500">Roles:</span> {{ row.roles.join(', ') }}
+              <span class="text-slate-400 dark:text-slate-500">{{ t('admin.reg.rolesLabel') }}:</span> {{ row.roles.join(', ') }}
             </p>
             <p class="text-[11px] text-slate-500 dark:text-slate-400">
               <span v-if="row.passwordSet">password</span><span v-else>no password yet</span><template v-if="row.links.length"> · {{ row.links.map(l => l.provider).join(', ') }}</template>
@@ -331,12 +330,12 @@ onMounted(async () => {
           <table class="w-full text-sm" data-testid="op-reg-list">
             <thead>
               <tr class="text-left text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-700">
-                <th class="py-2 pr-3 font-semibold">Account</th>
-                <th class="py-2 pr-3 font-semibold">Roles</th>
-                <th class="py-2 pr-3 font-semibold">Sign-in methods</th>
-                <th class="py-2 pr-3 font-semibold">Status</th>
-                <th class="py-2 pr-3 font-semibold">Last sign-in</th>
-                <th class="py-2 font-semibold"><span class="sr-only">Open</span></th>
+                <th class="py-2 pr-3 font-semibold">{{ t('admin.reg.colAccount') }}</th>
+                <th class="py-2 pr-3 font-semibold">{{ t('admin.reg.colRoles') }}</th>
+                <th class="py-2 pr-3 font-semibold">{{ t('admin.reg.colMethods') }}</th>
+                <th class="py-2 pr-3 font-semibold">{{ t('admin.reg.colStatus') }}</th>
+                <th class="py-2 pr-3 font-semibold">{{ t('admin.reg.colLastSignIn') }}</th>
+                <th class="py-2 font-semibold"><span class="sr-only">{{ t('admin.reg.open') }}</span></th>
               </tr>
             </thead>
             <tbody>

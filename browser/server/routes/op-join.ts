@@ -80,10 +80,10 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload, type OrgJoinRequest } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { effectiveRbacMap } from '@oimlsmart/platform-server/rbac'
-import { effectiveRolesOf } from '@oimlsmart/platform-server/vocab'
+import { getStore, type AuthUserPayload, type OrgJoinRequest } from '../store'
+import { getInstanceProfile } from '../profile'
+import { effectiveRbacMap } from '../rbac'
+import { effectiveRolesOf } from '../vocab'
 import {
   admitsJoinFlow,
   emailDomain,
@@ -97,9 +97,9 @@ import {
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { OP_ENROLLMENT_TTL_MS } from '../auth/op/accounts'
 import { sendOpMail } from '../auth/op/mail'
-import type { MailEnv } from '@oimlsmart/platform-server/mailer'
+import type { MailEnv } from '../mailer'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { sessionUser } from '../session'
 
 type EnvLike = Record<string, string | undefined>
 

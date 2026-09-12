@@ -37,7 +37,7 @@ process.env.OP_ISSUER = ISSUER
 process.env.OP_LOGIN_BACKOFF_BASE_MS = '1'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 // ── the small drivers ────────────────────────────────────────────────
 
@@ -88,9 +88,9 @@ async function ladderRow(email: string): Promise<{ failCount: number; lastFailur
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -116,7 +116,7 @@ afterAll(async () => {
   delete process.env.OP_ISSUER
   delete process.env.DATABASE_PATH
   delete process.env.OP_LOGIN_BACKOFF_BASE_MS
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
 

@@ -1,0 +1,24 @@
+# The Issuing-Authority whitelabel flavor (TODO.restructure/17) — a
+# TENANT'S STARTING POINT: copy this file, put the tenant's own values
+# in every field, and point INSTANCE_PROFILE at the copy. Running an
+# IA's own identity instance is a CONFIGURATION act, never a code
+# change (docs/deployment/identity-whitelabel.md).
+#
+# What this flavor says: this deployment IS the issuing authority's own
+# OP on its own domain — its org identity, its staff's accounts, its
+# RP clients, its brand. The console narrows to the sections an IA
+# instance operates (the registry, its organizations, the RPs, the
+# operators' queue) — declaring fewer sections is how a flavor shapes
+# the console; the code never branches on the kind.
+identity:
+  org_id: ex-ia            # the IA's own slug (its registry id)
+  org_name: Example Issuing Authority
+  role_codes: [ia]
+  country: FR
+roles: [identity]
+branding:
+  name: Example IA Sign-In
+  login_tagline: The Example Issuing Authority's single sign-on
+demo_personas: false
+console:
+  sections: [overview, registry, organizations, clients, users, security, activity]

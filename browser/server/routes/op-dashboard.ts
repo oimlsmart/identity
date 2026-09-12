@@ -83,10 +83,10 @@
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { SESSION_COOKIE, sessionUser } from '@oimlsmart/platform-server/session'
-import { APP_ROLES } from '@oimlsmart/platform-server/vocab'
+import { getStore, type AuthUserPayload } from '../store'
+import { getInstanceProfile } from '../profile'
+import { SESSION_COOKIE, sessionUser } from '../session'
+import { APP_ROLES } from '../vocab'
 import { DEVICE_CLASS, deviceClassOf } from '../auth/op/device-clients'
 import { SERVICE_CLASS, serviceClassOf } from '../auth/op/service-clients'
 import { logoutBlockOf } from '../auth/op/logout'
@@ -320,12 +320,13 @@ export function createOpDashboardRouter(): Hono {
     // The lifecycle split. "invited" is honest: an active password
     // account whose credential was never set (the enrollment is
     // outstanding); it cannot sign in until the setup link completes.
+    // TODO.restructure/06 (landed via 15 wave 1): ONE bulk posture read
+    // over identity's OWN store — never one per account.
+    const posture = await store.countSignInMethodsBulk(users.map(u => u.id))
     let invited = 0
-    await Promise.all(users.map(async u => {
-      if (!u.active || u.provider !== 'password') return
-      const methods = await store.countSignInMethods(u.id)
-      if (!methods.password) invited += 1
-    }))
+    for (const u of users) {
+      if (u.active && u.provider === 'password' && !posture.get(u.id)!.password) invited += 1
+    }
 
     const days = dayBuckets()
     const today = dayKey(new Date().toISOString())

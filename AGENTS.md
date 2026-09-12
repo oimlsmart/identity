@@ -11,14 +11,17 @@ the program: smart's `TODO.identity-extract/`). The OP half of the
 identity contract lives here; the RP half stays with the platform (every
 platform instance is an RP of this OP).
 
-The shared server machinery (the store seam, the instance profile, the
-mailer, RBAC, the OIDC/OAuth client cones, the role vocabulary, and the
-canonical D1 migration set) is the kernel package
-`@oimlsmart/platform-server`, owned by its own repository
-(`oimlsmart/platform-server`, extracted from the smart monorepo in
-TODO.repos/01 with the package's history) and consumed from npm by
-semver (`^0.1.2`): the version pin IS the contract between the repos.
-ZERO store-implementation code lives here.
+**INDEPENDENT since TODO.restructure/15 (2026-09-10):** the identity
+service carries its OWN server machinery — the store implementations
+(`browser/server/store/`, the D1 + SQLite halves), the canonical D1
+migration set (`browser/migrations/`), and the supporting seams
+(profile, RBAC, mailer, session, client-info, vocab, the OIDC
+validators) under `browser/server/`. The former dependency on the
+`@oimlsmart/platform-server` kernel package is GONE: the split copied
+the kernel's OP cone at 0.2.13 verbatim (journal filenames preserved —
+the live D1's `d1_migrations` keys never changed), the sets diverge
+deliberately from 0031 onward, and other services consume this
+service ONLY through its OIDC/API surface.
 
 ## Command gates (all must stay green)
 
@@ -44,12 +47,11 @@ before it can reach a relying party.
   (`oiml-smart-platform-identity`) is owned by THIS repo's deployment
   since the wave-03 cutover (2026-08-24, tag `id-v2026.08.24-1`); the
   monorepo's OP code is inert pending the wave-04 retirement. The
-  migration set ships in the kernel package
-  (`node_modules/@oimlsmart/platform-server/migrations`, the
+  migration set is THIS repo's own (`browser/migrations/`, the
   `migrations_dir` in `browser/wrangler.toml`) and wrangler keys the
-  bookkeeping on filenames: future files append expand-only in the
-  KERNEL repo, never renumber, and a kernel bump lands here as a normal
-  dependency PR.
+  bookkeeping on filenames: future files append expand-only HERE, never
+  renumber (`src/__tests__/migrations.test.ts` is the drift tripwire
+  against `server/store/sqlite/schema.sql`).
 - **The issuer is load-bearing.** `OP_ISSUER=https://id.oimlsmart.org`
   in production: every RP's `OIDC_ISSUER` and every token's `iss` name
   it. Never repoint it outside the cutover plan.
@@ -57,10 +59,6 @@ before it can reach a relying party.
   deploy-identity.yml (contract gate, the identity e2e legs, the preview
   environment, then production on required reviewers). Never add a
   branch-push deploy trigger.
-- **The kernel is consumed by semver, never vendored.** Changes that
-  need store/profile/mailer machinery land in
-  `oimlsmart/platform-server` and arrive here as a version bump, never
-  as copies here.
 - **A list endpoint's store-call count is invariant to row count.** The
   endpoint-scaling gate proves it per endpoint per PR
   (`browser/src/__tests__/endpoint-scaling.test.ts`, the doctrine in

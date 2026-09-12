@@ -41,9 +41,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
-import { getStore, type AuthUserPayload, type OidcClient } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { getStore, type AuthUserPayload, type OidcClient } from '../store'
+import { getInstanceProfile } from '../profile'
+import { sessionUser } from '../session'
 import { roleClaimsForClient } from '../auth/op/claims'
 
 /** The feed's per-service card (the page renders exactly this). */

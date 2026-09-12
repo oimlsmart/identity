@@ -37,10 +37,13 @@
 // (guarded) removes the orgs (routes/op-registry.ts). An org is ACTIVE
 // or DISABLED — a disabled org admits nothing new (no memberships, no
 // assignments, no join selector entry) and its memberships went disabled
-// with it (the cascade). `registered` projects the PARTICIPANT posture
-// the join flow's gates read: active AND carrying a participant kind
-// (the public self-service intake is the scheme's participation flow —
-// a non-participant org is never on it).
+// with it (the cascade). `registered` projects the PARTICIPANT posture;
+// the join flow's own gate (admitsJoinFlow, TODO.identity-features/10's
+// extension) reads: registered, OR an active OIML MEMBER org (the member
+// state's / corresponding member's personnel ask against their org, the
+// viewer-only bound), OR an active manufacturer org (TODO.register/01's
+// domain-matching join path) — the selector's offer list follows the
+// same rule minus the manufacturer.
 //
 // The dev/e2e demonstration register seeds from the vendored snapshot
 // (server/seed-org-register.ts); production starts EMPTY and the
@@ -64,7 +67,7 @@
 // WORKER-SAFE: the ServerStore seam only — no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { OrgRegistryOrg, ServerStore } from '@oimlsmart/platform-server/store'
+import type { OrgRegistryOrg, ServerStore } from '../store'
 
 /** The registry's organization kinds (TODO.identity-features/10 — the
  *  OIML Member category, the taxonomy correction): the OIML MEMBER

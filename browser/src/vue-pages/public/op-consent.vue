@@ -15,6 +15,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
+import { t } from '../../i18n'
 
 interface ConsentContext {
   id: string
@@ -45,19 +46,19 @@ const context = ref<ConsentContext | null>(null)
 /** Human labels for the scopes (an unknown scope shows its raw name —
  *  honest, never silently dropped). */
 const SCOPE_LABELS: Record<string, string> = {
-  openid: 'Sign you in',
-  profile: 'Your name',
-  email: 'Your email address',
+  openid: t('consent.scope.signin'),
+  profile: t('consent.scope.profile'),
+  email: t('consent.claim.email'),
   // TODO.identity-sso (the wave-C token surface): the refresh grant's
   // ask — the client keeps access while you are away (rotation + the
   // reuse-kill hold the risk; the "Revoke access" act ends it).
-  offline_access: 'Stay reachable while you are away (offline access)',
+  offline_access: t('consent.claim.offlineAccess'),
 }
 const POLICY_CLAIM_LABELS: Record<string, string> = {
-  roles: 'Your platform roles',
-  groups: 'Your platform roles (as groups)',
-  org: 'Your organization binding',
-  picture: 'Your profile picture',
+  roles: t('consent.claim.roles'),
+  groups: t('consent.claim.groups'),
+  org: t('consent.claim.org'),
+  picture: t('consent.claim.picture'),
 }
 
 function scopeLabel(scope: string): string {
@@ -71,7 +72,7 @@ function policyClaimLabel(claim: string): string {
 onMounted(async () => {
   const id = route.query.auth as string | undefined
   if (!id) {
-    error.value = 'This consent page needs an authorization request (no ?auth= parameter). Start the sign-in again.'
+    error.value = t('consent.noAuth')
     loading.value = false
     return
   }
@@ -86,14 +87,14 @@ onMounted(async () => {
     }
     if (!res.ok) {
       const body = await res.json().catch(() => null) as { error_description?: string } | null
-      error.value = body?.error_description ?? 'This authorization request is no longer valid. Start the sign-in again.'
+      error.value = body?.error_description ?? t('consent.stale')
       loading.value = false
       return
     }
     context.value = await res.json() as ConsentContext
     loading.value = false
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
     loading.value = false
   }
 })
@@ -116,14 +117,14 @@ async function decide(decision: 'allow' | 'deny') {
     }
     if (!res.ok) {
       const body = await res.json().catch(() => null) as { error_description?: string } | null
-      error.value = body?.error_description ?? 'The decision could not be recorded. Start the sign-in again.'
+      error.value = body?.error_description ?? t('consent.decideFailed')
       deciding.value = false
       return
     }
     const { redirect } = await res.json() as { redirect: string }
     window.location.assign(redirect)
   } catch {
-    error.value = 'Network error. Is the server running?'
+    error.value = t('error.network')
     deciding.value = false
   }
 }
@@ -141,7 +142,7 @@ async function decide(decision: 'allow' | 'deny') {
       <div class="text-center mb-8">
         <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
         <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">
-          {{ context ? context.issuerName : 'Authorize' }}
+          {{ context ? context.issuerName : t('consent.title') }}
         </h1>
       </div>
 
@@ -154,10 +155,10 @@ async function decide(decision: 'allow' | 'deny') {
         <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-6">
           <p class="text-sm text-slate-700 dark:text-slate-200 mb-4" data-testid="op-consent-lead">
             <span class="font-semibold" data-testid="op-consent-client">{{ context.client.name }}</span>
-            wants to sign you in with your {{ context.issuerName }} account.
+            {{ t('consent.lead', { issuer: context.issuerName }) }}
           </p>
 
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Shared with {{ context.client.name }}</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">{{ t('consent.sharedWith', { client: context.client.name }) }}</h2>
           <ul class="mb-4 space-y-1" data-testid="op-consent-scopes">
             <li
               v-for="scope in context.scopes.filter(s => s !== 'openid')"
@@ -186,14 +187,14 @@ async function decide(decision: 'allow' | 'deny') {
             data-testid="op-consent-role-claims"
           >
             <template v-if="context.roleClaims?.length">
-              On {{ context.client.name }} you hold: <code class="font-mono" data-testid="op-consent-role-values">{{ context.roleClaims.join(', ') }}</code>
+              {{ t('consent.rolesHeld', { client: context.client.name }) }} <code class="font-mono" data-testid="op-consent-role-values">{{ context.roleClaims.join(', ') }}</code>
             </template>
             <template v-else>
-              You hold no platform roles on {{ context.client.name }} — the service treats you as read-only until its administrator assigns one.
+              {{ t('consent.rolesNone', { client: context.client.name }) }}
             </template>
           </p>
 
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Signed in as</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">{{ t('consent.signedInAs') }}</h2>
           <p class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300" data-testid="op-consent-account">
             <img
               v-if="context.account.avatarUrl"
@@ -215,7 +216,7 @@ async function decide(decision: 'allow' | 'deny') {
             class="flex-1 min-h-11 py-2.5 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <div v-if="deciding" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Allow
+            {{ t('consent.allow') }}
           </button>
           <button
             data-testid="op-consent-deny"
@@ -223,12 +224,12 @@ async function decide(decision: 'allow' | 'deny') {
             @click="decide('deny')"
             class="flex-1 min-h-11 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
           >
-            Deny
+            {{ t('consent.deny') }}
           </button>
         </div>
 
         <p class="mt-4 text-center text-[10px] text-slate-400 dark:text-slate-500">
-          Denying returns you to {{ context.client.name }} without sharing anything.
+          {{ t('consent.denyNote', { client: context.client.name }) }}
         </p>
       </template>
     </div>

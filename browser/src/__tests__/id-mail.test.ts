@@ -39,11 +39,11 @@ import {
   resolveMailerConfig,
   MAIL_RATE_LIMIT_DEFAULTS,
   type SendEmailBinding,
-} from '@oimlsmart/platform-server/mailer'
+} from '../../server/mailer'
 import { renderOpMail, resolveMailLocale, sendOpMail, OP_MAIL_LOGO_URL } from '../../server/auth/op/mail'
 import { startStubMailer, type StubMailer } from '../../e2e/fixtures/stub-mailer'
 
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 
 /** The email audit events, parsed (the mailer's journal). */
 async function emailAudits(): Promise<Array<{ action: string; entity_id: string; metadata: Record<string, unknown> }>> {
@@ -66,7 +66,7 @@ function fakeBinding(): SendEmailBinding & { sent: Array<Record<string, unknown>
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
 })
 
@@ -75,7 +75,7 @@ afterAll(async () => {
   delete process.env.DATABASE_PATH
   delete process.env.OP_ISSUER
   resetMailerForTest()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
 
@@ -482,7 +482,7 @@ describe('the OP routes with the mailer bound', () => {
 
   beforeAll(async () => {
     clearMailEnv()
-    const profileMod = await import('@oimlsmart/platform-server/profile')
+    const profileMod = await import('../../server/profile')
     profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id

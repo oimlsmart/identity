@@ -386,7 +386,7 @@ describe('the developer tokens (the identity profile)', () => {
     // The at-use narrowing, the RP gate's OWN check (the kernel's
     // patScopeCovers — the function the platform's bearer cone calls):
     // the granted set covers the allowed acts and refuses the rest.
-    const { normalizePatScopes, patScopeCovers } = await import('@oimlsmart/platform-server/store')
+    const { normalizePatScopes, patScopeCovers } = await import('../server/store')
     const granted = normalizePatScopes(String(claims.scope).split(/\s+/))!
     expect(patScopeCovers(granted, HUB.client_id, 'read')).toBe(true)
     expect(patScopeCovers(granted, HUB.client_id, 'write'), 'the hub write stands').toBe(true)

@@ -17,7 +17,7 @@
 // WORKER-SAFE: pure functions, no I/O.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { OidcClientLaunch } from '@oimlsmart/platform-server/store'
+import type { OidcClientLaunch } from '../../store'
 
 /** The named icon set. The launcher's LaunchIcon.vue owns the glyphs;
  *  a name outside this set is a configuration bug, refused at write. */

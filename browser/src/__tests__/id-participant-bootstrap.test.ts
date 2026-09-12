@@ -44,7 +44,7 @@ const ORIGIN = 'http://op.test'
 const DATASET_PATH = join(__dirname, '..', '..', 'data', 'org-registry.bootstrap.yaml')
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let dataset: ReturnType<typeof import('../../server/import-org-registry').parseBootstrapDataset>
 let admin: string
 
@@ -64,9 +64,9 @@ async function json(res: Response, status: number): Promise<any> {
 }
 
 beforeAll(async () => {
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -90,7 +90,7 @@ demo_personas: true
 })
 
 afterAll(async () => {
-  const { resetInstanceProfileForTest } = await import('@oimlsmart/platform-server/profile')
+  const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.DATABASE_PATH

@@ -27,20 +27,21 @@ This repository carries the OP half of the identity contract only:
 - the operations scripts (`browser/scripts/op-*.ts`) and the ops
   workflows (deploy gate, heartbeat, access review).
 
-What it deliberately does NOT carry: the store implementations, the
-profile/RBAC/OIDC-client machinery, and the D1 migration set. Those are
-the published kernel package `@oimlsmart/platform-server` (its own
-repository, `oimlsmart/platform-server`; TODO.repos/01 in smart),
-consumed from npm by semver — the version pin is the contract. The live
-account registry (`oiml-smart-platform-identity`, D1) never moves, and
-wrangler keys migration bookkeeping on filenames, so the package's set
-appends expand-only and never renumbers.
+**Independent since TODO.restructure/15 (2026-09-10):** the store
+implementations, the profile/RBAC/mailer/session machinery, and the D1
+migration set all live HERE (`browser/server/`, `browser/migrations/`) —
+copied verbatim from the `@oimlsmart/platform-server` kernel at 0.2.13,
+the dependency removed. Other services consume this service only through
+its OIDC/API surface. The live account registry
+(`oiml-smart-platform-identity`, D1) never moves, and wrangler keys
+migration bookkeeping on filenames, so the set appends expand-only and
+never renumbers.
 
 ## Develop
 
 ```sh
 cd browser
-npm ci           # the kernel comes from npm
+npm ci           # self-contained: no kernel dependency
 npm run dev      # astro on :5190 + the node API on :3190
 ```
 

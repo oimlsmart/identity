@@ -5,12 +5,12 @@
 // server/cloudflare.ts.
 // ═══════════════════════════════════════════════════════════════════
 
-import { installSqliteStore } from '@oimlsmart/platform-server/store/sqlite'
+import { installSqliteStore } from './store/sqlite'
 import { createApiApp } from './app'
 import devReset from './routes/dev-reset'
-import { installRbacMap } from '@oimlsmart/platform-server/rbac'
-import { loadNodeRbacMap } from '@oimlsmart/platform-server/rbac/node'
-import { loadNodeInstanceProfile } from '@oimlsmart/platform-server/profile/node'
+import { installRbacMap } from './rbac'
+import { loadNodeRbacMap } from './rbac/node'
+import { loadNodeInstanceProfile } from './profile/node'
 import { installBlobStore } from './blobs'
 import { diskBlobStore, nodeBlobsRoot } from './blobs-node'
 

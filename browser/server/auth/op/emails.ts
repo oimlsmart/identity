@@ -27,7 +27,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { sendOpMail } from './mail'
-import { resolveMailerConfig, type MailEnv } from '@oimlsmart/platform-server/mailer'
+import { resolveMailerConfig, type MailEnv } from '../../mailer'
 
 /** The added address's verification delivery: 'mailer' = the link is on
  *  its way to the mailbox (the token may mint); 'unavailable' = this

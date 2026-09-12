@@ -97,9 +97,9 @@
 
 import { en, type MessageKey } from '../../../src/i18n/en'
 import { fr } from '../../../src/i18n/fr'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { mailerFor, type MailEnv, type MailPosture } from '@oimlsmart/platform-server/mailer'
-import type { ServerStore } from '@oimlsmart/platform-server/store'
+import { getInstanceProfile } from '../../profile'
+import { mailerFor, type MailEnv, type MailPosture } from '../../mailer'
+import type { ServerStore } from '../../store'
 
 export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
   // TODO.identity-sso/04 slice D: the account-lifecycle security notices

@@ -1,0 +1,15 @@
+-- The per-store journal high-water (the ServerStore seam's
+-- latestChangeSeqFor(store), the 2026-09-07 performance audit's G1):
+-- the seam's DOC-ONLY contract since 0.2.2 ("the (store, seq) walk —
+-- the index rides the same commit") lands. The read answers MAX(seq)
+-- over one store's slice of the ONE global journal — the seq stays
+-- global and monotone, this is a projection, never a second sequence.
+-- Without the index the projection scans the journal's rowid walk and
+-- filters; with it the read is a single indexed probe, which is the
+-- contract's whole point (per-store conditional revalidation / SSE
+-- resume probes paying one read, never a payload fetch).
+--
+-- CREATE INDEX IF NOT EXISTS is the idempotent guard (the migration
+-- contract's expand-only discipline; a consumer that already carries
+-- the index converges). schema.sql's mirror lands in the same commit.
+CREATE INDEX IF NOT EXISTS idx_entity_changes_store_seq ON entity_changes (store, seq);

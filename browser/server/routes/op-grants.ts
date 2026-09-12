@@ -25,9 +25,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context } from 'hono'
-import { getStore } from '@oimlsmart/platform-server/store'
-import { getInstanceProfile } from '@oimlsmart/platform-server/profile'
-import { sessionUser } from '@oimlsmart/platform-server/session'
+import { getStore } from '../store'
+import { getInstanceProfile } from '../profile'
+import { sessionUser } from '../session'
 import { auditGrant, consentGrantRow } from '../auth/op/grants'
 
 export function createOpGrantsRouter(): Hono {

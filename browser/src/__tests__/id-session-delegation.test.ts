@@ -69,8 +69,8 @@ const DELEGATION_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
 const DELEGATION_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
-let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
+let store: ReturnType<typeof import('../../server/store').getStore>
+let generatePkce: typeof import('../../server/oidc').generatePkce
 
 async function demoLogin(email: string): Promise<string> {
   const res = await app.request('/api/auth/demo', {
@@ -206,11 +206,11 @@ beforeAll(async () => {
   // posture).
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
-  generatePkce = (await import('@oimlsmart/platform-server/oidc')).generatePkce
+  generatePkce = (await import('../../server/oidc')).generatePkce
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id

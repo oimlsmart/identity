@@ -38,7 +38,7 @@ const TMP = mkdtempSync(join(tmpdir(), 'oiml-jwks-key-gate-'))
 process.env.DATABASE_PATH = join(TMP, 'test.db')
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let wipeKeys: () => void
 let resetOpSigningKeyForTest: typeof import('../../server/auth/op/keys').resetOpSigningKeyForTest
 
@@ -50,11 +50,11 @@ interface JwksBody {
 }
 
 beforeAll(async () => {
-  const sqlite = await import('@oimlsmart/platform-server/store/sqlite')
+  const sqlite = await import('../../server/store/sqlite')
   store = sqlite.installSqliteStore()
   const db = sqlite.getDb()
   wipeKeys = () => { db.exec('DELETE FROM oidc_keys') }
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id

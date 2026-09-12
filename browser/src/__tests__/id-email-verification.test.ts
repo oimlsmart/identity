@@ -53,14 +53,14 @@ const CONFIDENTIAL = {
 }
 process.env.OP_CLIENT_SEED = JSON.stringify([CONFIDENTIAL])
 
-import { resetMailerForTest } from '@oimlsmart/platform-server/mailer'
+import { resetMailerForTest } from '../../server/mailer'
 import { startStubMailer, type StubMailer } from '../../e2e/fixtures/stub-mailer'
 
 let app: import('hono').Hono
-let store: ReturnType<typeof import('@oimlsmart/platform-server/store').getStore>
+let store: ReturnType<typeof import('../../server/store').getStore>
 let stub: StubMailer
-let validateIdToken: typeof import('@oimlsmart/platform-server/oidc').validateIdToken
-let generatePkce: typeof import('@oimlsmart/platform-server/oidc').generatePkce
+let validateIdToken: typeof import('../../server/oidc').validateIdToken
+let generatePkce: typeof import('../../server/oidc').generatePkce
 
 const UNA = { email: 'una@example.org', name: 'Una Example', password: 'una has a proper passphrase' }
 const UNA_EDITED = 'una.renamed@example.org'
@@ -197,9 +197,9 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const { installSqliteStore } = await import('@oimlsmart/platform-server/store/sqlite')
+  const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -210,7 +210,7 @@ branding: { name: OIML SMART Identity }
 demo_personas: true
 `))
 
-  const oidc = await import('@oimlsmart/platform-server/oidc')
+  const oidc = await import('../../server/oidc')
   validateIdToken = oidc.validateIdToken
   generatePkce = oidc.generatePkce
   oidc.clearOidcCaches()
@@ -239,7 +239,7 @@ afterAll(async () => {
   delete process.env.OP_SIGNING_KEY
   delete process.env.OP_CLIENT_SEED
   delete process.env.DATABASE_PATH
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
 

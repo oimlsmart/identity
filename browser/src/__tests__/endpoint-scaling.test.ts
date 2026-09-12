@@ -36,7 +36,7 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
-import { installStore, type ServerStore } from '@oimlsmart/platform-server/store'
+import { installStore, type ServerStore } from '../../server/store'
 import { StoreCallCounter, expectScalingInvariant, type StoreCallReport } from './endpoint-scaling'
 
 const SMALL = 3
@@ -191,12 +191,12 @@ beforeAll(async () => {
   const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
   process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
 
-  const sqlite = await import('@oimlsmart/platform-server/store/sqlite')
+  const sqlite = await import('../../server/store/sqlite')
   // The counting facade goes on the seam BEFORE any router is built —
   // every handler's getStore() rides the counter from the first request.
   store = counter.wrap(sqlite.installSqliteStore())
   installStore(store)
-  const profileMod = await import('@oimlsmart/platform-server/profile')
+  const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
   org_id: oimlsmart-id
@@ -278,11 +278,9 @@ demo_personas: true
 
 describe('the admin consoles — the fixed N+1s', () => {
   it('GET /api/op/accounts (the registry list: the per-row posture reads, batched where the seam carries one)', async () => {
-    // After the fix: the per-client assignments load ONCE
-    // (listAllOpClientRoles, grouped in memory). The residual — the
-    // sign-in posture + the linked handles, two reads per row, run
-    // CONCURRENTLY — awaits the kernel's bulk sign-in-posture read (the
-    // named follow-up; the seam carries no bulk variant for them).
+    // TODO.restructure/06 (landed via 15 wave 1): the posture + the
+    // linked handles ride identity's OWN bulk reads — one read each per
+    // request — alongside the once-per-request per-client assignments.
     const leg = await runLeg({
       seedSmall: () => seedOpAccounts(0, SMALL).then(() => SMALL),
       grow: () => seedOpAccounts(SMALL, LARGE - SMALL).then(() => LARGE),
@@ -290,15 +288,12 @@ describe('the admin consoles — the fixed N+1s', () => {
     })
     expectScalingInvariant({
       label: 'GET /api/op/accounts as admin', ...leg,
-      budgetPerRow: 2,
-      budgetNote: 'the sign-in posture (countSignInMethods) + the linked handles (listIdentityLinks) have no bulk read on the kernel seam — the kernel bulk-posture follow-up drives this to 0; the per-client assignments ARE batched (listAllOpClientRoles)',
     })
   })
 
   it('GET /api/op/dashboard/overview (the invited-count residual, budgeted)', async () => {
-    // The invited count reads each active password account's posture —
-    // the same missing bulk seam as the accounts list. ONE read per
-    // added password account, never more.
+    // TODO.restructure/06 (landed via 15 wave 1): the invited count
+    // rides the bulk posture read — one read per request.
     const seed = async (from: number, count: number) => {
       for (let i = from; i < from + count; i++) {
         await store.createOpAccount({
@@ -313,8 +308,6 @@ describe('the admin consoles — the fixed N+1s', () => {
     })
     expectScalingInvariant({
       label: 'GET /api/op/dashboard/overview as admin', ...leg,
-      budgetPerRow: 1,
-      budgetNote: 'the invited count reads countSignInMethods per active password account — no bulk variant on the kernel seam; the kernel bulk-posture follow-up drives this to 0',
     })
   })
 
@@ -402,8 +395,6 @@ describe('the registry surface — covered by the sibling wave (fix/registry-org
     })
     expectScalingInvariant({
       label: 'GET /api/op/registry/users as admin', ...leg,
-      budgetPerRow: 2,
-      budgetNote: 'the sign-in posture + the linked handles have no bulk read on the kernel seam (the sibling wave runs them concurrently — the count stands); the kernel bulk-posture follow-up drives this to 0',
     })
   })
 })

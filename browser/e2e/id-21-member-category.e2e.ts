@@ -387,7 +387,7 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     await page.goto(`${stack.base}/op/admin/organizations`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-orgs-row-ms-example"]', { timeout: SETTLE, polling: 500 })
     const memberLine = await page.$eval('[data-testid="op-orgs-kind-ms-example"]', el => el.textContent ?? '')
-    expect(memberLine).toContain('member-state')
+    expect(memberLine).toContain('OIML Member — Member State') // the vocabulary's label (TODO.restructure/07)
     expect(memberLine).toContain('proposes 1')
     expect(memberLine).toContain('designates 1')
   })
@@ -452,7 +452,7 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     // recorded" — never a conflation with a member, never a crash.
     await page.goto(`${stack.base}/op/admin/registry/orgs/${LEGACY_UTILIZER_ID}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-reg-org-designated-by"]', { timeout: SETTLE, polling: 500 })
-    expect(await page.$eval('[data-testid="op-reg-org-kind"]', el => el.textContent ?? '')).toContain('utilizer')
+    expect(await page.$eval('[data-testid="op-reg-org-kind"]', el => el.textContent ?? '')).toContain('Utilizer') // the vocabulary's label (TODO.restructure/07)
     expect(await page.$eval('[data-testid="op-reg-org-standing"]', el => el.textContent ?? '')).toContain('OIML-CS participant')
     expect(await page.$eval('[data-testid="op-reg-org-designated-by"]', el => el.textContent ?? '')).toContain('not recorded')
     expect(await page.$eval('[data-testid="op-reg-org-cs-status"]', el => el.textContent ?? '')).toContain('not recorded')
