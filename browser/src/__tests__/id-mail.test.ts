@@ -555,7 +555,9 @@ demo_personas: true
       body: JSON.stringify({ email: 'willa@example.org', password: 'willa has a proper passphrase' }),
     })
     expect(login.ok).toBe(true)
+  await new Promise(r => setTimeout(r, 25)) // the notice rides beside the answer (TODO.restructure/27)
     expect(stub.messages).toHaveLength(1)
+
     expect(stub.messages[0]!.to).toBe('willa@example.org')
     expect(stub.messages[0]!.subject).toBe('New sign-in to your OIML SMART Identity account')
     expect(stub.messages[0]!.text).toContain('by the password sign-in')
@@ -687,6 +689,7 @@ demo_personas: true
     expect(complete.status, 'the emailed reset link completes').toBe(200)
     // The new password signs in, the old one refuses.
     const fresh = await app.request('/api/op/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'willa@example.org', password: 'willa has a fresh passphrase 2026' }) })
+    await new Promise(r => setTimeout(r, 25)) // the notice rides beside the answer (TODO.restructure/27)
     expect(fresh.ok).toBe(true)
     const stale = await app.request('/api/op/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'willa@example.org', password: 'willa has a proper passphrase' }) })
     expect(stale.status).toBe(401)

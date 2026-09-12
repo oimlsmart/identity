@@ -98,6 +98,7 @@ async function passwordLogin(email: string, password: string): Promise<string> {
     body: JSON.stringify({ email, password }),
   })
   expect(res.ok, `password login ${email}`).toBe(true)
+  await new Promise(r => setTimeout(r, 25)) // the sign-in notice rides beside the answer (TODO.restructure/27)
   return res.headers.get('set-cookie')!.split(';')[0]!
 }
 

@@ -236,6 +236,7 @@ async function passwordCookie(base: string, email: string, password: string): Pr
     body: JSON.stringify({ email, password }),
   })
   expect(res.ok, `password sign-in ${email}`).toBe(true)
+  await new Promise(r => setTimeout(r, 50)) // the notice rides beside the answer (TODO.restructure/27)
   return res.headers.get('set-cookie')!.split(';')[0]!.split('=')[1]!
 }
 

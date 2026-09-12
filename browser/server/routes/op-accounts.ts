@@ -456,7 +456,19 @@ export function createOpAccountsRouter(): Hono {
     // TODO.identity/09 — the account holder learns of every entry. The
     // notification never blocks or fails the sign-in (sendOpMail's
     // results are honest; the console posture just logs).
-    if (user) await notifySignIn(c, user)
+    // TODO.restructure/27: the notice rides BESIDE the answer, never in
+    // front of it — the mailer's latency leaves the sign-in critical
+    // path (the doctrine said so; the await contradicted it). The
+    // mailer's own results are honest (it never throws); waitUntil, when
+    // the runtime provides it, keeps the promise alive past the response.
+    if (user) {
+      const notice = notifySignIn(c, user)
+      try {
+        c.executionCtx.waitUntil(notice) // the Worker keeps it alive past the answer
+      } catch {
+        void notice // no execution context (the node/test posture) — the promise rides the process
+      }
+    }
     return c.json(user)
   })
 
