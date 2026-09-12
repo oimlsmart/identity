@@ -2,7 +2,7 @@
 // The audit journal's retention policy — ONE resolution every surface
 // shares (TODO.restructure/27 item 4; TODO.restructure/28 workstream A):
 // the dashboard's retention statement (routes/op-dashboard.ts) and the
-// ops purge (scripts/op-audit-retention.ts, the identity-operations
+// ops purge (scripts/op-audit-retention.ts, the identity-audit-retention
 // nightly) both resolve the same env var the same way.
 //
 //   AUDIT_RETENTION_DAYS   the journal's retention window, in days.
@@ -58,7 +58,7 @@ export function auditRetentionStatement(env: EnvLike): string {
   const days = parseAuditRetentionDays(env.AUDIT_RETENTION_DAYS)
   const journal = days === null
     ? 'The audit journal is retained for the life of the registry (no automated purge). '
-    : `The audit journal is purged of events older than ${days} days (AUDIT_RETENTION_DAYS=${days}; the nightly identity-operations run). `
+    : `The audit journal is purged of events older than ${days} days (AUDIT_RETENTION_DAYS=${days}; the nightly identity-audit-retention run). `
   return journal
     + 'The heartbeat history is retained by GitHub Actions under its own policy. '
     + 'The dashboard computes its counters at request time and stores nothing.'

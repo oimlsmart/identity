@@ -1,4 +1,4 @@
-name: identity-operations
+name: identity-audit-retention
 
 # The audit journal's retention run (TODO.restructure/27 item 4; the
 # operating plan is docs/deployment/identity-operations.md): every night
@@ -59,7 +59,7 @@ on:
 concurrency:
   # Retention runs serialize and never cancel mid-flight (a cancelled
   # purge could mask a failed night); the timeout bounds a hang.
-  group: identity-operations
+  group: identity-audit-retention
   cancel-in-progress: false
 
 permissions:
@@ -117,8 +117,8 @@ jobs:
           script: |
             const title = 'Identity audit-journal retention failing — the nightly purge run is broken or misconfigured'
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
-            const body = `The identity-operations run of ${new Date().toISOString()} failed: ${runUrl}\n\n`
-              + 'The workflow (.github/workflows/identity-operations.yml) purges audit events older than '
+            const body = `The identity-audit-retention run of ${new Date().toISOString()} failed: ${runUrl}\n\n`
+              + 'The workflow (.github/workflows/identity-audit-retention.yml) purges audit events older than '
               + 'AUDIT_RETENTION_DAYS from the live registry (oiml-smart-platform-identity). The failing leg is '
               + 'named in the run log. A failing night means the journal grows while the dashboard claims the '
               + 'window — until it is green, the statement is not honest. If the credential leg failed, the '

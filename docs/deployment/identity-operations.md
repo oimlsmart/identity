@@ -323,7 +323,7 @@ default N. Setting the policy means setting the var in BOTH places:
 
 1. The GitHub repository VARIABLE (Settings → Secrets and variables →
    Actions → Variables) drives the nightly run: the
-   identity-operations workflow (23:53 UTC, twelve minutes after the
+   identity-audit-retention workflow (23:53 UTC, twelve minutes after the
    backup export — the purged rows always survive in that night's R2
    snapshot, thirty nights of them) runs
    `npx tsx scripts/op-audit-retention.ts --remote --apply`, purging
