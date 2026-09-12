@@ -313,6 +313,46 @@ workflow (all landed 2026-09-07):
 Until act 3 lands, the workflow's guard leg fails honestly and the
 standing issue says exactly that.
 
+### The audit journal's retention (TODO.restructure/27 item 4)
+
+The auditEvents journal grows unbounded by default: the no-purge
+posture retains every event for the life of the registry (the panels'
+statement says so). A retention window is the OWNER's decision, in
+days, carried by AUDIT_RETENTION_DAYS — the code never supplies a
+default N. Setting the policy means setting the var in BOTH places:
+
+1. The GitHub repository VARIABLE (Settings → Secrets and variables →
+   Actions → Variables) drives the nightly run: the
+   identity-operations workflow (23:53 UTC, twelve minutes after the
+   backup export — the purged rows always survive in that night's R2
+   snapshot, thirty nights of them) runs
+   `npx tsx scripts/op-audit-retention.ts --remote --apply`, purging
+   events strictly older than the window, serial page by serial page.
+   UNSET (or empty) = the clean no-op: the step prints the posture
+   line, touches nothing, stays green.
+2. The WORKER var (the identity env in wrangler.toml) drives the
+   dashboard's retention statement, which stays honest under both flag
+   states (server/audit-retention.ts resolves the statement from the
+   same parse). A set-but-malformed value fails the run and the
+   statement loudly, never guesses.
+
+The one-time provisioning — OWNER ACTS, only when setting a window:
+the GitHub environment `cloudflare-identity-retention` — WITHOUT
+required reviewers (the backup environment's precedent: a nightly job
+cannot wait on an approval) — carrying `CLOUDFLARE_ACCOUNT_ID` and a
+`CLOUDFLARE_API_TOKEN` with the D1 write verbs on
+oiml-smart-platform-identity. The operator-local rehearsal and dry-run
+postures run against a scratch SQLite through the store seam:
+
+```bash
+cd browser
+# the dry-run (counts, deletes nothing) against the live registry:
+AUDIT_RETENTION_DAYS=365 npx tsx scripts/op-audit-retention.ts --remote
+# the rehearsal on a scratch file (the same verbs the server runs):
+AUDIT_RETENTION_DAYS=30 npx tsx scripts/op-audit-retention.ts \
+  --db .cache/id-01/identity.db            # dry-run; --apply purges
+```
+
 ## The participant registry's bootstrap (TODO.identity-features/10)
 
 The organization registry's production population is the authoritative
@@ -395,7 +435,11 @@ The rules the surface keeps, stated once:
 - Retention: the audit journal is retained for the life of the registry
   (no automated purge); the heartbeat history is retained by GitHub
   Actions under its own policy; the dashboard computes its counters at
-  request time and stores nothing. The panels carry this statement.
+  request time and stores nothing. The panels carry this statement. —
+  UNLESS the owner sets a retention window (see "The audit journal's
+  retention" below): with AUDIT_RETENTION_DAYS set, the panels' first
+  sentence changes to the window (the statement resolves from the same
+  var the purge does, so it stays honest under both flag states).
 - The security signals and their thresholds are stated on the page: the
   failed-login burst rule (one account or address with 5+ failures
   inside 24 hours), the token-endpoint refusals by error class, the

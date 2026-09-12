@@ -1,0 +1,140 @@
+name: identity-operations
+
+# The audit journal's retention run (TODO.restructure/27 item 4; the
+# operating plan is docs/deployment/identity-operations.md): every night
+# at 23:53 UTC — twelve minutes AFTER the 23:41 backup export, so the
+# purged rows always survive in that night's R2 snapshot (the bucket's
+# 30-day lifecycle keeps thirty nights of them) — run
+# browser/scripts/op-audit-retention.ts against the live D1.
+#
+# The purge is GATED on AUDIT_RETENTION_DAYS, and the number is the
+# OWNER's decision, never the code's:
+#
+#   - the GitHub REPOSITORY VARIABLE AUDIT_RETENTION_DAYS drives this
+#     run (Settings → Secrets and variables → Actions → Variables).
+#     UNSET/empty = the no-purge posture: the step below prints the
+#     posture line and exits 0 — a clean no-op, the workflow stays
+#     green, and the journal's behavior is byte-identical to before
+#     this workflow existed.
+#   - the WORKER VAR of the same name (wrangler.toml's identity env)
+#     drives the dashboard's retention statement, which stays honest
+#     under both flag states (server/audit-retention.ts resolves both
+#     from the one parse). Setting the policy means setting BOTH — the
+#     run without the statement would purge silently; the statement
+#     without the run would claim a purge that never happens.
+#   - a set-but-malformed value fails the run LOUDLY (the parse's
+#     honest refusal), never guesses a window.
+#
+# The run is DRY-RUN-shaped by default in the script; this workflow
+# runs it with --apply (the point of the policy is the purge). Its
+# store discipline is the repo's doctrine: reads may batch, the
+# deletes stay serial, page by page.
+#
+# Required GitHub configuration (the one-time OWNER ACTS, the backup
+# workflow's precedent): the `cloudflare-identity-retention`
+# environment — deliberately WITHOUT required reviewers (a nightly job
+# cannot wait on an approval) — carrying the two secrets:
+#   CLOUDFLARE_ACCOUNT_ID  the estate account id
+#   CLOUDFLARE_API_TOKEN   a Cloudflare token carrying the D1 write
+#                          verbs on oiml-smart-platform-identity
+# Until the variable is set, none of this is exercised: the unset
+# posture touches no store and no credentials.
+#
+# THE OUTPUT DISCIPLINE, THE PUBLIC-REPO SHAPE: this repository is
+# PUBLIC, so a job log is a public surface. The run prints counts and
+# the cutoff only — never an event payload (the script's report is the
+# discipline; never cat, head, or upload the journal).
+#
+# A red run (a configured purge that cannot run) opens (or appends to)
+# the standing issue — the heartbeat + backup workflows' pattern: the
+# journal growing unbounded while the dashboard claims a window is a
+# honesty break, never a silent yellow dot.
+
+on:
+  schedule:
+    # Nightly, 23:53 UTC — after the 23:41 backup export, off the herd.
+    - cron: '53 23 * * *'
+  workflow_dispatch:
+
+concurrency:
+  # Retention runs serialize and never cancel mid-flight (a cancelled
+  # purge could mask a failed night); the timeout bounds a hang.
+  group: identity-operations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit-retention:
+    runs-on: ubuntu-latest
+    environment: cloudflare-identity-retention
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      AUDIT_RETENTION_DAYS: ${{ vars.AUDIT_RETENTION_DAYS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies (the script's tsx is a dev dep)
+        working-directory: browser
+        run: npm ci
+
+      - name: The audit-journal retention run
+        working-directory: browser
+        # The unset var is the clean no-op: the guard exits green before
+        # any store or credential is touched (the script's own parse
+        # would no-op too — defense in depth, and the unit spec proves
+        # that leg). With the var set, the run reports and purges
+        # (--apply); a missing credential or a malformed var fails the
+        # night honestly.
+        run: |
+          if [ -z "$AUDIT_RETENTION_DAYS" ]; then
+            echo "AUDIT_RETENTION_DAYS is unset — the no-purge posture; nothing to purge."
+            exit 0
+          fi
+          npx tsx scripts/op-audit-retention.ts --remote --apply
+
+  report-failure:
+    # One honest summary per failed run (the heartbeat + backup
+    # pattern): the standing issue gets the run link appended; the
+    # first failure opens it. A red retention run is never silent.
+    if: failure()
+    needs: [audit-retention]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Post the failure summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Identity audit-journal retention failing — the nightly purge run is broken or misconfigured'
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = `The identity-operations run of ${new Date().toISOString()} failed: ${runUrl}\n\n`
+              + 'The workflow (.github/workflows/identity-operations.yml) purges audit events older than '
+              + 'AUDIT_RETENTION_DAYS from the live registry (oiml-smart-platform-identity). The failing leg is '
+              + 'named in the run log. A failing night means the journal grows while the dashboard claims the '
+              + 'window — until it is green, the statement is not honest. If the credential leg failed, the '
+              + 'one-time owner provisioning is incomplete: the workflow header lists the '
+              + 'cloudflare-identity-retention environment and its two secrets.'
+            const { data: listed } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            })
+            const standing = listed.find(i => i.title === title && !i.pull_request)
+            if (standing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: standing.number, body,
+              })
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body })
+            }
