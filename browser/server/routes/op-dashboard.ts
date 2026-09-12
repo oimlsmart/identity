@@ -84,6 +84,7 @@ import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type AuthUserPayload } from '../store'
+import { auditRetentionStatement } from '../audit-retention'
 import { getInstanceProfile } from '../profile'
 import { SESSION_COOKIE, sessionUser } from '../session'
 import { APP_ROLES } from '../vocab'
@@ -132,14 +133,16 @@ const GOVERNANCE_AUDIT_CAP = 50
 const SERIES_DAYS = 14
 
 /** The monitoring answers' retention statement (the spec's rule: the
- *  monitoring data carries it). The audit journal is D1-resident with
- *  no automated purge; the heartbeat's history is GitHub Actions' own
+ *  monitoring data carries it). The audit journal's own sentence
+ *  resolves from AUDIT_RETENTION_DAYS (audit-retention.ts): unset =
+ *  the no-purge posture, byte-identical to the pre-2026-09 statement;
+ *  set = the owner's purge window, so the statement stays honest under
+ *  both flag states. The heartbeat's history is GitHub Actions' own
  *  (its retention is GitHub's); the derived counters are computed at
  *  request time and keep nothing. */
-const RETENTION_STATEMENT =
-  'The audit journal is retained for the life of the registry (no automated purge). '
-  + 'The heartbeat history is retained by GitHub Actions under its own policy. '
-  + 'The dashboard computes its counters at request time and stores nothing.'
+function retentionStatement(c: Context): string {
+  return auditRetentionStatement(runtimeEnv<Record<string, string | undefined>>(c))
+}
 
 const dayKey = (iso: string): string => iso.slice(0, 10)
 
@@ -348,7 +351,7 @@ export function createOpDashboardRouter(): Hono {
 
     return c.json({
       generatedAt: new Date().toISOString(),
-      retention: RETENTION_STATEMENT,
+      retention: retentionStatement(c),
       accounts: {
         total: users.length,
         active: users.filter(u => u.active).length,
@@ -393,7 +396,7 @@ export function createOpDashboardRouter(): Hono {
     const byId = new Map(users.map(u => [u.id, u]))
     return c.json({
       generatedAt: new Date().toISOString(),
-      retention: RETENTION_STATEMENT,
+      retention: retentionStatement(c),
       sessions: sessions.map(s => {
         const account = byId.get(s.userId)
         return {
@@ -498,7 +501,7 @@ export function createOpDashboardRouter(): Hono {
 
     return c.json({
       generatedAt: new Date().toISOString(),
-      retention: RETENTION_STATEMENT,
+      retention: retentionStatement(c),
       windows: { day: 'the last 24 hours', week: 'the last 7 days' },
       signals: {
         failedSignIns: {
@@ -549,7 +552,7 @@ export function createOpDashboardRouter(): Hono {
     if (format === 'json') {
       return c.json({
         generatedAt: new Date().toISOString(),
-        retention: RETENTION_STATEMENT,
+        retention: retentionStatement(c),
         total: events.length,
         returned: page.length,
         events: page,
@@ -694,7 +697,7 @@ export function createOpDashboardRouter(): Hono {
     })
     return c.json({
       generatedAt: new Date().toISOString(),
-      retention: RETENTION_STATEMENT,
+      retention: retentionStatement(c),
       clients: rows,
     })
   })
@@ -763,7 +766,7 @@ export function createOpDashboardRouter(): Hono {
       }))
     return c.json({
       generatedAt: new Date().toISOString(),
-      retention: RETENTION_STATEMENT,
+      retention: retentionStatement(c),
       client: {
         clientId: client.clientId,
         name: client.name,
