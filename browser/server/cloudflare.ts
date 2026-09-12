@@ -19,7 +19,7 @@
 import { Hono } from 'hono'
 import type { D1Database, Fetcher, R2Bucket, SendEmail } from '@cloudflare/workers-types'
 import { installStore } from './store'
-import { d1StoreFor, resolveStoreWriteBudgetMs } from './store/d1'
+import { d1ReplicaReadsEnabled, d1StoreFor, resolveStoreWriteBudgetMs } from './store/d1'
 import { createApiApp } from './app'
 import { installInstanceProfile, resolveInstanceProfileFromEnv } from './profile'
 import { installBlobStore, r2BlobStore } from './blobs'
@@ -65,6 +65,15 @@ export type CloudflareApiEnv = {
    *  budget instead of spinning the request. Absent: the kernel's
    *  default (5 s). */
   STORE_WRITE_BUDGET_MS?: string
+  /** D1 replica reads (TODO.restructure/28-E): '1' routes the store's
+   *  statements through one withSession('first-primary') session —
+   *  reads replica-eligible, writes primary-bound with the session's
+   *  bookmark advancing (sequential consistency, read-my-own-writes).
+   *  Unset/any other value: OFF, the shipping default — statements
+   *  ride the raw binding exactly as before. The preview-first rollout
+   *  (the owner's act) is documented in docs/deployment/
+   *  identity-operations.md. */
+  D1_REPLICA_READS?: string
   /** Transactional email. EMAIL: the Cloudflare Email Service
    *  `send_email` binding (wrangler.toml's commented
    *  [[env.identity.send_email]] block). The HTTPS provider fallback is
@@ -98,7 +107,13 @@ function buildWorkerApp(): Hono {
         // store's writes race the deployment's budget — a hung write
         // answers StoreUnavailable → the app-level honest 503, never a
         // spin. The env binding retunes the kernel's 5 s default.
-        installStore(d1StoreFor(db, { writeBudgetMs: resolveStoreWriteBudgetMs(c.env as CloudflareApiEnv) }))
+        // D1_REPLICA_READS=1 adds the session posture (28-E): the
+        // memoized store carries the isolate's one session, so the
+        // per-request install below stays the same object.
+        installStore(d1StoreFor(db, {
+          writeBudgetMs: resolveStoreWriteBudgetMs(c.env as CloudflareApiEnv),
+          replicaReads: d1ReplicaReadsEnabled(c.env as CloudflareApiEnv),
+        }))
         const bucket = (c.env as CloudflareApiEnv | undefined)?.BLOBS
         installBlobStore(bucket ? r2BlobStore(bucket) : null)
         installInstanceProfile(resolveInstanceProfileFromEnv(c.env as CloudflareApiEnv))
