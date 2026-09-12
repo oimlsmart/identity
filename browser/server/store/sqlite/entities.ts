@@ -12,7 +12,7 @@
 // vocabulary so existing importers are undisturbed.
 // ═══════════════════════════════════════════════════════════════════
 
-import { getDb } from './store'
+import type Database from 'better-sqlite3'
 import { PUT_ENTITIES_CHUNK, orgIdOf } from '../../store'
 
 export type { EntityRow, EntityChange } from '../../store'
@@ -62,7 +62,7 @@ const CERTIFICATE_NUMBER_SQL = `SELECT store, id, org_id, data, updated_at
          AND json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.certificate_number') COLLATE NOCASE = ?
        ORDER BY org_id, rowid`
 
-export function listEntities(store: string, options?: EntityListOptions): EntityRow[] {
+export function listEntities(db: Database.Database, store: string, options?: EntityListOptions): EntityRow[] {
   // The ORDER BY is the seam's contract (the 0.2.3 pin, the D1 half's
   // twin): (org_id, rowid) — the read's observable order since
   // migration 0001's idx_entities_store_org walk, made planner-proof
@@ -75,23 +75,22 @@ export function listEntities(store: string, options?: EntityListOptions): Entity
   // candidates — a gate-driven projection of either answer is
   // byte-identical.
   if (options?.orgId) {
-    return getDb()
+    return db
       .prepare('SELECT store, id, org_id, data, updated_at FROM entities WHERE store = ? AND (org_id = ? OR org_id IS NULL) ORDER BY org_id, rowid')
       .all(store, options.orgId) as EntityRow[]
   }
-  return getDb()
+  return db
     .prepare('SELECT store, id, org_id, data, updated_at FROM entities WHERE store = ? ORDER BY org_id, rowid')
     .all(store) as EntityRow[]
 }
 
-export function getEntity(store: string, id: string): EntityRow | undefined {
-  return getDb()
+export function getEntity(db: Database.Database, store: string, id: string): EntityRow | undefined {
+  return db
     .prepare('SELECT store, id, org_id, data, updated_at FROM entities WHERE store = ? AND id = ?')
     .get(store, id) as EntityRow | undefined
 }
 
-export function putEntity(store: string, id: string, orgId: string | null, data: string): void {
-  const db = getDb()
+export function putEntity(db: Database.Database, store: string, id: string, orgId: string | null, data: string): void {
   const write = db.transaction(() => {
     db.prepare(ENTITY_UPSERT_SQL).run(store, id, orgId, data)
     db.prepare(ENTITY_CHANGE_SQL).run(store, 'persist', id)
@@ -100,8 +99,7 @@ export function putEntity(store: string, id: string, orgId: string | null, data:
   emitJournalAppends([{ store, type: 'persist', id }])
 }
 
-export function deleteEntity(store: string, id: string): boolean {
-  const db = getDb()
+export function deleteEntity(db: Database.Database, store: string, id: string): boolean {
   let gone = false
   const write = db.transaction(() => {
     const res = db.prepare('DELETE FROM entities WHERE store = ? AND id = ?').run(store, id)

@@ -12,13 +12,14 @@
 //     landed additively here): THE match rule for an upstream sign-in
 //     is (provider, provider_account_id) — NEVER email alone.
 //
-// NODE-ONLY: better-sqlite3 through ./store's getDb. The Worker bundle
+// NODE-ONLY: better-sqlite3, received as the store instance's
+// db parameter (TODO.restructure/28-D). The Worker bundle
 // never sees this module (the D1 store implements the same surface in
 // d1-store.ts).
 // ═══════════════════════════════════════════════════════════════════
 
+import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
-import { getDb } from './store'
 import type { IdentityLink, IdentityProvider } from '../../store'
 
 function toIdentityProvider(row: Record<string, unknown>): IdentityProvider {
@@ -38,17 +39,17 @@ function toIdentityProvider(row: Record<string, unknown>): IdentityProvider {
   }
 }
 
-export function listIdentityProviders(): IdentityProvider[] {
-  const rows = getDb().prepare('SELECT * FROM identity_providers ORDER BY created_at, id').all() as Array<Record<string, unknown>>
+export function listIdentityProviders(db: Database.Database): IdentityProvider[] {
+  const rows = db.prepare('SELECT * FROM identity_providers ORDER BY created_at, id').all() as Array<Record<string, unknown>>
   return rows.map(toIdentityProvider)
 }
 
-export function getIdentityProvider(id: string): IdentityProvider | null {
-  const row = getDb().prepare('SELECT * FROM identity_providers WHERE id = ?').get(id) as Record<string, unknown> | undefined
+export function getIdentityProvider(db: Database.Database, id: string): IdentityProvider | null {
+  const row = db.prepare('SELECT * FROM identity_providers WHERE id = ?').get(id) as Record<string, unknown> | undefined
   return row ? toIdentityProvider(row) : null
 }
 
-export function upsertIdentityProvider(input: {
+export function upsertIdentityProvider(db: Database.Database, input: {
   id: string
   kind: IdentityProvider['kind']
   displayName: string
@@ -60,7 +61,7 @@ export function upsertIdentityProvider(input: {
   enabled?: boolean
   createdBy?: string | null
 }): IdentityProvider {
-  getDb().prepare(`
+  db.prepare(`
     INSERT INTO identity_providers
       (id, kind, display_name, brand_mark, issuer, client_id, client_secret_ref, scopes, enabled, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -88,17 +89,17 @@ export function upsertIdentityProvider(input: {
     input.enabled ? 1 : 0,
     input.createdBy ?? null,
   )
-  return getIdentityProvider(input.id)!
+  return getIdentityProvider(db, input.id)!
 }
 
-export function setIdentityProviderEnabled(id: string, enabled: boolean): IdentityProvider | null {
-  const res = getDb().prepare("UPDATE identity_providers SET enabled = ?, updated_at = datetime('now') WHERE id = ?")
+export function setIdentityProviderEnabled(db: Database.Database, id: string, enabled: boolean): IdentityProvider | null {
+  const res = db.prepare("UPDATE identity_providers SET enabled = ?, updated_at = datetime('now') WHERE id = ?")
     .run(enabled ? 1 : 0, id)
-  return res.changes > 0 ? getIdentityProvider(id) : null
+  return res.changes > 0 ? getIdentityProvider(db, id) : null
 }
 
-export function deleteIdentityProvider(id: string): boolean {
-  const res = getDb().prepare('DELETE FROM identity_providers WHERE id = ?').run(id)
+export function deleteIdentityProvider(db: Database.Database, id: string): boolean {
+  const res = db.prepare('DELETE FROM identity_providers WHERE id = ?').run(id)
   return res.changes > 0
 }
 
@@ -115,8 +116,8 @@ function toIdentityLink(row: Record<string, unknown>): IdentityLink {
   }
 }
 
-export function listIdentityLinks(userId: string): IdentityLink[] {
-  const rows = getDb().prepare('SELECT * FROM identity_links WHERE user_id = ? ORDER BY linked_at, provider').all(userId) as Array<Record<string, unknown>>
+export function listIdentityLinks(db: Database.Database, userId: string): IdentityLink[] {
+  const rows = db.prepare('SELECT * FROM identity_links WHERE user_id = ? ORDER BY linked_at, provider').all(userId) as Array<Record<string, unknown>>
   return rows.map(toIdentityLink)
 }
 
@@ -124,11 +125,11 @@ export function listIdentityLinks(userId: string): IdentityLink[] {
  *  same rows for every id, ONE read for the whole set, grouped in
  *  memory. The single ORDER BY keeps each account's links in the
  *  per-id read's own (linked_at, provider) order. */
-export function listIdentityLinksBulk(userIds: string[]): Map<string, IdentityLink[]> {
+export function listIdentityLinksBulk(db: Database.Database, userIds: string[]): Map<string, IdentityLink[]> {
   const answer = new Map<string, IdentityLink[]>(userIds.map(id => [id, []]))
   if (userIds.length === 0) return answer
   const placeholders = userIds.map(() => '?').join(',')
-  const rows = getDb()
+  const rows = db
     .prepare(`SELECT * FROM identity_links WHERE user_id IN (${placeholders}) ORDER BY linked_at, provider`)
     .all(...userIds) as Array<Record<string, unknown>>
   for (const row of rows) {
@@ -138,29 +139,29 @@ export function listIdentityLinksBulk(userIds: string[]): Map<string, IdentityLi
   return answer
 }
 
-export function findIdentityLink(provider: string, providerAccountId: string): IdentityLink | null {
-  const row = getDb().prepare('SELECT * FROM identity_links WHERE provider = ? AND provider_account_id = ?')
+export function findIdentityLink(db: Database.Database, provider: string, providerAccountId: string): IdentityLink | null {
+  const row = db.prepare('SELECT * FROM identity_links WHERE provider = ? AND provider_account_id = ?')
     .get(provider, providerAccountId) as Record<string, unknown> | undefined
   return row ? toIdentityLink(row) : null
 }
 
 /** Create the link; NULL on the UNIQUE(provider, provider_account_id)
  *  conflict — the pair is already linked (to any account). */
-export function createIdentityLink(input: {
+export function createIdentityLink(db: Database.Database, input: {
   userId: string
   provider: string
   providerAccountId: string
   linkedBy?: string | null
 }): IdentityLink | null {
   const id = randomUUID()
-  const res = getDb().prepare(
+  const res = db.prepare(
     'INSERT OR IGNORE INTO identity_links (id, user_id, provider, provider_account_id, linked_by) VALUES (?, ?, ?, ?, ?)',
   ).run(id, input.userId, input.provider, input.providerAccountId, input.linkedBy ?? null)
   if (res.changes === 0) return null
-  return findIdentityLink(input.provider, input.providerAccountId)
+  return findIdentityLink(db, input.provider, input.providerAccountId)
 }
 
-export function deleteIdentityLink(userId: string, provider: string): boolean {
-  const res = getDb().prepare('DELETE FROM identity_links WHERE user_id = ? AND provider = ?').run(userId, provider)
+export function deleteIdentityLink(db: Database.Database, userId: string, provider: string): boolean {
+  const res = db.prepare('DELETE FROM identity_links WHERE user_id = ? AND provider = ?').run(userId, provider)
   return res.changes > 0
 }

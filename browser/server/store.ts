@@ -2385,6 +2385,16 @@ export function installStore(store: ServerStore): void {
   current = store
 }
 
+/** The RAW installed store, no throw when absent — the composition
+ *  middleware's save/restore primitive. TODO.restructure/28-D: a
+ *  per-request install that may run NESTED inside another instance's
+ *  request (the in-process federation proof: the tenant's callback
+ *  fetches the central token endpoint mid-flight) restores the
+ *  outer request's store on exit, so the slot stays re-entrant. */
+export function installedStore(): ServerStore | null {
+  return current
+}
+
 /** The installed store. Throws honestly when no composition root ran —
  *  a route hit without an installed store is a wiring bug, never a
  *  silent fallback. While a SERVER_TIMING-measured request is in

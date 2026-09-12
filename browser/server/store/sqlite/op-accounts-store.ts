@@ -5,13 +5,14 @@
 // op-store.ts's role for the OIDC state and upstream-store.ts's for the
 // linked identities, TODO.identity/08).
 //
-// NODE-ONLY: better-sqlite3 through ./store's getDb. The Worker bundle
+// NODE-ONLY: better-sqlite3, received as the store instance's
+// db parameter (TODO.restructure/28-D). The Worker bundle
 // never sees this module (the D1 store implements the same surface in
 // d1-store.ts).
 // ═══════════════════════════════════════════════════════════════════
 
+import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
-import { getDb } from './store'
 import type {
   AccountEmail,
   AddAccountEmailResult,
@@ -62,13 +63,12 @@ function toEnrollmentToken(row: Record<string, unknown>): EnrollmentToken {
  *  (the invite route's 409; the UNIQUE constraint is the race backstop).
  *  TODO.identity-features/01: the taken read spans BOTH address tables —
  *  an additional on another account blocks the address as a primary. */
-export function createOpAccount(input: {
+export function createOpAccount(db: Database.Database, input: {
   email: string
   name: string
   role: string
   createdBy?: string | null
 }): UserAdminRow | null {
-  const db = getDb()
   const id = randomUUID()
   const additional = db.prepare('SELECT user_id FROM account_emails WHERE email = ?').get(input.email.trim().toLowerCase())
   if (additional) return null
@@ -101,8 +101,7 @@ export function createOpAccount(input: {
  *  account's VERIFIED addresses — the primary first (the primary owner
  *  always wins, the deterministic rule), then a proven account_emails
  *  row; an unverified additional never resolves. */
-export function getPasswordLogin(email: string): { userId: string; hash: string; active: boolean } | null {
-  const db = getDb()
+export function getPasswordLogin(db: Database.Database, email: string): { userId: string; hash: string; active: boolean } | null {
   const normalized = email.trim().toLowerCase()
   let row = db.prepare(
     `SELECT u.id AS user_id, u.active AS active, p.hash AS hash
@@ -120,8 +119,8 @@ export function getPasswordLogin(email: string): { userId: string; hash: string;
   return { userId: row.user_id as string, hash: row.hash as string, active: row.active !== 0 }
 }
 
-export function setPasswordHash(userId: string, hash: string, setBy?: string | null): void {
-  getDb().prepare(
+export function setPasswordHash(db: Database.Database, userId: string, hash: string, setBy?: string | null): void {
+  db.prepare(
     `INSERT INTO passwords (user_id, hash, set_by) VALUES (?, ?, ?)
      ON CONFLICT (user_id) DO UPDATE SET hash = excluded.hash, set_at = datetime('now'), set_by = excluded.set_by`,
   ).run(userId, hash, setBy ?? null)
@@ -131,8 +130,7 @@ export function setPasswordHash(userId: string, hash: string, setBy?: string | n
  *  password-set state + the admin list's posture). TODO.identity-sso/02:
  *  the passkeys count — a passkey is a PRIMARY sign-in method
  *  (passwordless), so the at-least-one-way-in guard reads it. */
-export function countSignInMethods(userId: string): { password: boolean; links: number; passkeys: number } {
-  const db = getDb()
+export function countSignInMethods(db: Database.Database, userId: string): { password: boolean; links: number; passkeys: number } {
   const pw = db.prepare('SELECT COUNT(*) AS n FROM passwords WHERE user_id = ?').get(userId) as { n: number }
   const links = db.prepare('SELECT COUNT(*) AS n FROM identity_links WHERE user_id = ?').get(userId) as { n: number }
   const passkeys = db.prepare('SELECT COUNT(*) AS n FROM webauthn_credentials WHERE user_id = ?').get(userId) as { n: number }
@@ -143,12 +141,11 @@ export function countSignInMethods(userId: string): { password: boolean; links: 
  *  grouped read per underlying table — three statements for the whole
  *  set, never three per account. Every requested id answers; an absent
  *  row reads as zero (the per-id read's posture). */
-export function countSignInMethodsBulk(userIds: string[]): Map<string, { password: boolean; links: number; passkeys: number }> {
+export function countSignInMethodsBulk(db: Database.Database, userIds: string[]): Map<string, { password: boolean; links: number; passkeys: number }> {
   const answer = new Map<string, { password: boolean; links: number; passkeys: number }>(
     userIds.map(id => [id, { password: false, links: 0, passkeys: 0 }]),
   )
   if (userIds.length === 0) return answer
-  const db = getDb()
   const placeholders = userIds.map(() => '?').join(',')
   const counts = (table: string): Map<string, number> => {
     const m = new Map<string, number>()
@@ -171,21 +168,21 @@ export function countSignInMethodsBulk(userIds: string[]): Map<string, { passwor
   return answer
 }
 
-export function createEnrollmentToken(input: {
+export function createEnrollmentToken(db: Database.Database, input: {
   token: string
   userId: string
   createdBy?: string | null
   ttlMs: number
 }): EnrollmentToken {
   const expiresAt = new Date(Date.now() + input.ttlMs).toISOString()
-  getDb().prepare(
+  db.prepare(
     'INSERT INTO enrollment_tokens (token, user_id, created_by, expires_at) VALUES (?, ?, ?, ?)',
   ).run(input.token, input.userId, input.createdBy ?? null, expiresAt)
-  return getEnrollmentToken(input.token)!
+  return getEnrollmentToken(db, input.token)!
 }
 
-export function getEnrollmentToken(token: string): EnrollmentToken | null {
-  const row = getDb().prepare('SELECT * FROM enrollment_tokens WHERE token = ?').get(token) as Record<string, unknown> | undefined
+export function getEnrollmentToken(db: Database.Database, token: string): EnrollmentToken | null {
+  const row = db.prepare('SELECT * FROM enrollment_tokens WHERE token = ?').get(token) as Record<string, unknown> | undefined
   return row ? toEnrollmentToken(row) : null
 }
 
@@ -193,15 +190,14 @@ export function getEnrollmentToken(token: string): EnrollmentToken | null {
  *  presented link works exactly once — a concurrent double-submit loses
  *  the race), then the expiry is judged (an expired link is burned, never
  *  redeemed later), then the password lands. */
-export function completeEnrollment(token: string, passwordHash: string, setBy?: string | null): CompleteEnrollmentResult {
-  const db = getDb()
+export function completeEnrollment(db: Database.Database, token: string, passwordHash: string, setBy?: string | null): CompleteEnrollmentResult {
   const res = db.prepare(
     "UPDATE enrollment_tokens SET consumed_at = datetime('now') WHERE token = ? AND consumed_at IS NULL",
   ).run(token)
   if (res.changes === 0) return { kind: 'unknown' }
-  const row = getEnrollmentToken(token)!
+  const row = getEnrollmentToken(db, token)!
   if (new Date(row.expiresAt).getTime() <= Date.now()) return { kind: 'expired' }
-  setPasswordHash(row.userId, passwordHash, setBy)
+  setPasswordHash(db, row.userId, passwordHash, setBy)
   // TODO.identity/06: the invite ceremony doubles as the address's
   // verification (the administrator delivered the one-time link to that
   // mailbox out-of-band; completing it proves the pair).
@@ -211,8 +207,8 @@ export function completeEnrollment(token: string, passwordHash: string, setBy?: 
 
 /** The account's live sessions, `current` computed in SQL against the
  *  presenting token — the token value itself never leaves the store. */
-export function listUserSessions(userId: string, currentToken?: string): SessionView[] {
-  const rows = getDb().prepare(
+export function listUserSessions(db: Database.Database, userId: string, currentToken?: string): SessionView[] {
+  const rows = db.prepare(
     `SELECT id, created_at, expires_at, last_seen_at, user_agent, ip, (token = ?) AS is_current
      FROM sessions
      WHERE user_id = ? AND expires_at > datetime('now')
@@ -231,16 +227,16 @@ export function listUserSessions(userId: string, currentToken?: string): Session
 
 /** Revoke ONE of the account's own sessions (the user_id clause makes
  *  another account's session id a no-op). */
-export function deleteSessionById(userId: string, sessionId: string): boolean {
-  const res = getDb().prepare('DELETE FROM sessions WHERE id = ? AND user_id = ?').run(sessionId, userId)
+export function deleteSessionById(db: Database.Database, userId: string, sessionId: string): boolean {
+  const res = db.prepare('DELETE FROM sessions WHERE id = ? AND user_id = ?').run(sessionId, userId)
   return res.changes > 0
 }
 
 /** Every live session across accounts (expired excluded), `current`
  *  computed in SQL against the presenting token — the aggregate admin
  *  read (TODO.identity-sso/01); the token never leaves the store. */
-export function listOpLiveSessions(currentToken?: string): OpLiveSession[] {
-  const rows = getDb().prepare(
+export function listOpLiveSessions(db: Database.Database, currentToken?: string): OpLiveSession[] {
+  const rows = db.prepare(
     `SELECT id, user_id, created_at, expires_at, last_seen_at, user_agent, ip, (token = ?) AS is_current
      FROM sessions
      WHERE expires_at > datetime('now')
@@ -260,8 +256,8 @@ export function listOpLiveSessions(currentToken?: string): OpLiveSession[] {
 
 /** The administrator's revoke-all (TODO.identity-sso/01's light act):
  *  every session of the account, none kept; answers the count. */
-export function deleteAllUserSessions(userId: string): number {
-  return getDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(userId).changes
+export function deleteAllUserSessions(db: Database.Database, userId: string): number {
+  return db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId).changes
 }
 
 // ── the central user registry (TODO.identity/03) ─────────────────────
@@ -288,8 +284,8 @@ function toClientRoleAssignment(row: OpClientRoleRow): OpClientRoleAssignment {
   }
 }
 
-export function listOpClientRoles(userId: string): OpClientRoleAssignment[] {
-  const rows = getDb().prepare(
+export function listOpClientRoles(db: Database.Database, userId: string): OpClientRoleAssignment[] {
+  const rows = db.prepare(
     'SELECT * FROM op_client_roles WHERE user_id = ? ORDER BY client_id',
   ).all(userId) as unknown as OpClientRoleRow[]
   return rows.map(toClientRoleAssignment)
@@ -297,8 +293,8 @@ export function listOpClientRoles(userId: string): OpClientRoleAssignment[] {
 
 /** EVERY per-client assignment across accounts (TODO.identity-sso/01's
  *  live access review). */
-export function listAllOpClientRoles(): OpClientRoleAssignment[] {
-  const rows = getDb().prepare(
+export function listAllOpClientRoles(db: Database.Database): OpClientRoleAssignment[] {
+  const rows = db.prepare(
     'SELECT * FROM op_client_roles ORDER BY user_id, client_id',
   ).all() as unknown as OpClientRoleRow[]
   return rows.map(toClientRoleAssignment)
@@ -307,15 +303,15 @@ export function listAllOpClientRoles(): OpClientRoleAssignment[] {
 /** The assignment for ONE client: NULL = no row (the account's OP-side
  *  role set is that client's default); an EMPTY array = the explicit
  *  "no roles on this client". */
-export function getOpClientRoles(userId: string, clientId: string): string[] | null {
-  const row = getDb().prepare(
+export function getOpClientRoles(db: Database.Database, userId: string, clientId: string): string[] | null {
+  const row = db.prepare(
     'SELECT roles FROM op_client_roles WHERE user_id = ? AND client_id = ?',
   ).get(userId, clientId) as { roles: string } | undefined
   return row ? (JSON.parse(row.roles) as string[]) : null
 }
 
-export function setOpClientRoles(userId: string, clientId: string, roles: string[], assignedBy: string | null): void {
-  getDb().prepare(`
+export function setOpClientRoles(db: Database.Database, userId: string, clientId: string, roles: string[], assignedBy: string | null): void {
+  db.prepare(`
     INSERT INTO op_client_roles (user_id, client_id, roles, assigned_by)
     VALUES (?, ?, ?, ?)
     ON CONFLICT (user_id, client_id) DO UPDATE SET
@@ -325,8 +321,8 @@ export function setOpClientRoles(userId: string, clientId: string, roles: string
   `).run(userId, clientId, JSON.stringify(roles), assignedBy)
 }
 
-export function deleteOpClientRoles(userId: string, clientId: string): boolean {
-  const res = getDb().prepare('DELETE FROM op_client_roles WHERE user_id = ? AND client_id = ?').run(userId, clientId)
+export function deleteOpClientRoles(db: Database.Database, userId: string, clientId: string): boolean {
+  const res = db.prepare('DELETE FROM op_client_roles WHERE user_id = ? AND client_id = ?').run(userId, clientId)
   return res.changes > 0
 }
 
@@ -335,8 +331,7 @@ export function deleteOpClientRoles(userId: string, clientId: string): boolean {
  *  the reuse detector has no more verdicts to give), every unconsumed
  *  code and pending authorization goes. The user row STAYS (the
  *  history). */
-export function revokeOpUserCredentials(userId: string): { sessions: number; accessTokens: number; refreshTokens: number; codes: number; authorizations: number } {
-  const db = getDb()
+export function revokeOpUserCredentials(db: Database.Database, userId: string): { sessions: number; accessTokens: number; refreshTokens: number; codes: number; authorizations: number } {
   const sessions = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId).changes
   const accessTokens = db.prepare('DELETE FROM oidc_access_tokens WHERE user_id = ?').run(userId).changes
   const refreshTokens = db.prepare('DELETE FROM oidc_refresh_tokens WHERE user_id = ?').run(userId).changes
@@ -352,8 +347,7 @@ export function revokeOpUserCredentials(userId: string): { sessions: number; acc
  *  TODO.identity-features/01: the conflict read spans BOTH address
  *  tables — an additional row (on any account, this one included) holds
  *  the address too. */
-export function updateOpAccount(id: string, input: { name?: string; email?: string }): boolean {
-  const db = getDb()
+export function updateOpAccount(db: Database.Database, id: string, input: { name?: string; email?: string }): boolean {
   if (input.email !== undefined) {
     const additional = db.prepare('SELECT user_id FROM account_emails WHERE email = ?').get(input.email.trim().toLowerCase())
     if (additional) throw new Error(`unique: ${input.email}`)
@@ -383,7 +377,7 @@ export function updateOpAccount(id: string, input: { name?: string; email?: stri
  *  surface (the registry list, the sign-in joins, the admin acts).
  *  Answers the removal counts (the audit event's metadata), or null when
  *  the account does not exist. */
-export function eraseOpAccount(userId: string): {
+export function eraseOpAccount(db: Database.Database, userId: string): {
   sessions: number
   accessTokens: number
   refreshTokens: number
@@ -398,10 +392,9 @@ export function eraseOpAccount(userId: string): {
   consentGrants: number
   emails: number
 } | null {
-  const db = getDb()
   const row = db.prepare('SELECT 1 AS ok FROM users WHERE id = ?').get(userId)
   if (!row) return null
-  const revoked = revokeOpUserCredentials(userId)
+  const revoked = revokeOpUserCredentials(db, userId)
   const links = db.prepare('DELETE FROM identity_links WHERE user_id = ?').run(userId).changes
   const clientRoles = db.prepare('DELETE FROM op_client_roles WHERE user_id = ?').run(userId).changes
   // TODO.identity/11: the memberships go too (every org's row — the
@@ -451,8 +444,8 @@ export function eraseOpAccount(userId: string): {
  *  closing quote made it so too) — and now spelling-proof: the legs
  *  parse the JSON, so a serialized-with-spaces row answers and an
  *  embedded lookalike substring never does. */
-export function lastAccountSignIns(): Record<string, string> {
-  const rows = getDb().prepare(
+export function lastAccountSignIns(db: Database.Database): Record<string, string> {
+  const rows = db.prepare(
     `SELECT json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.entity_id') AS entity_id,
             MAX(json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.timestamp')) AS ts
      FROM entities
@@ -470,8 +463,8 @@ export function lastAccountSignIns(): Record<string, string> {
 // ── the account console (TODO.identity/06) ───────────────────────────
 
 /** The profile edit's write (the display name). */
-export function updateUserName(userId: string, name: string): boolean {
-  const res = getDb().prepare('UPDATE users SET name = ? WHERE id = ?').run(name.trim(), userId)
+export function updateUserName(db: Database.Database, userId: string, name: string): boolean {
+  const res = db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name.trim(), userId)
   return res.changes > 0
 }
 
@@ -479,22 +472,22 @@ export function updateUserName(userId: string, name: string): boolean {
  *  carries the serving URL (the OP's own avatar route for an upload, the
  *  linked provider's picture URL for an OAuth-provisioned row), NULL when
  *  the account shows its initials. Answers false when the account is gone. */
-export function setUserAvatar(userId: string, avatarUrl: string | null): boolean {
-  const res = getDb().prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, userId)
+export function setUserAvatar(db: Database.Database, userId: string, avatarUrl: string | null): boolean {
+  const res = db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, userId)
   return res.changes > 0
 }
 
 /** Remove the account's password credential (the route holds the
  *  at-least-one-method guard). */
-export function deletePasswordHash(userId: string): boolean {
-  const res = getDb().prepare('DELETE FROM passwords WHERE user_id = ?').run(userId)
+export function deletePasswordHash(db: Database.Database, userId: string): boolean {
+  const res = db.prepare('DELETE FROM passwords WHERE user_id = ?').run(userId)
   return res.changes > 0
 }
 
 /** Revoke every session of the account EXCEPT the presenting one.
  *  Answers the revoked count. */
-export function deleteOtherSessions(userId: string, keepToken: string): number {
-  const res = getDb().prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(userId, keepToken)
+export function deleteOtherSessions(db: Database.Database, userId: string, keepToken: string): number {
+  const res = db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(userId, keepToken)
   return res.changes
 }
 
@@ -521,7 +514,7 @@ function toEmailChangeToken(row: Record<string, unknown>): EmailChangeToken {
  *  stand); a 'verify' request voids the account's earlier pending
  *  'verify' rows (the target is the current primary — one per account,
  *  the change doctrine's scoping). */
-export function createEmailChangeToken(input: {
+export function createEmailChangeToken(db: Database.Database, input: {
   token: string
   userId: string
   newEmail: string
@@ -529,7 +522,6 @@ export function createEmailChangeToken(input: {
   kind?: 'change' | 'add' | 'verify'
   ttlMs: number
 }): EmailChangeToken {
-  const db = getDb()
   const kind = input.kind ?? 'change'
   if (kind === 'change') {
     db.prepare(
@@ -548,11 +540,11 @@ export function createEmailChangeToken(input: {
   db.prepare(
     'INSERT INTO email_change_tokens (token, user_id, new_email, delivered_by, kind, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
   ).run(input.token, input.userId, input.newEmail.trim().toLowerCase(), input.deliveredBy, kind, expiresAt)
-  return getEmailChangeToken(input.token)!
+  return getEmailChangeToken(db, input.token)!
 }
 
-export function getEmailChangeToken(token: string): EmailChangeToken | null {
-  const row = getDb().prepare('SELECT * FROM email_change_tokens WHERE token = ?').get(token) as Record<string, unknown> | undefined
+export function getEmailChangeToken(db: Database.Database, token: string): EmailChangeToken | null {
+  const row = db.prepare('SELECT * FROM email_change_tokens WHERE token = ?').get(token) as Record<string, unknown> | undefined
   return row ? toEmailChangeToken(row) : null
 }
 
@@ -560,8 +552,8 @@ export function getEmailChangeToken(token: string): EmailChangeToken | null {
  *  so the console can show it. The per-address verifications are the
  *  account_emails rows' own state (verified_at NULL = waiting), never a
  *  pending read here. */
-export function getPendingEmailChange(userId: string): EmailChangeToken | null {
-  const row = getDb().prepare(
+export function getPendingEmailChange(db: Database.Database, userId: string): EmailChangeToken | null {
+  const row = db.prepare(
     `SELECT * FROM email_change_tokens
      WHERE user_id = ? AND kind = 'change' AND consumed_at IS NULL AND expires_at > datetime('now')
      ORDER BY created_at DESC LIMIT 1`,
@@ -585,19 +577,18 @@ export function getPendingEmailChange(userId: string): EmailChangeToken | null {
  *  'unknown', the vanished-target doctrine; the erasure's token sweep
  *  burns it earlier). A 'mailer'-delivered token verifies the address;
  *  a shown one never does. */
-export function completeEmailChange(token: string): CompleteEmailChangeResult {
-  const db = getDb()
+export function completeEmailChange(db: Database.Database, token: string): CompleteEmailChangeResult {
   const res = db.prepare(
     "UPDATE email_change_tokens SET consumed_at = datetime('now') WHERE token = ? AND consumed_at IS NULL",
   ).run(token)
   if (res.changes === 0) return { kind: 'unknown' }
-  const row = getEmailChangeToken(token)!
+  const row = getEmailChangeToken(db, token)!
   if (new Date(row.expiresAt).getTime() <= Date.now()) return { kind: 'expired' }
   const verified = row.deliveredBy === 'mailer'
   if (row.kind === 'add') {
     const standing = db.prepare('SELECT 1 AS ok FROM account_emails WHERE user_id = ? AND email = ?').get(row.userId, row.newEmail)
     if (!standing) return { kind: 'unknown' }
-    if (verified) markAccountEmailVerified(row.userId, row.newEmail)
+    if (verified) markAccountEmailVerified(db, row.userId, row.newEmail)
     return { kind: 'ok', userId: row.userId, newEmail: row.newEmail, verified }
   }
   if (row.kind === 'verify') {
@@ -635,8 +626,7 @@ function toAccountEmail(row: Record<string, unknown>, isPrimary: boolean): Accou
 /** The account's addresses: the PRIMARY first (the users row's email +
  *  its verification stamp), then the additional account_emails rows
  *  (oldest first). */
-export function listAccountEmails(userId: string): AccountEmail[] {
-  const db = getDb()
+export function listAccountEmails(db: Database.Database, userId: string): AccountEmail[] {
   const primary = db.prepare(
     'SELECT id AS user_id, email, email_verified_at AS verified_at, created_at FROM users WHERE id = ?',
   ).get(userId) as Record<string, unknown> | undefined
@@ -652,8 +642,7 @@ export function listAccountEmails(userId: string): AccountEmail[] {
 /** Resolve the account by ANY of its addresses (normalized): the primary
  *  always names it (and the primary owner always wins — the
  *  deterministic rule); an additional ONLY when verified. */
-export function findUserByAnyEmail(email: string): AuthUserPayload | null {
-  const db = getDb()
+export function findUserByAnyEmail(db: Database.Database, email: string): AuthUserPayload | null {
   const normalized = email.trim().toLowerCase()
   const primary = db.prepare('SELECT * FROM users WHERE email = ?').get(normalized) as Record<string, unknown> | undefined
   if (primary) return accountPayload(primary)
@@ -670,8 +659,7 @@ export function findUserByAnyEmail(email: string): AuthUserPayload | null {
  *  idempotent re-add); any other hold of the address — a primary
  *  anywhere (this account's included) or another account's additional —
  *  answers 'conflict'. The unique index is the race backstop. */
-export function addAccountEmail(userId: string, email: string, addedBy?: string | null): AddAccountEmailResult {
-  const db = getDb()
+export function addAccountEmail(db: Database.Database, userId: string, email: string, addedBy?: string | null): AddAccountEmailResult {
   const normalized = email.trim().toLowerCase()
   const takenPrimary = db.prepare('SELECT id FROM users WHERE email = ?').get(normalized)
   if (takenPrimary) return 'conflict'
@@ -688,8 +676,8 @@ export function addAccountEmail(userId: string, email: string, addedBy?: string 
 
 /** The verification ceremony's stamp on the account's OWN row: the
  *  guarded UPDATE flips verified_at, once. */
-export function markAccountEmailVerified(userId: string, email: string): boolean {
-  return getDb().prepare(
+export function markAccountEmailVerified(db: Database.Database, userId: string, email: string): boolean {
+  return db.prepare(
     "UPDATE account_emails SET verified_at = datetime('now') WHERE user_id = ? AND email = ? AND verified_at IS NULL",
   ).run(userId, email.trim().toLowerCase()).changes > 0
 }
@@ -698,8 +686,7 @@ export function markAccountEmailVerified(userId: string, email: string): boolean
  *  becomes users.email with its verification stamp; the outgoing
  *  primary takes the row's place in account_emails with ITS stamp (it
  *  stays a verified additional — sign-in by it keeps working). */
-export function setPrimaryAccountEmail(userId: string, email: string): 'ok' | 'unknown' | 'unverified' {
-  const db = getDb()
+export function setPrimaryAccountEmail(db: Database.Database, userId: string, email: string): 'ok' | 'unknown' | 'unverified' {
   const normalized = email.trim().toLowerCase()
   const row = db.prepare('SELECT * FROM account_emails WHERE user_id = ? AND email = ?').get(userId, normalized) as Record<string, unknown> | undefined
   if (!row) return 'unknown'
@@ -714,8 +701,7 @@ export function setPrimaryAccountEmail(userId: string, email: string): 'ok' | 'u
 
 /** Remove an ADDITIONAL address. The primary refuses honestly
  *  ('primary' — promote another address first). */
-export function removeAccountEmail(userId: string, email: string): 'ok' | 'primary' | 'unknown' {
-  const db = getDb()
+export function removeAccountEmail(db: Database.Database, userId: string, email: string): 'ok' | 'primary' | 'unknown' {
   const normalized = email.trim().toLowerCase()
   const current = db.prepare('SELECT email FROM users WHERE id = ?').get(userId) as { email: string } | undefined
   if (current?.email === normalized) return 'primary'
