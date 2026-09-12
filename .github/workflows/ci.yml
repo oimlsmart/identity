@@ -92,6 +92,69 @@ jobs:
     # The identity e2e legs: the shared dev stack for the runner's
     # per-file reset; the legs themselves self-contained on their own
     # ports (each boots its own API + astro + fixtures).
+    #
+    # Two shards for wall time, each running its subset serially through
+    # the same e2e-run.ts. Placement is safe because legs are
+    # file-hermetic: each file gets its own vitest invocation, preceded
+    # by the runner's /api/dev-reset reseed against THIS job's dev stack
+    # (grep-verified: every E2E_BASE_URL occurrence under e2e/ is a
+    # leg's SELF-CONTAINED header comment; nothing targets the shared
+    # 5190/3190 stack at runtime) — so any leg may live in either shard.
+    # Shard membership is balanced by the per-leg durations measured on
+    # main's serial run 34689715944 (2026-09-12): shard 0 = 19 legs /
+    # 376s, shard 1 = 21 legs / 374s. Within a shard, legs keep the
+    # serial order of the pre-shard list (a subsequence, never a
+    # reordering).
+    name: identity-e2e (shard ${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+        include:
+          - shard: 0
+            legs: |
+              e2e/id-01-op.e2e.ts
+              e2e/id-02-accounts.e2e.ts
+              e2e/id-03-registry.e2e.ts
+              e2e/id-10-org-admin.e2e.ts
+              e2e/id-11-home.e2e.ts
+              e2e/id-14-factors.e2e.ts
+              e2e/id-17-manufacturer-kind.e2e.ts
+              e2e/id-18-org-signing-keys.e2e.ts
+              e2e/id-12-admin-dashboard.e2e.ts
+              e2e/id-22-explainer.e2e.ts
+              e2e/id-23-service-clients.e2e.ts
+              e2e/id-24-personal-tokens.e2e.ts
+              e2e/id-25-quickwins.e2e.ts
+              e2e/id-29-email-verification.e2e.ts
+              e2e/id-32-security-notices.e2e.ts
+              e2e/id-33-logout.e2e.ts
+              e2e/id-36-client-governance.e2e.ts
+              e2e/id-surface.e2e.ts
+              e2e/op-key-rotate.e2e.ts
+          - shard: 1
+            legs: |
+              e2e/id-04-op-side.e2e.ts
+              e2e/id-05-full.e2e.ts
+              e2e/id-06-account-console.e2e.ts
+              e2e/id-07-registry.e2e.ts
+              e2e/id-08-upstream.e2e.ts
+              e2e/id-09-email.e2e.ts
+              e2e/id-15-mobile-viewport.e2e.ts
+              e2e/id-16-selfhost.e2e.ts
+              e2e/id-13-org-memberships.e2e.ts
+              e2e/id-19-device-clients.e2e.ts
+              e2e/id-20-org-member-cones.e2e.ts
+              e2e/id-21-member-category.e2e.ts
+              e2e/id-26-visual-elevation.e2e.ts
+              e2e/id-27-consent-grants.e2e.ts
+              e2e/id-28-account-emails.e2e.ts
+              e2e/id-30-password-breach.e2e.ts
+              e2e/id-31-login-throttle.e2e.ts
+              e2e/id-34-refresh-rotation.e2e.ts
+              e2e/id-35-revoke-introspect.e2e.ts
+              e2e/id-37-register.e2e.ts
+              e2e/op-surface-contract.e2e.ts
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -130,47 +193,10 @@ jobs:
           # their own stacks and scrub the posture).
           DEMO_ACCOUNTS_ENABLED: 'true'
 
-      - name: The identity e2e legs
+      - name: The identity e2e legs (shard ${{ matrix.shard }})
         working-directory: browser
-        run: |
-          npx tsx scripts/e2e-run.ts \
-            e2e/id-01-op.e2e.ts \
-            e2e/id-02-accounts.e2e.ts \
-            e2e/id-03-registry.e2e.ts \
-            e2e/id-04-op-side.e2e.ts \
-            e2e/id-05-full.e2e.ts \
-            e2e/id-06-account-console.e2e.ts \
-            e2e/id-07-registry.e2e.ts \
-            e2e/id-08-upstream.e2e.ts \
-            e2e/id-09-email.e2e.ts \
-            e2e/id-10-org-admin.e2e.ts \
-            e2e/id-11-home.e2e.ts \
-            e2e/id-14-factors.e2e.ts \
-            e2e/id-15-mobile-viewport.e2e.ts \
-            e2e/id-16-selfhost.e2e.ts \
-            e2e/id-17-manufacturer-kind.e2e.ts \
-            e2e/id-18-org-signing-keys.e2e.ts \
-            e2e/id-12-admin-dashboard.e2e.ts \
-            e2e/id-13-org-memberships.e2e.ts \
-            e2e/id-19-device-clients.e2e.ts \
-            e2e/id-20-org-member-cones.e2e.ts \
-            e2e/id-21-member-category.e2e.ts \
-            e2e/id-22-explainer.e2e.ts \
-            e2e/id-23-service-clients.e2e.ts \
-            e2e/id-24-personal-tokens.e2e.ts \
-            e2e/id-25-quickwins.e2e.ts \
-            e2e/id-26-visual-elevation.e2e.ts \
-            e2e/id-27-consent-grants.e2e.ts \
-            e2e/id-28-account-emails.e2e.ts \
-            e2e/id-29-email-verification.e2e.ts \
-            e2e/id-30-password-breach.e2e.ts \
-            e2e/id-31-login-throttle.e2e.ts \
-            e2e/id-32-security-notices.e2e.ts \
-            e2e/id-33-logout.e2e.ts \
-            e2e/id-34-refresh-rotation.e2e.ts \
-            e2e/id-35-revoke-introspect.e2e.ts \
-            e2e/id-36-client-governance.e2e.ts \
-            e2e/id-37-register.e2e.ts \
-            e2e/id-surface.e2e.ts \
-            e2e/op-surface-contract.e2e.ts \
-            e2e/op-key-rotate.e2e.ts
+        env:
+          # The shard's leg list rides the matrix (one file per line);
+          # the unquoted expansion word-splits the newlines into argv.
+          E2E_SHARD_LEGS: ${{ matrix.legs }}
+        run: npx tsx scripts/e2e-run.ts $E2E_SHARD_LEGS
