@@ -325,6 +325,7 @@ describe('the per-address verification ceremony (the kind add link)', () => {
     expect((await app.request(`/api/op/email-change/${token}`, { method: 'POST' })).status).toBe(200)
     stub.reset()
     expect((await passwordLogin('gwen.alias@example.org', 'a perfectly good passphrase')).status).toBe(200)
+    await new Promise(r => setTimeout(r, 25)) // the notice rides beside the answer (TODO.restructure/27)
     const signinMails = stub.messages.filter(m => m.subject?.includes('New sign-in'))
     expect(signinMails.map(m => m.to).sort()).toEqual(['gwen.alias@example.org', 'gwen@example.org'])
 
