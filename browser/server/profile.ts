@@ -386,6 +386,14 @@ export function installInstanceProfile(profile: InstanceProfile): void {
   installed = profile
 }
 
+/** The RAW installed profile, no default fallback — the composition
+ *  middleware's save/restore primitive (the installedStore twin:
+ *  TODO.restructure/28-D's nested per-request installs restore the
+ *  outer request's profile on exit). */
+export function installedInstanceProfile(): InstanceProfile | null {
+  return installed
+}
+
 /** The installed profile — the built-in HUB default when nothing was
  *  installed, so a boot with no profile declaration behaves exactly as
  *  the pre-profiles app (tests included). */

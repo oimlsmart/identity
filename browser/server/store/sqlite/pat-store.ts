@@ -15,11 +15,12 @@
 //   - the erasure (op-accounts-store.ts's eraseOpAccount) removes the
 //     rows outright — a dead account's tokens die with it.
 //
-// NODE-ONLY: better-sqlite3 through ./store's getDb. The Worker bundle
+// NODE-ONLY: better-sqlite3, received as the store instance's
+// db parameter (TODO.restructure/28-D). The Worker bundle
 // never sees this module.
 // ═══════════════════════════════════════════════════════════════════
 
-import { getDb } from './store'
+import type Database from 'better-sqlite3'
 import { storeTimeToIso } from './factors-store'
 import type { PersonalAccessToken } from '../../store'
 
@@ -50,7 +51,7 @@ function toPersonalAccessToken(row: Record<string, unknown>): PersonalAccessToke
   }
 }
 
-export function createPersonalAccessToken(input: {
+export function createPersonalAccessToken(db: Database.Database, input: {
   id: string
   userId: string
   name: string
@@ -60,7 +61,7 @@ export function createPersonalAccessToken(input: {
   orgContext: string | null
   expiresAt: string
 }): PersonalAccessToken {
-  getDb().prepare(
+  db.prepare(
     `INSERT INTO personal_access_tokens
        (id, user_id, name, token_hash, token_prefix, scopes, org_context, expires_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -68,13 +69,13 @@ export function createPersonalAccessToken(input: {
     input.id, input.userId, input.name, input.tokenHash, input.tokenPrefix,
     JSON.stringify(input.scopes), input.orgContext, input.expiresAt,
   )
-  return getPersonalAccessToken(input.id)!
+  return getPersonalAccessToken(db, input.id)!
 }
 
-export function listPersonalAccessTokens(userId: string): PersonalAccessToken[] {
+export function listPersonalAccessTokens(db: Database.Database, userId: string): PersonalAccessToken[] {
   // created_at is second-resolution (datetime('now')) — the rowid breaks
   // the tie so the newest mint leads even within one second.
-  const rows = getDb().prepare(
+  const rows = db.prepare(
     'SELECT * FROM personal_access_tokens WHERE user_id = ? ORDER BY created_at DESC, rowid DESC',
   ).all(userId) as Array<Record<string, unknown>>
   return rows.map(toPersonalAccessToken)
@@ -83,8 +84,8 @@ export function listPersonalAccessTokens(userId: string): PersonalAccessToken[] 
 /** The org inventory: every token whose holder carries a membership row
  *  for the org (ANY state — the oversight surface hunts the disabled
  *  member's live token too), newest first. */
-export function listOrgPersonalAccessTokens(orgId: string): PersonalAccessToken[] {
-  const rows = getDb().prepare(
+export function listOrgPersonalAccessTokens(db: Database.Database, orgId: string): PersonalAccessToken[] {
+  const rows = db.prepare(
     `SELECT p.* FROM personal_access_tokens p
      JOIN org_memberships m ON m.user_id = p.user_id
      WHERE m.org_id = ?
@@ -93,30 +94,29 @@ export function listOrgPersonalAccessTokens(orgId: string): PersonalAccessToken[
   return rows.map(toPersonalAccessToken)
 }
 
-export function getPersonalAccessToken(id: string): PersonalAccessToken | null {
-  const row = getDb().prepare('SELECT * FROM personal_access_tokens WHERE id = ?').get(id) as Record<string, unknown> | undefined
+export function getPersonalAccessToken(db: Database.Database, id: string): PersonalAccessToken | null {
+  const row = db.prepare('SELECT * FROM personal_access_tokens WHERE id = ?').get(id) as Record<string, unknown> | undefined
   return row ? toPersonalAccessToken(row) : null
 }
 
-export function findPersonalAccessTokenByHash(tokenHash: string): PersonalAccessToken | null {
-  const row = getDb().prepare('SELECT * FROM personal_access_tokens WHERE token_hash = ?').get(tokenHash) as Record<string, unknown> | undefined
+export function findPersonalAccessTokenByHash(db: Database.Database, tokenHash: string): PersonalAccessToken | null {
+  const row = db.prepare('SELECT * FROM personal_access_tokens WHERE token_hash = ?').get(tokenHash) as Record<string, unknown> | undefined
   return row ? toPersonalAccessToken(row) : null
 }
 
 /** The guarded revoke: the owner's LIVE row flips, once. */
-export function revokePersonalAccessToken(id: string, userId: string, revokedBy: string): boolean {
-  return getDb().prepare(
+export function revokePersonalAccessToken(db: Database.Database, id: string, userId: string, revokedBy: string): boolean {
+  return db.prepare(
     "UPDATE personal_access_tokens SET revoked_at = datetime('now'), revoked_by = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
   ).run(revokedBy, id, userId).changes > 0
 }
 
 /** The exchange path's stamp (the throttled heartbeat + the expiry-soon
  *  mailer's one-shot mark — the route decides, the store writes). */
-export function stampPersonalAccessTokenUse(
+export function stampPersonalAccessTokenUse(db: Database.Database,
   id: string,
   stamps: { usedAt: string; auditAt?: string | null; expiryNotifiedAt?: string | null },
 ): void {
-  const db = getDb()
   db.prepare('UPDATE personal_access_tokens SET last_used_at = ? WHERE id = ?').run(stamps.usedAt, id)
   if (stamps.auditAt) {
     db.prepare('UPDATE personal_access_tokens SET last_exchange_audit_at = ? WHERE id = ?').run(stamps.auditAt, id)

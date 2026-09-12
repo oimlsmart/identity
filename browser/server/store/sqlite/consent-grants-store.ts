@@ -17,12 +17,13 @@
 //   - the erasure (op-accounts-store.ts's eraseOpAccount) removes the
 //     rows outright — a dead account's grants die with it.
 //
-// NODE-ONLY: better-sqlite3 through ./store's getDb. The Worker bundle
+// NODE-ONLY: better-sqlite3, received as the store instance's
+// db parameter (TODO.restructure/28-D). The Worker bundle
 // never sees this module.
 // ═══════════════════════════════════════════════════════════════════
 
+import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
-import { getDb } from './store'
 import { storeTimeToIso } from './factors-store'
 import { consentGrantCovers, normalizeOidcScopeSet, type OidcConsentGrant } from '../../store'
 
@@ -40,8 +41,8 @@ function toConsentGrant(row: Record<string, unknown>): OidcConsentGrant {
 /** The authorize endpoint's remembered-consent read: the account's LIVE
  *  grant for this client whose scope set COVERS the requested set (the
  *  freshest first, when several cover). */
-export function getConsentGrant(userId: string, clientId: string, scope: string): OidcConsentGrant | null {
-  const rows = getDb().prepare(
+export function getConsentGrant(db: Database.Database, userId: string, clientId: string, scope: string): OidcConsentGrant | null {
+  const rows = db.prepare(
     'SELECT * FROM oidc_consent_grants WHERE user_id = ? AND client_id = ? AND revoked_at IS NULL ORDER BY created_at DESC, rowid DESC',
   ).all(userId, clientId) as Array<Record<string, unknown>>
   for (const row of rows) {
@@ -54,15 +55,15 @@ export function getConsentGrant(userId: string, clientId: string, scope: string)
  *  triple refreshes the stamp; a revoked triple's re-allow inserts fresh
  *  (the partial unique index's predicate keeps the revoked row out of the
  *  collision). Answers the live row. */
-export function recordConsentGrant(input: { userId: string; clientId: string; scope: string }): OidcConsentGrant {
+export function recordConsentGrant(db: Database.Database, input: { userId: string; clientId: string; scope: string }): OidcConsentGrant {
   const scope = normalizeOidcScopeSet(input.scope)
-  getDb().prepare(
+  db.prepare(
     `INSERT INTO oidc_consent_grants (id, user_id, client_id, scope)
      VALUES (?, ?, ?, ?)
      ON CONFLICT (user_id, client_id, scope) WHERE revoked_at IS NULL
      DO UPDATE SET created_at = datetime('now')`,
   ).run(randomUUID(), input.userId, input.clientId, scope)
-  const row = getDb().prepare(
+  const row = db.prepare(
     'SELECT * FROM oidc_consent_grants WHERE user_id = ? AND client_id = ? AND scope = ? AND revoked_at IS NULL',
   ).get(input.userId, input.clientId, scope) as Record<string, unknown> | undefined
   if (!row) throw new Error('recordConsentGrant: the upsert left no live row')
@@ -70,8 +71,8 @@ export function recordConsentGrant(input: { userId: string; clientId: string; sc
 }
 
 /** The console's list: the account's LIVE grants, newest first. */
-export function listConsentGrants(userId: string): OidcConsentGrant[] {
-  const rows = getDb().prepare(
+export function listConsentGrants(db: Database.Database, userId: string): OidcConsentGrant[] {
+  const rows = db.prepare(
     'SELECT * FROM oidc_consent_grants WHERE user_id = ? AND revoked_at IS NULL ORDER BY created_at DESC, rowid DESC',
   ).all(userId) as Array<Record<string, unknown>>
   return rows.map(toConsentGrant)
@@ -79,16 +80,16 @@ export function listConsentGrants(userId: string): OidcConsentGrant[] {
 
 /** The client-registry governance view's per-client read: EVERY grant row
  *  the client holds — live AND revoked, newest first. */
-export function listOidcConsentGrantsForClient(clientId: string): OidcConsentGrant[] {
-  const rows = getDb().prepare(
+export function listOidcConsentGrantsForClient(db: Database.Database, clientId: string): OidcConsentGrant[] {
+  const rows = db.prepare(
     'SELECT * FROM oidc_consent_grants WHERE client_id = ? ORDER BY created_at DESC, rowid DESC',
   ).all(clientId) as Array<Record<string, unknown>>
   return rows.map(toConsentGrant)
 }
 
 /** The guarded revoke: the owner's LIVE row flips, once. */
-export function revokeConsentGrant(id: string, userId: string): boolean {
-  return getDb().prepare(
+export function revokeConsentGrant(db: Database.Database, id: string, userId: string): boolean {
+  return db.prepare(
     "UPDATE oidc_consent_grants SET revoked_at = datetime('now') WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
   ).run(id, userId).changes > 0
 }

@@ -18,12 +18,13 @@
 //   - recovery codes are stored HASHED (SHA-256 of the normalized code);
 //     the plaintext is shown once at generation and never persists.
 //
-// NODE-ONLY: better-sqlite3 through ./store's getDb. The Worker bundle
+// NODE-ONLY: better-sqlite3, received as the store instance's
+// db parameter (TODO.restructure/28-D). The Worker bundle
 // never sees this module.
 // ═══════════════════════════════════════════════════════════════════
 
+import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
-import { getDb } from './store'
 import type {
   AdvanceCounterResult,
   MfaPending,
@@ -112,14 +113,13 @@ function toMfaPending(row: Record<string, unknown>): MfaPending {
 
 // ── the WebAuthn ceremony challenges (one-time, short-TTL) ───────────
 
-export function createWebauthnChallenge(input: {
+export function createWebauthnChallenge(db: Database.Database, input: {
   challenge: string
   userId: string | null
   kind: WebauthnChallenge['kind']
   ttlMs: number
 }): void {
   const expiresAt = new Date(Date.now() + input.ttlMs).toISOString()
-  const db = getDb()
   // The sweep rides the write (the putSsoState pattern): expired rows go.
   db.prepare("DELETE FROM webauthn_challenges WHERE expires_at <= datetime('now')").run()
   db.prepare(
@@ -129,8 +129,7 @@ export function createWebauthnChallenge(input: {
 
 /** Consume atomically: the row answers exactly once; an expired row is
  *  consumed too (burned on presentation, never redeemed later). */
-export function consumeWebauthnChallenge(challenge: string): WebauthnChallenge | null {
-  const db = getDb()
+export function consumeWebauthnChallenge(db: Database.Database, challenge: string): WebauthnChallenge | null {
   const res = db.prepare(
     "UPDATE webauthn_challenges SET consumed_at = datetime('now') WHERE challenge = ? AND consumed_at IS NULL",
   ).run(challenge)
@@ -146,7 +145,7 @@ export function consumeWebauthnChallenge(challenge: string): WebauthnChallenge |
 /** Register the passkey; answers null on the credential-id conflict (the
  *  PRIMARY KEY is the race backstop — one authenticator registers once,
  *  to one account). */
-export function createWebauthnCredential(input: {
+export function createWebauthnCredential(db: Database.Database, input: {
   credentialId: string
   userId: string
   name: string
@@ -156,7 +155,6 @@ export function createWebauthnCredential(input: {
   transports: string[]
   ip?: string | null
 }): WebauthnCredential | null {
-  const db = getDb()
   try {
     db.prepare(
       `INSERT INTO webauthn_credentials
@@ -171,25 +169,25 @@ export function createWebauthnCredential(input: {
     if (String((e as Error).message).includes('UNIQUE')) return null
     throw e
   }
-  return getWebauthnCredential(input.credentialId)
+  return getWebauthnCredential(db, input.credentialId)
 }
 
-export function listWebauthnCredentials(userId: string): WebauthnCredential[] {
-  const rows = getDb().prepare(
+export function listWebauthnCredentials(db: Database.Database, userId: string): WebauthnCredential[] {
+  const rows = db.prepare(
     'SELECT * FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at, credential_id',
   ).all(userId) as Array<Record<string, unknown>>
   return rows.map(toWebauthnCredential)
 }
 
-export function getWebauthnCredential(credentialId: string): WebauthnCredential | null {
-  const row = getDb().prepare(
+export function getWebauthnCredential(db: Database.Database, credentialId: string): WebauthnCredential | null {
+  const row = db.prepare(
     'SELECT * FROM webauthn_credentials WHERE credential_id = ?',
   ).get(credentialId) as Record<string, unknown> | undefined
   return row ? toWebauthnCredential(row) : null
 }
 
-export function deleteWebauthnCredential(userId: string, credentialId: string): boolean {
-  return getDb().prepare(
+export function deleteWebauthnCredential(db: Database.Database, userId: string, credentialId: string): boolean {
+  return db.prepare(
     'DELETE FROM webauthn_credentials WHERE credential_id = ? AND user_id = ?',
   ).run(credentialId, userId).changes > 0
 }
@@ -198,12 +196,11 @@ export function deleteWebauthnCredential(userId: string, credentialId: string): 
  *  the write are one act): lands when the pair is (0 → 0) — the
  *  authenticator never counts — or strictly increasing; a zeroed or
  *  behind counter against a started one is the regression signal. */
-export function advanceWebauthnCounter(
+export function advanceWebauthnCounter(db: Database.Database,
   credentialId: string,
   newCount: number,
   opts?: { ip?: string | null },
 ): AdvanceCounterResult {
-  const db = getDb()
   const count = Math.max(0, Math.floor(newCount))
   const res = db.prepare(
     `UPDATE webauthn_credentials
@@ -211,34 +208,34 @@ export function advanceWebauthnCounter(
      WHERE credential_id = ? AND ((sign_count = 0 AND ? = 0) OR sign_count < ?)`,
   ).run(count, opts?.ip ?? null, credentialId, count, count)
   if (res.changes > 0) return 'ok'
-  return getWebauthnCredential(credentialId) ? 'regressed' : 'unknown'
+  return getWebauthnCredential(db, credentialId) ? 'regressed' : 'unknown'
 }
 
 // ── the TOTP authenticator apps ──────────────────────────────────────
 
 /** The enrollment's PENDING row (verified_at NULL — the factor activates
  *  at markTotpSecretVerified, never before). */
-export function createTotpSecret(input: { id: string; userId: string; name: string; secret: string }): TotpSecret {
-  getDb().prepare(
+export function createTotpSecret(db: Database.Database, input: { id: string; userId: string; name: string; secret: string }): TotpSecret {
+  db.prepare(
     'INSERT INTO totp_secrets (id, user_id, name, secret) VALUES (?, ?, ?, ?)',
   ).run(input.id, input.userId, input.name, input.secret)
-  return getTotpSecret(input.id)!
+  return getTotpSecret(db, input.id)!
 }
 
-export function listTotpSecrets(userId: string): TotpSecret[] {
-  const rows = getDb().prepare(
+export function listTotpSecrets(db: Database.Database, userId: string): TotpSecret[] {
+  const rows = db.prepare(
     'SELECT * FROM totp_secrets WHERE user_id = ? ORDER BY created_at, id',
   ).all(userId) as Array<Record<string, unknown>>
   return rows.map(toTotpSecret)
 }
 
-export function getTotpSecret(id: string): TotpSecret | null {
-  const row = getDb().prepare('SELECT * FROM totp_secrets WHERE id = ?').get(id) as Record<string, unknown> | undefined
+export function getTotpSecret(db: Database.Database, id: string): TotpSecret | null {
+  const row = db.prepare('SELECT * FROM totp_secrets WHERE id = ?').get(id) as Record<string, unknown> | undefined
   return row ? toTotpSecret(row) : null
 }
 
-export function markTotpSecretVerified(id: string, userId: string, name: string): boolean {
-  return getDb().prepare(
+export function markTotpSecretVerified(db: Database.Database, id: string, userId: string, name: string): boolean {
+  return db.prepare(
     "UPDATE totp_secrets SET verified_at = datetime('now'), name = ? WHERE id = ? AND user_id = ? AND verified_at IS NULL",
   ).run(name, id, userId).changes > 0
 }
@@ -246,8 +243,7 @@ export function markTotpSecretVerified(id: string, userId: string, name: string)
 /** The enrollment verify's failure ladder (the six-digit window's wall):
  *  increments fail_count and stamps the failure instant; answers the
  *  fresh count (0 when the row is gone or not the account's). */
-export function recordTotpEnrollFailure(id: string, userId: string): number {
-  const db = getDb()
+export function recordTotpEnrollFailure(db: Database.Database, id: string, userId: string): number {
   const res = db.prepare(
     "UPDATE totp_secrets SET fail_count = fail_count + 1, last_failure_at = datetime('now') WHERE id = ? AND user_id = ? AND verified_at IS NULL",
   ).run(id, userId)
@@ -256,14 +252,14 @@ export function recordTotpEnrollFailure(id: string, userId: string): number {
   return row?.n ?? 0
 }
 
-export function markTotpSecretUsed(id: string, opts?: { ip?: string | null }): void {
-  getDb().prepare(
+export function markTotpSecretUsed(db: Database.Database, id: string, opts?: { ip?: string | null }): void {
+  db.prepare(
     "UPDATE totp_secrets SET last_used_at = datetime('now'), last_ip = ? WHERE id = ?",
   ).run(opts?.ip ?? null, id)
 }
 
-export function deleteTotpSecret(userId: string, id: string): boolean {
-  return getDb().prepare('DELETE FROM totp_secrets WHERE id = ? AND user_id = ?').run(id, userId).changes > 0
+export function deleteTotpSecret(db: Database.Database, userId: string, id: string): boolean {
+  return db.prepare('DELETE FROM totp_secrets WHERE id = ? AND user_id = ?').run(id, userId).changes > 0
 }
 
 // ── the recovery codes ───────────────────────────────────────────────
@@ -271,8 +267,7 @@ export function deleteTotpSecret(userId: string, id: string): boolean {
 /** Replace the account's set WHOLE (the regenerate): the old batch goes,
  *  the new hashes land — one transaction, so a crash never leaves the
  *  account with no codes while the console shows fresh ones. */
-export function replaceRecoveryCodes(userId: string, batch: string, codeHashes: string[]): void {
-  const db = getDb()
+export function replaceRecoveryCodes(db: Database.Database, userId: string, batch: string, codeHashes: string[]): void {
   db.transaction(() => {
     db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(userId)
     const insert = db.prepare(
@@ -282,8 +277,8 @@ export function replaceRecoveryCodes(userId: string, batch: string, codeHashes: 
   })()
 }
 
-export function recoveryCodeState(userId: string): RecoveryCodeState {
-  const row = getDb().prepare(
+export function recoveryCodeState(db: Database.Database, userId: string): RecoveryCodeState {
+  const row = db.prepare(
     `SELECT COUNT(*) AS total,
             SUM(CASE WHEN consumed_at IS NULL THEN 1 ELSE 0 END) AS remaining,
             MAX(created_at) AS created_at
@@ -298,17 +293,16 @@ export function recoveryCodeState(userId: string): RecoveryCodeState {
 
 /** The one-time use: consumed_at flips atomically on the matching
  *  unconsumed row — true exactly once per code. */
-export function consumeRecoveryCode(userId: string, codeHash: string): boolean {
-  return getDb().prepare(
+export function consumeRecoveryCode(db: Database.Database, userId: string, codeHash: string): boolean {
+  return db.prepare(
     "UPDATE recovery_codes SET consumed_at = datetime('now') WHERE user_id = ? AND code_hash = ? AND consumed_at IS NULL",
   ).run(userId, codeHash).changes > 0
 }
 
 // ── the pending second-factor sign-in ────────────────────────────────
 
-export function createMfaPending(input: { token: string; userId: string; amr: string[]; ttlMs: number }): void {
+export function createMfaPending(db: Database.Database, input: { token: string; userId: string; amr: string[]; ttlMs: number }): void {
   const expiresAt = new Date(Date.now() + input.ttlMs).toISOString()
-  const db = getDb()
   // The sweep rides the write (the challenge table's pattern).
   db.prepare("DELETE FROM mfa_pending WHERE expires_at <= datetime('now')").run()
   db.prepare(
@@ -316,15 +310,14 @@ export function createMfaPending(input: { token: string; userId: string; amr: st
   ).run(input.token, input.userId, JSON.stringify(input.amr), expiresAt)
 }
 
-export function getMfaPending(token: string): MfaPending | null {
-  const row = getDb().prepare('SELECT * FROM mfa_pending WHERE token = ?').get(token) as Record<string, unknown> | undefined
+export function getMfaPending(db: Database.Database, token: string): MfaPending | null {
+  const row = db.prepare('SELECT * FROM mfa_pending WHERE token = ?').get(token) as Record<string, unknown> | undefined
   return row ? toMfaPending(row) : null
 }
 
 /** The completion: consumed ATOMICALLY (a concurrent completion loses);
  *  an expired row burns on presentation, never redeems later. */
-export function consumeMfaPending(token: string): MfaPending | null {
-  const db = getDb()
+export function consumeMfaPending(db: Database.Database, token: string): MfaPending | null {
   const res = db.prepare(
     "UPDATE mfa_pending SET consumed_at = datetime('now') WHERE token = ? AND consumed_at IS NULL",
   ).run(token)
@@ -337,8 +330,7 @@ export function consumeMfaPending(token: string): MfaPending | null {
 
 /** The failure ladder: fail_count++ + last_failure_at on the LIVE row
  *  (a consumed one takes no more failures); answers the fresh row. */
-export function recordMfaPendingFailure(token: string): MfaPending | null {
-  const db = getDb()
+export function recordMfaPendingFailure(db: Database.Database, token: string): MfaPending | null {
   const res = db.prepare(
     "UPDATE mfa_pending SET fail_count = fail_count + 1, last_failure_at = datetime('now') WHERE token = ? AND consumed_at IS NULL",
   ).run(token)

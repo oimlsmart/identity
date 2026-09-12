@@ -23,16 +23,34 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // it explicitly.
 const DB_PATH = process.env.DATABASE_PATH || join(process.cwd(), '..', 'data', 'oiml-smart.db')
 
+// The module-global, post-TODO.restructure/28-D, is exactly ONE named
+// thing: the DEFAULT instance's handle (getDb below — the composition
+// root's named default, what dev-reset and the dev scripts address).
+// Everything else about a store is INSTANCE state: createSqliteStore
+// (../sqlite.ts) opens its own database through openSqliteDatabase and
+// answers a ServerStore bound to it — two instances in one process,
+// each with its own file, is the federation spec's standing proof.
 let _db: Database.Database | null = null
 
+/** Open + bring up a database at the path: the directory, the WAL
+ *  posture, the shipped schema, the idempotent column adds. The
+ *  instance's open act — one handle per open database, never shared. */
+export function openSqliteDatabase(path: string): Database.Database {
+  const dir = dirname(path)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  const db = new Database(path)
+  db.pragma('journal_mode = WAL')
+  db.exec(readFileSync(join(__dirname, 'schema.sql'), 'utf-8'))
+  migrateAuthTables(db)
+  return db
+}
+
+/** The DEFAULT instance's handle (memoized): the composition root's
+ *  named default at DATABASE_PATH (or the pre-extraction home). The
+ *  verbs above no longer read it — they receive their instance's db. */
 export function getDb(): Database.Database {
   if (_db) return _db
-  const dir = dirname(DB_PATH)
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  _db = new Database(DB_PATH)
-  _db.pragma('journal_mode = WAL')
-  _db.exec(readFileSync(join(__dirname, 'schema.sql'), 'utf-8'))
-  migrateAuthTables(_db)
+  _db = openSqliteDatabase(DB_PATH)
   return _db
 }
 
@@ -181,8 +199,7 @@ import { DEMO_PASSWORD } from '../../store'
 // so a boot with no profile declaration behaves exactly as before.
 import { getInstanceProfile, seedAccountsForProfile } from '../../profile'
 
-export function seedDemoAccounts(): void {
-  const db = getDb()
+export function seedDemoAccounts(db: Database.Database): void {
   const insert = db.prepare(`
     INSERT OR IGNORE INTO users (id, email, name, provider, provider_account_id, role, org_id, roles)
     VALUES (?, ?, ?, 'demo', ?, ?, ?, ?)
@@ -203,7 +220,7 @@ export function seedDemoAccounts(): void {
     // ride the mirror (idempotent — the seed runs at every boot).
     if (account.orgId) {
       const row = db.prepare('SELECT id FROM users WHERE email = ?').get(account.email) as { id: string } | undefined
-      if (row) syncPrimaryMembership(row.id)
+      if (row) syncPrimaryMembership(db, row.id)
     }
   }
 }
@@ -244,8 +261,7 @@ function toAuthPayload(user: any, avatarUrl?: string): AuthUserPayload {
   }
 }
 
-export function authenticateDemo(email: string, password: string): AuthUserPayload | null {
-  const db = getDb()
+export function authenticateDemo(db: Database.Database, email: string, password: string): AuthUserPayload | null {
   const user = db.prepare("SELECT * FROM users WHERE email = ? AND provider = 'demo'").get(email) as any
   if (!user) return null
   // A deactivated account refuses sign-in (TODO.federation/12).
@@ -258,11 +274,10 @@ export function authenticateDemo(email: string, password: string): AuthUserPaylo
   return null
 }
 
-export function createSession(
+export function createSession(db: Database.Database,
   userId: string,
   opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null },
 ): string {
-  const db = getDb()
   const token = randomUUID()
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
   db.prepare('INSERT INTO sessions (id, user_id, token, expires_at, id_token_hint, user_agent, ip, last_seen_at, amr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -273,12 +288,11 @@ export function createSession(
 
 /** Stamp the account's last sign-in (TODO.identity/07 — the OP's own
  *  sign-in paths call this; the demo/OAuth paths bump it inline). */
-export function touchLastLogin(userId: string): void {
-  getDb().prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(userId)
+export function touchLastLogin(db: Database.Database, userId: string): void {
+  db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(userId)
 }
 
-export function getSessionUser(token: string): AuthUserPayload | null {
-  const db = getDb()
+export function getSessionUser(db: Database.Database, token: string): AuthUserPayload | null {
   // The session joins the LIVE user row: a role reassignment takes
   // effect on the next request, and a deactivated account's sessions
   // stop resolving at once (TODO.federation/12).
@@ -301,16 +315,14 @@ export function getSessionUser(token: string): AuthUserPayload | null {
   payload.sessionCreatedAt = session.created_at as string
   // TODO.identity/11: the active-org context (the membership model) —
   // the payload's org/roles follow the session's stamped context.
-  return applySessionOrgContext(session.active_org ?? null, payload)
+  return applySessionOrgContext(db, session.active_org ?? null, payload)
 }
 
-export function deleteSession(token: string): void {
-  const db = getDb()
+export function deleteSession(db: Database.Database, token: string): void {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token)
 }
 
-export function cleanExpiredSessions(): void {
-  const db = getDb()
+export function cleanExpiredSessions(db: Database.Database): void {
   db.prepare("DELETE FROM sessions WHERE expires_at <= datetime('now')").run()
 }
 
@@ -350,26 +362,26 @@ function userPayload(row: UserRow): AuthUserPayload {
   }
 }
 
-export function findUserByEmail(email: string): AuthUserPayload | null {
-  const row = getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined
+export function findUserByEmail(db: Database.Database, email: string): AuthUserPayload | null {
+  const row = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined
   return row ? userPayload(row) : null
 }
 
 /** The account by its id (TODO.identity/01 — the OP's token endpoint
  *  resolves the code's user_id). */
-export function getUserById(id: string): AuthUserPayload | null {
-  const row = getDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
+export function getUserById(db: Database.Database, id: string): AuthUserPayload | null {
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
   return row ? userPayload(row) : null
 }
 
-export function findUserByProvider(provider: string, providerAccountId: string): AuthUserPayload | null {
-  const row = getDb().prepare(
+export function findUserByProvider(db: Database.Database, provider: string, providerAccountId: string): AuthUserPayload | null {
+  const row = db.prepare(
     'SELECT * FROM users WHERE provider = ? AND provider_account_id = ?',
   ).get(provider, providerAccountId) as UserRow | undefined
   return row ? userPayload(row) : null
 }
 
-export function provisionSsoUser(input: {
+export function provisionSsoUser(db: Database.Database, input: {
   email: string
   name: string
   provider: string
@@ -377,18 +389,17 @@ export function provisionSsoUser(input: {
   role: string
   orgId: string | null
 }): AuthUserPayload {
-  const db = getDb()
   const id = randomUUID()
   db.prepare(
     'INSERT INTO users (id, email, name, provider, provider_account_id, role, org_id, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))',
   ).run(id, input.email, input.name, input.provider, input.providerAccountId, input.role, input.orgId)
-  if (input.orgId) syncPrimaryMembership(id) // TODO.identity/11 — the mirror
+  if (input.orgId) syncPrimaryMembership(db, id) // TODO.identity/11 — the mirror
   return { id, email: input.email, name: input.name, role: input.role, orgId: input.orgId }
 }
 
-export function updateUserRoleOrg(userId: string, role: string, orgId: string | null): void {
-  getDb().prepare('UPDATE users SET role = ?, org_id = ? WHERE id = ?').run(role, orgId, userId)
-  if (orgId) syncPrimaryMembership(userId) // TODO.identity/11 — the mirror
+export function updateUserRoleOrg(db: Database.Database, userId: string, role: string, orgId: string | null): void {
+  db.prepare('UPDATE users SET role = ?, org_id = ? WHERE id = ?').run(role, orgId, userId)
+  if (orgId) syncPrimaryMembership(db, userId) // TODO.identity/11 — the mirror
 }
 
 interface IdentityApprovalRow {
@@ -496,8 +507,7 @@ function toAdminRow(user: any): UserAdminRow {
   }
 }
 
-export function listUsers(): UserAdminRow[] {
-  const db = getDb()
+export function listUsers(db: Database.Database): UserAdminRow[] {
   return (db.prepare('SELECT * FROM users ORDER BY name').all() as any[]).map(toAdminRow)
 }
 
@@ -506,39 +516,36 @@ export function listUsers(): UserAdminRow[] {
  *  get roles assigned here the same way). Signs in with the instance's
  *  local password (DEMO_PASSWORD) — documented in docs/deployment/
  *  rbac.md. */
-export function createLocalUser(input: {
+export function createLocalUser(db: Database.Database, input: {
   email: string
   name: string
   role: string
   roles?: string[]
   orgId?: string | null
 }): UserAdminRow {
-  const db = getDb()
   const id = randomUUID()
   const roles = input.roles?.length ? input.roles : [input.role]
   db.prepare(
     `INSERT INTO users (id, email, name, provider, provider_account_id, role, roles, org_id)
      VALUES (?, ?, ?, 'demo', ?, ?, ?, ?)`,
   ).run(id, input.email, input.name, input.email, input.role, JSON.stringify(roles), input.orgId ?? null)
-  if (input.orgId) syncPrimaryMembership(id) // TODO.identity/11 — the mirror
+  if (input.orgId) syncPrimaryMembership(db, id) // TODO.identity/11 — the mirror
   return toAdminRow(db.prepare('SELECT * FROM users WHERE id = ?').get(id))
 }
 
 /** Reassign a user's roles: `role` becomes the section-gating primary,
  *  `roles` the full permission set (validated against the instance's
  *  role map by the route — the store trusts its caller). */
-export function setUserRoles(id: string, role: string, roles: string[]): boolean {
-  const db = getDb()
+export function setUserRoles(db: Database.Database, id: string, role: string, roles: string[]): boolean {
   const res = db.prepare('UPDATE users SET role = ?, roles = ? WHERE id = ?')
     .run(role, JSON.stringify(roles.length ? roles : [role]), id)
-  if (res.changes > 0) syncPrimaryMembership(id) // TODO.identity/11 — the mirror (a no-op for org-free accounts)
+  if (res.changes > 0) syncPrimaryMembership(db, id) // TODO.identity/11 — the mirror (a no-op for org-free accounts)
   return res.changes > 0
 }
 
 /** Deactivate/reactivate: sessions stop resolving immediately (the
  *  getSessionUser join) and demo sign-in refuses. */
-export function setUserActive(id: string, active: boolean): boolean {
-  const db = getDb()
+export function setUserActive(db: Database.Database, id: string, active: boolean): boolean {
   const res = db.prepare('UPDATE users SET active = ? WHERE id = ?').run(active ? 1 : 0, id)
   return res.changes > 0
 }
@@ -584,7 +591,7 @@ function joinRequestPayload(row: OrgJoinRequestRow): OrgJoinRequest {
   }
 }
 
-export function createOrgJoinRequest(input: {
+export function createOrgJoinRequest(db: Database.Database, input: {
   name: string
   email: string
   orgId: string | null
@@ -592,7 +599,6 @@ export function createOrgJoinRequest(input: {
   requestedRole: string
   note?: string | null
 }): OrgJoinRequest {
-  const db = getDb()
   const id = randomUUID()
   db.prepare(
     `INSERT INTO org_join_requests (id, name, email, org_id, org_name_text, requested_role, note)
@@ -601,12 +607,12 @@ export function createOrgJoinRequest(input: {
   return joinRequestPayload(db.prepare('SELECT * FROM org_join_requests WHERE id = ?').get(id) as OrgJoinRequestRow)
 }
 
-export function getOrgJoinRequest(id: string): OrgJoinRequest | null {
-  const row = getDb().prepare('SELECT * FROM org_join_requests WHERE id = ?').get(id) as OrgJoinRequestRow | undefined
+export function getOrgJoinRequest(db: Database.Database, id: string): OrgJoinRequest | null {
+  const row = db.prepare('SELECT * FROM org_join_requests WHERE id = ?').get(id) as OrgJoinRequestRow | undefined
   return row ? joinRequestPayload(row) : null
 }
 
-export function listOrgJoinRequests(filter?: {
+export function listOrgJoinRequests(db: Database.Database, filter?: {
   scope?: 'org' | 'unregistered' | 'all'
   orgId?: string
   status?: OrgJoinRequest['status']
@@ -618,11 +624,11 @@ export function listOrgJoinRequests(filter?: {
   if (scope === 'unregistered') where.push('org_id IS NULL')
   if (filter?.status) { where.push('status = ?'); args.push(filter.status) }
   const sql = `SELECT * FROM org_join_requests${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at`
-  const rows = getDb().prepare(sql).all(...args) as OrgJoinRequestRow[]
+  const rows = db.prepare(sql).all(...args) as OrgJoinRequestRow[]
   return rows.map(joinRequestPayload)
 }
 
-export function decideOrgJoinRequest(
+export function decideOrgJoinRequest(db: Database.Database,
   id: string,
   decision: {
     status: 'approved' | 'refused'
@@ -631,7 +637,6 @@ export function decideOrgJoinRequest(
     invitedUserId?: string | null
   },
 ): OrgJoinRequest | null {
-  const db = getDb()
   // Atomic on 'pending' — a double decide (two admins, a resubmit) loses.
   const res = db.prepare(
     `UPDATE org_join_requests
@@ -639,11 +644,11 @@ export function decideOrgJoinRequest(
      WHERE id = ? AND status = 'pending'`,
   ).run(decision.status, decision.decidedBy, decision.refusalReason ?? null, decision.invitedUserId ?? null, id)
   if (res.changes === 0) return null
-  return getOrgJoinRequest(id)
+  return getOrgJoinRequest(db, id)
 }
 
-export function findPendingOrgJoinRequestByEmail(email: string): OrgJoinRequest | null {
-  const row = getDb().prepare(
+export function findPendingOrgJoinRequestByEmail(db: Database.Database, email: string): OrgJoinRequest | null {
+  const row = db.prepare(
     `SELECT * FROM org_join_requests WHERE email = ? AND status = 'pending' ORDER BY created_at`,
   ).get(email) as OrgJoinRequestRow | undefined
   return row ? joinRequestPayload(row) : null
@@ -703,8 +708,7 @@ function membershipPayload(row: OrgMembershipRow): OrgMembership {
  *  writer calls it after its update; an org-free account holds no
  *  primary membership. A DISABLED row keeps its state (the mirror never
  *  resurrects it — only roles + the primary mark move). Idempotent. */
-export function syncPrimaryMembership(userId: string): void {
-  const db = getDb()
+export function syncPrimaryMembership(db: Database.Database, userId: string): void {
   const user = db.prepare('SELECT id, role, roles, org_id FROM users WHERE id = ?').get(userId) as
     { id: string; role: string; roles: string | null; org_id: string | null } | undefined
   if (!user || !user.org_id) return
@@ -722,41 +726,41 @@ export function syncPrimaryMembership(userId: string): void {
  *  the shared rule resolves the effective org + roles; a stale stamp
  *  (the membership was disabled or removed mid-session) is cleared on
  *  the read that notices it. */
-function applySessionOrgContext(activeOrg: string | null, payload: AuthUserPayload): AuthUserPayload {
-  const active = activeOrg ? getOrgMembership(payload.id, activeOrg) : null
-  const primary = payload.orgId ? getOrgMembership(payload.id, payload.orgId) : null
+function applySessionOrgContext(db: Database.Database, activeOrg: string | null, payload: AuthUserPayload): AuthUserPayload {
+  const active = activeOrg ? getOrgMembership(db, payload.id, activeOrg) : null
+  const primary = payload.orgId ? getOrgMembership(db, payload.id, payload.orgId) : null
   const resolved = resolveOrgContext(payload, { activeOrg, active, primary })
   if (activeOrg && !(active && active.state === 'active')) {
-    getDb().prepare('UPDATE sessions SET active_org = NULL WHERE user_id = ? AND active_org = ?').run(payload.id, activeOrg)
+    db.prepare('UPDATE sessions SET active_org = NULL WHERE user_id = ? AND active_org = ?').run(payload.id, activeOrg)
   }
   // TODO.identity-features/09: the context membership's cone rides the
   // payload — the entity gates enforce it without a store round-trip.
   return { ...payload, orgId: resolved.orgId, roles: resolved.roles, cone: resolved.cone }
 }
 
-export function listOrgMemberships(userId: string): OrgMembership[] {
-  const rows = getDb().prepare(
+export function listOrgMemberships(db: Database.Database, userId: string): OrgMembership[] {
+  const rows = db.prepare(
     'SELECT * FROM org_memberships WHERE user_id = ? ORDER BY is_primary DESC, created_at',
   ).all(userId) as OrgMembershipRow[]
   return rows.map(membershipPayload)
 }
 
-export function listOrgMembers(orgId: string): OrgMembership[] {
-  const rows = getDb().prepare(
+export function listOrgMembers(db: Database.Database, orgId: string): OrgMembership[] {
+  const rows = db.prepare(
     'SELECT * FROM org_memberships WHERE org_id = ? ORDER BY created_at',
   ).all(orgId) as OrgMembershipRow[]
   return rows.map(membershipPayload)
 }
 
-export function listAllOrgMemberships(): OrgMembership[] {
-  const rows = getDb().prepare(
+export function listAllOrgMemberships(db: Database.Database): OrgMembership[] {
+  const rows = db.prepare(
     'SELECT * FROM org_memberships ORDER BY org_id, created_at',
   ).all() as OrgMembershipRow[]
   return rows.map(membershipPayload)
 }
 
-export function getOrgMembership(userId: string, orgId: string): OrgMembership | null {
-  const row = getDb().prepare('SELECT * FROM org_memberships WHERE user_id = ? AND org_id = ?')
+export function getOrgMembership(db: Database.Database, userId: string, orgId: string): OrgMembership | null {
+  const row = db.prepare('SELECT * FROM org_memberships WHERE user_id = ? AND org_id = ?')
     .get(userId, orgId) as OrgMembershipRow | undefined
   return row ? membershipPayload(row) : null
 }
@@ -764,14 +768,14 @@ export function getOrgMembership(userId: string, orgId: string): OrgMembership |
 /** Create the membership. NULL on the (user, org) conflict — the honest
  *  "already a member" (the route's 409). 'active' stamps activated_at;
  *  'invited' waits for the holder's accept. */
-export function createOrgMembership(input: {
+export function createOrgMembership(db: Database.Database, input: {
   userId: string
   orgId: string
   roles: string[]
   state: OrgMembershipState
   invitedBy?: string | null
 }): OrgMembership | null {
-  const res = getDb().prepare(
+  const res = db.prepare(
     `INSERT OR IGNORE INTO org_memberships (id, user_id, org_id, roles, state, invited_by, activated_at)
      VALUES (?, ?, ?, ?, ?, ?, CASE WHEN ? = 'active' THEN datetime('now') ELSE NULL END)`,
   ).run(
@@ -779,7 +783,7 @@ export function createOrgMembership(input: {
     input.invitedBy ?? null, input.state,
   )
   if (res.changes === 0) return null
-  return getOrgMembership(input.userId, input.orgId)
+  return getOrgMembership(db, input.userId, input.orgId)
 }
 
 /** Replace the per-org role set. The PRIMARY membership's write mirrors
@@ -788,12 +792,11 @@ export function createOrgMembership(input: {
  *  refuses an EMPTY set on the primary (the legacy columns carry no
  *  empty-set concept); the store's mirror writes the primary role in
  *  that case, keeping the columns honest. */
-export function setOrgMembershipRoles(userId: string, orgId: string, roles: string[]): boolean {
-  const db = getDb()
+export function setOrgMembershipRoles(db: Database.Database, userId: string, orgId: string, roles: string[]): boolean {
   const res = db.prepare('UPDATE org_memberships SET roles = ? WHERE user_id = ? AND org_id = ?')
     .run(JSON.stringify(roles), userId, orgId)
   if (res.changes === 0) return false
-  const membership = getOrgMembership(userId, orgId)
+  const membership = getOrgMembership(db, userId, orgId)
   if (membership?.isPrimary) {
     const user = db.prepare('SELECT role FROM users WHERE id = ?').get(userId) as { role: string } | undefined
     if (user) {
@@ -809,14 +812,13 @@ export function setOrgMembershipRoles(userId: string, orgId: string, roles: stri
  *  session stamped with the org falls back to the primary context (the
  *  stamp is cleared here, and any in-flight OIDC code's context is
  *  re-judged against the live membership at the exchange). */
-export function setOrgMembershipState(
+export function setOrgMembershipState(db: Database.Database,
   userId: string,
   orgId: string,
   state: OrgMembershipState,
   actor?: string | null,
 ): OrgMembership | null {
-  const db = getDb()
-  const existing = getOrgMembership(userId, orgId)
+  const existing = getOrgMembership(db, userId, orgId)
   if (!existing) return null
   if (state === 'active') {
     // Re-activation clears the disable stamps (the row reads honestly).
@@ -829,24 +831,22 @@ export function setOrgMembershipState(
   } else {
     db.prepare("UPDATE org_memberships SET state = 'invited' WHERE user_id = ? AND org_id = ?").run(userId, orgId)
   }
-  return getOrgMembership(userId, orgId)
+  return getOrgMembership(db, userId, orgId)
 }
 
 /** Set the membership's data cone (TODO.identity-features/09): the
  *  canonical column spelling, or NULL for the org-wide default. Answers
  *  null when no membership exists. */
-export function setOrgMembershipCone(userId: string, orgId: string, cone: string | null): OrgMembership | null {
-  const db = getDb()
-  const existing = getOrgMembership(userId, orgId)
+export function setOrgMembershipCone(db: Database.Database, userId: string, orgId: string, cone: string | null): OrgMembership | null {
+  const existing = getOrgMembership(db, userId, orgId)
   if (!existing) return null
   db.prepare('UPDATE org_memberships SET cone = ? WHERE user_id = ? AND org_id = ?').run(cone, userId, orgId)
-  return getOrgMembership(userId, orgId)
+  return getOrgMembership(db, userId, orgId)
 }
 
 /** Remove the row (the holder declining an invitation; the erasure's
  *  cleanup). The route refuses the PRIMARY membership. */
-export function deleteOrgMembership(userId: string, orgId: string): boolean {
-  const db = getDb()
+export function deleteOrgMembership(db: Database.Database, userId: string, orgId: string): boolean {
   const res = db.prepare('DELETE FROM org_memberships WHERE user_id = ? AND org_id = ?').run(userId, orgId)
   if (res.changes > 0) {
     db.prepare('UPDATE sessions SET active_org = NULL WHERE user_id = ? AND active_org = ?').run(userId, orgId)
@@ -856,16 +856,16 @@ export function deleteOrgMembership(userId: string, orgId: string): boolean {
 
 /** The session's stamped active-org context (NULL = the primary
  *  context; also NULL for an unknown/expired token). */
-export function getSessionActiveOrg(token: string): string | null {
-  const row = getDb().prepare("SELECT active_org FROM sessions WHERE token = ? AND expires_at > datetime('now')")
+export function getSessionActiveOrg(db: Database.Database, token: string): string | null {
+  const row = db.prepare("SELECT active_org FROM sessions WHERE token = ? AND expires_at > datetime('now')")
     .get(token) as { active_org: string | null } | undefined
   return row?.active_org ?? null
 }
 
 /** Stamp the session's active-org context (the route validated the
  *  membership first); NULL clears to the primary context. */
-export function setSessionActiveOrg(token: string, orgId: string | null): boolean {
-  const res = getDb().prepare("UPDATE sessions SET active_org = ? WHERE token = ? AND expires_at > datetime('now')")
+export function setSessionActiveOrg(db: Database.Database, token: string, orgId: string | null): boolean {
+  const res = db.prepare("UPDATE sessions SET active_org = ? WHERE token = ? AND expires_at > datetime('now')")
     .run(orgId, token)
   return res.changes > 0
 }
@@ -936,18 +936,18 @@ function orgRegistryPayload(row: OrgRegistryRow): OrgRegistryOrg {
   }
 }
 
-export function listOrgRegistryOrgs(): OrgRegistryOrg[] {
-  const rows = getDb().prepare('SELECT * FROM org_registry').all() as OrgRegistryRow[]
+export function listOrgRegistryOrgs(db: Database.Database): OrgRegistryOrg[] {
+  const rows = db.prepare('SELECT * FROM org_registry').all() as OrgRegistryRow[]
   return rows.map(orgRegistryPayload).sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function getOrgRegistryOrg(id: string): OrgRegistryOrg | null {
-  const row = getDb().prepare('SELECT * FROM org_registry WHERE id = ?').get(id) as OrgRegistryRow | undefined
+export function getOrgRegistryOrg(db: Database.Database, id: string): OrgRegistryOrg | null {
+  const row = db.prepare('SELECT * FROM org_registry WHERE id = ?').get(id) as OrgRegistryRow | undefined
   return row ? orgRegistryPayload(row) : null
 }
 
 /** Add the organization; NULL on the id conflict (the slug is taken). */
-export function createOrgRegistryOrg(input: {
+export function createOrgRegistryOrg(db: Database.Database, input: {
   id: string
   name: string
   shortName?: string | null
@@ -960,7 +960,7 @@ export function createOrgRegistryOrg(input: {
   csStatus?: string | null
   createdBy?: string | null
 }): OrgRegistryOrg | null {
-  const res = getDb().prepare(
+  const res = db.prepare(
     `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
@@ -969,12 +969,12 @@ export function createOrgRegistryOrg(input: {
     input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.createdBy ?? null,
   )
   if (res.changes === 0) return null
-  return getOrgRegistryOrg(input.id)
+  return getOrgRegistryOrg(db, input.id)
 }
 
 /** Edit the display data (the id never moves); stamps updated_at/by.
  *  NULL when the registry does not carry the org. */
-export function updateOrgRegistryOrg(
+export function updateOrgRegistryOrg(db: Database.Database,
   id: string,
   patch: {
     name?: string
@@ -1002,32 +1002,32 @@ export function updateOrgRegistryOrg(
   if (patch.csStatus !== undefined) { sets.push('cs_status = ?'); params.push(patch.csStatus) }
   sets.push("updated_at = datetime('now')", 'updated_by = ?')
   params.push(actor ?? null)
-  const res = getDb().prepare(`UPDATE org_registry SET ${sets.join(', ')} WHERE id = ?`).run(...params, id)
+  const res = db.prepare(`UPDATE org_registry SET ${sets.join(', ')} WHERE id = ?`).run(...params, id)
   if (res.changes === 0) return null
-  return getOrgRegistryOrg(id)
+  return getOrgRegistryOrg(db, id)
 }
 
 /** The lifecycle act: disable stamps disabled_at/by; re-enable clears
  *  them (the memberships stay as they are — re-activation is the
  *  per-membership deliberate act). NULL when the org is unknown. */
-export function setOrgRegistryOrgState(id: string, state: OrgRegistryState, actor?: string | null): OrgRegistryOrg | null {
-  const existing = getOrgRegistryOrg(id)
+export function setOrgRegistryOrgState(db: Database.Database, id: string, state: OrgRegistryState, actor?: string | null): OrgRegistryOrg | null {
+  const existing = getOrgRegistryOrg(db, id)
   if (!existing) return null
   if (state === 'disabled') {
-    getDb().prepare("UPDATE org_registry SET state = 'disabled', disabled_at = datetime('now'), disabled_by = ? WHERE id = ?")
+    db.prepare("UPDATE org_registry SET state = 'disabled', disabled_at = datetime('now'), disabled_by = ? WHERE id = ?")
       .run(actor ?? null, id)
   } else {
-    getDb().prepare("UPDATE org_registry SET state = 'active', disabled_at = NULL, disabled_by = NULL WHERE id = ?")
+    db.prepare("UPDATE org_registry SET state = 'active', disabled_at = NULL, disabled_by = NULL WHERE id = ?")
       .run(id)
   }
-  return getOrgRegistryOrg(id)
+  return getOrgRegistryOrg(db, id)
 }
 
 /** The erasure-adjacent hard delete (the route guards it: an org that
  *  ever held a membership, or that a join request references, disables
  *  instead). */
-export function deleteOrgRegistryOrg(id: string): boolean {
-  const res = getDb().prepare('DELETE FROM org_registry WHERE id = ?').run(id)
+export function deleteOrgRegistryOrg(db: Database.Database, id: string): boolean {
+  const res = db.prepare('DELETE FROM org_registry WHERE id = ?').run(id)
   return res.changes > 0
 }
 
