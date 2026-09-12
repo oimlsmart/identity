@@ -1,8 +1,20 @@
 # TODO.restructure/26 — the type diet: the dead exports behind the import mask
 
 **Priority:** P2 (cleanliness — the verb diet's natural second half)
-**Status:** AUDITED, OPEN — the analysis needs a proper reachability
-solver, not an end-of-session heuristic (two audits ran; details below).
+**Status:** CLOSED (2026-09-12) — NO DEFECT. The mark-and-sweep solver
+ran: seeded from every non-import mention in live code (routes, auth,
+pages, scripts, tests, the seam interface's live verb signatures) and
+swept through declaration bodies — **the type layer is fully alive**.
+The naive audits' "50 dead types" were an artifact: real mentions
+(function bodies inside store.ts, live-type chains, doc blocks) reach
+everything. A deletion attempt of the two solver-flagged constants was
+REVERSED when vue-tsc proved them live (used by parseOrgMemberCone's
+body — the solver's store.ts scoping had excluded non-exported function
+bodies; the type-checker was the corrected arbiter). The dangling-import
+observation stands as hygiene only: sqlite.ts/d1.ts import names that
+are alive-but-unused-in-file — harmless re-exports of the seam's
+vocabulary. Nothing to diet; the verb diet (24) had already taken
+everything dead.
 
 ## The finding (measured 2026-09-12)
 
