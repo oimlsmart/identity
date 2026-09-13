@@ -188,3 +188,14 @@ branding:
   name: OIML SMART Identity (preview)
 demo_personas: true
 '''
+# The replica-reads PREVIEW CYCLE (TODO.restructure/28-E, PR #93; the
+# ops runbook's preview-first rollout): the preview database already
+# runs read_replication.mode=auto (verified 2026-09-13), so this flag
+# puts the withSession('first-primary') posture live in preview for
+# one deploy cycle before the owner decides production. Watch
+# served_by_region/served_by_primary on the list surfaces.
+D1_REPLICA_READS = "1"
+# The Server-Timing store phase (TODO.restructure/27, PR #91): the
+# measurement posture runs in PREVIEW only — production stays off
+# until an owner measurement window is wanted.
+SERVER_TIMING = "1"
