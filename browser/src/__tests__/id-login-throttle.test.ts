@@ -139,8 +139,9 @@ describe('TODO.identity-sso/04 slice C — the password leg’s backoff ladder',
 
   it('WAIT: the next attempt pays the owed wait before the verify', { timeout: 60_000 }, async () => {
     // The measured leg declares its own base: one failure owes the next
-    // attempt 2^1 × 40 ms = 80 ms (minus the milliseconds between).
-    process.env.OP_LOGIN_BACKOFF_BASE_MS = '40'
+    // attempt 2^1 × 100 = 200 ms (minus the milliseconds between the
+    // calls).
+    process.env.OP_LOGIN_BACKOFF_BASE_MS = '100'
     try {
       await inviteAndEnroll(DANA.email, DANA.name, DANA.password)
       const first = await timedLogin(DANA.email, 'dana has a WRONG passphrase')
@@ -148,12 +149,16 @@ describe('TODO.identity-sso/04 slice C — the password leg’s backoff ladder',
       const throttled = await timedLogin(DANA.email, 'dana has a WRONG passphrase')
       expect(throttled.res.status).toBe(401)
       expect(await throttled.res.json()).toEqual({ error: 'Invalid email or password' })
-      // The owed wait rides on top of the same verify cost (loose floor:
-      // the 80 ms owed minus the between-calls drift, generously).
+      // The floor is the THROTTLED attempt's own elapsed, never a delta
+      // against the first attempt: a loaded runner can inflate the
+      // first attempt's bcrypt round arbitrarily (main run 34702966067:
+      // first 236 ms, throttled 16 ms beyond it — the delta form failed
+      // though the wait was paid). Back-to-back calls owe the full
+      // 200 ms; the floor banks 60 ms of between-calls drift.
       expect(
-        throttled.elapsedMs - first.elapsedMs,
-        `the second attempt pays the ladder's wait (first ${first.elapsedMs} ms, throttled ${throttled.elapsedMs} ms)`,
-      ).toBeGreaterThanOrEqual(40)
+        throttled.elapsedMs,
+        `the throttled attempt pays the ladder's wait (throttled ${throttled.elapsedMs} ms, owed ~200 ms)`,
+      ).toBeGreaterThanOrEqual(140)
     } finally {
       process.env.OP_LOGIN_BACKOFF_BASE_MS = '1'
     }
