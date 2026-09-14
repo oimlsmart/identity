@@ -28,6 +28,16 @@ export default defineConfig({
   // true`; the OP endpoint shims (jwks.json, the discovery document,
   // the /api catch-all) are prerender=false and server-rendered.
   output: 'server',
+  // checkOrigin OFF (the 2026-09-14 estate-wide SSO break): Astro's
+  // origin guard 403s every non-GET carrying a form content type whose
+  // Origin is absent or foreign — exactly the OIDC BACK-CHANNEL's shape
+  // (POST /op/token, /op/revoke, /op/introspect are server-to-server
+  // form posts; a relying party's worker sends no Origin). The guard's
+  // value here is nil: the browser surface's state-changing endpoints
+  // speak CORS-gated JSON behind SameSite=Lax session cookies, and the
+  // OIDC endpoints authenticate by code+PKCE / client credentials, never
+  // by ambient authority. The tripwire: src/__tests__/id-op-backchannel.test.ts.
+  security: { checkOrigin: false },
   // Cloudflare: imageService passthrough — the service serves static
   // assets only, so the generated worker config stays free of an
   // Images binding nothing provisions.
