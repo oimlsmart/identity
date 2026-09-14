@@ -88,6 +88,14 @@ Your service needs a client registration on the OP. One entry:
   `{issuer}/op/admin` manages clients), or the registry API
   (`POST /api/op/clients`, admin-held), or — for a self-hosted OP — the
   `OP_CLIENT_SEED` bootstrap env.
+- The registry is **platform governance, never org self-service**. The
+  policy for a future self-service request queue (deliberately unbuilt
+  until a second relying-party program signs — the demand trigger):
+  a signed-in org admin may REQUEST a registration for their org; an OP
+  administrator reviews (requester + reviewer + the approved-policy diff
+  journaled); the claims policy is reviewed least-claims-first — the
+  approver may narrow the request, never widen past the role allowlist;
+  a refusal carries its reason back to the requester.
 - `logout` (OPTIONAL, the application class only — the machine classes
   never carry one): your service's logout surface (§5a).
   `post_logout_redirect_uris` is the EXACT-match allowlist the OP's
