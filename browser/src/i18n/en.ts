@@ -898,7 +898,7 @@ export const en = {
   "mail.reset.subject": "Your {product} password reset link",
   "mail.reset.why": "You are receiving this because a password reset was started for your {product} account.",
   "mail.resetLink.text": "If this was not you, reset your password at once — the sign-in page's \"Forgot your password?\" sends a fresh one-time link to your address — and tell your administrator: {resetUrl}",
-  "mail.signin.body": "Hello {name},\n\nYour {product} account signed in at {when} UTC by {method}.\n\nIf this was not you, contact your administrator at once: they can deactivate the account, which revokes every open session.",
+  "mail.signin.body": "Hello {name},\n\nYour {product} account signed in at {when} UTC by {method}.\n\nIf this was you, there is nothing more to do. If this was not you, the reset below secures the account first — then tell your administrator: they can deactivate the account, which revokes every open session.",
   "mail.signin.heading": "New sign-in detected",
   "mail.signin.methodPassword": "the password sign-in",
   "mail.signin.preheader": "New sign-in to your {product} account.",

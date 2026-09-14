@@ -475,6 +475,12 @@ describe('the registry acts', () => {
   })
 
   it('the per-client assignment PUT + DELETE validate and audit', async () => {
+    // TODO.identity-sso/04 (the lifecycle tail): the grant route refuses
+    // a non-empty set while the account's primary address is unverified —
+    // willa completes her setup link first (the mailbox proof), then the
+    // assignments below are the verified account's grants.
+    await enroll(willa.setupUrl, WILLA_PASSWORD)
+
     // An unknown role is refused.
     const unknown = await app.request(`${ISSUER}/api/op/accounts/${willa.id}/client-roles/tl-instance`, {
       method: 'PUT',
