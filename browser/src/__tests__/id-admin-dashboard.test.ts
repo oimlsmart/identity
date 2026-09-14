@@ -657,7 +657,10 @@ describe('the live access review', () => {
   it('answers the privileged holders, the per-client grants, the findings, the posture', async () => {
     const admin = await demoLogin('admin@oiml.org')
     // A per-client privileged grant: cs_admin on the fixture client.
+    // TODO.identity-sso/04 (the lifecycle tail): the grant route refuses
+    // an unverified account — the grantee completes the setup link first.
     const grantee = await invite('grantee.dashboard@example.org', 'Grantee Dashboard')
+    await enroll(grantee.setupToken)
     const grant = await app.request(`/api/op/accounts/${grantee.id}/client-roles/dash-rp`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json', cookie: admin },

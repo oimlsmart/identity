@@ -7,6 +7,9 @@
 //
 //   PASSWORD   the enrollment completion AND the console change mail
 //              'password_changed' (one copy for both ceremonies);
+//   SIGNIN     the password sign-in's notice mails 'signin' — and (the
+//              lifecycle tail) it carries the reset pointer like every
+//              other security notice;
 //   EMAIL      the change completion mails 'email_changed' to the NEW
 //              primary (the fan-out) AND the OLD address directly (the
 //              mailbox that stopped being the address of record);
@@ -258,6 +261,25 @@ describe('TODO.identity-sso/04 slice D — the security notices fire on their tr
     const notices = mailsWithSubject(`Your ${PRODUCT} password was set or changed`)
     expect(notices).toHaveLength(1)
     expect(notices[0]!.to).toBe('pat@example.org')
+    expectResetPointer(notices[0]!.text)
+  })
+
+  it('SIGNIN: the sign-in notice carries the "was this you?" reset pointer (the lifecycle tail)', async () => {
+    await enrollAccount('sam@example.org', 'Sam Signin', 'sam has a proper passphrase')
+    stub.reset()
+    const login = await passwordLogin('sam@example.org', 'sam has a proper passphrase')
+    expect(login.status).toBe(200)
+    // The notice rides BESIDE the answer (TODO.restructure/27 — never in
+    // front of it), so the capture polls instead of reading at once.
+    const deadline = Date.now() + 5_000
+    let notices = mailsWithSubject(`New sign-in to your ${PRODUCT} account`)
+    while (!notices.length && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 20))
+      notices = mailsWithSubject(`New sign-in to your ${PRODUCT} account`)
+    }
+    expect(notices, 'the sign-in notice mailed').toHaveLength(1)
+    expect(notices[0]!.to).toBe('sam@example.org')
+    expect(notices[0]!.text).toContain('If this was you, there is nothing more to do')
     expectResetPointer(notices[0]!.text)
   })
 

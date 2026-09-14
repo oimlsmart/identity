@@ -23,6 +23,14 @@
 // the identity service's own org registry (TODO.identity-features/05 —
 // any kind; a refusal names the rule).
 //
+// The VERIFICATION GATE lives here too (TODO.identity-sso/04, the
+// lifecycle tail): an OP password account whose primary address is
+// unverified holds no privileged roles — a reassignment carrying more
+// than the 'viewer' baseline is refused honestly (409 + its audit
+// event). The demo cast, the local users, and the OIDC-provisioned rows
+// are outside the rule (fictional mailboxes never verify by design; an
+// upstream IdP vouches its own addresses).
+//
 // Refusals name the missing permission (honest 403, the same contract
 // as the entity gate). Every mutation journals an audit event naming
 // the actor and the permission used.
@@ -38,6 +46,7 @@ import { getStore, type AuthUserPayload } from '../store'
 import { effectiveRbacMap } from '../rbac'
 import { effectiveRolesOf, mapRoles, roleHolders, type RolePermissionMap } from '../vocab'
 import { isActiveRegistryOrg, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
+import { OP_ACCOUNT_PROVIDER } from '../auth/op/accounts'
 import { sessionUser } from '../session'
 
 /** The caller's grant over these routes: 'wide' (users.manage — the
@@ -293,6 +302,23 @@ export function createUsersRouter(): Hono<{ Variables: { user: AuthUserPayload; 
     } else if (nextRoles.includes('org_admin')) {
       const refusal = await orgAdminAssignmentAllowed(c, target?.orgId ?? null)
       if (refusal) return refusal
+    }
+
+    // TODO.identity-sso/04 (the lifecycle tail): the VERIFICATION GATE —
+    // an OP password account whose primary address is not verified yet
+    // holds no PRIVILEGED roles ("invited (unverified, unprivileged) →
+    // active"): a reassignment carrying anything beyond the 'viewer'
+    // baseline is refused honestly with its audit event. A demotion to
+    // the plain baseline stays allowed — it is the corrective direction.
+    // The demo cast, the local users, and the OIDC-provisioned rows are
+    // outside the rule: the fictional mailboxes never verify by design,
+    // and an upstream IdP vouches its own addresses.
+    if (target && target.provider === OP_ACCOUNT_PROVIDER && !target.emailVerifiedAt
+        && nextRoles.some(r => r !== 'viewer')) {
+      await audit(c, targetId, 'user.roles_refused', { role: body.role, roles: nextRoles, reason: 'email_unverified' })
+      return c.json({
+        error: `the reassignment is refused: ${target.email} has not verified its primary email address yet — an unverified account holds no privileged roles. The account verifies through its setup link or the account page's verification ceremony; the roles stand after that.`,
+      }, 409)
     }
 
     const ok = await getStore().setUserRoles(targetId, body.role, nextRoles)

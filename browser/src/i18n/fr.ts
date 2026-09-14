@@ -900,7 +900,7 @@ export const fr: Record<MessageKey, string> = {
   "mail.reset.subject": "Votre lien de réinitialisation de mot de passe {product}",
   "mail.reset.why": "Vous recevez ce message parce qu’une réinitialisation de mot de passe a été demandée pour votre compte {product}.",
   "mail.resetLink.text": "Si ce n’était pas vous, réinitialisez votre mot de passe immédiatement — le « Mot de passe oublié ? » de la page de connexion envoie un nouveau lien à usage unique à votre adresse — et prévenez votre administrateur : {resetUrl}",
-  "mail.signin.body": "Bonjour {name},\n\nVotre compte {product} s’est connecté le {when} (UTC) par {method}.\n\nSi ce n’était pas vous, contactez immédiatement votre administrateur : il peut désactiver le compte, ce qui révoque toutes les sessions ouvertes.",
+  "mail.signin.body": "Bonjour {name},\n\nVotre compte {product} s’est connecté le {when} (UTC) par {method}.\n\nSi c’était vous, il n’y a rien d’autre à faire. Si ce n’était pas vous, la réinitialisation ci-dessous sécurise d’abord le compte — puis prévenez votre administrateur : il peut désactiver le compte, ce qui révoque toutes les sessions ouvertes.",
   "mail.signin.heading": "Nouvelle connexion détectée",
   "mail.signin.methodPassword": "la connexion par mot de passe",
   "mail.signin.preheader": "Nouvelle connexion à votre compte {product}.",

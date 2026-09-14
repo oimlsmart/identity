@@ -68,7 +68,10 @@
 // and slice D's lifecycle notices) fan out to the primary PLUS every
 // verified additional address (sendOpSecurityMail — the "was this you?"
 // must reach every proven mailbox); the transactional ones (invite,
-// reset, verify_*) keep their single addressed target.
+// reset, verify_*) keep their single addressed target. Signin carries
+// the same reset pointer the slice D notices do (the lifecycle tail —
+// every security notice answers "this was not me" with the self-service
+// reset).
 //
 // The copy lives in the i18n catalogs (src/i18n/en.ts + fr.ts, the
 // mail.* namespace) so the EN/FR lockstep rule covers the outbound mail;
@@ -144,8 +147,9 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   why: MessageKey
   action?: MessageKey
   /** link: the template carries a one-time action URL (the button, the
-   *  plain-text fallback, the expiry caption). signin is the pure
-   *  notification — no link, no expiry. */
+   *  plain-text fallback, the expiry caption). The pure notifications
+   *  (signin, mfa_locked, the pat notices, slice D's lifecycle set)
+   *  carry no link and no expiry. */
   link: boolean
   /** reset (TODO.identity-sso/04 slice D): the security notice's "was
    *  this you?" block — the muted secondary pointer to the sign-in
@@ -155,7 +159,7 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
 }> = {
   invite: { subject: 'mail.invite.subject', preheader: 'mail.invite.preheader', heading: 'mail.invite.heading', body: 'mail.invite.body', why: 'mail.invite.why', action: 'mail.invite.action', link: true },
   reset: { subject: 'mail.reset.subject', preheader: 'mail.reset.preheader', heading: 'mail.reset.heading', body: 'mail.reset.body', why: 'mail.reset.why', action: 'mail.reset.action', link: true },
-  signin: { subject: 'mail.signin.subject', preheader: 'mail.signin.preheader', heading: 'mail.signin.heading', body: 'mail.signin.body', why: 'mail.signin.why', link: false },
+  signin: { subject: 'mail.signin.subject', preheader: 'mail.signin.preheader', heading: 'mail.signin.heading', body: 'mail.signin.body', why: 'mail.signin.why', link: false, reset: true },
   verify_email: { subject: 'mail.verifyEmail.subject', preheader: 'mail.verifyEmail.preheader', heading: 'mail.verifyEmail.heading', body: 'mail.verifyEmail.body', why: 'mail.verifyEmail.why', action: 'mail.verifyEmail.action', link: true },
   // TODO.identity-features/01: the added address's own verification —
   // the same one-time-link ceremony, the copy naming the ADD.

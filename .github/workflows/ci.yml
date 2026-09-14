@@ -104,7 +104,9 @@ jobs:
     # main's serial run 34689715944 (2026-09-12): shard 0 = 19 legs /
     # 376s, shard 1 = 21 legs / 374s. Within a shard, legs keep the
     # serial order of the pre-shard list (a subsequence, never a
-    # reordering).
+    # reordering). id-38 (the lifecycle tail, 2026-09-14) joined shard 0
+    # (20 legs — its legs are fetch-level, no browser cold starts, so the
+    # wall-time balance holds).
     name: identity-e2e (shard ${{ matrix.shard }})
     strategy:
       fail-fast: false
@@ -130,6 +132,7 @@ jobs:
               e2e/id-32-security-notices.e2e.ts
               e2e/id-33-logout.e2e.ts
               e2e/id-36-client-governance.e2e.ts
+              e2e/id-38-role-grant-gate.e2e.ts
               e2e/id-surface.e2e.ts
               e2e/op-key-rotate.e2e.ts
           - shard: 1

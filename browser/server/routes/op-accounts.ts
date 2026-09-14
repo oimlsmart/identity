@@ -41,7 +41,10 @@
 //   PUT  /api/op/accounts/:id/client-roles/:clientId   — assign the
 //                                            account's roles for ONE
 //                                            registered client ([] = the
-//                                            explicit none)
+//                                            explicit none); a non-empty
+//                                            grant to an UNVERIFIED account
+//                                            is refused honestly (409, the
+//                                            lifecycle's verification gate)
 //   DELETE /api/op/accounts/:id/client-roles/:clientId — clear the
 //                                            per-client assignment (the
 //                                            account default is restored)
@@ -825,6 +828,24 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: 'roles must be a list of role ids ([] = explicitly none on this client)' }, 400)
     }
     const roles = [...new Set(body.roles as string[])]
+    // TODO.identity-sso/04 (the lifecycle tail): the VERIFICATION GATE —
+    // an account whose primary address is not verified yet holds NO role
+    // grants ("invited (unverified, unprivileged) → active"): a non-empty
+    // assignment is refused honestly with its audit event. The empty set
+    // stays allowed — it grants nothing, and clearing a set granted at
+    // invite time is the corrective direction. The invite path itself is
+    // the carve-out by construction (issueAccountInvite's store verbs:
+    // the setup link IS the verification channel).
+    if (roles.length > 0 && !target.emailVerifiedAt) {
+      await audit('account.client_roles_refused', target.id, { userId: gate.user.id, userName: gate.user.name }, {
+        client_id: clientId,
+        roles,
+        reason: 'email_unverified',
+      })
+      return c.json({
+        error: `the grant is refused: ${target.email} has not verified its primary email address yet — an unverified account holds no role grants. The account verifies through its setup link or the account page's verification ceremony; the grant stands after that.`,
+      }, 409)
+    }
     const refusal = await clientRolesRefusal(store, clientId, roles)
     if (refusal) return c.json({ error: refusal.error }, refusal.status)
     const previous = await store.getOpClientRoles(target.id, clientId)

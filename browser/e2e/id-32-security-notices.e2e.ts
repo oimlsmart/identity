@@ -14,7 +14,10 @@
 //   leg 3  the console TOTP enroll + revoke mail 'factor_enrolled' /
 //          'factor_revoked' with the user-chosen name in the label;
 //   leg 4  the admin's client-roles grant mails 'client_roles_granted'
-//          (the registry client's display name).
+//          (the registry client's display name);
+//   leg 5  the password sign-in's notice mails 'signin' WITH the reset
+//          pointer (the lifecycle tail — it was the one security notice
+//          without it).
 //
 // The in-process twin (src/__tests__/id-security-notices.test.ts) covers
 // the remaining triggers (the recovery-code sign-in's specialized
@@ -436,5 +439,20 @@ describe('TODO.identity-sso/04 slice D — the security notices (the identity pr
     expect(notices[0]!.text).toContain('OIML SMART platform hub')
     expect(notices[0]!.text).toContain('cs_admin')
     flog(null, 'leg4: done')
+  })
+
+  it('leg 5 — the sign-in notice carries the "was this you?" reset pointer (the lifecycle tail)', { timeout: 900_000 }, async () => {
+    await enrollAccount(stack.base, rootCookie, 'sid@example.org', 'Sid Signin', 'sid has a proper passphrase')
+    mailer.reset()
+
+    // The password sign-in itself is the trigger (the notice rides beside
+    // the answer — passwordCookie's settle covers the float).
+    await passwordCookie(stack.base, 'sid@example.org', 'sid has a proper passphrase')
+
+    const notices = noticesWithSubject(mailer, `New sign-in to your ${PRODUCT} account`)
+    expect(notices).toHaveLength(1)
+    expect(notices[0]!.to).toBe('sid@example.org')
+    expect(notices[0]!.text).toContain('If this was you, there is nothing more to do')
+    flog(null, 'leg5: done')
   })
 })
