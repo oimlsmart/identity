@@ -25,6 +25,7 @@ import { t } from '../../i18n'
 import type { MessageKey } from '../../i18n/en'
 import { APP_ROLES } from '../../../server/vocab'
 import { api } from '../../lib/api-client'
+import { orgKindLabelKey } from '../../org-vocabulary'
 
 interface JoinRequestRow {
   id: string
@@ -231,6 +232,46 @@ const pendingUnregistered = computed(() => unregistered.value.filter(r => r.stat
 /** The org-admin accounts the scheme operator can see (one per
  *  registered org — the eligibility rule's visible state). */
 const orgAdminAccounts = computed(() => users.value.filter(u => u.roles.includes('org_admin')))
+
+/** The kind-first ordering the org menus and the administrator list
+ *  group by (the 2026-09-15 review: a flat org pool reads as
+ *  undifferentiated — the organization KIND is the administration's
+ *  organizing fact): the participant kinds first (the OIML-CS workflow
+ *  authorities), then the membership kinds, then the manufacturer. */
+const ORG_KIND_ORDER = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'member-state', 'corresponding-member', 'manufacturer']
+
+function byKindOrder(a: string, b: string): number {
+  const ia = ORG_KIND_ORDER.indexOf(a)
+  const ib = ORG_KIND_ORDER.indexOf(b)
+  return (ia === -1 ? ORG_KIND_ORDER.length : ia) - (ib === -1 ? ORG_KIND_ORDER.length : ib)
+}
+
+/** The registered orgs grouped by kind — every "pick a registered org"
+ *  menu on the page (the registry invite, the join approval, the org-
+ *  admin creation) renders the same grouped menu. */
+const registryOrgsByKind = computed(() => {
+  const groups = new Map<string, SelectorOrg[]>()
+  for (const org of registryOrgs.value) {
+    const list = groups.get(org.kind) ?? []
+    list.push(org)
+    groups.set(org.kind, list)
+  }
+  return [...groups.entries()].sort(([a], [b]) => byKindOrder(a, b))
+})
+
+/** The current organization administrators grouped by their org's kind;
+ *  an admin whose org left the register reads under the honest
+ *  ungrouped line (the empty kind sorts last). */
+const orgAdminsByKind = computed(() => {
+  const groups = new Map<string, typeof orgAdminAccounts.value>()
+  for (const admin of orgAdminAccounts.value) {
+    const kind = registryOrgs.value.find(o => o.id === admin.orgId)?.kind ?? ''
+    const list = groups.get(kind) ?? []
+    list.push(admin)
+    groups.set(kind, list)
+  }
+  return [...groups.entries()].sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : byKindOrder(a, b)))
+})
 
 async function load(): Promise<void> {
   const [queueRes, usersRes, rolesRes, orgsRes] = await Promise.all([
@@ -1546,7 +1587,9 @@ onMounted(async () => {
                 class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
                 <option value="">{{ t('admin.users.noOrgBinding') }}</option>
-                <option v-for="org in registryOrgs" :key="org.id" :value="org.id">{{ org.name }}</option>
+                <optgroup v-for="[kind, orgs] in registryOrgsByKind" :key="kind" :label="t(orgKindLabelKey(kind))">
+                  <option v-for="org in orgs" :key="org.id" :value="org.id">{{ org.name }}</option>
+                </optgroup>
               </select>
               <button
                 :disabled="acting === 'registry-invite' || !regInviteName.trim() || !regInviteEmail.includes('@')"
@@ -1754,7 +1797,9 @@ onMounted(async () => {
                   class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="" disabled>{{ t('admin.users.approveOnto') }}</option>
-                  <option v-for="org in registryOrgs" :key="org.id" :value="org.id">{{ org.name }}</option>
+                  <optgroup v-for="[kind, orgs] in registryOrgsByKind" :key="kind" :label="t(orgKindLabelKey(kind))">
+                    <option v-for="org in orgs" :key="org.id" :value="org.id">{{ org.name }}</option>
+                  </optgroup>
                 </select>
                 <button
                   :data-testid="`join-approve-${row.id}`"
@@ -1795,8 +1840,17 @@ onMounted(async () => {
           </h2>
           <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
             One administrator per registered participant org, created after verification (B 18:2025 §10.2).
-            Current: {{ orgAdminAccounts.length ? orgAdminAccounts.map(a => `${a.name} (${orgNameOf(a.orgId)})`).join(', ') : 'none yet' }}.
           </p>
+          <!-- The kind-grouped roll: the organization KIND is the
+               administration's organizing fact (the 2026-09-15 review) —
+               never one undifferentiated pool. -->
+          <div v-if="orgAdminAccounts.length" class="text-xs text-slate-500 dark:text-slate-400 mb-3 space-y-1" data-testid="orgadmin-current">
+            <p v-for="[kind, admins] in orgAdminsByKind" :key="kind" :data-testid="`orgadmin-kind-${kind || 'unregistered'}`">
+              <span class="font-medium text-slate-600 dark:text-slate-300">{{ kind ? t(orgKindLabelKey(kind)) : 'Unregistered org' }}</span>:
+              {{ admins.map(a => `${a.name} (${orgNameOf(a.orgId)})`).join(', ') }}
+            </p>
+          </div>
+          <p v-else class="text-xs text-slate-500 dark:text-slate-400 mb-3">None yet.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
               v-model="orgAdminName"
@@ -1818,7 +1872,9 @@ onMounted(async () => {
               class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="" disabled>{{ t('admin.users.registeredOrg') }}</option>
-              <option v-for="org in registryOrgs" :key="org.id" :value="org.id" :data-testid="`orgadmin-org-${org.id}`">{{ org.name }}</option>
+              <optgroup v-for="[kind, orgs] in registryOrgsByKind" :key="kind" :label="t(orgKindLabelKey(kind))">
+                <option v-for="org in orgs" :key="org.id" :value="org.id" :data-testid="`orgadmin-org-${org.id}`">{{ org.name }}</option>
+              </optgroup>
             </select>
             <button
               :disabled="acting === 'orgadmin' || !orgAdminName.trim() || !orgAdminEmail.includes('@') || !orgAdminOrg"
