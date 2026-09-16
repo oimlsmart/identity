@@ -48,6 +48,22 @@ const ROLE_GLOSS_KEYS: Record<string, MessageKey> = {
   org_admin: 'org.role.org_admin',
 }
 
+/** The kind-first ordering every org surface groups or tabs by (the
+ *  2026-09-15/16 reviews: a flat org pool reads as undifferentiated —
+ *  the organization KIND is the administration's organizing fact): the
+ *  participant kinds first (the OIML-CS workflow authorities), then the
+ *  membership kinds, then the manufacturer. The kind-less
+ *  (non-participant) org is not in the order — callers sort it last. */
+export const ORG_KIND_ORDER = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'member-state', 'corresponding-member', 'manufacturer'] as const
+
+/** The comparator over ORG_KIND_ORDER; an unknown or empty kind sorts
+ *  after every declared kind. */
+export function byOrgKindOrder(a: string, b: string): number {
+  const ia = (ORG_KIND_ORDER as readonly string[]).indexOf(a)
+  const ib = (ORG_KIND_ORDER as readonly string[]).indexOf(b)
+  return (ia === -1 ? ORG_KIND_ORDER.length : ia) - (ib === -1 ? ORG_KIND_ORDER.length : ib)
+}
+
 /** The kind's display label's catalog key; an unknown or absent kind
  *  reads as the honest non-participant line. */
 export function orgKindLabelKey(kind: string | null): MessageKey {

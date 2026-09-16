@@ -25,7 +25,7 @@ import { t } from '../../i18n'
 import type { MessageKey } from '../../i18n/en'
 import { APP_ROLES } from '../../../server/vocab'
 import { api } from '../../lib/api-client'
-import { orgKindLabelKey } from '../../org-vocabulary'
+import { byOrgKindOrder, orgKindLabelKey } from '../../org-vocabulary'
 
 interface JoinRequestRow {
   id: string
@@ -234,17 +234,9 @@ const pendingUnregistered = computed(() => unregistered.value.filter(r => r.stat
 const orgAdminAccounts = computed(() => users.value.filter(u => u.roles.includes('org_admin')))
 
 /** The kind-first ordering the org menus and the administrator list
- *  group by (the 2026-09-15 review: a flat org pool reads as
- *  undifferentiated — the organization KIND is the administration's
- *  organizing fact): the participant kinds first (the OIML-CS workflow
- *  authorities), then the membership kinds, then the manufacturer. */
-const ORG_KIND_ORDER = ['issuing-authority', 'test-laboratory', 'utilizer', 'associate', 'member-state', 'corresponding-member', 'manufacturer']
-
-function byKindOrder(a: string, b: string): number {
-  const ia = ORG_KIND_ORDER.indexOf(a)
-  const ib = ORG_KIND_ORDER.indexOf(b)
-  return (ia === -1 ? ORG_KIND_ORDER.length : ia) - (ib === -1 ? ORG_KIND_ORDER.length : ib)
-}
+ *  group by lives in org-vocabulary (the 2026-09-15 review: a flat org
+ *  pool reads as undifferentiated — the organization KIND is the
+ *  administration's organizing fact). */
 
 /** The registered orgs grouped by kind — every "pick a registered org"
  *  menu on the page (the registry invite, the join approval, the org-
@@ -256,7 +248,7 @@ const registryOrgsByKind = computed(() => {
     list.push(org)
     groups.set(org.kind, list)
   }
-  return [...groups.entries()].sort(([a], [b]) => byKindOrder(a, b))
+  return [...groups.entries()].sort(([a], [b]) => byOrgKindOrder(a, b))
 })
 
 /** The current organization administrators grouped by their org's kind;
@@ -270,7 +262,7 @@ const orgAdminsByKind = computed(() => {
     list.push(admin)
     groups.set(kind, list)
   }
-  return [...groups.entries()].sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : byKindOrder(a, b)))
+  return [...groups.entries()].sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : byOrgKindOrder(a, b)))
 })
 
 async function load(): Promise<void> {

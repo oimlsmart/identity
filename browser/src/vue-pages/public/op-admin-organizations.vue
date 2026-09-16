@@ -2,12 +2,16 @@
 // ═══════════════════════════════════════════════════════════════════
 // The organization registry's surface (TODO.identity-features/05 —
 // organizations as first-class citizens): the identity administrator's
-// Organizations page. The LIST (every registry org with its active
-// member count, its organization administrators, and its lifecycle
-// state) and the ADD act (the stable slug id — the participant org's
-// OIML code — the display data, the contacts, the optional
-// participant_ref annotation). The org's own page (the members, the
-// edit/disable/remove acts) is /op/admin/registry/orgs/:id.
+// Organizations page. The LIST is tabbed by org KIND (the 2026-09-16
+// review: every category of orgs is its own menu — participant kinds
+// first, membership kinds, the manufacturer, the kind-less last; the
+// ordering lives in org-vocabulary, shared with the users console),
+// each tab's table carrying its orgs' active member counts,
+// organization administrators, and lifecycle states. The ADD act (the
+// stable slug id — the participant org's OIML code — the display data,
+// the contacts, the optional participant_ref annotation). The org's own
+// page (the members, the edit/disable/remove acts) is
+// /op/admin/registry/orgs/:id.
 //
 // The audience is the identity administrator (admin/cs_admin — the
 // server enforces it; routes/op-registry.ts). The org admin NEVER
@@ -17,11 +21,11 @@
 // Every rule is SERVER-ENFORCED; this page only renders what the API
 // answers.
 // ═══════════════════════════════════════════════════════════════════
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
-import { orgKindLabelKey, orgKindPurposeKey } from '../../org-vocabulary'
+import { byOrgKindOrder, orgKindLabelKey, orgKindPurposeKey } from '../../org-vocabulary'
 import { api } from '../../lib/api-client'
 
 interface OrgRow {
@@ -63,6 +67,25 @@ const notice = ref<string | null>(null)
 const account = ref<{ id: string; name: string; email: string } | null>(null)
 
 const rows = ref<OrgRow[]>([])
+
+/** The registry grouped by org KIND — the directory's tabs (the
+ *  2026-09-16 review: every category of orgs reads as its own menu,
+ *  never one undifferentiated pool; the ordering is org-vocabulary's
+ *  participant-kinds-first order, the kind-less orgs last). */
+const rowsByKind = computed(() => {
+  const groups = new Map<string, OrgRow[]>()
+  for (const row of rows.value) {
+    const kind = row.kind ?? ''
+    const list = groups.get(kind) ?? []
+    list.push(row)
+    groups.set(kind, list)
+  }
+  return [...groups.entries()].sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : byOrgKindOrder(a, b)))
+})
+
+/** The active kind tab — the first group in the kind order by default;
+ *  re-anchored after every load when its group left the registry. */
+const activeKind = ref<string | null>(null)
 
 // The add act's form. The id is the stable slug (the participant org's
 // OIML code); kind '' = the non-participant org.
@@ -114,6 +137,9 @@ async function load(): Promise<void> {
   }
   if (!res.ok) throw new Error(`the organization registry failed (${res.status})`)
   rows.value = await res.json() as OrgRow[]
+  if (!rowsByKind.value.some(([kind]) => kind === activeKind.value)) {
+    activeKind.value = rowsByKind.value[0]?.[0] ?? null
+  }
 }
 
 function addContactRow() {
@@ -317,64 +343,96 @@ onMounted(async () => {
           {{ t('admin.orgs.empty') }}
         </p>
 
-        <div v-else class="overflow-x-auto">
-          <table class="w-full text-sm" data-testid="op-orgs-list">
-            <thead>
-              <tr class="text-left text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-700">
-                <th class="py-2 pr-3 font-semibold">{{ t('admin.orgs.colOrganization') }}</th>
-                <th class="py-2 pr-3 font-semibold">{{ t('admin.orgs.colMembers') }}</th>
-                <th class="py-2 pr-3 font-semibold">{{ t('admin.orgs.colAdmins') }}</th>
-                <th class="py-2 pr-3 font-semibold">{{ t('admin.orgs.colState') }}</th>
-                <th class="py-2 font-semibold"><span class="sr-only">{{ t('admin.orgs.open') }}</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in rows"
-                :key="row.id"
-                class="border-b border-slate-100 dark:border-slate-700/60 last:border-0"
-                :data-testid="`op-orgs-row-${row.id}`"
-              >
-                <td class="py-2 pr-3">
-                  <p class="font-medium text-slate-900 dark:text-white">
-                    {{ row.name }}
-                    <span class="ml-1 text-[11px] font-normal text-slate-400 dark:text-slate-500">{{ row.id }}</span>
-                  </p>
-                  <p
-                    class="text-[11px] text-slate-400 dark:text-slate-500"
-                    :data-testid="`op-orgs-kind-${row.id}`"
-                    :title="orgKindPurposeKey(row.kind) ? t(orgKindPurposeKey(row.kind)!) : undefined"
-                  >
-                    {{ t(orgKindLabelKey(row.kind)) }}<template v-if="row.country"> · {{ row.country }}</template>
-                    <template v-if="row.participantRef"> · ⛓ {{ row.participantRef }}</template>
-                    {{ standingSuffix(row) }}{{ chainSuffix(row) }}
-                  </p>
-                </td>
-                <td class="py-2 pr-3 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-orgs-members-${row.id}`">
-                  {{ row.members.active }}
-                  <span v-if="row.members.invited" class="text-amber-600 dark:text-amber-400">· {{ t('admin.orgs.membersInvited', { count: row.members.invited }) }}</span>
-                  <span v-if="row.members.disabled" class="text-red-500 dark:text-red-400">· {{ t('admin.orgs.membersDisabled', { count: row.members.disabled }) }}</span>
-                </td>
-                <td class="py-2 pr-3 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-orgs-admins-${row.id}`">
-                  <template v-if="row.admins.length">{{ row.admins.map(a => a.name).join(', ') }}</template>
-                  <span v-else class="text-slate-400 dark:text-slate-500">{{ t('admin.orgs.noAdmins') }}</span>
-                </td>
-                <td class="py-2 pr-3 text-xs" :data-testid="`op-orgs-state-${row.id}`">
-                  <span :class="row.state === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'">
-                    {{ row.state === 'active' ? t('admin.orgs.stateActive') : t('admin.orgs.stateDisabled') }}
-                  </span>
-                </td>
-                <td class="py-2 text-right">
-                  <router-link
-                    :to="`/op/admin/registry/orgs/${row.id}`"
-                    class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline"
-                    :data-testid="`op-orgs-open-${row.id}`"
-                  >{{ t('admin.orgs.open') }}</router-link>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <template v-else>
+          <!-- The kind tabs: each category of orgs is its own menu
+               (the 2026-09-16 review). Every kind's table stays mounted
+               (v-show, never v-if) so the row testids resolve regardless
+               of the active tab. -->
+          <div class="mb-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-700" role="tablist" data-testid="op-orgs-tabs">
+            <button
+              v-for="[kind, group] in rowsByKind"
+              :key="kind || 'none'"
+              role="tab"
+              :aria-selected="activeKind === kind"
+              :data-testid="`op-orgs-tab-${kind || 'none'}`"
+              class="px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 -mb-px transition-colors"
+              :class="activeKind === kind
+                ? 'border-brand-600 text-brand-700 dark:text-brand-300'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'"
+              @click="activeKind = kind"
+            >
+              {{ t(orgKindLabelKey(kind || null)) }}
+              <span
+                class="ml-1 rounded-full bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-500 dark:text-slate-300"
+                :data-testid="`op-orgs-tab-count-${kind || 'none'}`"
+              >{{ group.length }}</span>
+            </button>
+          </div>
+
+          <div
+            v-for="[kind, group] in rowsByKind"
+            v-show="activeKind === kind"
+            :key="kind || 'none'"
+            class="overflow-x-auto"
+          >
+            <table class="w-full text-sm" :data-testid="`op-orgs-list-${kind || 'none'}`">
+              <thead>
+                <tr class="text-left text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                  <th class="py-2 pr-3 font-semibold">{{ t('admin.orgs.colOrganization') }}</th>
+                  <th class="py-2 pr-3 font-semibold">{{ t('admin.orgs.colMembers') }}</th>
+                  <th class="py-2 pr-3 font-semibold">{{ t('admin.orgs.colAdmins') }}</th>
+                  <th class="py-2 pr-3 font-semibold">{{ t('admin.orgs.colState') }}</th>
+                  <th class="py-2 font-semibold"><span class="sr-only">{{ t('admin.orgs.open') }}</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in group"
+                  :key="row.id"
+                  class="border-b border-slate-100 dark:border-slate-700/60 last:border-0"
+                  :data-testid="`op-orgs-row-${row.id}`"
+                >
+                  <td class="py-2 pr-3">
+                    <p class="font-medium text-slate-900 dark:text-white">
+                      {{ row.name }}
+                      <span class="ml-1 text-[11px] font-normal text-slate-400 dark:text-slate-500">{{ row.id }}</span>
+                    </p>
+                    <p
+                      class="text-[11px] text-slate-400 dark:text-slate-500"
+                      :data-testid="`op-orgs-kind-${row.id}`"
+                      :title="orgKindPurposeKey(row.kind) ? t(orgKindPurposeKey(row.kind)!) : undefined"
+                    >
+                      {{ t(orgKindLabelKey(row.kind)) }}<template v-if="row.country"> · {{ row.country }}</template>
+                      <template v-if="row.participantRef"> · ⛓ {{ row.participantRef }}</template>
+                      {{ standingSuffix(row) }}{{ chainSuffix(row) }}
+                    </p>
+                  </td>
+                  <td class="py-2 pr-3 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-orgs-members-${row.id}`">
+                    {{ row.members.active }}
+                    <span v-if="row.members.invited" class="text-amber-600 dark:text-amber-400">· {{ t('admin.orgs.membersInvited', { count: row.members.invited }) }}</span>
+                    <span v-if="row.members.disabled" class="text-red-500 dark:text-red-400">· {{ t('admin.orgs.membersDisabled', { count: row.members.disabled }) }}</span>
+                  </td>
+                  <td class="py-2 pr-3 text-xs text-slate-600 dark:text-slate-300" :data-testid="`op-orgs-admins-${row.id}`">
+                    <template v-if="row.admins.length">{{ row.admins.map(a => a.name).join(', ') }}</template>
+                    <span v-else class="text-slate-400 dark:text-slate-500">{{ t('admin.orgs.noAdmins') }}</span>
+                  </td>
+                  <td class="py-2 pr-3 text-xs" :data-testid="`op-orgs-state-${row.id}`">
+                    <span :class="row.state === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'">
+                      {{ row.state === 'active' ? t('admin.orgs.stateActive') : t('admin.orgs.stateDisabled') }}
+                    </span>
+                  </td>
+                  <td class="py-2 text-right">
+                    <router-link
+                      :to="`/op/admin/registry/orgs/${row.id}`"
+                      class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline"
+                      :data-testid="`op-orgs-open-${row.id}`"
+                    >{{ t('admin.orgs.open') }}</router-link>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </section>
     </div>
   </div>
