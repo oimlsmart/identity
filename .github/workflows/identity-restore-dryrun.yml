@@ -18,13 +18,14 @@ name: identity-restore-dryrun
 #   3. the restored per-table ROW COUNTS equal the export's INSERT
 #      counts per table (the export is one INSERT per row — the floor
 #      is exact, and a dropped row is a red run);
-#   4. d1_migrations agrees with the kernel's migration set: the
+#   4. d1_migrations agrees with the repo's own migration set: the
 #      restored bookkeeping is byte-faithful to the snapshot's, and
-#      every applied name is a file in the kernel's canonical set
-#      (node_modules/@oimlsmart/platform-server/migrations — the
-#      append-only registry contract). A kernel file not yet applied on
-#      the live registry is the normal kernel-bump → tag-deploy window
-#      (the runbook's migration discipline): logged, never failed.
+#      every applied name is a file in browser/migrations (identity's
+#      canonical set since the kernel-free split, identity#79 — the
+#      append-only registry contract). A repo migration not yet
+#      applied on the live registry is the normal land-on-main →
+#      tag-deploy window (the runbook's migration discipline):
+#      logged, never failed.
 #
 # The restore target is miniflare-local ONLY (`wrangler d1 execute
 # --local --persist-to <a runner-temp dir>`) — the live registry
@@ -199,17 +200,22 @@ jobs:
           fi
           echo "row counts: identical ($(awk -F'\t' '{s+=$2} END {print s}' "$WORK/counts-actual-nz.txt") rows across $(wc -l < "$WORK/counts-actual-nz.txt" | tr -d ' ') data tables)"
 
-      - name: Assert — d1_migrations agrees with the kernel's migration set
+      - name: Assert — d1_migrations agrees with the repo's own migration set
         working-directory: browser
         # Two directions (the append-only registry contract,
         # AGENTS.md → "The account registry never moves"):
         #   - fidelity: the restored bookkeeping is exactly the
         #     snapshot's d1_migrations name set;
-        #   - agreement: every applied name is a file in the kernel's
-        #     canonical set. An applied name that is NOT a kernel file
-        #     is drift (a renamed/renumbered migration) and fails.
-        # A kernel file not yet applied is the normal kernel-bump →
-        # tag-deploy window: logged as a notice, never a failure.
+        #   - agreement: every applied name is a file in browser/
+        #     migrations (identity's canonical set — the kernel-free
+        #     split's posture; the 2026-09-16 run caught this very
+        #     step still listing the deleted npm package, the split's
+        #     one broken seam). An applied name that is NOT a repo
+        #     migration file is drift (a renamed/renumbered
+        #     migration) and fails.
+        # A repo migration not yet applied is the normal
+        # land-on-main → tag-deploy window: logged as a notice, never
+        # a failure.
         run: |
           SQL="$RUNNER_TEMP/identity-restore/snapshot.sql"
           WORK="$RUNNER_TEMP/identity-restore"
@@ -225,18 +231,18 @@ jobs:
             exit 1
           fi
           echo "migration fidelity: restored d1_migrations == the snapshot's ($(wc -l < "$WORK/applied-restored.txt" | tr -d ' ') applied)"
-          ls node_modules/@oimlsmart/platform-server/migrations/*.sql | xargs -n1 basename | sort > "$WORK/kernel.txt"
-          DRIFT=$(comm -23 "$WORK/applied-snapshot.txt" "$WORK/kernel.txt")
+          ls migrations/*.sql | xargs -n1 basename | sort > "$WORK/repo.txt"
+          DRIFT=$(comm -23 "$WORK/applied-snapshot.txt" "$WORK/repo.txt")
           if [ -n "$DRIFT" ]; then
-            echo "::error::applied migrations that are NOT kernel files (the append-only contract is broken):"
+            echo "::error::applied migrations that are NOT files in browser/migrations (the append-only contract is broken):"
             echo "$DRIFT"
             exit 1
           fi
-          PENDING=$(comm -13 "$WORK/applied-snapshot.txt" "$WORK/kernel.txt")
+          PENDING=$(comm -13 "$WORK/applied-snapshot.txt" "$WORK/repo.txt")
           if [ -n "$PENDING" ]; then
-            echo "::notice::kernel migrations not yet applied to the live registry (the kernel-bump → tag-deploy window): $PENDING"
+            echo "::notice::repo migrations not yet applied to the live registry (the land-on-main → tag-deploy window): $PENDING"
           fi
-          echo "kernel agreement: every applied migration is a kernel file"
+          echo "migration-set agreement: every applied migration is a browser/migrations file"
 
   report-failure:
     # One honest summary per failed run (the heartbeat's pattern,
@@ -259,7 +265,7 @@ jobs:
               + 'The workflow (.github/workflows/identity-restore-dryrun.yml) restores the latest nightly '
               + 'R2 snapshot (oiml-identity-backups, identity/YYYYMMDD-HHMMZ.sql) into a throwaway local D1 '
               + 'and asserts the clean apply, the table set, the per-table row counts, and the d1_migrations '
-              + 'agreement with the kernel. The failing leg is named in the run log. A failing restore path '
+              + 'agreement with the repo\'s own migration set (browser/migrations). The failing leg is named in the run log. A failing restore path '
               + 'means the backups are unproven: the next migration-carrying deploy does NOT proceed on an '
               + 'unproven backup (docs/deployment/identity-operations.md → the DR section); the fallback is '
               + 'the bucket\'s other snapshots inside the 30-day retention plus the quarterly drill.'

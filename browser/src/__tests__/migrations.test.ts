@@ -26,6 +26,7 @@ import Database from 'better-sqlite3'
 import { MIGRATIONS_DIR, SQLITE_SCHEMA_PATH } from '../../server/store/sqlite'
 
 const FILES = readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort()
+const RESTORE_WORKFLOW = readFileSync(join(process.cwd(), '../.github/workflows/identity-restore-dryrun.yml'), 'utf-8')
 
 function shapeOf(db: Database.Database): Record<string, string[]> {
   const tables = db
@@ -40,6 +41,11 @@ function shapeOf(db: Database.Database): Record<string, string[]> {
 }
 
 describe('the canonical migration set', () => {
+  it('the restore dry-run compares the journal to identity\'s canonical migration directory', () => {
+    expect(RESTORE_WORKFLOW).toContain('ls migrations/*.sql | xargs -n1 basename | sort')
+    expect(RESTORE_WORKFLOW).not.toContain('node_modules/@oimlsmart/platform-server/migrations')
+  })
+
   it('ships at least one migration and every name follows NNNN_name.sql', () => {
     expect(FILES.length).toBeGreaterThan(0)
     for (const f of FILES) {
