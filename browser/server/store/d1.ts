@@ -320,25 +320,28 @@ export interface D1WriteBudgetOptions {
 // first read is the auth gate, so it starts fresh; every query after
 // it may serve from a replica causally after that bookmark.
 //
-// THE SESSION'S SCOPE: one per store INSTANCE — instance state, never
-// a module global. d1StoreFor memoizes one store per binding, so the
-// session spans the isolate's request population: every query the
-// isolate issues rides one sequentially-consistent thread, and the
-// per-request installStore flip stays harmless (the memo answers the
-// same object every request). Per-REQUEST sessions would need a
-// request-scoped store install — the store-instance refactor's
-// (TODO.restructure/28-D) territory, a named follow-up, never smuggled
-// in here: with today's module-global install, per-request stores
-// would bleed a sibling request's session across a mid-request await
-// and a write-then-read pair could straddle the flip.
+// THE SESSION'S SCOPE: one per REQUEST — under the flag, d1StoreFor
+// answers a FRESH store (its own first-primary session) on every
+// resolution, and server/cloudflare.ts resolves + installs per
+// request: each request's first query pins the primary (up to date),
+// its remaining queries ride that request's own bookmark (a replica
+// causally after it), and no request's bookmark ever carries another
+// request's writes — the isolate-shared session's residual coupling
+// (TODO.restructure/28-D's named follow-up, landed 2026-09-17 after
+// the instance refactor made the fresh-per-request shape safe: the
+// Worker's requests never nest, so a write-then-read pair always
+// rides the one store its own request installed). The session is
+// instance state, never a module global. The FLAG-OFF world keeps
+// the memoized one-store-per-binding facade — byte-identical to
+// before the posture existed.
 //
-// The flag ships OFF (D1_REPLICA_READS unset): local suites prove the
-// ROUTING on SQLite facades only — actual replica serving is the D1
-// runtime's, proven in the preview cycle first (the ops runbook's
-// preview-first rollout).
+// The flag ships OFF by config only (D1_REPLICA_READS unset): local
+// suites prove the ROUTING on SQLite facades only — actual replica
+// serving is the D1 runtime's, live in production since
+// id-v2026.09.17-1 (docs/deployment/identity-operations.md).
 export interface D1ReplicaReadOptions {
   /** Route the store's statements through one withSession('first-primary')
-   *  session per store instance (the discipline note above). Absent:
+   *  session per REQUEST (the discipline note above). Absent:
    *  off — statements ride the raw binding's bounded facade exactly as
    *  before. */
   replicaReads?: boolean
@@ -3451,6 +3454,11 @@ export class D1ServerStore implements ServerStore {
 const byBinding = new WeakMap<D1Database, D1ServerStore>()
 
 export function d1StoreFor(binding: D1Database, opts?: D1StoreOptions): D1ServerStore {
+  // The replica-reads posture (the discipline note above): a FRESH
+  // store per resolution — one first-primary session per REQUEST, the
+  // per-request bookmark discipline. The flag-off world keeps the
+  // memoized shared facade below, byte-identical to before.
+  if (opts?.replicaReads) return new D1ServerStore(binding, opts)
   let store = byBinding.get(binding)
   if (!store) {
     store = new D1ServerStore(binding, opts)
