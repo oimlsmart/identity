@@ -86,7 +86,6 @@ jobs:
         working-directory: browser
         run: |
           npx tsx scripts/deploy-instance.ts identity --compose-only
-          npx tsx scripts/deploy-instance.ts identity-preview --compose-only
 
   identity-e2e:
     # The identity e2e legs: the shared dev stack for the runner's

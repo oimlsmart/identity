@@ -362,7 +362,7 @@ The platform hub (platform.oimlsmart.org) runs exactly this posture:
 `wrangler.toml`'s top-level `[vars]` carries the hub profile with
 `demo_personas: false`, and GitHub sign-in (above) is the only path.
 The demo cast lives on the dedicated demo instances (TODO.demo-ops/02+)
-and on preview deployments, which declare `demo_personas: true`
+and on dev/self-host postures that declare `demo_personas: true`
 explicitly.
 
 Two operational notes:

@@ -26,7 +26,7 @@
 
 # The DEFAULT env is the dev posture (local `wrangler dev` against the
 # miniflare-local D1; deploys never target it — the deploy gate names
-# --env identity / --env identity-preview explicitly). OP_ISSUER is
+# --env identity explicitly). OP_ISSUER is
 # deliberately unset here: a dev posture derives the issuer from the
 # request origin (server/auth/op/config.ts).
 name = "oiml-smart-platform-identity-dev"
@@ -116,7 +116,7 @@ bucket_name = "oiml-smart-avatars-identity"
 
 # NOTE: production deliberately declares NO ENVIRONMENT_LABEL — the
 # ribbon (the ISO-benchmark quick win, item 5) shows only where a
-# posture names itself (the preview, below).
+# posture names itself (a self-host overlay may).
 
 [env.identity.vars]
 ENTITY_BACKEND = "server"
@@ -139,6 +139,21 @@ EMAIL_FROM = "OIML SMART Identity <no-reply@oimlsmart.org>"
 #   npx wrangler secret put STATUS_PROBE_TOKEN --env identity
 # Unset, the recognition is off entirely — every caller is a normal
 # caller and the probe's rows land as ordinary sign_in_failed.
+# The replica-reads posture (TODO.restructure/28-E, PR #93): the
+# store's statements ride one withSession('first-primary') session,
+# so the eventually-consistent surfaces (the admin lists, the
+# dashboards, the activity feeds) can be answered by a replica near
+# the visitor instead of always crossing to the APAC-resident
+# primary. Live in production since id-v2026.09.17-1 (the owner's
+# 2026-09-17 call, retiring the preview lane) after the preview
+# cycle had verified the posture on real D1.
+D1_REPLICA_READS = "1"
+# The Server-Timing store phase (TODO.restructure/27, PR #91): the
+# measurement instrument — every answer names its app wall time and
+# the store phase's call count + summed time (public-safe: durations
+# and counts only). The replica posture's readings on the wire; drop
+# with a one-line PR whenever the measurement window closes.
+SERVER_TIMING = "1"
 INSTANCE_PROFILE_YAML = '''
 identity:
   org_id: oimlsmart-id
@@ -150,52 +165,3 @@ branding:
 demo_personas: false
 '''
 
-# ── The identity PREVIEW (TODO.identity-ops/01) — id-preview.oimlsmart.org ──
-# The deploy gate's staged rollout (docs/deployment/identity-deploy.md):
-# an id-v* tag deploys HERE first, the OIDC-surface probe proves it, and
-# production follows on the environment's manual approval. The preview
-# keeps demo_personas: true so the claims legs of the surface probe can
-# run a full round trip against it when the fixture credentials are
-# declared; production never carries the cast.
-[env.identity-preview]
-name = "oiml-smart-platform-identity-preview"
-
-[[env.identity-preview.d1_databases]]
-binding = "DB"
-database_name = "oiml-smart-platform-identity-preview"
-# The one-time setup is DONE (2026-08-24, the wave-03 deploy prep):
-# the database below was created with `wrangler d1 create
-# oiml-smart-platform-identity-preview`; the workflow's
-# IDENTITY_PREVIEW_URL var completes the posture.
-database_id = "d88056fc-cff7-48c6-9a67-8f7c817ed248"
-migrations_dir = "migrations"
-
-[env.identity-preview.vars]
-ENTITY_BACKEND = "server"
-OP_ISSUER = "https://id-preview.oimlsmart.org"
-SUPPORT_URL = "mailto:info@oimlsmart.org"
-# The environment ribbon (item 5): the preview names itself, so every
-# page carries the thin "Preview" strip; production (above) shows none.
-ENVIRONMENT_LABEL = "Preview"
-EMAIL_FROM = "OIML SMART Identity <no-reply@oimlsmart.org>"
-INSTANCE_PROFILE_YAML = '''
-identity:
-  org_id: oimlsmart-id
-  org_name: OIML SMART Identity
-  role_codes: [identity]
-roles: [identity]
-branding:
-  name: OIML SMART Identity (preview)
-demo_personas: true
-'''
-# The replica-reads PREVIEW CYCLE (TODO.restructure/28-E, PR #93; the
-# ops runbook's preview-first rollout): the preview database already
-# runs read_replication.mode=auto (verified 2026-09-13), so this flag
-# puts the withSession('first-primary') posture live in preview for
-# one deploy cycle before the owner decides production. Watch
-# served_by_region/served_by_primary on the list surfaces.
-D1_REPLICA_READS = "1"
-# The Server-Timing store phase (TODO.restructure/27, PR #91): the
-# measurement posture runs in PREVIEW only — production stays off
-# until an owner measurement window is wanted.
-SERVER_TIMING = "1"

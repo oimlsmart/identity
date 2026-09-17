@@ -8,8 +8,9 @@ https://id.oimlsmart.org, extracted from the `oimlsmart/smart` monorepo
 production.** The wave-03 cutover deployed tag `id-v2026.08.24-1` to
 the `oiml-smart-platform-identity` Worker over the unchanged account
 registry (the D1 never moved); the monorepo's OP code is inert pending
-the wave-04 retirement. The preview posture lives at
-https://id-preview.oimlsmart.org (the deploy gate's first stop).
+the wave-04 retirement. (The preview posture of the staged rollout
+retired 2026-09-17 — production deploys directly behind the
+environment's required reviewers.)
 
 This repository carries the OP half of the identity contract only:
 

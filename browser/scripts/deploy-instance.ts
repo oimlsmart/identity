@@ -14,7 +14,6 @@
  *
  * Usage (from browser/):
  *   npx tsx scripts/deploy-instance.ts identity
- *   npx tsx scripts/deploy-instance.ts identity-preview
  *   npx tsx scripts/deploy-instance.ts identity --compose-only
  *     (compose dist/server/wrangler.<env>.json WITHOUT deploying — the
  *     CI bundle-shape dry leg and the rollback recipe's config source,
