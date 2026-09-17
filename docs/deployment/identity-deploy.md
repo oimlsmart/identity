@@ -34,14 +34,18 @@ workflow. The jobs, in order:
    contract leg) against the tagged tree, the same harness as the CI
    e2e job.
 3. **build**: the Workers bundle (`npm run build:cloudflare`).
-4. **deploy-preview**: D1 migrations for the preview database, the
-   preview deploy (`[env.identity-preview]` →
-   `id-preview.oimlsmart.org`), the custom-domain attach, then the
-   OIDC-surface probe against the deployed preview URL.
-5. **deploy-production**: gated by the `cloudflare-identity-production`
+4. **deploy-production**: gated by the `cloudflare-identity-production`
    environment's required reviewers (the manual approval **is** the
-   production gate). D1 migrations, the deploy, the domain attach, then
-   the surface probe against `https://id.oimlsmart.org`.
+   production gate). D1 migrations (the zero-pending guard, then the
+   apply), the deploy, the domain attach, then the surface probe
+   against `https://id.oimlsmart.org`.
+
+The PREVIEW LANE IS RETIRED (2026-09-17, the owner's call): the
+staged rollout of TODO.identity-ops/01 ran until the observation
+flags it was staging (D1_REPLICA_READS + SERVER_TIMING) went to
+production directly with id-v2026.09.17-1. The migrations now apply
+only in the production stage, under the guard and the required
+reviewers.
 
 Deploys serialize (`concurrency: deploy-identity`, never cancelled
 mid-flight).
@@ -49,48 +53,30 @@ mid-flight).
 ## One-time setup
 
 Once per deployment programme (the workflow header carries the same
-checklist). State as of 2026-08-24 (the wave-03 deploy prep): items 1
-and 2 are DONE; the first `id-v*` tag run proves the declared
-Cloudflare token end to end.
+checklist). The PREVIEW-SIDE ITEMS ARE RETIRED (2026-09-17): the
+preview database, the `cloudflare-identity-preview` environment, the
+preview signing key, and the `id-preview.oimlsmart.org` domain went
+with the lane. The production-side items stand:
 
-1. **The preview database** (DONE 2026-08-24, PR #8): `cd browser &&
-   npx wrangler d1 create oiml-smart-platform-identity-preview`, paste
-   the issued `database_id` into `browser/wrangler.toml`'s
-   `[env.identity-preview]` block (replacing the zero-UUID placeholder)
-   and commit. The preview deploy job refuses to run while the
-   placeholder stands.
-2. **The GitHub environments** (DONE 2026-08-24): create
-   `cloudflare-identity-preview` and `cloudflare-identity-production`
-   (both exist; production carries the required-reviewers rule). On
-   **both**, the secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts:Edit
-   + D1:Edit on the account) and `CLOUDFLARE_ACCOUNT_ID` are declared
-   (the coordinator's act at the wave-03 prep; the first tag run
-   proves them end to end). On `cloudflare-identity-production`,
-   **required reviewers** are the manual approval; on
-   `cloudflare-identity-preview`, the variable `IDENTITY_PREVIEW_URL`
-   is `https://id-preview.oimlsmart.org`.
-3. **The signing keys** (one ES256 pair per environment, never shared):
-   run the rotation ceremony
-   (`browser/scripts/op-key-rotate.ts`, below) with `--env identity`
-   and `--env identity-preview` to generate and declare each
-   environment's `OP_SIGNING_KEY` secret. The private material never
-   lands in the repo, the database, or a log. (State 2026-08-24:
-   production's key is account-side Worker state from the monorepo
-   era and no code deploy disturbs it; the preview's first ceremony
-   runs with the first preview deploy.)
-4. **The preview domain** (first preview deploy only): the workflow's
-   domain step attaches `id-preview.oimlsmart.org` via
-   `browser/scripts/cloudflare-domains.sh`; the DNS record for the
-   hostname is a one-time Cloudflare dashboard act (the same posture as
-   the other instances, the monorepo’s cloudflare.md (https://github.com/oimlsmart/smart/blob/v2/docs/deployment/cloudflare.md)).
-5. **Optional**: to extend the deployed-surface probe with the
+1. **The GitHub environment** (DONE 2026-08-24):
+   `cloudflare-identity-production` exists and carries the
+   required-reviewers rule plus the secrets `CLOUDFLARE_API_TOKEN`
+   (Workers Scripts:Edit + D1:Edit on the account) and
+   `CLOUDFLARE_ACCOUNT_ID`.
+2. **The signing key** (one ES256 pair, never shared): run the
+   rotation ceremony (`browser/scripts/op-key-rotate.ts`, below) with
+   `--env identity` to generate and declare the environment's
+   `OP_SIGNING_KEY` secret. The private material never lands in the
+   repo, the database, or a log. (State 2026-08-24: production's key
+   is account-side Worker state from the monorepo era and no code
+   deploy disturbs it.)
+3. **Optional**: to extend the deployed-surface probe with the
    known-client refusal legs, declare `OP_CONTRACT_KNOWN_CLIENT_ID` +
    `OP_CONTRACT_KNOWN_REDIRECT_URI` (a registered client's id and one
    of its exact redirect URIs) as variables on
-   `cloudflare-identity-production`, and the `OP_CONTRACT_PREVIEW_*`
-   pair on the preview environment. Undeclared, those legs skip
+   `cloudflare-identity-production`. Undeclared, those legs skip
    honestly and the public legs still run.
-6. **The status probe's token**: the estate status service
+4. **The status probe's token**: the estate status service
    (oimlsmart/status, the id-auth-route leg) exercises POST
    /api/op/login every 60s; presenting the shared token as
    `X-OIML-Probe` lets this OP label those rows `account.sign_in_probe`
@@ -113,7 +99,7 @@ git push origin id-v2026.08.23-1
 
 Then watch the run: `gh run list --workflow deploy-identity`. The
 production job pauses for the environment approval; approve in the
-Actions UI when the preview stage is green. The run ends with the
+Actions UI when the build stage is green. The run ends with the
 surface probe against `https://id.oimlsmart.org` as the deployment
 proof.
 
@@ -176,9 +162,8 @@ steps:
 
    Verify with `npx wrangler d1 migrations list oiml-smart-platform-identity
    --remote --config wrangler.toml --env identity` (no file listed as
-   pending), then tag the `id-v*` release. The preview stage applies its
-   own database first, so the tag run exercises the file there before the
-   production gate's list proves it applied live.
+   pending), then tag the `id-v*` release. The production stage's
+   zero-pending guard proves the apply landed before the deploy.
 
 ## Key rotation (the ceremony)
 

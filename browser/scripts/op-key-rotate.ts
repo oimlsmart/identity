@@ -52,7 +52,6 @@ import { kidFor } from '../server/auth/op/keys'
 /** The deployments the ceremony knows (env name → the public base URL). */
 const DEPLOYMENTS: Record<string, string> = {
   identity: 'https://id.oimlsmart.org',
-  'identity-preview': 'https://id-preview.oimlsmart.org',
 }
 
 /** The retirement margin: the access-token TTL and the RP-side JWKS
@@ -199,7 +198,7 @@ async function main(): Promise<void> {
     console.error('usage: npx tsx scripts/op-key-rotate.ts <rotate|verify|retirement-note> [flags]')
     process.exit(2)
   }
-  if (!env) throw new Error('rotate needs --env <identity|identity-preview> (the Worker the secret lands on)')
+  if (!env) throw new Error('rotate needs --env <identity> (the Worker the secret lands on)')
   if (!DEPLOYMENTS[env] && !url) throw new Error(`unknown --env ${env} — pass --url explicitly for a non-standard target (the local-stack test posture)`)
   const base = envUrl(env, url)
   const apply = args.includes('--apply')

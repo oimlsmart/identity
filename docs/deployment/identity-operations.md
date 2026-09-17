@@ -20,8 +20,11 @@ around that fact.
 - The id instance deploys only on a deliberate act: an `id-v*` tag or a
   workflow dispatch — never on a trunk merge. (The platform hub's
   auto-deploy on v2 push must never carry the OP.)
-- Staged rollout: deploy the identity build to the preview environment,
-  run the identity e2e legs against it, then production.
+- Staged proof, single-stage deploy: the `id-v*` tag pipeline proves
+  the OIDC contract and the identity e2e legs against the tagged tree,
+  then production deploys behind the environment's required reviewers.
+  (The separate preview lane of TODO.identity-ops/01 retired
+  2026-09-17 — its last duty was staging the replica-reads cycle.)
 - Rollback: `wrangler rollback` plus the migration contract —
   expand-only migrations; nothing destructive without a two-release
   overlap, so a rollback never meets a schema it cannot read.
@@ -378,19 +381,25 @@ raw binding exactly as before. Two reasons it ships OFF:
    a harmless no-op (every query continues on the primary). The
    database-level switch is the owner's act, never a code change.
 
-The rollout is preview-first, and every enabling act is the OWNER's:
+The rollout completed 2026-09-17 (the owner's call, retiring the
+preview lane): the preview cycle verified the posture on real D1
+(read_replication was already `auto` there), and the flag went LIVE
+in production with id-v2026.09.17-1 — `D1_REPLICA_READS = "1"` in
+`[env.identity.vars]`, with `SERVER_TIMING = "1"` riding along as
+the instrument (every answer's header names the store phase's calls
++ time).
 
-1. Enable read replication on the PREVIEW database
-   (`oiml-smart-platform-identity-preview`) and set
-   `D1_REPLICA_READS = "1"` in `[env.identity-preview.vars]`
-   (browser/wrangler.toml) — one release cycle riding the preview.
-2. Watch `meta.served_by_region` / `meta.served_by_primary` on the
-   preview's D1 queries (wrangler tail, the Workers logs) and the
-   surface's ordinary probes — the flag's only observable effects are
-   where reads serve from and the read-path latency.
-3. Production follows the same two acts on
-   `oiml-smart-platform-identity` and `[env.identity.vars]` — again
-   only after the owner says so.
+Watching it live: `meta.served_by_region` / `meta.served_by_primary`
+on the production D1 queries (wrangler tail, the Workers logs) and
+the Server-Timing store phases on the public answers — the flag's
+only observable effects are where reads serve from and the
+read-path latency. NOTE: read replication must ALSO be enabled on
+the PRODUCTION database itself (dashboard: D1 → the database →
+Settings → Enable Read Replication; or REST
+`read_replication.mode: auto`) — without it, sessions are a
+harmless no-op (every query continues on the primary; correctness
+unaffected, only the latency win is absent). The database-level
+switch is the owner's act, never a code change.
 
 Turning the flag back off is equally the owner's act: unset the var
 (a fresh deploy/isolate picks it up) — the database-level read

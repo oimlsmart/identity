@@ -44,7 +44,6 @@ attach() {
     | jq -r '.result | "\(.hostname) -> \(.service)"'
 }
 
-# The identity service's two domains ONLY (the platform's attach lines
+# The identity service domain ONLY (the platform's attach lines
 # stay with the monorepo's script).
 attach "id.oimlsmart.org"                "oiml-smart-platform-identity"
-attach "id-preview.oimlsmart.org"        "oiml-smart-platform-identity-preview"
