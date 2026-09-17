@@ -154,6 +154,16 @@ D1_REPLICA_READS = "1"
 # and counts only). The replica posture's readings on the wire; drop
 # with a one-line PR whenever the measurement window closes.
 SERVER_TIMING = "1"
+# The audit journal's retention (TODO.restructure/27 item 4, the
+# ops runbook's §the audit journal): the OWNER's decision, set
+# 2026-09-17 — 30 days. The dashboard's retention surfaces read it
+# through server/audit-retention.ts; the nightly
+# identity-audit-retention workflow purges by the SAME number from
+# the GitHub repository variable of the same name (the policy lives
+# in BOTH places or neither — the statement without the run would
+# claim a purge that never happens). Deleted events survive in that
+# night's R2 snapshot, thirty nights of snapshots in the bucket.
+AUDIT_RETENTION_DAYS = "30"
 INSTANCE_PROFILE_YAML = '''
 identity:
   org_id: oimlsmart-id
