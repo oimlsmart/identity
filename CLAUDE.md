@@ -110,8 +110,9 @@ change requires re-recording the golden, never editing assertions to pass.
 - **The issuer is load-bearing.** `OP_ISSUER=https://id.oimlsmart.org` in
   production; never repoint outside the cutover plan.
 - **Deploys are deliberate acts.** Only an `id-v*` tag runs
-  `deploy-identity.yml` (contract gate → e2e legs → build → preview →
-  production). Never add a branch-push deploy trigger. Never push tags or
+  `deploy-identity.yml` (contract gate → e2e legs → build →
+  production on required reviewers; the preview lane retired
+  2026-09-17). Never add a branch-push deploy trigger. Never push tags or
   commit/push to main.
 - **Endpoint scaling: a list endpoint's store-call count is invariant to row
   count.** Prefetch referenced sets once per request, group in memory, never

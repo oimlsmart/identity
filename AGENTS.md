@@ -56,9 +56,9 @@ before it can reach a relying party.
   in production: every RP's `OIDC_ISSUER` and every token's `iss` name
   it. Never repoint it outside the cutover plan.
 - **Deploys are deliberate acts.** Only an `id-v*` tag runs
-  deploy-identity.yml (contract gate, the identity e2e legs, the preview
-  environment, then production on required reviewers). Never add a
-  branch-push deploy trigger.
+  deploy-identity.yml (contract gate, the identity e2e legs, then
+  production on required reviewers — the preview lane retired
+  2026-09-17). Never add a branch-push deploy trigger.
 - **A list endpoint's store-call count is invariant to row count.** The
   endpoint-scaling gate proves it per endpoint per PR
   (`browser/src/__tests__/endpoint-scaling.test.ts`, the doctrine in

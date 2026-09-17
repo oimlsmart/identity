@@ -107,9 +107,11 @@ function buildWorkerApp(): Hono {
         // store's writes race the deployment's budget — a hung write
         // answers StoreUnavailable → the app-level honest 503, never a
         // spin. The env binding retunes the kernel's 5 s default.
-        // D1_REPLICA_READS=1 adds the session posture (28-E): the
-        // memoized store carries the isolate's one session, so the
-        // per-request install below stays the same object.
+        // D1_REPLICA_READS=1 adds the session posture (28-E, the 28-D
+        // follow-up landed): each request resolves a FRESH store — its
+        // own withSession('first-primary') — so every request's first
+        // query pins the primary and its bookmark is its own. The
+        // flag-off world memoizes the shared facade.
         installStore(d1StoreFor(db, {
           writeBudgetMs: resolveStoreWriteBudgetMs(c.env as CloudflareApiEnv),
           replicaReads: d1ReplicaReadsEnabled(c.env as CloudflareApiEnv),

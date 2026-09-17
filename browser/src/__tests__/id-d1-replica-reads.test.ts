@@ -171,7 +171,7 @@ describe('the D1 replica-reads routing (TODO.restructure/28-E)', () => {
     expect(binding.statements.length).toBeGreaterThan(0)
   })
 
-  it('the flag on: ONE first-primary session per store instance carries every statement — the ensure chains included, nothing binding-direct', async () => {
+  it('the flag on: each d1StoreFor resolution answers a FRESH first-primary session — one per REQUEST, every statement carried, nothing binding-direct', async () => {
     const binding = new RecordingBinding(db)
     const store = d1StoreFor(binding as unknown as D1Database, { replicaReads: true })
 
@@ -181,14 +181,22 @@ describe('the D1 replica-reads routing (TODO.restructure/28-E)', () => {
     expect(binding.sessions[0].constraint).toBe('first-primary')
     expect(binding.sessions[0].statements.length).toBeGreaterThan(0)
     expect(binding.statements).toHaveLength(0)
-    // The memo posture is unchanged under the flag: the per-request
-    // installs answer the same store, so the session is the isolate's one.
-    expect(d1StoreFor(binding as unknown as D1Database, { replicaReads: true })).toBe(store)
-    // A second INSTANCE over the same binding answers its own session —
+    // The PER-REQUEST posture (the 28-D follow-up, landed): every
+    // resolution answers its own store + session — a request's first
+    // query pins the primary, and its bookmark never carries another
+    // request's writes (the isolate-shared session's residual
+    // coupling). The flag-off memo (the leg above) is the unchanged
+    // byte-identical world.
+    const second = d1StoreFor(binding as unknown as D1Database, { replicaReads: true })
+    expect(second).not.toBe(store)
+    await second.listDemoAccounts()
+    expect(binding.sessions).toHaveLength(2)
+    expect(binding.sessions[1].constraint).toBe('first-primary')
+    // A directly-constructed INSTANCE answers its own session too —
     // the session is instance state, never a global.
     const other = new D1ServerStore(binding as unknown as D1Database, { replicaReads: true })
     await other.listDemoAccounts()
-    expect(binding.sessions).toHaveLength(2)
+    expect(binding.sessions).toHaveLength(3)
   })
 
   it('a write through the session advances its bookmark; the read-after-write pair rides the same session and observes the write', async () => {
