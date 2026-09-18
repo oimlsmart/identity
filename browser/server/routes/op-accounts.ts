@@ -209,7 +209,10 @@ export function createOpAccountsRouter(): Hono {
         const clientIds = await seedOidcClientsFromEnv(env, getStore())
         if (clientIds.length) console.log(`[op] client registry bootstrap seeded: ${clientIds.join(', ')}`)
       })()
-      seeded.catch(() => { seeded = null }) // a failed seed retries next request
+      seeded.catch((err) => {
+        seeded = null // a failed seed retries next request — but NEVER silently again (2026-09-18: the production seed failed and the retry rode every /api/op/* window unseen, ~20 store calls + writes a piece, until the exact Server-Timing instrument caught it)
+        console.error('[op] the bootstrap seed failed — it will retry on the next credential request:', (err as Error).message)
+      })
     }
     return seeded
   }
