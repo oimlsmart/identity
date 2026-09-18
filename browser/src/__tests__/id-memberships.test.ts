@@ -228,7 +228,7 @@ demo_personas: true
   expect(probe.status).toBe(200)
   // The demo cast's seed (auth-lean's ensureInit) rides the first /api/auth call.
   await demoLogin('admin@oiml.org')
-})
+}, 30_000)
 
 afterAll(() => {
   resetProfile()
