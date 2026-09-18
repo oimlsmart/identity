@@ -46,4 +46,22 @@ if (process.env.NODE_ENV !== 'production') {
   app.route('/api/dev-reset', devReset)
 }
 
+// The env-declared bootstrap (OP_ACCOUNT_SEED + OP_CLIENT_SEED) runs at
+// BOOT on the node/self-host posture — the operator's log carries the
+// seeded admin's one-time setup link without waiting for a request (the
+// self-host smoke proof greps exactly this). Idempotent upserts; the
+// Worker posture seeds lazily on the credential surfaces
+// (server/routes/op-accounts.ts) — its env is per-request there.
+if (process.env.OP_ACCOUNT_SEED?.trim() || process.env.OP_CLIENT_SEED?.trim()) {
+  const { resolveOpConfig, opRequestOrigin } = await import('./auth/op/config')
+  const { seedOpAccountsFromEnv } = await import('./auth/op/accounts')
+  const { seedOidcClientsFromEnv } = await import('./auth/op/registry')
+  const { getStore } = await import('./store')
+  const issuer = resolveOpConfig(process.env, `http://localhost:${process.env.PORT || 3190}`).issuer
+  const accountIds = await seedOpAccountsFromEnv(process.env, getStore(), issuer)
+  if (accountIds.length) console.log(`[op] account bootstrap seeded: ${accountIds.join(', ')}`)
+  const clientIds = await seedOidcClientsFromEnv(process.env, getStore())
+  if (clientIds.length) console.log(`[op] client registry bootstrap seeded: ${clientIds.join(', ')}`)
+}
+
 export default app
