@@ -82,9 +82,12 @@ export function createApiApp(options: ApiAppOptions): Hono {
       return
     }
     const { report } = await measureStorePhase(() => next())
+    // DIAGNOSTIC (temporary, revert after the 22-call hunt): the
+    // by-method breakdown rides the desc so the wire names the callers.
+    const detail = Object.entries(report.byMethod).map(([m, n]) => `${m}:${n}`).join(' ')
     c.header(
       'Server-Timing',
-      `app;dur=${Date.now() - start}, store;dur=${report.totalMs.toFixed(1)};desc="${report.total} calls"`,
+      `app;dur=${Date.now() - start}, store;dur=${report.totalMs.toFixed(1)};desc="${report.total} calls ${detail}"`,
     )
   })
 
