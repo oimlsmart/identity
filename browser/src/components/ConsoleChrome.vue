@@ -108,6 +108,56 @@ const sections = computed<ReadonlyArray<NavEntry>>(() =>
     ? (isAdmin.value ? adminEntries.value : [])
     : props.area === 'account' ? ACCOUNT_ENTRIES : [])
 
+// ── the account console's scroll-spy (the one long page) ────────────
+// The admin area's `current` is a static, per-page prop (separate
+// pages); the account console is ONE long page whose sections live in
+// the page's own island — the rail's highlight must FOLLOW: the hash
+// on load and on section-link clicks, the scroll as the viewport
+// crosses sections (the 2026-09-18 report: "the highlight doesn't
+// follow"). The pick: the LAST section whose top has crossed a focus
+// line 30% down the viewport; before any crossing, profile.
+const activeSection = ref('profile')
+const currentKey = computed(() => (props.area === 'account' ? activeSection.value : props.current))
+
+function pickActiveFromScroll(): void {
+  // The last section can never reach the focus line (the page ends
+  // first) — at the bottom of the document, the last section IS the
+  // current one. GUARDED on the island's content existing: before the
+  // page's own island renders, the document is short and the clamp
+  // would falsely fire.
+  if (document.getElementById('profile')
+    && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+    activeSection.value = ACCOUNT_ENTRIES[ACCOUNT_ENTRIES.length - 1].key
+    return
+  }
+  const focusLine = window.innerHeight * 0.3
+  let current = 'profile'
+  for (const entry of ACCOUNT_ENTRIES) {
+    const el = document.getElementById(entry.key)
+    if (el && el.getBoundingClientRect().top <= focusLine) current = entry.key
+  }
+  activeSection.value = current
+}
+
+function pickActiveFromHash(): void {
+  const key = window.location.hash.replace(/^#/, '')
+  activeSection.value = ACCOUNT_ENTRIES.some(e => e.key === key) ? key : 'profile'
+}
+
+if (typeof window !== 'undefined') {
+  onMounted(() => {
+    if (props.area !== 'account') return
+    pickActiveFromHash()
+    pickActiveFromScroll()
+    window.addEventListener('scroll', pickActiveFromScroll, { passive: true })
+    window.addEventListener('hashchange', pickActiveFromHash)
+  })
+  onUnmounted(() => {
+    window.removeEventListener('scroll', pickActiveFromScroll)
+    window.removeEventListener('hashchange', pickActiveFromHash)
+  })
+}
+
 /** The header's current-section label (the area's name). */
 const areaLabel = computed(() =>
   props.area === 'admin' ? t('shell.nav.admin') : props.area === 'account' ? t('account.title') : t('home.title'))
@@ -196,7 +246,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <ul class="space-y-0.5">
         <li v-for="entry in sections" :key="entry.key">
           <span
-            v-if="entry.key === current"
+            v-if="entry.key === currentKey"
             class="block rounded-md px-3 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-200 bg-brand-50 dark:bg-brand-900/30"
             aria-current="page"
             :data-testid="`${area === 'admin' ? 'op-admin-nav' : 'op-account-nav'}-${entry.key}`"
