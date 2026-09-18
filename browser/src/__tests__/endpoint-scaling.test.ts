@@ -399,6 +399,19 @@ describe('the registry surface — covered by the sibling wave (fix/registry-org
   })
 })
 
+describe('the public join surface — the selector\'s register (TODO.restructure/28 follow-up: the wire-measured 22-call diet)', () => {
+  it('GET /api/op/organizations (anonymous, the join page\'s backbone)', async () => {
+    const leg = await runLeg({
+      seedSmall: () => seedRegistryOrgs(0, SMALL).then(() => SMALL),
+      grow: () => seedRegistryOrgs(SMALL, LARGE - SMALL).then(() => LARGE),
+      request: () => app.fetch(req('/api/op/organizations')),
+    })
+    expectScalingInvariant({
+      label: 'GET /api/op/organizations anonymous', ...leg,
+    })
+  })
+})
+
 describe('the pinned constants (the regression net)', () => {
   it('GET /api/op/registry/activity (the registry’s audit slice)', async () => {
     const leg = await runLeg({

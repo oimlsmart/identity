@@ -24,24 +24,26 @@
 // module and getStore() resolves through the counting proxy for the
 // request's duration.
 //
-// PER-REQUEST ATTRIBUTION, honestly scoped: the counter is a
-// MONOTONE per-process accumulator and each request measures a
-// snapshot DELTA (the gate's own measure() primitive — the same
-// instrument, DRY). AsyncLocalStorage would give exact attribution
-// under concurrency but is a node builtin, off-limits in this
-// worker-safe layer; a per-request resettable slot would RACE under
-// concurrent in-flight requests in one isolate (a later request's
-// begin would clobber an earlier one's counter mid-flight). The
-// monotone-delta form never loses or double-resets anything: under
-// concurrency a request's report may include a concurrent request's
-// calls — a diagnostic posture's honest tolerance, never a billing
-// meter. The flag is off by default and on only for measurement
-// sessions.
+// PER-REQUEST ATTRIBUTION, EXACT: each measured window runs inside
+// its own AsyncLocalStorage context carrying a FRESH counter (the
+// gate's own measure() primitive — the same instrument, DRY), so a
+// request's report counts exactly its own calls — never a sibling
+// concurrent request's. (The 2026-09-18 wire lesson that forced this:
+// the earlier monotone-accumulator + delta form let concurrent
+// requests' calls land in one another's reports — one curl against
+// the public org list read 22 calls / ~500 ms on an endpoint whose
+// own cost is 2 calls / ~20 ms, and the misreading nearly refactored
+// a healthy surface. The tolerance is gone; the numbers are now
+// measurements, not hints.)
 //
-// WORKER-SAFE: no node built-ins — the Worker bundle carries this
-// module whole.
+// PORTABLE: node:async_hooks' AsyncLocalStorage is the ONE node
+// import — legal in both postures (native in node; on the Worker
+// under the deployment's nodejs_compat compatibility flag) — because
+// exact per-request attribution requires it and an inexact
+// instrument is worse than none (see the request seam below).
 // ═══════════════════════════════════════════════════════════════════
 
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { ServerStore } from './store'
 
 /** One measured window's store-call report: the call COUNT (the
@@ -58,12 +60,28 @@ export interface StoreTimingReport {
 
 /** The counting facade over a real store. The endpoint-scaling gate
  *  wraps its fixture store in one instance; the SERVER_TIMING
- *  middleware measures each request through the module's own
- *  accumulator below. One instance, one monotone set of totals. */
+ *  middleware scopes one instance per REQUEST (the ALS seam below).
+ *  One instance, one monotone set of totals. */
 export class StoreCallCounter {
   private counts = new Map<string, number>()
   private times = new Map<string, number>()
   private depth = 0
+  /** The per-instance proxy cache: one counting view per (counter,
+   *  store) pair — a measured request re-getStore()s freely without
+   *  re-wrapping. Weak so the views die with the stores. */
+  private views = new WeakMap<ServerStore, ServerStore>()
+
+  /** The counting view of a store through THIS counter — cached, so
+   *  the flag-on world allocates one proxy per store per window,
+   *  never one per getStore() call. */
+  view(store: ServerStore): ServerStore {
+    let wrapped = this.views.get(store)
+    if (!wrapped) {
+      wrapped = this.wrap(store)
+      this.views.set(store, wrapped)
+    }
+    return wrapped
+  }
 
   /** Wrap the store: every method invocation passes through record()
    *  below; non-function properties forward untouched. */
@@ -151,47 +169,31 @@ export function serverTimingEnabled(env: Record<string, string | undefined>): bo
   return env.SERVER_TIMING !== undefined && env.SERVER_TIMING.trim() !== ''
 }
 
-/** The module's own monotone accumulator — created at module load (an
- *  empty pair of maps, no cost until a counted call lands) and NEVER
- *  reset: per-request numbers are snapshot deltas, which is what makes
- *  concurrent measured requests lose nothing. */
-const counter = new StoreCallCounter()
+/** The per-request counter scope. AsyncLocalStorage gives every
+ *  measured request its OWN StoreCallCounter — exact attribution under
+ *  concurrency — and is legal in BOTH postures: natively in node, and
+ *  on the Worker under the deployment's nodejs_compat flag. (The
+ *  2026-09-18 wire lesson: the earlier monotone-accumulator + delta
+ *  design let a concurrent request's calls land in another's report —
+ *  a single curl read 22 calls on an endpoint whose own cost is 2, and
+ *  the misreading nearly refactored a healthy surface. An instrument
+ *  that can misattribute by 10× is not a measurement.) */
+const requestScope = new AsyncLocalStorage<StoreCallCounter>()
 
-/** Whether a measured request window is currently in flight (set for
- *  the duration of measureStorePhase below). getStore() resolves
- *  through the counting proxy ONLY while this is true — outside a
- *  measured window (scripts, seeds, the flag-off world) the installed
- *  store passes through untouched. */
-let measuring = false
-
-/** The cached proxy per wrapped store instance, so the flag-on world
- *  allocates one proxy per installed store, not one per getStore()
- *  call. The Worker installs a fresh D1 store per request; the cache
- *  rotates with it. */
-let proxyFor: ServerStore | null = null
-let proxy: ServerStore | null = null
-
-/** getStore()'s hook: the counting view of the store while a
- *  SERVER_TIMING-measured request is in flight; the store itself,
- *  unchanged, at every other moment. */
+/** getStore()'s hook: the counting view of the store when the current
+ *  async context carries a measured window; the store itself,
+ *  unchanged, at every other moment (scripts, seeds, the flag-off
+ *  world, unmeasured requests). The proxy caches per counter instance
+ *  — one proxy per (request, store) pair, never per getStore() call. */
 export function timedStore(store: ServerStore): ServerStore {
-  if (!measuring) return store
-  if (proxyFor !== store || proxy === null) {
-    proxyFor = store
-    proxy = counter.wrap(store)
-  }
-  return proxy
+  const counter = requestScope.getStore()
+  return counter ? counter.view(store) : store
 }
 
-/** The Server-Timing middleware's measurement window: engage the
- *  counting view for the duration of the request, then answer the
- *  request's store-call delta. The window is the middleware closure's
- *  own span — the per-request scoping lives here. */
+/** The Server-Timing middleware's measurement window: a FRESH counter
+ *  scoped to this request's async context, so the report answers
+ *  exactly this request's calls — never a sibling's. */
 export async function measureStorePhase<T>(run: () => Promise<T> | T): Promise<{ result: T; report: StoreTimingReport }> {
-  measuring = true
-  try {
-    return await counter.measure(run)
-  } finally {
-    measuring = false
-  }
+  const counter = new StoreCallCounter()
+  return requestScope.run(counter, () => counter.measure(run))
 }

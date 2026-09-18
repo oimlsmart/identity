@@ -313,6 +313,16 @@ describe('the join flow’s manufacturer branch', () => {
     expect(ids).not.toContain('mfr-acme-sensors')
   })
 
+  it('the register feed answers edge-cacheable (public, minutes-fresh)', async () => {
+    // The register is public scheme data, ops-managed, changed a few
+    // times a year; the join page's selector tolerates minutes of
+    // staleness and the submit re-validates server-side anyway. The
+    // header lets Cloudflare's edge carry the repeat load.
+    const res = await app.request(`${ORIGIN}/api/op/organizations`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('public, max-age=300')
+  })
+
   it('the submit gate refuses a disabled manufacturer org’s explicit id honestly', async () => {
     const res = await app.request(`${ORIGIN}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },

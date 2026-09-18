@@ -116,3 +116,41 @@ describe('SERVER_TIMING unset — the default, zero-overhead posture', () => {
     expect(health.headers.get('server-timing')).toMatch(APP_ONLY)
   })
 })
+
+describe('the instrument\'s attribution — exact under concurrency (the 2026-09-18 wire lesson)', () => {
+  // The 2026-09-18 wire reading taught this the hard way: a single
+  // curl against /api/op/organizations reported 22 calls / ~500 ms —
+  // the endpoint's OWN cost is 2 calls / ~20 ms (proven by the
+  // scaling gate's new leg), and the other 20 were a CONCURRENT
+  // request's calls landing in the shared monotone accumulator (the
+  // module header's own honest tolerance, misread as an endpoint
+  // defect). An instrument that can misattribute by 10× is not a
+  // measurement — this leg pins the exact per-request attribution
+  // (AsyncLocalStorage, available under nodejs_compat on the Worker
+  // and natively in node — both postures).
+  it('two overlapping measured windows each count ONLY their own calls', async () => {
+    process.env.SERVER_TIMING = '1'
+    const { measureStorePhase, timedStore } = await import('../../server/store-timing')
+    const { getStore } = await import('../../server/store')
+    try {
+      const window = async (keys: string[]) => {
+        const { report } = await measureStorePhase(async () => {
+          // Reads batch freely (the seam's doctrine); each getEntity on
+          // the counting view is exactly one counted call.
+          await Promise.all(keys.map(k => timedStore(getStore()).getEntity('attribution-probe', k)))
+        })
+        return report
+      }
+      // The interleaving is forced: both windows open before either's
+      // calls resolve (the awaits below start concurrently).
+      const [a, b] = await Promise.all([
+        window(['a1', 'a2', 'a3']),
+        window(['b1', 'b2', 'b3', 'b4']),
+      ])
+      expect(a.total, `window A counts only its own 3 calls (got ${a.total})`).toBe(3)
+      expect(b.total, `window B counts only its own 4 calls (got ${b.total})`).toBe(4)
+    } finally {
+      delete process.env.SERVER_TIMING
+    }
+  })
+})
