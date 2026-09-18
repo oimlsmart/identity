@@ -207,9 +207,13 @@ export function createOpRouter(): Hono {
 
   // GET /.well-known/openid-configuration — the discovery document. The
   // RP side (auth/oidc.ts) requires issuer/authorization_endpoint/
-  // token_endpoint/jwks_uri and an exact issuer match.
+  // token_endpoint/jwks_uri and an exact issuer match. Public,
+  // deploy-stable, fetched by every RP on every flow: the edge carries
+  // the repeat load (5-minute freshness — the document changes only on
+  // deploys).
   op.get('/.well-known/openid-configuration', async (c) => {
     const { issuer } = configFor(c)
+    c.header('Cache-Control', 'public, max-age=300')
     return c.json({
       issuer,
       authorization_endpoint: `${issuer}/op/authorize`,
@@ -267,6 +271,10 @@ export function createOpRouter(): Hono {
     } catch (err) {
       console.warn('[op] jwks.json: the signing key is unavailable on this isolate; serving the registered table:', (err as Error).message)
     }
+    // Edge-cacheable: the table changes only on the rotation ceremony,
+    // whose 24 h retirement margin (1 h tokens + 1 h RP caches) sits
+    // two orders above a 5-minute freshness.
+    c.header('Cache-Control', 'public, max-age=300')
     return c.json(await opJwks(store))
   })
 
