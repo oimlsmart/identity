@@ -101,6 +101,17 @@ jobs:
           fi
           npx tsx scripts/op-audit-retention.ts --remote --apply
 
+      - name: The TTL tables' expired-row sweep (hygiene, ungated)
+        working-directory: browser
+        # Retention part 2 (2026-09-18): an expired session, code,
+        # token, or one-time challenge is dead by definition — one
+        # never presented again otherwise lingers forever. Unlike the
+        # audit window this needs NO policy (every row declares its own
+        # expiry), so it runs ungated with --apply every night. The
+        # identifiers come from the seam's TTL_TABLES constant; counts
+        # only in the log (the public-job-log discipline).
+        run: npx tsx scripts/op-ttl-sweep.ts --remote --apply
+
   report-failure:
     # One honest summary per failed run (the heartbeat + backup
     # pattern): the standing issue gets the run link appended; the
