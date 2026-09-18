@@ -22,7 +22,10 @@ function unpack(packed: string, size: number): Uint8Array {
 }
 
 describe('the local QR renderer (src/qr.ts)', () => {
-  it('matches the reference matrices, every mask + the penalty-driven auto choice', () => {
+  // 30 s: the matrices leg is pure deterministic computation, but under
+  // the full suite's parallel load this machine blew the default 5 s
+  // (2026-09-18; green in isolation) — the budget follows the machine.
+  it('matches the reference matrices, every mask + the penalty-driven auto choice', { timeout: 30_000 }, () => {
     for (const entry of QR_GOLDEN) {
       for (let mask = 0; mask < 8; mask++) {
         const golden = entry.masks[String(mask)]!

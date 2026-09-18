@@ -138,7 +138,7 @@ demo_personas: true
     enabled: true,
     createdBy: 'test',
   })
-})
+}, 30_000)
 
 afterAll(async () => {
   rmSync(TMP, { recursive: true, force: true })
