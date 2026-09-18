@@ -58,15 +58,21 @@ const ADMIN_ENTRIES: ReadonlyArray<NavEntry> = [
 ]
 
 // The account console's sections (the one long page's anchors — every
-// section carries its id in account.vue / AccountFactors.vue).
+// section carries its id in account.vue / AccountFactors.vue). The
+// hrefs are HASH-ONLY, deliberately: the served page's canonical URL
+// may carry a trailing slash (/op/account/), and a path-carrying href
+// (/op/account#x) would then be a DIFFERENT document — every section
+// click a full reload landing back at the top (the 2026-09-18
+// production report: "they don't go anywhere except profile"). A
+// hash-only href is same-document on either canonical form.
 const ACCOUNT_ENTRIES: ReadonlyArray<NavEntry> = [
-  { key: 'profile', to: '/op/account#profile', labelKey: 'account.profile.title' },
-  { key: 'organizations', to: '/op/account#organizations', labelKey: 'account.organizations.title' },
-  { key: 'methods', to: '/op/account#methods', labelKey: 'account.methods.title' },
-  { key: 'factors', to: '/op/account#factors', labelKey: 'account.factors.title' },
-  { key: 'password', to: '/op/account#password', labelKey: 'account.password.title' },
-  { key: 'sessions', to: '/op/account#sessions', labelKey: 'account.sessions.title' },
-  { key: 'activity', to: '/op/account#activity', labelKey: 'account.activity.title' },
+  { key: 'profile', to: '#profile', labelKey: 'account.profile.title' },
+  { key: 'organizations', to: '#organizations', labelKey: 'account.organizations.title' },
+  { key: 'methods', to: '#methods', labelKey: 'account.methods.title' },
+  { key: 'factors', to: '#factors', labelKey: 'account.factors.title' },
+  { key: 'password', to: '#password', labelKey: 'account.password.title' },
+  { key: 'sessions', to: '#sessions', labelKey: 'account.sessions.title' },
+  { key: 'activity', to: '#activity', labelKey: 'account.activity.title' },
 ]
 
 // ── the session role gate (the console switch's admin entry + the
