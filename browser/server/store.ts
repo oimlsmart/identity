@@ -1589,6 +1589,19 @@ export class StoreUnavailable extends Error {
 /** The async store contract the routes consume. Every method mirrors a
  *  sync counterpart in store.ts / entities.ts — same SQL, same
  *  semantics, awaited. */
+/** The TTL sweep's table set (schema-audited 2026-09-18): every table
+ *  whose expires_at is a true TTL. EXCLUDED deliberately:
+ *  instrument_registrations (its expires_at is the CERTIFICATE's
+ *  validity — a domain fact and history, never garbage) and
+ *  oidc_keys (the rotation's at-the-time honesty keeps retired rows
+ *  by design). */
+export const TTL_TABLES = [
+  'sessions', 'oidc_authorizations', 'oidc_codes', 'oidc_access_tokens',
+  'oidc_refresh_tokens', 'enrollment_tokens', 'email_change_tokens',
+  'sso_states', 'webauthn_challenges', 'mfa_pending',
+  'personal_access_tokens',
+] as const
+
 export interface ServerStore {
   // ── users / sessions (schema.sql's auth half) ──
   seedDemoAccounts(): Promise<void>
@@ -2299,6 +2312,16 @@ export interface ServerStore {
   /** Every registry organization, every state, name-ordered. */
   listOrgRegistryOrgs(): Promise<OrgRegistryOrg[]>
   getOrgRegistryOrg(id: string): Promise<OrgRegistryOrg | null>
+
+  /** The TTL sweep (retention part 2, 2026-09-18): delete up to `limit`
+   *  EXPIRED rows (expires_at strictly before the cutoff) from each
+   *  TTL_TABLES table, answering per-table deleted counts. Paged by the
+   *  rowid-IN form (portable: no SQLITE_ENABLE_UPDATE_DELETE_LIMIT
+   *  assumption) so one call is one bounded DELETE per table — the
+   *  bounded-write budget's friend; the nightly script loops to zero.
+   *  Expired TTL rows are dead by definition: one never presented again
+   *  (the abandoned-flow common case) otherwise lingers forever. */
+  purgeExpiredTtlRows(cutoffIso: string, limit: number): Promise<Record<string, number>>
   /** Add the organization. NULL on the id conflict (the slug is taken —
    *  the route's honest 409). */
   createOrgRegistryOrg(input: {

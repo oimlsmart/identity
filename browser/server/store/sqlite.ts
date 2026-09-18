@@ -139,7 +139,7 @@ import {
   updateOpAccount,
   updateUserName,
 } from './sqlite/op-accounts-store'
-import { installStore, type AccountEmail, type AddAccountEmailResult, type AuthUserPayload, type CertificateHolderClaim, type CertificateHolderOrg, type CompleteEmailChangeResult, type CompleteEnrollmentResult, type ConsumeOidcRefreshTokenResult, type EmailChangeToken, type EnrollmentToken, type EntityChange, type EntityListOptions, type EntityRow, type EntityWriteInput, type EventEntityKey, type EventKeyFilter, type EventWriteInput, type FederationPeer, type IdentityApproval, type IdentityLink, type IdentityProvider, type InstrumentRegistration, type InstrumentRegistrationLifecycle, type InstrumentRegistrationScopeStatus, type InstrumentRegistrationWriteInput, type JournalAppend, type NotifyDelivery, type NotifyDeliveryStatus, type NotifyEntityMute, type NotifyInboxState, type NotifyPreferences, type NotifyRule, type OAuthInitialAssignment, type OidcAccessToken, type OidcAuthorization, type OidcClient, type OidcClientLaunch, type OidcCode, type OidcConsentGrant, type OidcKeyRow, type OidcRefreshToken, type OpAccountErasure, type OpClientRoleAssignment, type OpLiveSession, type OrgJoinRequest, type OrgMembership, type OrgMembershipState, type OrgRegistryContact, type OrgRegistryOrg, type OrgRegistryState, type PersonalAccessToken, type PlatformEvent, type ServerStore, type SessionView, type SsoSignInState, type UserAdminRow, type AdvanceCounterResult, type MfaPending, type RecoveryCodeState, type TotpSecret, type WebauthnChallenge, type WebauthnCredential } from '../store'
+import { TTL_TABLES, installStore, type AccountEmail, type AddAccountEmailResult, type AuthUserPayload, type CertificateHolderClaim, type CertificateHolderOrg, type CompleteEmailChangeResult, type CompleteEnrollmentResult, type ConsumeOidcRefreshTokenResult, type EmailChangeToken, type EnrollmentToken, type EntityChange, type EntityListOptions, type EntityRow, type EntityWriteInput, type EventEntityKey, type EventKeyFilter, type EventWriteInput, type FederationPeer, type IdentityApproval, type IdentityLink, type IdentityProvider, type InstrumentRegistration, type InstrumentRegistrationLifecycle, type InstrumentRegistrationScopeStatus, type InstrumentRegistrationWriteInput, type JournalAppend, type NotifyDelivery, type NotifyDeliveryStatus, type NotifyEntityMute, type NotifyInboxState, type NotifyPreferences, type NotifyRule, type OAuthInitialAssignment, type OidcAccessToken, type OidcAuthorization, type OidcClient, type OidcClientLaunch, type OidcCode, type OidcConsentGrant, type OidcKeyRow, type OidcRefreshToken, type OpAccountErasure, type OpClientRoleAssignment, type OpLiveSession, type OrgJoinRequest, type OrgMembership, type OrgMembershipState, type OrgRegistryContact, type OrgRegistryOrg, type OrgRegistryState, type PersonalAccessToken, type PlatformEvent, type ServerStore, type SessionView, type SsoSignInState, type UserAdminRow, type AdvanceCounterResult, type MfaPending, type RecoveryCodeState, type TotpSecret, type WebauthnChallenge, type WebauthnCredential } from '../store'
 import {
   advanceWebauthnCounter,
   consumeMfaPending,
@@ -367,6 +367,23 @@ export class SqliteServerStore implements ServerStore {
   // ── the organization registry (TODO.identity-features/05) ──
   async listOrgRegistryOrgs(): Promise<OrgRegistryOrg[]> {
     return listOrgRegistryOrgs(this.db)
+  }
+
+  async purgeExpiredTtlRows(cutoffIso: string, limit: number): Promise<Record<string, number>> {
+    // The TTL sweep (the seam interface's doctrine): one bounded
+    // DELETE per table per call, rowid-IN paged (portable — no
+    // SQLITE_ENABLE_UPDATE_DELETE_LIMIT assumption), the script
+    // loops to zero. Serial by construction (better-sqlite3 is
+    // synchronous — the writes-serial doctrine's natural citizen).
+    // The identifiers come from OUR TTL_TABLES constant, never
+    // caller input.
+    const counts: Record<string, number> = {}
+    for (const table of TTL_TABLES) {
+      counts[table] = this.db.prepare(
+        `DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM ${table} WHERE expires_at < ? LIMIT ?)`,
+      ).run(cutoffIso, limit).changes
+    }
+    return counts
   }
   async getOrgRegistryOrg(id: string): Promise<OrgRegistryOrg | null> {
     return getOrgRegistryOrg(this.db, id)

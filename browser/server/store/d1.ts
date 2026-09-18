@@ -30,6 +30,7 @@
 
 import type { D1Database, D1PreparedStatement, D1Result } from '@cloudflare/workers-types'
 import {
+  TTL_TABLES,
   APPEND_EVENTS_CHUNK,
   DEMO_PASSWORD,
   EVENTS_BULK_KEY_CHUNK,
@@ -3122,6 +3123,22 @@ export class D1ServerStore implements ServerStore {
     await this.ensureOrgRegistrySupport()
     const res = await this.stmt('SELECT * FROM org_registry').all<Record<string, unknown>>()
     return res.results.map(D1ServerStore.toOrgRegistryOrg).sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  async purgeExpiredTtlRows(cutoffIso: string, limit: number): Promise<Record<string, number>> {
+    // The TTL sweep (the seam interface's doctrine): one bounded DELETE
+    // per table per call, rowid-IN paged (portable), the script loops.
+    // The tables are the seam's TTL_TABLES constant — identifiers from
+    // OUR declaration, never caller input (no interpolation surface).
+    const counts: Record<string, number> = {}
+    for (const table of TTL_TABLES) {
+      const res = await this.stmt(
+        `DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM ${table} WHERE expires_at < ? LIMIT ?)`,
+        cutoffIso, limit,
+      ).run()
+      counts[table] = res.meta.changes ?? 0
+    }
+    return counts
   }
 
   async getOrgRegistryOrg(id: string): Promise<OrgRegistryOrg | null> {
