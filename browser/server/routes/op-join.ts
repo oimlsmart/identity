@@ -172,6 +172,11 @@ export function createOpJoinRouter(): Hono {
   // path declares it).
   router.get('/api/op/organizations', async (c) => {
     const orgs = await listRegistryOrganizations(getStore())
+    // Public scheme data, ops-managed, rarely changed: minutes of
+    // edge freshness are safe (the selector tolerates it; the submit
+    // re-validates server-side), and Cloudflare's edge carries the
+    // join page's repeat load.
+    c.header('Cache-Control', 'public, max-age=300')
     return c.json(orgs.filter(onJoinSelector).map(o => ({
       id: o.id,
       name: o.name,
