@@ -153,4 +153,35 @@ describe('the instrument\'s attribution — exact under concurrency (the 2026-09
       delete process.env.SERVER_TIMING
     }
   })
+
+  it('the bootstrap never rides anonymous public reads (the 2026-09-18 production lesson: a failing seed retried in every /api/op/* window)', async () => {
+    // The full production shape: the account + client seeds DECLARED
+    // (op-accounts mounts its bootstrap under /api/op/*), and the
+    // anonymous register read must carry ONLY its own 2 calls — never
+    // the bootstrap's. On production the seed was failing (and
+    // evicting itself), so every request re-ran 5 accounts x 2 + 5
+    // clients x 2 = 20 extra calls; the fix scopes the bootstrap to
+    // the credential surfaces that need it.
+    process.env.SERVER_TIMING = '1'
+    process.env.OP_ACCOUNT_SEED = JSON.stringify([
+      { email: 'seed-operator@oimlsmart.org', name: 'Seed Operator', role: 'admin' },
+      { email: 'seed-second@oimlsmart.org', name: 'Seed Second' },
+    ])
+    process.env.OP_CLIENT_SEED = JSON.stringify([
+      { client_id: 'seed-client', name: 'Seed Client', redirect_uris: ['https://seed.example/cb'] },
+    ])
+    try {
+      const res = await app.request(`${ISSUER}/api/op/organizations`, undefined, {
+        SERVER_TIMING: '1', OP_ACCOUNT_SEED: process.env.OP_ACCOUNT_SEED, OP_CLIENT_SEED: process.env.OP_CLIENT_SEED,
+      })
+      expect(res.status).toBe(200)
+      const m = res.headers.get('server-timing')?.match(BOTH_PHASES)
+      expect(m, `the header carries both phases: ${res.headers.get('server-timing')}`).not.toBeNull()
+      expect(Number(m![3]), `the anonymous read carries only its own 2 calls (got ${m![3]})`).toBe(2)
+    } finally {
+      delete process.env.SERVER_TIMING
+      delete process.env.OP_ACCOUNT_SEED
+      delete process.env.OP_CLIENT_SEED
+    }
+  })
 })

@@ -209,14 +209,41 @@ export function createOpAccountsRouter(): Hono {
         const clientIds = await seedOidcClientsFromEnv(env, getStore())
         if (clientIds.length) console.log(`[op] client registry bootstrap seeded: ${clientIds.join(', ')}`)
       })()
-      seeded.catch(() => { seeded = null }) // a failed seed retries next request
+      // A failed seed evicts itself and retries on the next credential
+      // request — but NEVER silently again (the 2026-09-18 lesson: the
+      // seed failed on production and the retry rode every /api/op/*
+      // request unseen, ~20 store calls + writes a piece, until the
+      // exact Server-Timing instrument caught it).
+      seeded.catch((err) => {
+        seeded = null
+        console.error('[op] the bootstrap seed failed — it will retry on the next credential request:', (err as Error).message)
+      })
     }
     return seeded
   }
-  accounts.use('/api/op/*', async (c, next) => {
-    await ensureSeeded(c)
-    await next()
-  })
+  // The bootstrap rides ONLY the credential surfaces that consume the
+  // env-declared accounts + clients — never the anonymous public reads
+  // (the 2026-09-18 lesson: '/api/op/*' put the failing seed's retry in
+  // every window, 20 calls a piece, until the exact instrument caught
+  // it; the production arithmetic was 5 accounts x 2 + 5 clients x 2
+  // + the route's own 2 = the wire's 22).
+  for (const path of [
+    '/api/op/login',
+    '/api/op/login/reset',
+    '/api/op/login/mfa/*',
+    '/api/op/login/passkey',
+    '/api/op/login/passkey/options',
+    '/api/op/register',
+    '/api/op/accounts',
+    '/api/op/accounts/*',
+    '/api/op/org-invites',
+    '/api/op/org-invites/*',
+  ]) {
+    accounts.use(path, async (c, next) => {
+      await ensureSeeded(c)
+      await next()
+    })
+  }
 
   /** The account mutations' audit trail (the same discipline as
    *  routes/auth.ts's SSO audit: the audit never blocks the path).
