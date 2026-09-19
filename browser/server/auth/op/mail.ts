@@ -104,7 +104,7 @@ import { getInstanceProfile } from '../../profile'
 import { mailerFor, type MailEnv, type MailPosture } from '../../mailer'
 import type { ServerStore } from '../../store'
 
-export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_expiring'
+export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_edited' | 'pat_expiring'
   // TODO.identity-sso/04 slice D: the account-lifecycle security notices
   // (each a pure notification — never a primary button; the "was this
   // you?" reset pointer rides the secondary block, the `reset` flag).
@@ -175,6 +175,7 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   // notifications (the console's developer-tokens section is named in
   // the prose, never a deep link).
   pat_minted: { subject: 'mail.patMinted.subject', preheader: 'mail.patMinted.preheader', heading: 'mail.patMinted.heading', body: 'mail.patMinted.body', why: 'mail.patMinted.why', link: false },
+  pat_edited: { subject: 'mail.patEdited.subject', preheader: 'mail.patEdited.preheader', heading: 'mail.patEdited.heading', body: 'mail.patEdited.body', why: 'mail.patEdited.why', link: false },
   pat_expiring: { subject: 'mail.patExpiring.subject', preheader: 'mail.patExpiring.preheader', heading: 'mail.patExpiring.heading', body: 'mail.patExpiring.body', why: 'mail.patExpiring.why', link: false },
   // TODO.identity-sso/04 slice D: the account-lifecycle notices — every
   // one a pure notification (link: false) carrying the "was this you?"

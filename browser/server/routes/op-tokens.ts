@@ -16,6 +16,12 @@
 //                                              the SHA-256 only), the
 //                                              audit event, the
 //                                              notification email;
+//   PATCH  /api/op/account/tokens/:id        — the management act
+//                                              (issue #115): the rename
+//                                              and/or the scope edit
+//                                              (the live narrowing
+//                                              bound; the direction
+//                                              audited + mailed).
 //   DELETE /api/op/account/tokens/:id        — the revoke (the owner's
 //                                              guarded flip; the row stays
 //                                              for the audit + the org
@@ -174,6 +180,115 @@ export function createOpTokensRouter(): Hono {
       scopes: pat.scopes,
     })
     return c.json({ ok: true })
+  })
+
+  // PATCH /api/op/account/tokens/:id — the MANAGEMENT act (issue #115):
+  // the rename (presentation-only) and/or the scope edit (the complete
+  // replacement set, the mint's validation exactly — the live narrowing
+  // bound under the session's effective org context). Both directions
+  // are safe because the exchange re-judges the narrowing against the
+  // holder's live standing on every use; widening is still audited (and
+  // mailed) distinctly, because widening a credential is a
+  // security-relevant act an owner may wish to review.
+  tokens.patch('/api/op/account/tokens/:id', async (c) => {
+    const { user, error } = await requireUser(c)
+    if (error || !user) return error!
+    const store = getStore()
+    const pat = await store.getPersonalAccessToken(c.req.param('id'))
+    if (!pat || pat.userId !== user.id) return c.json({ error: 'no such token' }, 404)
+    // A dead credential's permissions are not meaningfully editable.
+    if (pat.revokedAt || new Date(pat.expiresAt).getTime() <= Date.now()) {
+      return c.json({ error: 'this token is revoked or expired — mint a fresh one instead of editing a dead credential' }, 409)
+    }
+    const body = await c.req.json<{ name?: unknown; scopes?: unknown }>().catch(() => null)
+    if (!body || (body.name === undefined && body.scopes === undefined)) {
+      return c.json({ error: 'the edit needs a name and/or a scopes field' }, 400)
+    }
+    const config = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw))
+
+    let updated = pat
+    if (body.name !== undefined) {
+      const name = typeof body.name === 'string' ? body.name.trim() : ''
+      if (name.length < 1 || name.length > 60) {
+        return c.json({ error: 'the token needs a name (1–60 characters) — the console list labels by it' }, 400)
+      }
+      updated = (await store.renamePersonalAccessToken(pat.id, user.id, name))!
+      await auditPat('account.pat_renamed', user.id, { userId: user.id, userName: user.name }, {
+        pat: pat.id,
+        from: pat.name,
+        to: name,
+      })
+      await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+        userId: user.id,
+        template: 'pat_edited',
+        issuer: config.issuer,
+        params: {
+          name: user.name,
+          tokenName: name,
+          change: 'renamed',
+          scopes: pat.scopes.join(', '),
+          expires: new Date(pat.expiresAt).toISOString().slice(0, 10),
+        },
+      })
+    }
+
+    if (body.scopes !== undefined) {
+      const scopes = normalizePatScopes(body.scopes)
+      if (!scopes) {
+        return c.json({ error: 'the scopes are the PAT grammar: a non-empty list of \'<service>:<read|write|admin>\'' }, 400)
+      }
+      // THE NARROWING BOUND, at edit (as at mint — the exchange
+      // re-judges it live): the session's resolved context IS the
+      // token's ceiling.
+      const context: OrgContextResolution = {
+        orgId: user.orgId ?? null,
+        roles: user.roles?.length ? user.roles : [user.role],
+        cone: user.cone ?? null,
+      }
+      const verdict = await resolvePatScopesForAccount(store, user, context, scopes, runtimeEnv<EnvLike>(c))
+      if (!verdict.ok) return c.json({ error: verdict.error }, 403)
+      const nextScopes = scopes.map(s => `${s.service}:${s.action}`)
+      const added = nextScopes.filter(s => !updated.scopes.includes(s))
+      const removed = updated.scopes.filter(s => !nextScopes.includes(s))
+      // The DIRECTION rides the CLASS RANKS, not the literal string
+      // diffs: the action classes nest within a service (admin >
+      // write > read — the fold's own rule), so write→read is a
+      // NARROWING whose literal diff would read 'added: read'.
+      // Widening wins a genuinely mixed edit (the security-relevant
+      // reading an owner reviews).
+      const classRank = (cls: string) => (cls === 'admin' ? 3 : cls === 'write' ? 2 : 1)
+      const oldRanks = new Map(updated.scopes.map(s => { const [svc, cls] = s.split(':'); return [svc, classRank(cls)] }))
+      const newRanks = new Map(nextScopes.map(s => { const [svc, cls] = s.split(':'); return [svc, classRank(cls)] }))
+      let widenedAny = false
+      for (const svc of new Set([...oldRanks.keys(), ...newRanks.keys()])) {
+        if ((newRanks.get(svc) ?? 0) > (oldRanks.get(svc) ?? 0)) widenedAny = true
+      }
+      if (added.length || removed.length) {
+        updated = (await store.updatePersonalAccessTokenScopes(pat.id, user.id, nextScopes))!
+        const action = widenedAny ? 'account.pat_scopes_widened' : 'account.pat_scopes_narrowed'
+        await auditPat(action, user.id, { userId: user.id, userName: user.name }, {
+          pat: pat.id,
+          name: updated.name,
+          added,
+          removed,
+          scopes: nextScopes,
+        })
+        await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+          userId: user.id,
+          template: 'pat_edited',
+          issuer: config.issuer,
+          params: {
+            name: user.name,
+            tokenName: updated.name,
+            change: added.length ? 'widened' : 'narrowed',
+            scopes: nextScopes.join(', '),
+            expires: new Date(pat.expiresAt).toISOString().slice(0, 10),
+          },
+        })
+      }
+    }
+
+    return c.json({ token: patListRow(updated) })
   })
 
   return tokens

@@ -2191,6 +2191,16 @@ export interface ServerStore {
    *  account's row answers false). The row STAYS — the audit + the org
    *  inventory carry the history. */
   revokePersonalAccessToken(id: string, userId: string, revokedBy: string): Promise<boolean>
+  /** The rename act (issue #115): presentation-only metadata, guarded on
+   *  the owner's row. Answers the updated row, or null when the row is
+   *  not this owner's. */
+  renamePersonalAccessToken(id: string, userId: string, name: string): Promise<PersonalAccessToken | null>
+  /** The scope-edit act (issue #115): replaces the stored scope set —
+   *  SAFE both ways because the exchange re-judges the narrowing against
+   *  the holder's live standing on every use. The ROUTE applies the
+   *  subset validation; the store only writes. Answers the updated row,
+   *  or null when the row is not this owner's. */
+  updatePersonalAccessTokenScopes(id: string, userId: string, scopes: string[]): Promise<PersonalAccessToken | null>
   /** The exchange path's throttled heartbeat: the caller decides the
    *  throttle from the row it already read; the store stamps. auditAt
    *  rides along when the heartbeat crossed the audit window; the
