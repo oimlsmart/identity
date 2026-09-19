@@ -1,0 +1,121 @@
+---
+// The API reference — the identity service's public documentation.
+// Prerendered shell + Scalar (the interactive reference renderer)
+// consuming the LIVE spec at /api/openapi.json, same-origin: the
+// try-it's requests carry the visitor's console session (the
+// oiml-session cookie) for the Session/Tokens endpoints, and the OIDC
+// endpoints accept a pasted bearer token. The Stripe/GitHub doctrine:
+// the docs execute against the real host, never a mock.
+export const prerender = true
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OIML SMART Identity — API reference</title>
+    <meta name="description" content="The OpenAPI reference of the OIML SMART identity service: the OIDC surface, the join intake, and the self-service account API — interactive, executed against the live service." />
+    <meta name="robots" content="index, follow" />
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.25.34/dist/browser/standalone.min.js" data-spec-url="/api/openapi.json" defer></script>
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; background: #fff; color: #0f172a; }
+      .dark body, body.dark { background: #0f172a; color: #e2e8f0; }
+      header { max-width: 60rem; margin: 0 auto; padding: 3rem 1.5rem 1rem; }
+      header h1 { font-size: 1.75rem; font-weight: 700; margin: 0 0 .5rem; letter-spacing: -.02em; }
+      header .meta { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1.25rem; font-size: .8rem; }
+      .badge { display: inline-block; padding: .15rem .6rem; border-radius: 9999px; font-size: .7rem; font-weight: 600; letter-spacing: .02em; }
+      .badge.v { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+      .badge.base { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-family: ui-monospace, monospace; }
+      section.intro { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem 1.5rem; font-size: .9rem; line-height: 1.65; }
+      section.intro h2 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 .5rem; }
+      section.intro code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: .8rem; background: rgba(148,163,184,.15); padding: .1rem .35rem; border-radius: .25rem; }
+      section.intro pre { background: rgba(148,163,184,.12); border: 1px solid rgba(148,163,184,.25); border-radius: .5rem; padding: .9rem 1rem; overflow-x: auto; font-size: .78rem; line-height: 1.5; }
+      section.intro pre code { background: none; padding: 0; }
+      scalar-api-reference { display: block; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #0f172a; color: #e2e8f0; }
+        .badge.v { background: rgba(6,78,59,.4); color: #6ee7b7; border-color: rgba(6,78,59,.8); }
+        .badge.base { background: rgba(30,58,138,.35); color: #93c5fd; border-color: rgba(30,58,138,.8); }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>OIML SMART Identity — API reference</h1>
+      <div class="meta">
+        <span class="badge v">v1 · edition 1</span>
+        <span class="badge base">https://id.oimlsmart.org</span>
+        <a href="/api/openapi.json" style="font-size:.8rem;">the OpenAPI document</a>
+      </div>
+    </header>
+
+    <section class="intro">
+      <p>
+        The identity service is the estate's OpenID Connect Provider. This reference documents the
+        machine-facing surface — the OIDC endpoints a relying party integrates, the public join intake,
+        and the session-authenticated self-service API every account owns. The reference is
+        <strong>interactive</strong>: every Try-it request executes against the live service on this host.
+      </p>
+
+      <h2>Authentication</h2>
+      <p>Two credentials govern this API, and the reference's Try-it honors both:</p>
+      <p>
+        <strong>The console session</strong> — sign in to your account on this host; the
+        <code>oiml-session</code> cookie (7-day life) rides every same-origin request. The Session and
+        Tokens endpoints authenticate this way — no configuration needed in the Try-it below.
+      </p>
+      <p>
+        <strong>The personal access token</strong> — the machine credential. Mint one on your account page
+        (the developer tokens section), then exchange it for a short-lived, scope-narrowed access token:
+      </p>
+      <pre><code>curl -s https://id.oimlsmart.org/op/token \
+  -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  -d subject_token_type=urn:oimlsmart:params:oauth:token-type:pat \
+  -d subject_token=ospt_YOUR_TOKEN</code></pre>
+      <p>
+        The answer is an OP JWT (verify it against <a href="/jwks.json">the key set</a>) and your bearer
+        credential for <code>userinfo</code>. A token's scopes are re-judged against your live standing at
+        <em>every</em> exchange — permission drift propagates immediately.
+      </p>
+
+      <h2>Errors</h2>
+      <p>
+        Every refusal answers the one shape <code>&#123;"error": "…"&#125;</code> with the most specific HTTP status
+        the act admits (400 malformed, 401 unauthenticated, 403 unauthorized, 404 not-yours, 409 the state
+        conflict, 429 the rate bound). The token endpoint answers its refusals the OIDC way — the one
+        <code>invalid_grant</code>, never a distinction an attacker could read.
+      </p>
+
+      <h2>Rate limits</h2>
+      <p>
+        The credential and intake surfaces are bounded (the anonymous join intake and the sign-in family);
+        the bound answers <code>429</code> with a retry window. The public register feed is edge-cached —
+        5-minute freshness — so repeated reads never reach the service at all.
+      </p>
+
+      <h2>The contract</h2>
+      <p>
+        This document is generated from the service's own OpenAPI specification, and the specification is
+        <a href="https://github.com/oimlsmart/identity/blob/main/browser/server/openapi/spec.ts">drift-gated in CI</a>:
+        every documented operation exists on the live service, and every service route outside the declared
+        edition-2 exclusions is documented. If the docs say it, the service does it.
+      </p>
+    </section>
+
+    <scalar-api-reference id="the-reference"></scalar-api-reference>
+
+    <script>
+      // Scalar's standalone build hydrates the element by spec URL; the
+      // declarative data-spec-url on the script tag covers no-JS crawl
+      // discovery of the document, the explicit configuration renders
+      // the interactive reference.
+      window.addEventListener('DOMContentLoaded', () => {
+        const el = document.getElementById('the-reference')
+        if (el && window.Scalar) {
+          el.configuration = { spec: { url: '/api/openapi.json' } }
+        }
+      })
+    </script>
+  </body>
+</html>
