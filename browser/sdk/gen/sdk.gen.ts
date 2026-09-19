@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, IntrospectTokenData, IntrospectTokenResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
+import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, IntrospectTokenData, IntrospectTokenResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -55,7 +55,11 @@ export const exchangeToken = <ThrowOnError extends boolean = false>(options: Opt
  */
 export const introspectToken = <ThrowOnError extends boolean = false>(options: Options<IntrospectTokenData, ThrowOnError>): RequestResult<IntrospectTokenResponses, unknown, ThrowOnError> => (options.client ?? client).post<IntrospectTokenResponses, unknown, ThrowOnError>({
     ...urlSearchParamsBodySerializer,
-    security: [{ scheme: 'bearer', type: 'http' }, {
+    security: [{
+            key: 'bearerToken',
+            scheme: 'bearer',
+            type: 'http'
+        }, {
             in: 'cookie',
             name: 'oiml-session',
             type: 'apiKey'
@@ -73,7 +77,11 @@ export const introspectToken = <ThrowOnError extends boolean = false>(options: O
  */
 export const revokeToken = <ThrowOnError extends boolean = false>(options: Options<RevokeTokenData, ThrowOnError>): RequestResult<RevokeTokenResponses, unknown, ThrowOnError> => (options.client ?? client).post<RevokeTokenResponses, unknown, ThrowOnError>({
     ...urlSearchParamsBodySerializer,
-    security: [{ scheme: 'bearer', type: 'http' }, {
+    security: [{
+            key: 'bearerToken',
+            scheme: 'bearer',
+            type: 'http'
+        }, {
             in: 'cookie',
             name: 'oiml-session',
             type: 'apiKey'
@@ -90,7 +98,11 @@ export const revokeToken = <ThrowOnError extends boolean = false>(options: Optio
  * The userinfo
  */
 export const getUserinfo = <ThrowOnError extends boolean = false>(options?: Options<GetUserinfoData, ThrowOnError>): RequestResult<GetUserinfoResponses, GetUserinfoErrors, ThrowOnError> => (options?.client ?? client).get<GetUserinfoResponses, GetUserinfoErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
+    security: [{
+            key: 'bearerToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/op/userinfo',
     ...options
 });
@@ -191,6 +203,87 @@ export const updateAccount = <ThrowOnError extends boolean = false>(options: Opt
             type: 'apiKey'
         }],
     url: '/api/op/account/profile',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The provisioning list (RFC 7644 §3.4.2)
+ *
+ * Pagination (startIndex, count ≤ 200) + the ONE supported filter: `filter=userName eq "<email>"` — anything else refuses `400 scimType=invalid_filter` (never a silent mis-answer). Erased accounts never appear.
+ */
+export const scimListUsers = <ThrowOnError extends boolean = false>(options?: Options<ScimListUsersData, ThrowOnError>): RequestResult<ScimListUsersResponses, ScimListUsersErrors, ThrowOnError> => (options?.client ?? client).get<ScimListUsersResponses, ScimListUsersErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Users',
+    ...options
+});
+
+/**
+ * Provision the invited account (RFC 7644 §3.3)
+ *
+ * userName IS the account's email. The create maps onto the EXISTING account model: the account row (role viewer) + the one-time enrollment setup link (emailed when a provider is configured — best-effort, never blocking; the console's resend stands behind it). A duplicate userName refuses 409.
+ */
+export const scimCreateUser = <ThrowOnError extends boolean = false>(options: Options<ScimCreateUserData, ThrowOnError>): RequestResult<ScimCreateUserResponses, ScimCreateUserErrors, ThrowOnError> => (options.client ?? client).post<ScimCreateUserResponses, ScimCreateUserErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Users',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Deactivate — never the erase (RFC 7644 §3.6)
+ *
+ * The deprovision: active=false + the sessions die. The account row NEVER erases (the audit + the history keep it; the erase is the console's own sovereign act).
+ */
+export const scimDeleteUser = <ThrowOnError extends boolean = false>(options: Options<ScimDeleteUserData, ThrowOnError>): RequestResult<ScimDeleteUserResponses, ScimDeleteUserErrors, ThrowOnError> => (options.client ?? client).delete<ScimDeleteUserResponses, ScimDeleteUserErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Users/{id}',
+    ...options
+});
+
+/**
+ * The projection (RFC 7644 §3.4.1)
+ */
+export const scimGetUser = <ThrowOnError extends boolean = false>(options: Options<ScimGetUserData, ThrowOnError>): RequestResult<ScimGetUserResponses, ScimGetUserErrors, ThrowOnError> => (options.client ?? client).get<ScimGetUserResponses, ScimGetUserErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Users/{id}',
+    ...options
+});
+
+/**
+ * The update — the active replace (RFC 7644 §3.5.2)
+ *
+ * The supported act: `replace active` (pathful or the pathless value form). `active=false` is the HONEST disable — every session of the account dies with it; the row stays. Anything else refuses `400 scimType=invalidPath`.
+ */
+export const scimPatchUser = <ThrowOnError extends boolean = false>(options: Options<ScimPatchUserData, ThrowOnError>): RequestResult<ScimPatchUserResponses, ScimPatchUserErrors, ThrowOnError> => (options.client ?? client).patch<ScimPatchUserResponses, ScimPatchUserErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Users/{id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',

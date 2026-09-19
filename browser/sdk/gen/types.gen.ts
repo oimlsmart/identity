@@ -505,6 +505,176 @@ export type UpdateAccountResponses = {
 
 export type UpdateAccountResponse = UpdateAccountResponses[keyof UpdateAccountResponses];
 
+export type ScimListUsersData = {
+    body?: never;
+    path?: never;
+    query?: {
+        filter?: string;
+        startIndex?: number;
+        count?: number;
+    };
+    url: '/scim/v2/Users';
+};
+
+export type ScimListUsersErrors = {
+    /**
+     * An unsupported filter (scimType=invalid_filter).
+     */
+    400: unknown;
+    /**
+     * The SCIM bearer token is required.
+     */
+    401: unknown;
+};
+
+export type ScimListUsersResponses = {
+    /**
+     * The ListResponse (totalResults, Resources).
+     */
+    200: {
+        schemas?: Array<string>;
+        totalResults: number;
+        startIndex?: number;
+        itemsPerPage?: number;
+        Resources: Array<{
+            [key: string]: unknown;
+        }>;
+    };
+};
+
+export type ScimListUsersResponse = ScimListUsersResponses[keyof ScimListUsersResponses];
+
+export type ScimCreateUserData = {
+    body: {
+        schemas?: Array<string>;
+        userName: string;
+        name?: {
+            givenName?: string;
+            familyName?: string;
+        };
+        active?: boolean;
+    };
+    path?: never;
+    query?: never;
+    url: '/scim/v2/Users';
+};
+
+export type ScimCreateUserErrors = {
+    /**
+     * userName missing or not an address.
+     */
+    400: unknown;
+    /**
+     * The SCIM bearer token is required.
+     */
+    401: unknown;
+    /**
+     * An account already exists for the address.
+     */
+    409: unknown;
+};
+
+export type ScimCreateUserResponses = {
+    /**
+     * The provisioned user (Location rides).
+     */
+    201: unknown;
+};
+
+export type ScimDeleteUserData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/scim/v2/Users/{id}';
+};
+
+export type ScimDeleteUserErrors = {
+    /**
+     * The SCIM bearer token is required.
+     */
+    401: unknown;
+    /**
+     * No such user.
+     */
+    404: unknown;
+};
+
+export type ScimDeleteUserResponses = {
+    /**
+     * Deactivated.
+     */
+    204: void;
+};
+
+export type ScimDeleteUserResponse = ScimDeleteUserResponses[keyof ScimDeleteUserResponses];
+
+export type ScimGetUserData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/scim/v2/Users/{id}';
+};
+
+export type ScimGetUserErrors = {
+    /**
+     * The SCIM bearer token is required.
+     */
+    401: unknown;
+    /**
+     * No such user (the RFC Error schema).
+     */
+    404: unknown;
+};
+
+export type ScimGetUserResponses = {
+    /**
+     * The user resource.
+     */
+    200: unknown;
+};
+
+export type ScimPatchUserData = {
+    body: {
+        schemas?: Array<string>;
+        Operations: Array<{
+            op?: 'replace';
+            path?: 'active';
+            value?: unknown;
+        }>;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/scim/v2/Users/{id}';
+};
+
+export type ScimPatchUserErrors = {
+    /**
+     * An unsupported operation (scimType=invalidPath).
+     */
+    400: unknown;
+    /**
+     * The SCIM bearer token is required.
+     */
+    401: unknown;
+    /**
+     * No such user.
+     */
+    404: unknown;
+};
+
+export type ScimPatchUserResponses = {
+    /**
+     * The updated user.
+     */
+    200: unknown;
+};
+
 export type ListWebhookSubscriptionsData = {
     body?: never;
     path?: never;

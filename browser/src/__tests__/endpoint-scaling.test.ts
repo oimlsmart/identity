@@ -138,6 +138,13 @@ async function seedGrants(from: number, count: number): Promise<void> {
   }
 }
 
+/** N more provisioned accounts for the SCIM list leg (TODO.modern/05). */
+async function seedScimUsers(from: number, count: number): Promise<void> {
+  for (let i = from; i < from + count; i++) {
+    await store.createOpAccount({ email: `scim-gate-${i}@example.org`, name: `SCIM Gate ${i}`, role: 'viewer', createdBy: 'gate' })
+  }
+}
+
 /** N more webhook subscriptions on the member account (TODO.modern/08). */
 async function seedWebhookSubs(from: number, count: number): Promise<void> {
   for (let i = from; i < from + count; i++) {
@@ -225,6 +232,7 @@ demo_personas: true
   const { createOpTokensRouter } = await import('../../server/routes/op-tokens')
   const { createOpGrantsRouter } = await import('../../server/routes/op-grants')
   const { createOpWebhooksRouter } = await import('../../server/routes/op-webhooks')
+  const { createScimRouter } = await import('../../server/routes/scim')
   const { createOpJoinRouter } = await import('../../server/routes/op-join')
   const { createOpMembershipsRouter } = await import('../../server/routes/op-memberships')
   const { createOpKeysRouter } = await import('../../server/routes/op-keys')
@@ -243,6 +251,7 @@ demo_personas: true
   app.route('/', createOpTokensRouter())
   app.route('/', createOpGrantsRouter())
   app.route('/', createOpWebhooksRouter())
+  app.route('/', createScimRouter())
   app.route('/', createOpJoinRouter())
   app.route('/', createOpMembershipsRouter())
   app.route('/', createOpKeysRouter())
@@ -358,6 +367,21 @@ describe('the account consoles — the fixed N+1s', () => {
       request: () => app.fetch(req('/api/op/account/tokens', memberCookie)),
     })
     expectScalingInvariant({ label: 'GET /api/op/account/tokens as member', ...leg, smallRows: LARGE })
+  })
+
+  it('GET /scim/v2/Users (the one bulk read, paged in memory)', async () => {
+    process.env.SCIM_BEARER_TOKEN = 'gate-scim-bearer'
+    try {
+      const req = (path: string) => new Request(`http://op.test${path}`, { headers: { authorization: 'Bearer gate-scim-bearer' } })
+      const leg = await runLeg({
+        seedSmall: () => seedScimUsers(0, SMALL).then(() => SMALL),
+        grow: () => seedScimUsers(SMALL, LARGE - SMALL).then(() => LARGE),
+        request: () => app.fetch(req('/scim/v2/Users?count=200')),
+      })
+      expectScalingInvariant({ label: 'GET /scim/v2/Users (SCIM list)', ...leg })
+    } finally {
+      delete process.env.SCIM_BEARER_TOKEN
+    }
   })
 
   it('GET /api/op/account/webhooks (the account\'s subscriptions, one read)', async () => {
