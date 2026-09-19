@@ -50,6 +50,14 @@ then Groups as edition 2.1.
    the filter subset + invalid_filter, the honest disable (sessions
    die), the deactivate-never-erase tail.
 
-**Open (honest):** Groups (edition 2.1, when an HR system asks);
-externalId (no column — maps nothing today); PATCH name updates (the
-store has one name field; a rename act would be its own seam).
+**Groups — ADJUDICATED (2026-09-19), deliberately not built:** SCIM
+Groups have NO faithful mapping in this domain. The account's
+group-hood IS org membership, and memberships are GOVERNED (the org
+registry's own semantics — the OIML register, the join/accept
+ceremonies, the endorsement acts). Mapping SCIM Groups onto orgs would
+open a SECOND org-creation path — an HR system minting registry
+entities by fiat, bypassing the governance the whole registry is
+built on. If an HR integration ever needs group-shaped assignment,
+the honest path is a dedicated assignment surface with its own
+ceremony — its own brief. (externalId maps nothing today; PATCH name
+updates need a rename seam — both stay named.)

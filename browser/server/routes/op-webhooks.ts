@@ -79,7 +79,10 @@ export function createOpWebhooksRouter(): Hono {
     // The LIVE registry: revoked subscriptions leave it (the rows stay
     // for the delivery history — the deliveries feed below carries it).
     const subscriptions = (await getStore().listWebhookSubscriptions(user.id)).filter(sub => sub.active)
-    return c.json({ subscriptions: subscriptions.map(toClientView) })
+    // The event catalog rides the registry read — the picker's source
+    // of truth is the SERVER's whitelist (never a client-side copy
+    // that could drift).
+    return c.json({ subscriptions: subscriptions.map(toClientView), events: WEBHOOK_EVENTS })
   })
 
   webhooks.post('/api/op/account/webhooks', async (c) => {

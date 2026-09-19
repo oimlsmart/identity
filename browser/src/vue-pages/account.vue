@@ -66,6 +66,7 @@ import AvatarCropDialog from '../components/AvatarCropDialog.vue'
 import { AVATAR_ACCEPT_TYPES } from '../lib/avatar-crop'
 import AccountFactors, { type FactorsPayload } from '../components/AccountFactors.vue'
 import AccountTokens, { type TokensPayload } from '../components/AccountTokens.vue'
+import AccountWebhooks, { type WebhooksPayload, type DeliveriesPayload } from '../components/AccountWebhooks.vue'
 import AccountApps, { type GrantsPayload } from '../components/AccountApps.vue'
 import AccountEmails, { type AccountEmailRow } from '../components/AccountEmails.vue'
 import { t, type MessageKey } from '../i18n'
@@ -212,6 +213,13 @@ const factors = ref<FactorsPayload | null>(null)
  *  console's TOKENS section reads it through the AccountTokens
  *  component (the registry rows + the picker's service catalog). */
 const tokens = ref<TokensPayload | null>(null)
+
+/** The outbound webhooks' payloads (TODO.modern/08): the console's
+ *  WEBHOOKS section reads them through the AccountWebhooks component
+ *  (the registry + the picker's server-side catalog, and the delivery
+ *  log). */
+const webhooks = ref<WebhooksPayload | null>(null)
+const webhookDeliveries = ref<DeliveriesPayload | null>(null)
 
 /** The remembered consent grants' payload (TODO.identity-features/12):
  *  the console's APPS section reads it through the AccountApps
@@ -722,7 +730,7 @@ async function load(quiet = false) {
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     context.value = await res.json() as AccountContext
-    const [linksRes, providersRes, activityRes, orgsRes, factorsRes, tokensRes, grantsRes] = await Promise.all([
+    const [linksRes, providersRes, activityRes, orgsRes, factorsRes, tokensRes, grantsRes, webhooksRes, webhookDeliveriesRes] = await Promise.all([
       fetch('/api/op/account/links', { credentials: 'include' }),
       fetch('/api/op/providers/public'),
       fetch('/api/op/account/activity', { credentials: 'include' }),
@@ -734,6 +742,10 @@ async function load(quiet = false) {
       fetch('/api/op/account/tokens', { credentials: 'include' }),
       // TODO.identity-features/12: the remembered consent grants (the console's APPS section).
       fetch('/api/op/account/grants', { credentials: 'include' }),
+      // TODO.modern/08: the outbound webhooks (the registry + the
+      // delivery log — the console's WEBHOOKS section).
+      fetch('/api/op/account/webhooks', { credentials: 'include' }),
+      fetch('/api/op/account/webhooks/deliveries', { credentials: 'include' }),
     ])
     if (linksRes.ok) links.value = await linksRes.json() as LinkRow[]
     providers.value = providersRes.ok ? await providersRes.json() as PublicProvider[] : []
@@ -742,6 +754,8 @@ async function load(quiet = false) {
     factors.value = factorsRes.ok ? await factorsRes.json() as FactorsPayload : null
     tokens.value = tokensRes.ok ? await tokensRes.json() as TokensPayload : null
     grants.value = grantsRes.ok ? await grantsRes.json() as GrantsPayload : null
+    webhooks.value = webhooksRes.ok ? await webhooksRes.json() as WebhooksPayload : null
+    webhookDeliveries.value = webhookDeliveriesRes.ok ? await webhookDeliveriesRes.json() as DeliveriesPayload : null
     // TODO.trust-registry/01: the org_admin's signing-key surface loads
     // with the context (the ACTIVE org's set only — the server's gate).
     if (keyManagedOrg.value) {
@@ -1614,6 +1628,15 @@ async function revokeOthers() {
              registry, the revoke. -->
         <AccountTokens
           :tokens="tokens"
+          @changed="loadQuiet"
+        />
+
+        <!-- 3⅝ · The outbound webhooks (TODO.modern/08): the event
+             subscriptions — subscribe (the secret shown ONCE), the
+             registry, the revoke, the delivery log. -->
+        <AccountWebhooks
+          :webhooks="webhooks"
+          :deliveries="webhookDeliveries"
           @changed="loadQuiet"
         />
 
