@@ -138,6 +138,16 @@ async function seedGrants(from: number, count: number): Promise<void> {
   }
 }
 
+/** N more webhook subscriptions on the member account (TODO.modern/08). */
+async function seedWebhookSubs(from: number, count: number): Promise<void> {
+  for (let i = from; i < from + count; i++) {
+    await store.createWebhookSubscription({
+      id: crypto.randomUUID(), accountId: memberId,
+      url: `https://gate-${i}.example/hooks`, events: ['account.password'], secret: `oswh_gate_${i}`,
+    })
+  }
+}
+
 /** N more upstream identity links on the member account. */
 async function seedLinks(from: number, count: number): Promise<void> {
   for (let i = from; i < from + count; i++) {
@@ -214,6 +224,7 @@ demo_personas: true
   const { createOpFactorsRouter } = await import('../../server/routes/op-factors')
   const { createOpTokensRouter } = await import('../../server/routes/op-tokens')
   const { createOpGrantsRouter } = await import('../../server/routes/op-grants')
+  const { createOpWebhooksRouter } = await import('../../server/routes/op-webhooks')
   const { createOpJoinRouter } = await import('../../server/routes/op-join')
   const { createOpMembershipsRouter } = await import('../../server/routes/op-memberships')
   const { createOpKeysRouter } = await import('../../server/routes/op-keys')
@@ -231,6 +242,7 @@ demo_personas: true
   app.route('/', createOpFactorsRouter())
   app.route('/', createOpTokensRouter())
   app.route('/', createOpGrantsRouter())
+  app.route('/', createOpWebhooksRouter())
   app.route('/', createOpJoinRouter())
   app.route('/', createOpMembershipsRouter())
   app.route('/', createOpKeysRouter())
@@ -346,6 +358,17 @@ describe('the account consoles — the fixed N+1s', () => {
       request: () => app.fetch(req('/api/op/account/tokens', memberCookie)),
     })
     expectScalingInvariant({ label: 'GET /api/op/account/tokens as member', ...leg, smallRows: LARGE })
+  })
+
+  it('GET /api/op/account/webhooks (the account\'s subscriptions, one read)', async () => {
+    const leg = await runLeg({
+      seedSmall: () => seedWebhookSubs(0, SMALL).then(() => SMALL),
+      grow: () => seedWebhookSubs(SMALL, LARGE - SMALL).then(() => LARGE),
+      request: () => app.fetch(req('/api/op/account/webhooks', memberCookie)),
+    })
+    expectScalingInvariant({ label: 'GET /api/op/account/webhooks as member', ...leg })
+    const body = await (await app.fetch(req('/api/op/account/webhooks', memberCookie))).json() as { subscriptions: Array<{ active: boolean }> }
+    expect(body.subscriptions.filter(s => s.active).length).toBe(LARGE)
   })
 
   it('GET /api/op/account/grants (the per-grant client lookup, prefetched)', async () => {

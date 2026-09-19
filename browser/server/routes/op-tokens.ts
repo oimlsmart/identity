@@ -45,6 +45,7 @@ import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, normalizePatScopes, type OrgContextResolution } from '../store'
 import { getInstanceProfile } from '../profile'
 import { sessionUser } from '../session'
+import { emitWebhookEvent } from '../webhooks/deliver'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import {
   auditPat,
@@ -145,6 +146,11 @@ export function createOpTokensRouter(): Hono {
       orgContext: pat.orgContext,
       expiresAt: pat.expiresAt,
     })
+    emitWebhookEvent(c, {
+      event: 'account.pat_minted',
+      accountId: user.id,
+      data: { pat: pat.id, name, scopes: pat.scopes, orgContext: pat.orgContext, expiresAt: pat.expiresAt },
+    })
     // The security notification posture: the holder learns of every mint
     // (never blocking the act — sendOpMail's honest result).
     // TODO.identity-features/01: the notice fans out to the primary PLUS
@@ -178,6 +184,11 @@ export function createOpTokensRouter(): Hono {
       pat: pat.id,
       name: pat.name,
       scopes: pat.scopes,
+    })
+    emitWebhookEvent(c, {
+      event: 'account.pat_revoked',
+      accountId: user.id,
+      data: { pat: pat.id, name: pat.name, scopes: pat.scopes },
     })
     return c.json({ ok: true })
   })

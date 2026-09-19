@@ -25,6 +25,7 @@ import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpFactorsRouter } from './routes/op-factors'
 import { createOpTokensRouter } from './routes/op-tokens'
+import { createOpWebhooksRouter } from './routes/op-webhooks'
 import { createOpGrantsRouter } from './routes/op-grants'
 import { createOpMfaRouter } from './routes/op-mfa'
 import { createOpJoinRouter } from './routes/op-join'
@@ -197,6 +198,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // personal-access-token surface (list / mint / revoke); the exchange
   // grant itself lives on the OP router's /op/token.
   app.route('/', createOpTokensRouter())
+  // The outbound webhooks (TODO.modern/08): the account's event
+  // subscriptions + the delivery log; the emission sites live at the
+  // acts themselves (the audit-seam metadata, signed + fire-and-forget).
+  app.route('/', createOpWebhooksRouter())
   // The remembered consent grants (TODO.identity-features/12): the
   // console's "apps they can access" (list / revoke).
   app.route('/', createOpGrantsRouter())
@@ -214,9 +219,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // (declared → ia-endorsed, never the participant standing).
   app.route('/', createOpEndorsementsRouter())
   // The org signing keys (TODO.trust-registry/01): the management acts
-  // (register/rotate/revoke, the org_admin-in-context or the estate
-  // admin) + the PUBLIC key-resolution endpoint /op/keys/<org-id>.json
-  // (the key set + the standing projection, anonymous + cacheable).
+  // (register/rotate/revoke, the org_admin-in-context or the
+  // register-operator admin) + the PUBLIC key-resolution endpoint
+  // /op/keys/<org-id>.json (the key set + the standing projection,
+  // anonymous + cacheable).
   app.route('/', createOpKeysRouter())
   // The administrator's identity registry: the account search and
   // detail aggregate, link-on-behalf, session revocation, the activity
@@ -233,7 +239,7 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // visibility computed on the client registry's launch metadata) and
   // the request-access intake.
   app.route('/', createOpHomeRouter())
-  // The whoami beacon (the estate's SSO-UX last mile): the static
+  // The whoami beacon (the register's SSO-UX last mile): the static
   // properties' account chips read the OP session's minimal projection,
   // CORS-gated on the registered clients' declared origins.
   app.route('/', createOpWhoamiRouter())
@@ -262,9 +268,9 @@ export function createApiApp(options: ApiAppOptions): Hono {
   app.get('/api/panels', (c) =>
     c.json(signinPanels, 200, { 'cache-control': 'public, max-age=300' }))
 
-  // The estate status projection (the ISO-benchmark structural item 1):
+  // The register status projection (the ISO-benchmark structural item 1):
   // the sign-in page's incident banner + the footer's live status pill
-  // read this distillation of the estate's own status service. Degrades
+  // read this distillation of the register's own status service. Degrades
   // honestly: an unreachable upstream or a stale prober answers UNKNOWN,
   // never a fake green.
   app.route('/', createStatusSummaryRouter())

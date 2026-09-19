@@ -104,6 +104,8 @@ import {
   type UserAdminRow,
   type WebauthnChallenge,
   type WebauthnCredential,
+  WebhookSubscription,
+  WebhookDeliveryRecord,
 } from '../store'
 // TODO.federation/01 — the account plan follows the deployment profile
 // (the Worker's seed route installs it from the env binding first; the
@@ -238,6 +240,7 @@ interface EnsureMemos {
   instrumentRegistrationSupport: Promise<void> | null
   oidcColumns: Promise<void> | null
   personalAccessTokenSupport: Promise<void> | null
+  webhookSupport: Promise<void> | null
   consentGrantSupport: Promise<void> | null
   oidcRefreshTokenSupport: Promise<void> | null
   accountEmailSupport: Promise<void> | null
@@ -258,6 +261,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
       personalAccessTokenSupport: null, consentGrantSupport: null,
       oidcRefreshTokenSupport: null,
       accountEmailSupport: null, notifyDeliverySupport: null,
+      webhookSupport: null,
     }
     ensureMemosByBinding.set(binding, memos)
   }
@@ -534,6 +538,61 @@ const INSTRUMENT_REGISTRATION_INSERT_SQL = `INSERT OR IGNORE INTO instrument_reg
  *  default at — answers off the write itself). The mentions column
  *  (migration 0027) lands from the input, NULL when absent. */
 const EVENT_INSERT_SQL = 'INSERT INTO events (id, domain, entity_id, action, payload, mentions) VALUES (?, ?, ?, ?, ?, ?) RETURNING *'
+
+interface WebhookRow {
+  id: string
+  account_id: string
+  url: string
+  events: string
+  secret: string
+  active: number
+  created_at: string
+}
+
+interface WebhookDeliveryRow {
+  id: string
+  subscription_id: string
+  account_id: string
+  event: string
+  url: string
+  attempts: number
+  last_status: number
+  delivered: number
+  body_digest: string
+  recorded_at: string
+}
+
+function webhookRowToSubscription(row: WebhookRow): WebhookSubscription {
+  let events: string[] = []
+  try {
+    const parsed = JSON.parse(row.events) as unknown
+    if (Array.isArray(parsed)) events = parsed.filter((e): e is string => typeof e === 'string')
+  } catch { /* the malformed cell reads as the empty set, never trusted */ }
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    url: row.url,
+    events,
+    secret: row.secret,
+    active: row.active === 1,
+    createdAt: row.created_at,
+  }
+}
+
+function webhookRowToDelivery(row: WebhookDeliveryRow): WebhookDeliveryRecord {
+  return {
+    id: row.id,
+    subscriptionId: row.subscription_id,
+    accountId: row.account_id,
+    event: row.event,
+    url: row.url,
+    attempts: row.attempts,
+    lastStatus: row.last_status,
+    delivered: row.delivered === 1,
+    bodyDigest: row.body_digest,
+    recordedAt: row.recorded_at,
+  }
+}
 
 export class D1ServerStore implements ServerStore {
   /** The RAW binding — the ensure memos (and d1StoreFor's map) key on
@@ -2705,6 +2764,98 @@ export class D1ServerStore implements ServerStore {
       revokedBy, id, userId,
     ).run()
     return (res.meta.changes ?? 0) > 0
+  }
+
+  // ── the outbound webhooks (TODO.modern/08) ──
+  private ensureWebhookSupport(): Promise<void> {
+    return ensured(this.binding, 'webhookSupport', async () => {
+      await this.db.batch([
+        this.db.prepare(
+          `CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+             id TEXT PRIMARY KEY,
+             account_id TEXT NOT NULL REFERENCES users(id),
+             url TEXT NOT NULL,
+             events TEXT NOT NULL DEFAULT '[]',
+             secret TEXT NOT NULL,
+             active INTEGER NOT NULL DEFAULT 1,
+             created_at TEXT NOT NULL DEFAULT (datetime('now'))
+           )`,
+        ),
+        this.db.prepare(
+          'CREATE INDEX IF NOT EXISTS idx_webhook_subscriptions_account ON webhook_subscriptions (account_id)',
+        ),
+        this.db.prepare(
+          `CREATE TABLE IF NOT EXISTS webhook_deliveries (
+             id TEXT PRIMARY KEY,
+             subscription_id TEXT NOT NULL,
+             account_id TEXT NOT NULL,
+             event TEXT NOT NULL,
+             url TEXT NOT NULL,
+             attempts INTEGER NOT NULL,
+             last_status INTEGER NOT NULL,
+             delivered INTEGER NOT NULL,
+             body_digest TEXT NOT NULL,
+             recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+           )`,
+        ),
+        this.db.prepare(
+          'CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_account ON webhook_deliveries (account_id, recorded_at)',
+        ),
+      ])
+    })
+  }
+
+  async createWebhookSubscription(input: {
+    id: string
+    accountId: string
+    url: string
+    events: string[]
+    secret: string
+  }): Promise<WebhookSubscription> {
+    await this.ensureWebhookSupport()
+    await this.stmt(
+      `INSERT INTO webhook_subscriptions (id, account_id, url, events, secret)
+       VALUES (?, ?, ?, ?, ?)`,
+      input.id, input.accountId, input.url, JSON.stringify(input.events), input.secret,
+    ).run()
+    const row = await this.stmt('SELECT * FROM webhook_subscriptions WHERE id = ?', input.id).first<WebhookRow>()
+    return webhookRowToSubscription(row!)
+  }
+
+  async listWebhookSubscriptions(accountId: string): Promise<WebhookSubscription[]> {
+    await this.ensureWebhookSupport()
+    const rows = (await this.stmt(
+      'SELECT * FROM webhook_subscriptions WHERE account_id = ? ORDER BY created_at, rowid', accountId,
+    ).all<WebhookRow>()).results
+    return rows.map(webhookRowToSubscription)
+  }
+
+  async revokeWebhookSubscription(id: string, accountId: string): Promise<boolean> {
+    await this.ensureWebhookSupport()
+    const res = await this.stmt(
+      'UPDATE webhook_subscriptions SET active = 0 WHERE id = ? AND account_id = ?', id, accountId,
+    ).run()
+    return (res.meta.changes ?? 0) > 0
+  }
+
+  async recordWebhookDelivery(input: Omit<WebhookDeliveryRecord, 'id'> & { id?: string }): Promise<void> {
+    await this.ensureWebhookSupport()
+    await this.stmt(
+      `INSERT INTO webhook_deliveries
+         (id, subscription_id, account_id, event, url, attempts, last_status, delivered, body_digest)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      input.id ?? crypto.randomUUID(), input.subscriptionId, input.accountId, input.event, input.url,
+      input.attempts, input.lastStatus, input.delivered ? 1 : 0, input.bodyDigest,
+    ).run()
+  }
+
+  async listWebhookDeliveries(accountId: string, limit = 50): Promise<WebhookDeliveryRecord[]> {
+    await this.ensureWebhookSupport()
+    const rows = (await this.stmt(
+      'SELECT * FROM webhook_deliveries WHERE account_id = ? ORDER BY recorded_at DESC, rowid DESC LIMIT ?',
+      accountId, limit,
+    ).all<WebhookDeliveryRow>()).results
+    return rows.map(webhookRowToDelivery)
   }
 
   async renamePersonalAccessToken(id: string, userId: string, name: string): Promise<PersonalAccessToken | null> {

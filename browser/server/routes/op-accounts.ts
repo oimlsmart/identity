@@ -166,6 +166,7 @@ import { avatarKey, avatarKeys, avatarMaxBytes, AVATAR_TYPES, sniffAvatar } from
 import { getBlobStore } from '../blobs'
 import { APP_ROLES } from '../vocab'
 import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
+import { emitWebhookEvent } from '../webhooks/deliver'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -336,7 +337,7 @@ export function createOpAccountsRouter(): Hono {
   // lands on the audit chain: the success as account.sign_in, the
   // failures as account.sign_in_failed (the dashboard's burst signal +
   // the holder's own feed — TODO.identity-sso/01).
-  // The one re-label: the estate status probe (auth/op/probe.ts — the
+  // The one re-label: the register status probe (auth/op/probe.ts — the
   // recognized X-OIML-Probe token) lands its invalid-credentials
   // failure as account.sign_in_probe instead, the honest label the
   // feeds + the burst signal exclude (the raw chain retains it). The
@@ -1710,6 +1711,13 @@ export function createOpAccountsRouter(): Hono {
       otherSessionsRevoked: revoked,
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
     })
+    // The outbound event (TODO.modern/08): the state CHANGED — the
+    // subscribers learn it signed, never blocking this act.
+    emitWebhookEvent(c, {
+      event: 'account.password',
+      accountId: user.id,
+      data: { otherSessionsRevoked: revoked },
+    })
     if (breach === 'unknown') await markBreachRecheck(store, user.id)
     // TODO.identity-sso/04 slice D: the password-changed notice (the
     // "was this you?" for the credential change itself).
@@ -1767,6 +1775,7 @@ export function createOpAccountsRouter(): Hono {
     const revoked = await getStore().deleteSessionById(user.id, c.req.param('id'))
     if (!revoked) return c.json({ error: 'no such session' }, 404)
     await audit('account.session_revoked', user.id, { userId: user.id, userName: user.name }, { session: c.req.param('id') })
+    emitWebhookEvent(c, { event: 'account.session_revoked', accountId: user.id, data: { session: c.req.param('id') } })
     floatBackchannel()
     return c.json({ ok: true })
   })
