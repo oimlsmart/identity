@@ -67,6 +67,8 @@ export function exportSpan(
     status: number
     durationMs: number
     requestId: string
+    /** The store phase (Server-Timing's own measurement, mirrored). */
+    store?: { durationMs: number; calls: number }
   },
 ): void {
   const env = runtimeEnv<EnvLike>(c)
@@ -92,6 +94,12 @@ export function exportSpan(
           startTimeUnixNano: String(now * 1e6 - durationNano),
           endTimeUnixNano: String(now * 1e6),
           attributes: [
+            ...(span.store
+              ? [
+                  { key: 'store.duration_ms', value: { doubleValue: span.store.durationMs } },
+                  { key: 'store.calls', value: { intValue: span.store.calls } },
+                ]
+              : []),
             { key: 'http.request.method', value: { stringValue: span.method } },
             { key: 'url.path', value: { stringValue: span.path } },
             { key: 'http.response.status_code', value: { intValue: span.status } },
@@ -132,6 +140,11 @@ export function traceContextMiddleware(): MiddlewareHandler {
     c.header('traceparent', formatTraceparent(ctx))
     const start = performance.now()
     await next()
+    // The store-phase correlation: the timing middleware's OWN header
+    // carries the phase (SERVER_TIMING-armed); the span mirrors it as
+    // attributes — the two instruments join without a second
+    // measurement (the header is the SSOT, the span the projection).
+    const storePhase = /store;dur=([\d.]+);desc="(\d+) calls?"/.exec(c.res.headers.get('server-timing') ?? '')
     exportSpan(c, {
       ctx,
       method: c.req.method,
@@ -139,6 +152,7 @@ export function traceContextMiddleware(): MiddlewareHandler {
       status: c.res.status,
       durationMs: performance.now() - start,
       requestId: (c.get('requestId') as string) ?? 'unassigned',
+      store: storePhase ? { durationMs: Number(storePhase[1]), calls: Number(storePhase[2]) } : undefined,
     })
   }
 }

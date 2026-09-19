@@ -22,6 +22,7 @@ import { env as runtimeEnv } from 'hono/adapter'
 import { getStore } from '../store'
 import { buildWebhookEnvelope, isWebhookEvent } from './events'
 import { signWebhookPayload } from './signature'
+import { formatTraceparent, newSpanId, type TraceContext } from '../obs/trace'
 
 const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [0, 1_000, 5_000]
 
@@ -51,6 +52,7 @@ async function dispatchWithLadder(
   accountId: string,
   event: string,
   body: string,
+  traceCtx?: TraceContext,
 ): Promise<boolean> {
   const delays = retryDelays(env)
   let lastStatus = 0
@@ -62,6 +64,7 @@ async function dispatchWithLadder(
         headers: {
           'content-type': 'application/json',
           'webhook-signature': await signWebhookPayload(subscription.secret, Date.now(), body),
+          ...(traceCtx ? { traceparent: formatTraceparent({ ...traceCtx, spanId: newSpanId() }) } : {}),
         },
         body,
       })
@@ -70,7 +73,7 @@ async function dispatchWithLadder(
         await recordDelivery(subscription, accountId, event, body, delays.length, lastStatus, true)
         return true
       }
-    } catch {
+    } catch (err) {
       lastStatus = 0
     }
   }
@@ -113,6 +116,7 @@ async function recordDelivery(
 export async function deliverWebhookEvent(
   env: Record<string, string | undefined>,
   input: { event: string; accountId: string; data: Record<string, unknown> },
+  traceCtx?: TraceContext,
 ): Promise<number> {
   if (!isWebhookEvent(input.event)) return 0
   const subscriptions = (await getStore().listWebhookSubscriptions(input.accountId))
@@ -122,7 +126,7 @@ export async function deliverWebhookEvent(
   const body = JSON.stringify(envelope)
   let delivered = 0
   for (const sub of subscriptions) {
-    if (await dispatchWithLadder(env, { id: sub.id, url: sub.url, secret: sub.secret }, input.accountId, input.event, body)) {
+    if (await dispatchWithLadder(env, { id: sub.id, url: sub.url, secret: sub.secret }, input.accountId, input.event, body, traceCtx)) {
       delivered++
     }
   }
@@ -137,7 +141,11 @@ export function emitWebhookEvent(
   input: { event: string; accountId: string; data: Record<string, unknown> },
 ): void {
   const env = runtimeEnv<Record<string, string | undefined>>(c)
-  const run = deliverWebhookEvent(env, input).catch(err => {
+  // TODO.modern/09's outbound half: the delivery inherits the
+  // REQUEST's trace context (a fresh child span id per endpoint — W3C)
+  // when the trace seam is armed; unarmed = no header, byte-identical.
+  const traceCtx = (c.get('traceCtx') as TraceContext | undefined) ?? undefined
+  const run = deliverWebhookEvent(env, input, traceCtx).catch(err => {
     console.error('[webhooks] the delivery failed:', (err as Error).message)
   })
   try {
