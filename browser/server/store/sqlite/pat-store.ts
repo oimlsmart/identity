@@ -111,6 +111,25 @@ export function revokePersonalAccessToken(db: Database.Database, id: string, use
   ).run(revokedBy, id, userId).changes > 0
 }
 
+/** The rename act (issue #115): presentation-only metadata on the
+ *  owner's row. Answers the updated row, or null when not the owner's. */
+export function renamePersonalAccessToken(db: Database.Database, id: string, userId: string, name: string): PersonalAccessToken | null {
+  const changes = db.prepare(
+    'UPDATE personal_access_tokens SET name = ? WHERE id = ? AND user_id = ?',
+  ).run(name, id, userId).changes
+  return changes > 0 ? getPersonalAccessToken(db, id) : null
+}
+
+/** The scope-edit act (issue #115): the route applies the subset
+ *  validation; the store only writes. Answers the updated row, or null
+ *  when not the owner's. */
+export function updatePersonalAccessTokenScopes(db: Database.Database, id: string, userId: string, scopes: string[]): PersonalAccessToken | null {
+  const changes = db.prepare(
+    'UPDATE personal_access_tokens SET scopes = ? WHERE id = ? AND user_id = ?',
+  ).run(JSON.stringify(scopes), id, userId).changes
+  return changes > 0 ? getPersonalAccessToken(db, id) : null
+}
+
 /** The exchange path's stamp (the throttled heartbeat + the expiry-soon
  *  mailer's one-shot mark — the route decides, the store writes). */
 export function stampPersonalAccessTokenUse(db: Database.Database,

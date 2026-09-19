@@ -78,14 +78,6 @@ const mintedCopied = ref(false)
 
 const ACTION_ORDER = ['read', 'write', 'admin'] as const
 
-function openMint() {
-  mintOpen.value = true
-  mintName.value = ''
-  mintDays.value = 90
-  mintScopes.value = Object.fromEntries((props.tokens?.services ?? []).map(s => [s.id, '' as const]))
-  error.value = null
-  notice.value = null
-}
 
 /** An action-class option disables above the service's bound (the
  *  server's bound is the same rule — the picker's honesty, never the
@@ -98,6 +90,9 @@ const mintable = computed(() =>
   mintName.value.trim().length > 0
   && Object.values(mintScopes.value).some(v => v !== ''),
 )
+
+/** The edit-mode submit's guard: the same shape as the mint's. */
+const editable = mintable
 
 async function mint() {
   if (busy.value || !mintable.value) return
@@ -141,6 +136,70 @@ async function copyMinted() {
     mintedCopied.value = true
   } catch {
     mintedCopied.value = false
+  }
+}
+
+
+// ── the edit act (issue #115: rename + the scope edit after creation) ─
+const formMode = ref<'mint' | 'edit'>('mint')
+const editId = ref<string | null>(null)
+
+function openEdit(token: TokenRow) {
+  formMode.value = 'edit'
+  editId.value = token.id
+  mintOpen.value = true
+  mintName.value = token.name
+  mintDays.value = 90
+  // Seed the picker from the row's CURRENT set (the folded form: one
+  // action class per service).
+  const current = new Map(token.scopes.map(s => { const [svc, cls] = s.split(':'); return [svc, cls] }))
+  const seed = (cls: string | undefined): '' | 'read' | 'write' | 'admin' =>
+    cls === 'admin' || cls === 'write' || cls === 'read' ? cls : ''
+  mintScopes.value = Object.fromEntries((props.tokens?.services ?? []).map(s => [s.id, seed(current.get(s.id))]))
+  error.value = null
+  notice.value = null
+}
+
+function openMint() {
+  formMode.value = 'mint'
+  editId.value = null
+  mintOpen.value = true
+  mintName.value = ''
+  mintDays.value = 90
+  mintScopes.value = Object.fromEntries((props.tokens?.services ?? []).map(s => [s.id, '' as const]))
+  error.value = null
+  notice.value = null
+}
+
+async function saveEdit() {
+  if (busy.value || !editable.value || !editId.value) return
+  busy.value = true
+  error.value = null
+  notice.value = null
+  try {
+    const scopes = Object.entries(mintScopes.value)
+      .filter(([, action]) => action !== '')
+      .map(([service, action]) => `${service}:${action}`)
+    const res = await fetch(`/api/op/account/tokens/${editId.value}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ name: mintName.value.trim(), scopes }),
+    })
+    const body = await res.json().catch(() => null) as { token?: TokenRow; error?: string } | null
+    if (!res.ok) {
+      error.value = body?.error ?? t('account.networkError')
+      busy.value = false
+      return
+    }
+    mintOpen.value = false
+    editId.value = null
+    notice.value = t('account.tokens.saved')
+    emit('changed')
+    busy.value = false
+  } catch {
+    error.value = t('account.networkError')
+    busy.value = false
   }
 }
 
@@ -212,14 +271,22 @@ function stateLabel(state: TokenRow['state']): string {
             · {{ token.lastUsedAt ? t('account.tokens.lastUsed', { date: fmtDate(token.lastUsedAt) }) : t('account.tokens.neverUsed') }}
           </p>
         </div>
-        <button
-          v-if="token.state === 'active'"
-          type="button"
-          :disabled="busy"
-          class="shrink-0 text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-          :data-testid="`token-${token.id}-revoke`"
-          @click="revoke(token)"
-        >{{ t('account.tokens.revoke') }}</button>
+        <div v-if="token.state === 'active'" class="flex shrink-0 flex-col items-end gap-1">
+          <button
+            type="button"
+            :disabled="busy"
+            class="text-xs text-slate-600 dark:text-slate-300 hover:underline disabled:opacity-50"
+            :data-testid="`token-${token.id}-edit`"
+            @click="openEdit(token)"
+          >{{ t('account.tokens.edit') }}</button>
+          <button
+            type="button"
+            :disabled="busy"
+            class="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+            :data-testid="`token-${token.id}-revoke`"
+            @click="revoke(token)"
+          >{{ t('account.tokens.revoke') }}</button>
+        </div>
       </li>
     </ul>
     <p v-else class="text-sm text-slate-500 dark:text-slate-400 mb-4" data-testid="tokens-empty">{{ t('account.tokens.empty') }}</p>
@@ -249,7 +316,7 @@ function stateLabel(state: TokenRow['state']): string {
           </select>
         </li>
       </ul>
-      <div class="flex flex-wrap items-center gap-2 mb-3">
+      <div v-if="formMode === 'mint'" class="flex flex-wrap items-center gap-2 mb-3">
         <label class="text-xs text-slate-600 dark:text-slate-300">{{ t('account.tokens.fieldExpiry') }}</label>
         <select
           v-model.number="mintDays"
@@ -265,8 +332,8 @@ function stateLabel(state: TokenRow['state']): string {
           :disabled="busy || !mintable"
           data-testid="token-mint-submit"
           class="px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
-          @click="mint"
-        >{{ busy ? t('account.tokens.busy') : t('account.tokens.mint') }}</button>
+          @click="formMode === 'edit' ? saveEdit() : mint()"
+        >{{ busy ? t('account.tokens.busy') : formMode === 'edit' ? t('account.tokens.save') : t('account.tokens.mint') }}</button>
         <button
           type="button"
           data-testid="token-mint-cancel"

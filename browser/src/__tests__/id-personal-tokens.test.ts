@@ -472,3 +472,81 @@ describe('the org inventory + the erasure', () => {
     expect(((await dead.json()) as { error: string }).error, 'the tombstone’s token never exchanges').toBe('invalid_grant')
   })
 })
+
+describe('the management acts (issue #115 — rename + scope editing after creation)', () => {
+  it('renames: the row + the list answer the new name, the audit carries from→to, the mail rides', async () => {
+    const ia = await demoLogin('ia@oiml.org')
+    const minted = await (await mintPat(ia, { name: 'the lab CLI', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string } }
+    const res = await app.request(`${ISSUER}/api/op/account/tokens/${minted.token.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', cookie: ia },
+      body: JSON.stringify({ name: 'the lab CLI (staging)' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { token: { name: string; state: string } }
+    expect(body.token.name).toBe('the lab CLI (staging)')
+    expect((await store.getPersonalAccessToken(minted.token.id))!.name).toBe('the lab CLI (staging)')
+    const events = await journal()
+    const renamed = events.find(e => e.action === 'account.pat_renamed' && e.metadata?.pat === minted.token.id)
+    expect(renamed, 'the rename is on the audit chain').toBeTruthy()
+    expect(renamed!.metadata).toMatchObject({ from: 'the lab CLI', to: 'the lab CLI (staging)' })
+    const mailed = events.find(e => e.entity_type === 'email' && (e.metadata as { template?: string })?.template === 'pat_edited')
+    expect(mailed, 'the edit notification rode the mailer').toBeTruthy()
+  })
+
+  it('edits the scopes both ways — the live narrowing bounds, the direction audits distinctly', async () => {
+    const ia = await demoLogin('ia@oiml.org')
+    const minted = await (await mintPat(ia, { name: 'the mutable one', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string } }
+    const id = minted.token.id
+
+    // Widen (read → read+write): applies, the widened direction lands.
+    const widen = await app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json', cookie: ia },
+      body: JSON.stringify({ scopes: [`${HUB.clientId}:read`, `${HUB.clientId}:write`] }),
+    })
+    expect(widen.status).toBe(200)
+    let events = await journal()
+    let widened = events.find(e => e.action === 'account.pat_scopes_widened' && e.metadata?.pat === id)
+    expect(widened, 'the widening is audited distinctly').toBeTruthy()
+    expect((widened!.metadata as { added?: string[] }).added).toContain(`${HUB.clientId}:write`)
+
+    // Narrow (back to read): applies, the narrowed direction lands.
+    const narrow = await app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json', cookie: ia },
+      body: JSON.stringify({ scopes: [`${HUB.clientId}:read`] }),
+    })
+    expect(narrow.status).toBe(200)
+    events = await journal()
+    const narrowed = events.find(e => e.action === 'account.pat_scopes_narrowed' && e.metadata?.pat === id)
+    expect(narrowed, 'the narrowing is audited distinctly').toBeTruthy()
+    expect((narrowed!.metadata as { removed?: string[] }).removed).toContain(`${HUB.clientId}:write`)
+    expect(((await narrow.json()) as { token: { scopes: string[] } }).token.scopes).toEqual([`${HUB.clientId}:read`])
+
+    // Over-broad: the live narrowing bound refuses (the officer never
+    // holds the admin class).
+    const overbroad = await app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json', cookie: ia },
+      body: JSON.stringify({ scopes: [`${REGISTER.clientId}:admin`] }),
+    })
+    expect(overbroad.status).toBe(403)
+  })
+
+  it('the refusal lattice: not-mine 404, revoked 409, malformed 400, anonymous 401', async () => {
+    const ia = await demoLogin('ia@oiml.org')
+    const other = await demoLogin('biml@oiml.org')
+    const minted = await (await mintPat(ia, { name: 'the guarded one', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string } }
+    const id = minted.token.id
+    const patch = (cookie: string, body: Record<string, unknown>) => app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify(body),
+    })
+
+    expect((await patch(other, { name: 'the stolen rename' })).status).toBe(404)
+    expect((await patch(ia, { name: '' })).status).toBe(400)
+    expect((await patch(ia, { scopes: [] })).status).toBe(400)
+    expect((await app.request(`${ISSUER}/api/op/account/tokens/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: '{}' })).status).toBe(401)
+
+    // A revoked token's permissions are not meaningfully editable.
+    await app.request(`${ISSUER}/api/op/account/tokens/${id}`, { method: 'DELETE', headers: { cookie: ia } })
+    expect((await patch(ia, { name: 'the dead rename' })).status).toBe(409)
+  })
+})

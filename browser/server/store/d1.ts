@@ -2707,6 +2707,29 @@ export class D1ServerStore implements ServerStore {
     return (res.meta.changes ?? 0) > 0
   }
 
+  async renamePersonalAccessToken(id: string, userId: string, name: string): Promise<PersonalAccessToken | null> {
+    // The rename act (issue #115): presentation-only metadata on the
+    // owner's row; null when the row is not this owner's.
+    await this.ensurePersonalAccessTokenSupport()
+    const res = await this.stmt(
+      'UPDATE personal_access_tokens SET name = ? WHERE id = ? AND user_id = ?',
+      name, id, userId,
+    ).run()
+    return (res.meta.changes ?? 0) > 0 ? this.getPersonalAccessToken(id) : null
+  }
+
+  async updatePersonalAccessTokenScopes(id: string, userId: string, scopes: string[]): Promise<PersonalAccessToken | null> {
+    // The scope-edit act (issue #115): the ROUTE applies the subset
+    // validation (the live narrowing bound); the store only writes —
+    // safe both ways because the exchange re-judges on every use.
+    await this.ensurePersonalAccessTokenSupport()
+    const res = await this.stmt(
+      'UPDATE personal_access_tokens SET scopes = ? WHERE id = ? AND user_id = ?',
+      JSON.stringify(scopes), id, userId,
+    ).run()
+    return (res.meta.changes ?? 0) > 0 ? this.getPersonalAccessToken(id) : null
+  }
+
   async stampPersonalAccessTokenUse(
     id: string,
     stamps: { usedAt: string; auditAt?: string | null; expiryNotifiedAt?: string | null },
