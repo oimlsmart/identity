@@ -146,6 +146,9 @@ async function seedKnownDevices(from: number, count: number): Promise<void> {
       deviceHash: `gate-device-hash-${i}`, userAgent: `GateAgent/${i}.0`, ip: `203.0.113.${i % 254}`,
       country: 'CH',
     })
+  }
+}
+
 /** N more members + sign-in rows in ONE org for the analytics leg. */
 async function seedOrgActivity(from: number, count: number): Promise<void> {
   for (let i = from; i < from + count; i++) {
@@ -400,6 +403,8 @@ describe('the account consoles — the fixed N+1s', () => {
       request: () => app.fetch(req('/api/op/account/devices', memberCookie)),
     })
     expectScalingInvariant({ label: 'GET /api/op/account/devices as member', ...leg })
+  })
+
   it('GET /api/op/dashboard/org-activity (the journal + memberships, TWO reads)', async () => {
     const req = (q: string) => new Request(`http://op.test${q}`, { headers: { cookie: adminCookie } })
     const leg = await runLeg({
