@@ -1,6 +1,6 @@
 # TODO.modern/04 — the SAML upstream bridge (the members' national IdPs)
 
-**Priority:** P1 · **Status:** DISPATCHABLE (the largest item — the member states' IdPs are frequently SAML-only)
+**Priority:** P1 · **Status:** HELD (the XML-DSig choice is a named-risk decision)
 An upstream provider of kind `saml`: the metadata import, the redirect POST binding, the assertion validation, the link model identical to OIDC upstreams.
 
 ## The acts
@@ -12,3 +12,10 @@ An upstream provider of kind `saml`: the metadata import, the redirect POST bind
 6. Specs: the metadata import, a signed assertion round-trip (the fixture generator), the link refusal, the clock-skew refusal; e2e: the SAML leg boots a fixture IdP.
 
 **Acceptance:** a member's national IdP metadata configures sign-in; the e2e proves the dance.
+
+**Why held:** the brief itself names the risk — assertion validation needs an
+XML-DSig implementation that is worker-safe (WebCrypto/X.509), and vetting that
+choice (a WASM or pure-TS library, its supply chain, its interop record) is a
+decision that deserves its own focused PR, not a slice of a batch. The link
+model, the metadata shape, and the ACS route design are already fixed by this
+brief — implementation can start the moment the crypto choice is made.

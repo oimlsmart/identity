@@ -46,6 +46,7 @@ import signinPanels from './signin-panels.json'
 import { effectiveRbacMap } from './rbac'
 import { StoreUnavailable } from './store'
 import { measureStorePhase, serverTimingEnabled } from './store-timing'
+import { currentRequestId, requestIdMiddleware } from './request-id'
 import { getInstanceProfile, projectModuleToggles, publicProfileView, type InstanceProfile } from './profile'
 
 export interface ApiAppOptions {
@@ -66,6 +67,11 @@ export function createApiApp(options: ApiAppOptions): Hono {
   const app = new Hono()
 
   for (const mw of options.middleware ?? []) app.use('*', mw)
+
+  // The request-id seam (TODO.modern/09): FIRST in the stack — every
+  // answer (including the error answers below) carries X-Request-Id;
+  // the outage body names it (support conversations reference it).
+  app.use('*', requestIdMiddleware())
 
   // TODO.restructure/27: every answer carries its own wall time — the
   // next performance claim reads a measurement, not an inference.
@@ -111,9 +117,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
         budgetMs: err.budgetMs,
         writeMayHaveLanded: true,
         retrySafe: err.retrySafe,
+        request_id: currentRequestId(c),
       }, 503, { 'retry-after': '5' })
     }
-    console.error(err)
+    console.error(`[req ${currentRequestId(c)}]`, err)
     return c.text('Internal Server Error', 500)
   })
 

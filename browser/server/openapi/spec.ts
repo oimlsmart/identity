@@ -304,6 +304,51 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/op/session/check': {
+      get: {
+        tags: ['OIDC'], operationId: 'getSessionCheck', summary: 'The session-management poll iframe',
+        description:
+          'The OIDC Session Management iframe (discoverable via check_session_iframe). The relying party embeds it, '
+          + 'posts `client_id=…&session_state=…` at it, and it answers `unchanged`/`changed` via postMessage — '
+          + 'the recomputation runs server-side per poll against the live session; any failure answers changed (fail-closed).',
+        security: [],
+        parameters: [{ name: 'client_id', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'The iframe page (HTML, frameable by any RP origin).', content: { 'text/html': { schema: { type: 'string' } } } },
+          400: { description: 'The request names no client_id.', content: { 'text/html': { schema: { type: 'string' } } } },
+        },
+      },
+    },
+    '/op/session/state': {
+      get: {
+        tags: ['OIDC'], operationId: 'getSessionState', summary: 'The live session_state digest (the poll\'s recomputation)',
+        description:
+          'The session_state for (client_id, origin, the request\'s live session) — the value the check iframe compares '
+          + 'the relying party\'s against. The authorize answer (authorization code + state) carries the same digest as '
+          + '`session_state`. 401 = the session is gone = the honest changed.',
+        security: [{ sessionCookie: [] }],
+        parameters: [
+          { name: 'client_id', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'origin', in: 'query', required: true, schema: { type: 'string', format: 'uri' } },
+        ],
+        responses: {
+          200: {
+            description: 'The digest.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { session_state: { type: 'string', description: 'base64url of SHA-256(client_id + " " + origin + " " + session token)' } },
+                  required: ['session_state'],
+                },
+              },
+            },
+          },
+          400: { description: 'Missing client_id or origin.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'No live session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/api/health': {
       get: {
         tags: ['Instance'], operationId: 'getHealth', summary: 'The liveness probe', security: [],

@@ -1,6 +1,6 @@
 # TODO.modern/02 — the OpenID conformance suite (OIDC Certification)
 
-**Priority:** P1 · **Status:** DISPATCHABLE (the brief)
+**Priority:** P1 · **Status:** HELD (needs the owner's scratch host)
 Run the OpenID Foundation's conformance suite (Basic OP + Config + Refresh OP) against a scratch deployment; fix every finding; record the certification.
 
 ## The acts
@@ -11,3 +11,11 @@ Run the OpenID Foundation's conformance suite (Basic OP + Config + Refresh OP) a
 5. Record: the run's summary in docs/deployment/identity.md + the cert listing.
 
 **Acceptance:** the suite's three profiles green; the record committed.
+
+**Why held:** the suite runs from the OpenID Foundation's container against a
+PUBLIC origin — a scratch deployment with a public hostname is an owner
+infrastructure act (a tunnel or a throwaway Workers route + the conformance
+client seed). Everything in-repo is ready: the self-host runbook, the
+OP_CLIENT_SEED seeding, the contract gate. First slice when unheld: the three
+profiles (Basic OP, Config OP, Refresh OP) on the scratch host; every finding
+lands as a code fix + a regression leg.

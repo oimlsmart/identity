@@ -1,6 +1,6 @@
 # TODO.modern/08 — the outbound events (webhooks on the audit journal)
 
-**Priority:** P2 · **Status:** DISPATCHABLE
+**Priority:** P2 · **Status:** HELD (the delivery fan-out is its own PR)
 RPs subscribe to account events (password_changed, mfa_enabled, session_revoked, pat_minted/revoked) — the journal already carries them.
 
 ## The acts
@@ -10,3 +10,11 @@ RPs subscribe to account events (password_changed, mfa_enabled, session_revoked,
 4. Specs: the signature verify (a consumer-side test), the retry, the dead letter; e2e: a subscriber's round-trip.
 
 **Acceptance:** an RP receives a signed event for a subscribed act.
+
+**Why held:** the subscription surface + the HMAC signing are small; the
+DELIVERY is not — the journal's write path fanning out (waitUntil on the
+Worker), the retry ladder, and the dead-letter record touch every journal
+write and deserve a PR with the endpoint-scaling gate's full attention. First
+slice when scheduled: the signing module (the Stripe posture: timestamped
+`Webhook-Signature`, replay-bounded) + the consumer-side verify test — pure
+additive, no write-path change — then the fan-out PR.

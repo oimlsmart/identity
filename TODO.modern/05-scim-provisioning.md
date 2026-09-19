@@ -1,6 +1,6 @@
 # TODO.modern/05 — SCIM 2.0 provisioning (the enterprise lifecycle)
 
-**Priority:** P1 · **Status:** DISPATCHABLE
+**Priority:** P1 · **Status:** HELD (a full protocol surface — its own PR)
 Members provision/deprovision accounts from their HR systems via SCIM 2.0 (RFC 7644).
 
 ## The acts
@@ -11,3 +11,11 @@ Members provision/deprovision accounts from their HR systems via SCIM 2.0 (RFC 7
 5. The OpenAPI: the SCIM surface documents as its own tag group (edition 2 of the spec).
 
 **Acceptance:** a standard SCIM client provisions a member's people.
+
+**Why held:** RFC 7644 is a protocol (Users CRUD + filter subset + pagination +
+its own error taxonomy), and this repo's standard is the full honest surface,
+never a partial one behind a half-open door. The mapping target already exists
+(the org-scoped account ops, the enrollment invite machinery) — the SCIM layer
+maps, never duplicates. First slice when scheduled: `/scim/v2/Users` with the
+create/get/filter-by-username/deactivate lifecycle + the `scim:admin` PAT scope,
+then Groups as edition 2.1.
