@@ -106,6 +106,8 @@ import {
   type WebauthnCredential,
   WebhookSubscription,
   WebhookDeliveryRecord,
+  KnownDeviceRow,
+  KnownDeviceSighting,
 } from '../store'
 // TODO.federation/01 — the account plan follows the deployment profile
 // (the Worker's seed route installs it from the env binding first; the
@@ -241,6 +243,7 @@ interface EnsureMemos {
   oidcColumns: Promise<void> | null
   personalAccessTokenSupport: Promise<void> | null
   webhookSupport: Promise<void> | null
+  knownDeviceSupport: Promise<void> | null
   consentGrantSupport: Promise<void> | null
   oidcRefreshTokenSupport: Promise<void> | null
   accountEmailSupport: Promise<void> | null
@@ -262,6 +265,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
       oidcRefreshTokenSupport: null,
       accountEmailSupport: null, notifyDeliverySupport: null,
       webhookSupport: null,
+      knownDeviceSupport: null,
     }
     ensureMemosByBinding.set(binding, memos)
   }
@@ -591,6 +595,32 @@ function webhookRowToDelivery(row: WebhookDeliveryRow): WebhookDeliveryRecord {
     delivered: row.delivered === 1,
     bodyDigest: row.body_digest,
     recordedAt: row.recorded_at,
+  }
+}
+
+interface KnownDeviceDbRow {
+  id: string
+  account_id: string
+  device_hash: string
+  user_agent: string | null
+  ip: string | null
+  first_country: string | null
+  last_country: string | null
+  first_seen_at: string
+  last_seen_at: string
+}
+
+function knownDeviceRowToModel(row: KnownDeviceDbRow): KnownDeviceRow {
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    deviceHash: row.device_hash,
+    userAgent: row.user_agent,
+    ip: row.ip,
+    firstCountry: row.first_country,
+    lastCountry: row.last_country,
+    firstSeenAt: row.first_seen_at,
+    lastSeenAt: row.last_seen_at,
   }
 }
 
@@ -2856,6 +2886,69 @@ export class D1ServerStore implements ServerStore {
       accountId, limit,
     ).all<WebhookDeliveryRow>()).results
     return rows.map(webhookRowToDelivery)
+  }
+
+  // ── the known-device record (TODO.modern/06's risk signals) ──
+  private ensureKnownDeviceSupport(): Promise<void> {
+    return ensured(this.binding, 'knownDeviceSupport', async () => {
+      await this.db.batch([
+        this.db.prepare(
+          `CREATE TABLE IF NOT EXISTS known_devices (
+             id TEXT PRIMARY KEY,
+             account_id TEXT NOT NULL REFERENCES users(id),
+             device_hash TEXT NOT NULL,
+             user_agent TEXT,
+             ip TEXT,
+             first_country TEXT,
+             last_country TEXT,
+             first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+             last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+             UNIQUE (account_id, device_hash)
+           )`,
+        ),
+        this.db.prepare(
+          'CREATE INDEX IF NOT EXISTS idx_known_devices_account ON known_devices (account_id)',
+        ),
+      ])
+    })
+  }
+
+  async recordKnownDevice(input: {
+    id: string
+    accountId: string
+    deviceHash: string
+    userAgent: string | null
+    ip: string | null
+    country: string | null
+  }): Promise<KnownDeviceSighting> {
+    await this.ensureKnownDeviceSupport()
+    const prior = await this.stmt(
+      'SELECT last_country, last_seen_at FROM known_devices WHERE account_id = ? AND device_hash = ?',
+      input.accountId, input.deviceHash,
+    ).first<{ last_country: string | null; last_seen_at: string }>()
+    await this.stmt(
+      `INSERT INTO known_devices (id, account_id, device_hash, user_agent, ip, first_country, last_country)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(account_id, device_hash) DO UPDATE SET
+         user_agent = excluded.user_agent,
+         ip = excluded.ip,
+         last_country = excluded.last_country,
+         last_seen_at = datetime('now')`,
+      input.id, input.accountId, input.deviceHash, input.userAgent, input.ip, input.country, input.country,
+    ).run()
+    return {
+      isNew: !prior,
+      previousCountry: prior?.last_country ?? null,
+      previousSeenAt: prior?.last_seen_at ?? null,
+    }
+  }
+
+  async listKnownDevices(accountId: string): Promise<KnownDeviceRow[]> {
+    await this.ensureKnownDeviceSupport()
+    const rows = (await this.stmt(
+      'SELECT * FROM known_devices WHERE account_id = ? ORDER BY last_seen_at DESC, rowid DESC', accountId,
+    ).all<KnownDeviceDbRow>()).results
+    return rows.map(knownDeviceRowToModel)
   }
 
   async renamePersonalAccessToken(id: string, userId: string, name: string): Promise<PersonalAccessToken | null> {

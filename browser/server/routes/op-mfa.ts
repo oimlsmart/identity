@@ -41,6 +41,7 @@ import { env as runtimeEnv } from 'hono/adapter'
 import { getStore } from '../store'
 import { getInstanceProfile } from '../profile'
 import { clientInfo } from '../client-info'
+import { assessSignInRisk, countryOf } from '../auth/op/risk'
 import { SESSION_COOKIE, sessionCookieOpts } from '../session'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { opRandomToken } from '../auth/op/keys'
@@ -127,10 +128,21 @@ export function createOpMfaRouter(): Hono {
     if (!pending) return null
     const amr = [...pending.amr]
     for (const a of addedAmr) if (!amr.includes(a)) amr.push(a)
+    const info = clientInfo(c)
     await store.touchLastLogin(pending.userId)
-    const token = await store.createSession(pending.userId, { ...clientInfo(c), amr })
+    const token = await store.createSession(pending.userId, { ...info, amr })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
-    await auditFactor('account.sign_in', pending.userId, { userId: pending.userId }, { method: auditMethod, amr })
+    // TODO.modern/06's risk signals: the assessment rides AFTER the
+    // session mint (the advisory layer — never in front of the
+    // sign-in critical path).
+    const risk = await assessSignInRisk(store, {
+      accountId: pending.userId, userAgent: info.userAgent, ip: info.ip,
+      country: countryOf({ req: c.req.raw }),
+    })
+    await auditFactor('account.sign_in', pending.userId, { userId: pending.userId }, {
+      method: auditMethod, amr,
+      newDevice: risk.newDevice, countryChanged: risk.countryChanged,
+    })
     await notifySignIn(c, pending.userId, methodKey, notifyTemplate)
     return { userId: pending.userId, amr }
   }

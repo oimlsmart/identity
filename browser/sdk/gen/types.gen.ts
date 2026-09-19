@@ -505,6 +505,29 @@ export type UpdateAccountResponses = {
 
 export type UpdateAccountResponse = UpdateAccountResponses[keyof UpdateAccountResponses];
 
+export type ListKnownDevicesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/account/devices';
+};
+
+export type ListKnownDevicesErrors = {
+    /**
+     * No session.
+     */
+    401: Error;
+};
+
+export type ListKnownDevicesError = ListKnownDevicesErrors[keyof ListKnownDevicesErrors];
+
+export type ListKnownDevicesResponses = {
+    /**
+     * The devices, newest sighting first.
+     */
+    200: unknown;
+};
+
 export type ScimListUsersData = {
     body?: never;
     path?: never;

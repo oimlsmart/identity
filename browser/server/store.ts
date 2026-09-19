@@ -192,6 +192,31 @@ export interface FederationPeer {
   revokedBy: string | null
 }
 
+// ── the known-device record (TODO.modern/06's risk signals) ──────────
+
+/** One recognized (account, device-hash) pair. The hash is
+ *  SHA-256(UA + IP) — the recognition key; the countries + instants
+ *  carry the impossible-travel advisory's prior state. */
+export interface KnownDeviceRow {
+  id: string
+  accountId: string
+  deviceHash: string
+  userAgent: string | null
+  ip: string | null
+  firstCountry: string | null
+  lastCountry: string | null
+  firstSeenAt: string
+  lastSeenAt: string
+}
+
+/** recordKnownDevice's answer: the assessment's prior state (the
+ *  pre-update row), the impossible-travel inputs. */
+export interface KnownDeviceSighting {
+  isNew: boolean
+  previousCountry: string | null
+  previousSeenAt: string | null
+}
+
 // ── the outbound webhooks (TODO.modern/08) ────────────────────────────
 
 /** An account's event subscription: the endpoint, the subscribed
@@ -2443,6 +2468,21 @@ export interface ServerStore {
   // ── the notification subscriptions store (TODO.notify/02) ──
   // ── the inbox state (TODO.notify/03) ──
   // ── the email channel's delivery store (TODO.notify/04) ──
+  // ── the known-device record (TODO.modern/06's risk signals) ──
+  /** The upsert: the first sighting of (account, device) answers
+   *  isNew; a repeat answers the PRE-UPDATE row's country + instant
+   *  (the advisory's prior state). SQL-narrowed by the unique pair. */
+  recordKnownDevice(input: {
+    id: string
+    accountId: string
+    deviceHash: string
+    userAgent: string | null
+    ip: string | null
+    country: string | null
+  }): Promise<KnownDeviceSighting>
+  /** The account's recognized devices (the console's devices view). */
+  listKnownDevices(accountId: string): Promise<KnownDeviceRow[]>
+
   // ── the outbound webhooks (TODO.modern/08) ──
   /** The subscription mint: one row per endpoint. events ⊆
    *  WEBHOOK_EVENTS (the route validates; the store trusts). */

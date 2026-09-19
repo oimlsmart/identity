@@ -138,6 +138,17 @@ async function seedGrants(from: number, count: number): Promise<void> {
   }
 }
 
+/** N more recognized devices on the member account (TODO.modern/06). */
+async function seedKnownDevices(from: number, count: number): Promise<void> {
+  for (let i = from; i < from + count; i++) {
+    await store.recordKnownDevice({
+      id: crypto.randomUUID(), accountId: memberId,
+      deviceHash: `gate-device-hash-${i}`, userAgent: `GateAgent/${i}.0`, ip: `203.0.113.${i % 254}`,
+      country: 'CH',
+    })
+  }
+}
+
 /** N more provisioned accounts for the SCIM list leg (TODO.modern/05). */
 async function seedScimUsers(from: number, count: number): Promise<void> {
   for (let i = from; i < from + count; i++) {
@@ -367,6 +378,15 @@ describe('the account consoles — the fixed N+1s', () => {
       request: () => app.fetch(req('/api/op/account/tokens', memberCookie)),
     })
     expectScalingInvariant({ label: 'GET /api/op/account/tokens as member', ...leg, smallRows: LARGE })
+  })
+
+  it('GET /api/op/account/devices (the account\'s devices, one read)', async () => {
+    const leg = await runLeg({
+      seedSmall: () => seedKnownDevices(0, SMALL).then(() => SMALL),
+      grow: () => seedKnownDevices(SMALL, LARGE - SMALL).then(() => LARGE),
+      request: () => app.fetch(req('/api/op/account/devices', memberCookie)),
+    })
+    expectScalingInvariant({ label: 'GET /api/op/account/devices as member', ...leg })
   })
 
   it('GET /scim/v2/Users (the one bulk read, paged in memory)', async () => {

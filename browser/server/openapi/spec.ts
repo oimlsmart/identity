@@ -462,6 +462,20 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/api/op/account/devices': {
+      get: {
+        tags: ['Account'], operationId: 'listKnownDevices', summary: 'The account\'s recognized devices (the risk signals)',
+        description:
+          'The known-device record (TODO.modern/06): one row per (account, SHA-256(UA + IP)) with the first/last sighting and countries. '
+          + 'The IP is MASKED (the IPv4\'s last octet folds to *; a non-IPv4 address answers null — never a raw identifier). The sign-in '
+          + 'audit\'s newDevice/countryChanged advisories derive from the same record.',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: { description: 'The devices, newest sighting first.' },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/scim/v2/Users': {
       get: {
         tags: ['SCIM'], operationId: 'scimListUsers', summary: 'The provisioning list (RFC 7644 §3.4.2)',
