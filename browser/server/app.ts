@@ -35,6 +35,7 @@ import { createOpRegistryRouter } from './routes/op-registry'
 import { createOpDashboardRouter } from './routes/op-dashboard'
 import { createOpHomeRouter } from './routes/op-home'
 import { createOpWhoamiRouter } from './routes/op-whoami'
+import { turnstileEnabled, turnstileVerify } from './auth/op/turnstile'
 import { createOpenApiRouter } from './routes/openapi'
 import { createUsersRouter } from './routes/users'
 import { createAuthLeanRouter, opDemoAccountsEnabled } from './routes/auth-lean'
@@ -149,6 +150,24 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // queue grant; the bucket's guard rides in front of both.
   app.use('/api/op/join-requests', rateLimit)
   app.use('/api/op/join-requests/*', rateLimit)
+
+  // The bot gate (TODO.modern/01): Turnstile on the public credential
+  // surfaces — config-gated (both TURNSTILE_* declarations, or off and
+  // byte-identical). The 403 bot answer lands BEFORE any credential
+  // work — never a 401 shape (no enumeration aid). Fails CLOSED.
+  const turnstileGate = async (c: import('hono').Context, next: import('hono').Next) => {
+    if (!turnstileEnabled(runtimeEnv<Record<string, string | undefined>>(c))) return next()
+    const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+    const token = typeof body?.['cf-turnstile-response'] === 'string' ? body['cf-turnstile-response'] : ''
+    const ip = c.req.header('cf-connecting-ip') ?? null
+    if (!token || !(await turnstileVerify(runtimeEnv<Record<string, string | undefined>>(c), token, ip))) {
+      return c.json({ error: 'the bot check failed — complete the challenge and try again' }, 403)
+    }
+    return next()
+  }
+  app.use('/api/op/login', turnstileGate)
+  app.use('/api/op/register', turnstileGate)
+  app.use('/api/op/join-requests', turnstileGate)
 
   // The session + demo sign-in seam (routes/auth-lean.ts): the four
   // /api/auth endpoints the OP's own pages consume. The platform's RP
