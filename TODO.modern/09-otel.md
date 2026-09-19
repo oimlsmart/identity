@@ -32,6 +32,17 @@ fetches (mail/siteverify/webhooks) — the correlation core (inbound + echo +
 export) is in; outbound propagation to providers that ignore it is marginal.
 Per-org analytics is the dashboard's aggregation work over the journal (the
 rows exist) — its own PR with the scaling gate's full attention.
-**Acceptance state:** a support request with a request ID resolves to its trace ✓
-(a collector at the endpoint is the owner's ops act); a tenant sees its own
-usage — open.
+**The per-org analytics (shipped, the last half):**
+`GET /api/op/dashboard/org-activity?org=<id>&days=1–90` — the tenant's
+view: sign-ins, failed sign-ins, and token exchanges, the per-day
+series, membership-joined IN MEMORY (the journal + every membership
+read ONCE — the scaling gate's leg proves the call count invariant).
+The exchange rows join on metadata.account (the client-side family);
+the sign-in family keys on the account directly. An org's zeros are
+honest (no registry-existence claim). Specs: `id-org-analytics.test.ts`
+(4) — the aggregation + scoping, the outsider org's isolation, the
+admin gate (401/403), the window bound.
+
+**Acceptance state:** a support request with a request ID resolves to its
+trace ✓ (a collector at the endpoint is the owner's ops act); a tenant
+sees its own usage ✓.
