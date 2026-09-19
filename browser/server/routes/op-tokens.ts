@@ -46,6 +46,7 @@ import { getStore, normalizePatScopes, type OrgContextResolution } from '../stor
 import { getInstanceProfile } from '../profile'
 import { sessionUser } from '../session'
 import { emitWebhookEvent } from '../webhooks/deliver'
+import { requireFreshAuth } from '../auth/op/step-up'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import {
   auditPat,
@@ -273,6 +274,13 @@ export function createOpTokensRouter(): Hono {
       let widenedAny = false
       for (const svc of new Set([...oldRanks.keys(), ...newRanks.keys()])) {
         if ((newRanks.get(svc) ?? 0) > (oldRanks.get(svc) ?? 0)) widenedAny = true
+      }
+      // The freshness gate (TODO.modern/06's open half): a WIDENING
+      // edit is a bank-grade act — a stale session refuses with the
+      // distinct fresh_auth_required shape (narrow/rename never gated).
+      if (widenedAny) {
+        const stale = await requireFreshAuth(c)
+        if (stale) return stale
       }
       if (added.length || removed.length) {
         updated = (await store.updatePersonalAccessTokenScopes(pat.id, user.id, nextScopes))!
