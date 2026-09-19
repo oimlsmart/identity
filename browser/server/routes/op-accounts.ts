@@ -295,13 +295,15 @@ export function createOpAccountsRouter(): Hono {
    *  failure. TODO.identity-features/01: the notice fans out to the
    *  primary PLUS every verified additional (the "was this you?" must
    *  reach every proven mailbox — auth/op/mail.ts's sendOpSecurityMail). */
-  async function notifySignIn(c: Context, user: { id: string; email: string; name: string }): Promise<void> {
+  async function notifySignIn(c: Context, user: { id: string; email: string; name: string }, newDevice = false): Promise<void> {
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId: user.id,
       template: 'signin',
       issuer,
-      params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' ') },
+      // TODO.modern/06: the NEW DEVICE advisory rides the notice when
+      // the assessment flagged the sighting (absent = unchanged mail).
+      params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), ...(newDevice ? { newDevice: true } : {}) },
     })
   }
 
@@ -493,7 +495,7 @@ export function createOpAccountsRouter(): Hono {
     // mailer's own results are honest (it never throws); waitUntil, when
     // the runtime provides it, keeps the promise alive past the response.
     if (user) {
-      const notice = notifySignIn(c, user)
+      const notice = notifySignIn(c, user, risk.newDevice)
       try {
         c.executionCtx.waitUntil(notice) // the Worker keeps it alive past the answer
       } catch {
