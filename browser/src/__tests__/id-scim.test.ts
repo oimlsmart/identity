@@ -204,6 +204,40 @@ describe('the lifecycle tail', () => {
     expect(rows.find(r => r.id === created.id)?.active).toBe(false)
   })
 
+  it('PATCH name renames the account (the existing rename verb, both RFC forms)', async () => {
+    const created = await (await app.request(`${ISSUER}/scim/v2/Users`, authed({
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userName: 'renamable@example.org', active: true }),
+    }))).json() as ScimUser
+
+    // The pathful form: replace name {givenName, familyName}.
+    const pathful = await app.request(`${ISSUER}/scim/v2/Users/${created.id}`, authed({
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        Operations: [{ op: 'replace', path: 'name', value: { givenName: 'Renamed', familyName: 'Person' } }],
+      }),
+    }))
+    expect(pathful.status).toBe(200)
+    expect(((await pathful.json()) as ScimUser).name?.formatted).toBe('Renamed Person')
+
+    // The pathless form: replace value.name {formatted}.
+    const pathless = await app.request(`${ISSUER}/scim/v2/Users/${created.id}`, authed({
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        Operations: [{ op: 'replace', value: { name: { formatted: 'The Flat Name' } } }],
+      }),
+    }))
+    expect(pathless.status).toBe(200)
+    expect(((await pathless.json()) as ScimUser).name?.formatted).toBe('The Flat Name')
+
+    // The account row itself (the rename verb's truth).
+    const account = await store.findUserByEmail('renamable@example.org')
+    expect(account?.name).toBe('The Flat Name')
+  })
+
   it('DELETE deactivates (never the erase)', async () => {
     const created = await (await app.request(`${ISSUER}/scim/v2/Users`, authed({
       method: 'POST',

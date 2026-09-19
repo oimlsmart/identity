@@ -59,5 +59,9 @@ open a SECOND org-creation path — an HR system minting registry
 entities by fiat, bypassing the governance the whole registry is
 built on. If an HR integration ever needs group-shaped assignment,
 the honest path is a dedicated assignment surface with its own
-ceremony — its own brief. (externalId maps nothing today; PATCH name
-updates need a rename seam — both stay named.)
+ceremony — its own brief. **The rename (shipped):** SCIM PATCH `replace name` (pathful
+`name {givenName,familyName,formatted}` or the pathless
+`value.name`) maps onto the account's EXISTING rename verb
+(`updateUserName` — no new seam, MECE); the display name is the
+formatted, else the given+family join (the create's own projection
+rule). (externalId maps nothing today — stays named.)

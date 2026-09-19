@@ -197,21 +197,46 @@ export function createScimRouter(): Hono {
     // RFC 7644 §3.5.2). Anything else refuses invalidPath — never a
     // silent mis-answer.
     let nextActive: boolean | null = null
+    let nextName: string | null = null
     for (const op of operations) {
       if (!op || typeof op !== 'object') continue
       const { op: verb, path, value } = op as { op?: unknown; path?: unknown; value?: unknown }
       if (verb !== 'replace') continue
-      const isPathful = path === 'active'
-      const isPathless = path === undefined && value && typeof value === 'object' && 'active' in value
-      if (!isPathful && !isPathless) continue
-      const candidate = isPathful ? value : (value as { active: unknown }).active
-      if (typeof candidate === 'boolean') nextActive = candidate
+      if (path === 'active') {
+        if (typeof value === 'boolean') nextActive = value
+        continue
+      }
+      // The RENAME (the account's existing rename verb): the pathful
+      // replace name {givenName,familyName,formatted} or the pathless
+      // value.name — the display name is the formatted, else the
+      // given+family join (the create's own projection rule).
+      const nameValue = path === 'name'
+        ? (value && typeof value === 'object' ? value as Record<string, unknown> : null)
+        : path === undefined && value && typeof value === 'object' && 'name' in value
+          ? (value as { name: unknown }).name as Record<string, unknown> | null
+          : null
+      if (nameValue) {
+        const formatted = typeof nameValue.formatted === 'string' && nameValue.formatted.trim()
+          ? nameValue.formatted.trim()
+          : [nameValue.givenName, nameValue.familyName]
+              .filter((part): part is string => typeof part === 'string' && Boolean(part.trim()))
+              .map(part => part.trim())
+              .join(' ')
+        if (formatted) nextName = formatted
+        continue
+      }
+      if (path === undefined && value && typeof value === 'object' && 'active' in value) {
+        const candidate = (value as { active: unknown }).active
+        if (typeof candidate === 'boolean') nextActive = candidate
+      }
     }
-    if (nextActive === null) {
-      return scimError(c, 400, 'the supported operation is: replace active (pathful or pathless)', 'invalidPath')
+    if (nextActive === null && nextName === null) {
+      return scimError(c, 400, 'the supported operations are: replace active, replace name (pathful or pathless)', 'invalidPath')
     }
-    await setActive(row, nextActive)
-    return c.json(toScimUser({ ...row, active: nextActive }))
+    if (nextName !== null) await getStore().updateUserName(row.id, nextName)
+    if (nextActive !== null) await setActive(row, nextActive)
+    const refreshed = (await getStore().listUsers()).find(u => u.id === row.id) ?? row
+    return c.json(toScimUser(nextName !== null ? { ...refreshed, name: nextName } : refreshed))
   })
 
   scim.delete('/scim/v2/Users/:id', async (c) => {
