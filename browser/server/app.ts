@@ -48,6 +48,7 @@ import { effectiveRbacMap } from './rbac'
 import { StoreUnavailable } from './store'
 import { measureStorePhase, serverTimingEnabled } from './store-timing'
 import { currentRequestId, requestIdMiddleware } from './request-id'
+import { traceContextMiddleware } from './obs/trace'
 import { getInstanceProfile, projectModuleToggles, publicProfileView, type InstanceProfile } from './profile'
 
 export interface ApiAppOptions {
@@ -73,6 +74,12 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // answer (including the error answers below) carries X-Request-Id;
   // the outage body names it (support conversations reference it).
   app.use('*', requestIdMiddleware())
+
+  // The trace-context seam (TODO.modern/09): W3C traceparent honored
+  // inbound + echoed, and the config-gated OTLP export (one span per
+  // request, fire-and-forget). UNSET OTEL_EXPORTER_OTLP_ENDPOINT =
+  // byte-identical answers (the Turnstile pattern).
+  app.use('*', traceContextMiddleware())
 
   // TODO.restructure/27: every answer carries its own wall time — the
   // next performance claim reads a measurement, not an inference.
