@@ -12,7 +12,7 @@
 //          refusal is proven fetch-level);
 //   leg 2  the admin approves; the member's personnel completes the
 //          enrollment and the account console carries the membership
-//          (the read/access posture, the estate's services reached);
+//          (the read/access posture, the register's services reached);
 //   leg 3  the console renders the designation chain HONESTLY both
 //          directions: the layered member's page ("OIML Member —
 //          Member State"; proposes EX1, designates ut-emsa), the IA's
@@ -57,7 +57,7 @@ const ID_WEB = 10600
 // TL 21 + its designated utilizer ut-emsa), the corresponding member
 // (cm-demo with its associate as-demo), the member state's NEW
 // personnel, the legacy-shaped utilizer (created link-less on the admin
-// API — the pre-0019 row's shape), and the estate admin.
+// API — the pre-0019 row's shape), and the register-operator admin.
 const MEMBER_PERSONNEL_EMAIL = 'ingrid.halvorsen@emb.example.org'
 const MEMBER_PERSONNEL_PASSWORD = 'ingrid halvorsen member passphrase'
 const LEGACY_UTILIZER_ID = 'ut-legacy'

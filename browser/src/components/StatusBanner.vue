@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // ═══════════════════════════════════════════════════════════════════
 // StatusBanner — the incident banner atop the sign-in page (the
-// ISO-benchmark structural item 1's banner posture): when the estate's
+// ISO-benchmark structural item 1's banner posture): when the register's
 // own status projection reports degraded or down services, a dignified
 // strip says so and links to the status page. Green and unknown render
 // NOTHING — the absence of the banner is never a claim. The pill (the

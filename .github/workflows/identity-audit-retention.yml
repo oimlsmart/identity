@@ -34,7 +34,7 @@ name: identity-audit-retention
 # workflow's precedent): the `cloudflare-identity-retention`
 # environment — deliberately WITHOUT required reviewers (a nightly job
 # cannot wait on an approval) — carrying the two secrets:
-#   CLOUDFLARE_ACCOUNT_ID  the estate account id
+#   CLOUDFLARE_ACCOUNT_ID  the register operator's account id
 #   CLOUDFLARE_API_TOKEN   a Cloudflare token carrying the D1 write
 #                          verbs on oiml-smart-platform-identity
 # Until the variable is set, none of this is exercised: the unset

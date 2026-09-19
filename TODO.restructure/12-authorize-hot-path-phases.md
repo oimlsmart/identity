@@ -1,6 +1,6 @@
 # TODO.restructure/12 — the authorize hot path's two serial reads
 
-**Priority:** P1 (throughput — the estate's hottest path)
+**Priority:** P1 (throughput — the register's hottest path)
 **Status:** COMPLETE
 
 ## Problem

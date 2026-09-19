@@ -36,7 +36,7 @@
 // THE OVERSIGHT CARVE-OUT (the design's invariant 3): the read gate
 // binds ORG-SCOPED primary roles only (the platform's isOrgBound: the
 // session payload's PRIMARY role ∈ the org-bound set, and an org
-// resolved) — the estate's staff and the scheme's oversight read
+// resolved) — the register operator's staff and the scheme's oversight read
 // everything regardless, and a cone never hides a row from them. The
 // read-only modifier is the exception by construction: the write gate
 // refuses on it BEFORE the org-bound check, so it binds every context

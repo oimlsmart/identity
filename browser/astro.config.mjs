@@ -28,7 +28,7 @@ export default defineConfig({
   // true`; the OP endpoint shims (jwks.json, the discovery document,
   // the /api catch-all) are prerender=false and server-rendered.
   output: 'server',
-  // checkOrigin OFF (the 2026-09-14 estate-wide SSO break): Astro's
+  // checkOrigin OFF (the 2026-09-14 register-wide SSO break): Astro's
   // origin guard 403s every non-GET carrying a form content type whose
   // Origin is absent or foreign — exactly the OIDC BACK-CHANNEL's shape
   // (POST /op/token, /op/revoke, /op/introspect are server-to-server

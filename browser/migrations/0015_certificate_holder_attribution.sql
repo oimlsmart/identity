@@ -24,7 +24,7 @@
 -- certificate registered before this program (or arriving via records mode /
 -- CSV) carries a free-text holder and no descriptor; the manufacturer org's
 -- administrator claims the row by holder-name match (the matched name is
--- snapshotted as the claim's evidence), an estate admin confirms or refuses
+-- snapshotted as the claim's evidence), a register-operator admin confirms or refuses
 -- (atomic on 'pending'), and the audit chain (auditEvents) carries both acts.
 -- A refused claim never blocks a fresh claim; a confirmed claim is terminal.
 

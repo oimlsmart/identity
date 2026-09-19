@@ -59,7 +59,7 @@
 //                                            delegation's access-token
 //                                            subject, TODO.ai-platform/03 —
 //                                            auth/op/tokens.ts; the same
-//                                            estate-internal posture, the
+//                                            register-internal posture, the
 //                                            golden byte-identical);
 //   GET  /op/userinfo                      — the access token's claims;
 //   POST /op/revoke                        — RFC 7009 (the wave-C token
@@ -403,7 +403,7 @@ export function createOpRouter(): Hono {
       return authorizeRefusal(c, 'Cannot authorize this request', 'The request names no <code>client_id</code>.')
     }
     // The client read and the session read are INDEPENDENT — ONE phase
-    // on every authorize (TODO.restructure/12: this is the estate's
+    // on every authorize (TODO.restructure/12: this is the register's
     // hottest path, every RP sign-in pays it). The validation order
     // below is unchanged; a refused client just also paid the session
     // read, never an observable difference (a read, no state).
@@ -891,7 +891,7 @@ export function createOpRouter(): Hono {
     // subject — the caller authenticates and the subject binds to the
     // client it was issued to. The device class's precedent holds for
     // both: the discovery document keeps advertising the RP contract
-    // alone (the exchange grant is an estate-internal cone, not an RP
+    // alone (the exchange grant is a register-internal cone, not an RP
     // flow — the contract golden stays byte-identical), and the exchanged
     // token is the OP's ONE token shape (a self-contained ES256 JWT the
     // RPs validate against the JWKS, no call-back).

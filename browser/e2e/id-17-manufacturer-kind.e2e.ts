@@ -9,7 +9,7 @@
 //          copy says so), and the registry carries the row (kind
 //          manufacturer, standing declared — NEVER the participant
 //          posture);
-//   leg 2  the estate admin sees the honest standing BEFORE any
+//   leg 2  the register-operator admin sees the honest standing BEFORE any
 //          decision: the Organizations list row, the per-org page's
 //          Standing line, and the decision queue's manufacturer chip;
 //          then approves the founder's org_admin ask (the invite shows
@@ -57,7 +57,7 @@ const ID_API = 10493
 const ID_WEB = 10494
 
 // The cast: the NEW manufacturer org (the ACME cast — never a real
-// organization), its founder + colleague, the estate admin, and the
+// organization), its founder + colleague, the register-operator admin, and the
 // demo IA officer (ia@oiml.org acts as EX1, the seeded active IA).
 const MFR_ID = 'mfr-acme-instruments'
 const MFR_NAME = 'ACME Instruments'
@@ -331,7 +331,7 @@ describe('TODO.register/01 — the manufacturer org kind (the identity profile)'
     expect(feed.map(o => o.id)).not.toContain(MFR_ID)
   })
 
-  it('leg 2 — the estate admin sees the honest standing, then approves the founder’s org_admin ask', { timeout: 900_000 }, async () => {
+  it('leg 2 — the register-operator admin sees the honest standing, then approves the founder’s org_admin ask', { timeout: 900_000 }, async () => {
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opSignIn(page, ADMIN_EMAIL)
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })

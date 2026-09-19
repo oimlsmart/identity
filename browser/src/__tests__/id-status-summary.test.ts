@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────
-// The estate status projection (server/routes/status-summary.ts's
+// The register status projection (server/routes/status-summary.ts's
 // /api/status-summary), the ISO-benchmark structural item 1:
 //
 //   the aggregate — worst-of with the honest ordering (down > degraded >
 //     operational), the affected services named with their reasons, the
-//     never-probed service unable to drag the estate off green;
+//     never-probed service unable to drag the register off green;
 //   the honesty floors — an upstream 5xx, an unreachable upstream, an
 //     unparseable answer, and a STALE PROBER (the status service's own
 //     PROBER_STALE_MS doctrine) all read 'unknown', never a fake green;
@@ -103,7 +103,7 @@ afterEach(() => {
   delete process.env.STATUS_PAGE_URL
 })
 
-describe('/api/status-summary — the estate status projection', () => {
+describe('/api/status-summary — the register status projection', () => {
   it('all-operational upstream → operational, the counts carried, the default page URL', async () => {
     process.env.STATUS_SUMMARY_URL = stubUrl
     stubStatus = 200
@@ -141,7 +141,7 @@ describe('/api/status-summary — the estate status projection', () => {
     expect(p.affected[0]).toMatchObject({ id: 'demo', name: 'The demo service', reason: 'slow' })
   })
 
-  it('a never-probed (unknown) service cannot drag the estate off green', async () => {
+  it('a never-probed (unknown) service cannot drag the register off green', async () => {
     process.env.STATUS_SUMMARY_URL = stubUrl
     stubBody = summaryDoc([
       { id: 'id-op', state: 'operational' },

@@ -52,7 +52,7 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
-/** The demo binding: the estate's RAG MCP ingest pipeline (a service
+/** The demo binding: the register's RAG MCP ingest pipeline (a service
  *  account — the item file's reference caller) on the demonstration
  *  manufacturer org (created in beforeAll). */
 const SERVICE = { id: 'rag-mcp-ingest', org: 'mfr-acme', audience: 'oiml-rag-mcp', scopes: ['documents:read', 'ingest:write'] }

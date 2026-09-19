@@ -1,5 +1,5 @@
 -- Migration 0020 — the personal access tokens (TODO.identity-features/08,
--- the GitHub fine-grained pattern mapped to the estate): an ACCOUNT-minted
+-- the GitHub fine-grained pattern mapped to the register): an ACCOUNT-minted
 -- developer credential that NEVER rides a request directly — it exchanges
 -- at the OP's token endpoint (the RFC 8693 grant, subject_token_type
 -- urn:oimlsmart:params:oauth:token-type:pat) for a short-lived OP JWT, so

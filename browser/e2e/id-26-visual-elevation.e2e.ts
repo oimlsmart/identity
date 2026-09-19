@@ -352,7 +352,7 @@ describe('TODO.identity-features/11 — the visual-elevation wave', () => {
         link: (document.querySelector('[data-testid="status-banner-link"]') as HTMLAnchorElement | null)?.href ?? null,
       }))
       expect(degraded.state).toBe('degraded')
-      expect(degraded.banner).toContain('Some estate services are reporting problems')
+      expect(degraded.banner).toContain('Some register services are reporting problems')
       expect(degraded.link).toBe(`http://127.0.0.1:${STUB_PORT}/`)
       p = await pill(page)
       expect(p.state).toBe('degraded')

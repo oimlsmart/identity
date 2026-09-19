@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────
-// The endpoint-scaling gate's harness (the estate's N+1 doctrine —
+// The endpoint-scaling gate's harness (the register's N+1 doctrine —
 // docs/deployment/endpoint-scaling.md): a list endpoint's STORE-CALL
 // count is invariant to the store's row count. The disease class this
 // pins (the 2026-09 portal load audit on the sibling platform repo, and

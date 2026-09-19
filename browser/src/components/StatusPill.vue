@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════
 // StatusPill — the footer's live status affordance (the ISO-benchmark
 // structural item 1, their strongest auth-surface play neutralized):
-// a pill fed by the estate's OWN status service through /api/
+// a pill fed by the register's OWN status service through /api/
 // status-summary, linking to the public status page. Until the probe
 // lands, the plain "Service status" link stands (no guessed state);
 // an unreachable upstream reads "status unknown" — never a fake green.

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════
 // The personal access tokens (TODO.identity-features/08) — the developer
-// surface's OP half. The GitHub fine-grained pattern mapped to the
-// estate:
+// surface's OP half. The GitHub fine-grained pattern mapped to
+// the register:
 //
 //   - a PAT is minted by an ACCOUNT from the console and NEVER rides a
 //     request directly: it exchanges at /op/token (the RFC 8693 grant
@@ -29,7 +29,7 @@
 //
 // THE SCOPE MODEL (the kernel's grammar, @oimlsmart/platform-server/
 // store): '<service>:<action-class>' — the service is a REGISTERED,
-// ACTIVE, application-class client id (the estate's service registry IS
+// ACTIVE, application-class client id (the register's service registry IS
 // the OP's client registry; a device-class client is the machine cone's,
 // never a PAT's); the action class is ordinal (admin ⊃ write ⊃ read).
 // The account-side bound (resolvePatScopesForAccount):
@@ -74,7 +74,7 @@ import { deviceClassOf } from './device-clients'
 
 /** The RFC 8693 grant the PAT speaks at /op/token. */
 export const PAT_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
-/** The subject_token_type naming a PAT (the estate's own URN). */
+/** The subject_token_type naming a PAT (the register's own URN). */
 export const PAT_TOKEN_TYPE = 'urn:oimlsmart:params:oauth:token-type:pat'
 
 /** The expiration bounds (the fine-grained doctrine): 90 days the
@@ -368,7 +368,7 @@ export function narrowPatScopesParam(raw: string | null, pinned: readonly PatSco
 
 // ── the session delegation (TODO.ai-platform/03) ─────────────────────
 // A service acting ON THE USER'S behalf within the user's own session —
-// the estate assistant's "my account" reads are the reference caller.
+// the AI assistant's "my account" reads are the reference caller.
 // Where the PAT cone's subject token is a long-lived developer
 // credential, the delegation's subject token is the OP's OWN opaque
 // access token, minted to the calling client by the authorization-code

@@ -336,7 +336,7 @@ export function createOpAccountsRouter(): Hono {
   // lands on the audit chain: the success as account.sign_in, the
   // failures as account.sign_in_failed (the dashboard's burst signal +
   // the holder's own feed — TODO.identity-sso/01).
-  // The one re-label: the estate status probe (auth/op/probe.ts — the
+  // The one re-label: the register status probe (auth/op/probe.ts — the
   // recognized X-OIML-Probe token) lands its invalid-credentials
   // failure as account.sign_in_probe instead, the honest label the
   // feeds + the burst signal exclude (the raw chain retains it). The

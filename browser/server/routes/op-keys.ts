@@ -6,7 +6,7 @@
 //
 // THE MANAGEMENT ACTS (register / rotate / revoke) are gated on the
 // org's `org_admin` in the ACTIVE context (the session acts AS the org)
-// or the estate administrator — the OP never holds a key for an org
+// or the register-operator administrator — the OP never holds a key for an org
 // that nobody administers. Every act lands on the audit chain
 // (entity_type 'organization' — the per-org page's slice carries them).
 //
@@ -105,7 +105,7 @@ export function createOpKeysRouter(): Hono {
   /** The key-act grant against the named org: the org's `org_admin` in
    *  the ACTIVE context (the session's org IS the org — the account
    *  console's switcher stamps it; the primary binding counts) or the
-   *  estate administrator. Answers the error response when the act may
+   *  register-operator administrator. Answers the error response when the act may
    *  not run. */
   async function keyActGrant(c: Context, orgId: string): Promise<{ user: AuthUserPayload } | { error: Response }> {
     const user = await sessionUser(c)

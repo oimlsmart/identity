@@ -21,7 +21,7 @@
 //     predecessor (both rows resolve), the revocation keeps the row;
 //   THE ACT GATES — the anonymous 401, the member-without-org_admin
 //     403, the org_admin in the ACTIVE context (the primary binding AND
-//     the switched context), the estate admin, the org preconditions
+//     the switched context), the register-operator admin, the org preconditions
 //     (the unknown 404, the disabled 400), the rotation/revocation
 //     refusals, the audit chain carrying every act;
 //   THE PUBLIC ENDPOINT — the shape (the org block + the standing
@@ -264,7 +264,7 @@ describe('the management acts (the gates + the audit chain)', () => {
     expect(asEx1.status).toBe(201)
   })
 
-  it('the estate admin registers for any org; the org preconditions refuse honestly', async () => {
+  it('the register-operator admin registers for any org; the org preconditions refuse honestly', async () => {
     const admin = await demoLogin('admin@oiml.org')
     const ok = await app.request(`${ORIGIN}/api/op/org-keys`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
@@ -410,7 +410,7 @@ describe('the public endpoint (GET /op/keys/<org-id>.json)', () => {
     const doc = await json(await app.request(`${ORIGIN}/op/keys/mfr-acme.json`), 200)
     expect(doc.org_kind).toBe('manufacturer')
     expect(doc.standing).toBe('declared')
-    expect(doc.keys).toHaveLength(1) // the estate admin's registration above
+    expect(doc.keys).toHaveLength(1) // the register-operator admin's registration above
   })
 
   it('the unknown org + the missing suffix are the honest 404s (CORS-open too)', async () => {

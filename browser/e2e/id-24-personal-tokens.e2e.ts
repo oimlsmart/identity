@@ -58,7 +58,7 @@ const ID_WEB = 10606
 const IA_EMAIL = 'ia@oiml.org'
 const ADMIN_EMAIL = 'admin@oiml.org'
 
-// The estate's services for the arc (the OP's client registry IS the
+// The register's services for the arc (the OP's client registry IS the
 // service registry): the hub + the register, both the application class.
 const HUB = {
   client_id: 'hub-instance',
@@ -418,7 +418,7 @@ describe('the developer tokens (the identity profile)', () => {
     expect(((await narrowed.json()) as { scope: string }).scope).toBe(`${HUB.client_id}:read`)
 
     // The discovery document: the RP contract alone (the device class's
-    // precedent — the estate-internal cones never advertise: neither
+    // precedent — the register-internal cones never advertise: neither
     // client_credentials nor this RFC 8693 exchange; the wave-C
     // refresh_token IS an RP grant and advertises honestly).
     const discovery = await (await fetch(`${stack.apiBase}/.well-known/openid-configuration`)).json() as { grant_types_supported: string[] }
@@ -427,8 +427,9 @@ describe('the developer tokens (the identity profile)', () => {
 
   it('leg 4 — the narrowing mid-flight: the service’s disable shrinks the next exchange (the standing re-judgment)', { timeout: 900_000 }, async () => {
     // The trigger is the HONEST one the served acts carry: the register's
-    // client leaves the estate (the admin's disable — the same act that
-    // revokes a device client, id-19's precedent). The next exchange
+    // client leaves the register operator's service registry (the admin's
+    // disable — the same act that revokes a device client, id-19's
+    // precedent). The next exchange
     // re-judges the pinned set against the live registry: the dropped
     // service falls away, the hub stands. (The per-client ROLE strip —
     // the other narrowing lever — is deliberately unreachable here: the
@@ -458,7 +459,7 @@ describe('the developer tokens (the identity profile)', () => {
     expect(narrowed, 'the narrowing is audited').toBeTruthy()
     expect((narrowed!.metadata!.dropped as string[])).toContain(`${REGISTER.client_id}:read`)
 
-    // Re-enable: the estate stands again for the rest of the arc.
+    // Re-enable: the register stands again for the rest of the arc.
     const enable = await fetch(`${stack.apiBase}/api/op/clients/${REGISTER.client_id}/status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },

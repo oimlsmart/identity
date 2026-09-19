@@ -845,7 +845,7 @@ export type AddAccountEmailResult =
   | 'present'
   /** Another account holds the address (as its primary or an
    *  additional), or it IS this account's primary — an address names at
-   *  most one account across the estate. */
+   *  most one account across the register. */
   | 'conflict'
 
 // ── strong authentication: the factor registry (TODO.identity-sso/02 + /03)
@@ -935,7 +935,7 @@ export interface MfaPending {
 // ── the personal access tokens (TODO.identity-features/08) ───────────
 // The developer surface: an ACCOUNT-minted credential for programmatic
 // access (the lab CLI, scripts, the agent pipelines). The GitHub
-// fine-grained pattern mapped to the estate:
+// fine-grained pattern mapped to the register:
 //
 //   - the PAT NEVER rides a request directly — it exchanges at the OP's
 //     token endpoint (the RFC 8693 grant, subject_token_type
@@ -963,7 +963,7 @@ export const PAT_ACTION_CLASSES = ['read', 'write', 'admin'] as const
 export type PatActionClass = (typeof PAT_ACTION_CLASSES)[number]
 
 /** One parsed scope: the service (a registered application-class OIDC
- *  client id — the estate's service registry IS the OP's client
+ *  client id — the register's service registry IS the OP's client
  *  registry) × the action class. */
 export interface PatScope {
   service: string
@@ -1265,7 +1265,7 @@ export interface OrgRegistryContact {
  *  the org claim's value against its own participant registry directly:
  *  the same string on both sides, so the mapping is identity, never a
  *  lookup table). `kind` names the participant kind for a participant
- *  org (NULL = a non-participant org — the estate operator's own org, a
+ *  org (NULL = a non-participant org — the register operator's own org, a
  *  scheme consumer); the program side bounds the assignable per-org
  *  roles by it. `participantRef` is the OPTIONAL annotation documenting
  *  which participant record the org mirrors (the link's documentation,
@@ -1318,7 +1318,7 @@ export interface OrgRegistryOrg {
  *  organization — the OP-minted org id, never an instance-minted one.
  *  The hub's OWN row (the certificate_holder_orgs table): the registrar's
  *  act extracts the descriptor the federation registration package carried
- *  (source 'registration'), or the estate admin's claim confirmation writes
+ *  (source 'registration'), or the register-operator admin's claim confirmation writes
  *  it for a legacy row (source 'claim'). ONE row per certificate — the
  *  first attribution wins, a later writer never overwrites silently.
  *
@@ -1332,7 +1332,7 @@ export interface CertificateHolderOrg {
   orgName: string
   source: 'registration' | 'claim'
   attributedAt: string
-  /** The registrar / the confirming estate admin (the actor's name). */
+  /** The registrar / the confirming register-operator admin (the actor's name). */
   attributedBy: string | null
   /** The confirming claim (source 'claim' only). */
   claimId: string | null
@@ -1340,7 +1340,7 @@ export interface CertificateHolderOrg {
 
 /** The legacy-row claim act's lifecycle: PENDING (the manufacturer org's
  *  administrator claimed the row by holder-name match — a claim is a
- *  claim until confirmed) → CONFIRMED (the estate admin's act; the
+ *  claim until confirmed) → CONFIRMED (the register-operator admin's act; the
  *  attribution row lands) / REFUSED (terminal for THAT claim, with the
  *  written reason; a fresh claim may follow). */
 export type CertificateHolderClaimState = 'pending' | 'confirmed' | 'refused'

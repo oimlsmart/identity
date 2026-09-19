@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-// The whoami beacon (the estate's SSO-UX last mile — smart's
+// The whoami beacon (the register's SSO-UX last mile — smart's
 // docs/future/07 Part I.3 item 3): GET /op/whoami answers the current
 // OP session's MINIMAL projection for the static properties' account
 // chips (www + the minisites render the signed-in face without a full

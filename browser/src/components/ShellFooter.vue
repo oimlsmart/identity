@@ -31,7 +31,7 @@ onMounted(() => { void resolveBranding() })
   <div class="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400" data-testid="shell-footer">
     <span>{{ t('shell.footer.tagline') }}</span>
     <span class="flex items-center gap-3">
-      <!-- The estate's legal pages (the ISO-benchmark quick win, item 2):
+      <!-- The register's legal pages (the ISO-benchmark quick win, item 2):
            plain links to the www site's own pages. -->
       <a href="https://www.oimlsmart.org/privacy/" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-privacy">{{ t('shell.footer.privacy') }}</a>
       <a href="https://www.oimlsmart.org/terms/" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-terms">{{ t('shell.footer.terms') }}</a>
@@ -40,7 +40,7 @@ onMounted(() => { void resolveBranding() })
            on the credential surface. -->
       <a v-if="branding.supportUrl" :href="branding.supportUrl" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-support">{{ t('shell.footer.supportPrompt') }}</a>
       <!-- The live status pill (the ISO-benchmark structural item 1):
-           the estate's own status projection replaces the raw health
+           the register's own status projection replaces the raw health
            JSON link — green only on real probe data, "status unknown"
            honestly when unreachable. -->
       <StatusPill />

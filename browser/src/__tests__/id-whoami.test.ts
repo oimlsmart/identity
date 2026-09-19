@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────
-// The whoami beacon (GET /op/whoami — the estate's SSO-UX last mile,
+// The whoami beacon (GET /op/whoami — the register's SSO-UX last mile,
 // smart's docs/future/07 Part I.3 item 3), proven in-process: the REAL
 // whoami router over a REAL temp SQLite store, the demo cast for the
 // sessions, and the client registry seeding the CORS allowlist.

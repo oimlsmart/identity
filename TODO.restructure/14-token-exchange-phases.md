@@ -1,6 +1,6 @@
 # TODO.restructure/14 — the token exchange's two serial reads
 
-**Priority:** P1 (throughput — the estate's second-hottest path)
+**Priority:** P1 (throughput — the register's second-hottest path)
 **Status:** COMPLETE
 
 ## Problem

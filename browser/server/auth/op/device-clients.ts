@@ -2,7 +2,7 @@
 // The device class on the client registry (the machine cone — smart's
 // docs/future/07 Part I.3 item 2: per-device credentials for the SMART
 // Measuring Instruments' twins): a NON-HUMAN client registered PER
-// DEVICE. The estate doc's seam: "the claims policy gains a `device`
+// DEVICE. The register doc's seam: "the claims policy gains a `device`
 // class" — the class marker + the device claims ride the client row's
 // claims-policy JSON (the column round-trips opaquely through the store
 // seam, so the class is a DATA-level extension: no kernel change, no
@@ -46,7 +46,7 @@
 // refresh token. The discovery document keeps advertising the RP
 // contract alone (grant_types_supported stays the APPLICATION grants —
 // authorization_code + the wave-C refresh_token; client_credentials
-// never advertises): the device class is an estate-internal cone, not
+// never advertises): the device class is a register-internal cone, not
 // an RP flow — the OIDC wire the relying parties pin (the contract
 // gate's golden) is byte-identical.
 //

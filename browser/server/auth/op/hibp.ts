@@ -25,7 +25,7 @@
 // The range endpoint is the deployment's (HIBP_RANGE_URL — the honest
 // seam for a proxy, a self-hosted corpus, and the tests' stub; the
 // literal 'off' DISABLES the check outright — the declared posture of
-// an offline estate and of every test suite that is not the check's
+// an offline register and of every test suite that is not the check's
 // own pin: no query, no marker, no audit note). The query is bounded
 // (HIBP_TIMEOUT_MS) and NEVER throws: every failure mode resolves to
 // 'unknown'.

@@ -7,7 +7,7 @@
 // anywhere).
 //
 // The cone: a service acting ON THE USER'S behalf inside the user's own
-// session (the estate assistant's "my account" reads are the reference
+// session (the AI assistant's "my account" reads are the reference
 // caller). The invariants under test:
 //
 //   NARROW-ONLY   — the delegated token never exceeds the account's
@@ -40,7 +40,7 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
-// The delegating service (the estate assistant's shape): a confidential
+// The delegating service (the AI assistant's shape): a confidential
 // application-class client. The delegation's TARGET: the hub (the RP the
 // assistant reads). The register is the narrowing leg's second service.
 const ASSISTANT = {

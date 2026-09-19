@@ -172,7 +172,7 @@ describe('the effective-permission explainer (the composition)', () => {
   })
 
   it('the oversight carve-out: a non-org-bound primary role reads everything — and read-only STILL refuses its writes', () => {
-    // The org-free estate account (admin) holding a viewer membership in
+    // The org-free register operator's account (admin) holding a viewer membership in
     // the org: the account-level roles ride the context (the honest
     // union), the read gate never narrows it, and the cone never hides a
     // row — but the read-only modifier refuses the writes (the write

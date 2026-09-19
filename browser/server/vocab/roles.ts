@@ -118,7 +118,7 @@ export const ROLE_SECTION_RULES: RoleSectionRule[] = [
   // context view) rides the /app/lab prefix: the laboratory's own section.
   { prefix: '/app/lab', roles: ['tl_operator'] },
   // TODO.register/02 — the register's owner view: the manufacturer org's
-  // own rows, the IA desk's issued cone, the estate's all-seeing cone +
+  // own rows, the IA desk's issued cone, the register operator's all-seeing cone +
   // the holder-claim queue. The module path rule (auth/modules.ts) rides
   // the register module.
   { prefix: '/app/my-certificates', roles: ['applicant', 'ia_officer', 'case_officer', 'certification_officer', 'signatory', 'biml_officer', 'cs_admin'] },

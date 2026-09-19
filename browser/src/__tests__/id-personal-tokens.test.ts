@@ -49,7 +49,7 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
-// The estate's services for the lattice: the hub (the RP the lab CLI
+// The register's services for the lattice: the hub (the RP the lab CLI
 // talks to) + the register; the device client proves the machine cone is
 // never a PAT's service.
 const HUB = { clientId: 'hub-instance', name: 'OIML SMART platform hub', claims: ['roles', 'groups', 'org'] }
@@ -167,7 +167,7 @@ demo_personas: true
   root.route('/', createOpRegistryRouter())
   app = root
 
-  // The estate's services: two application-class clients + a device-class
+  // The register's services: two application-class clients + a device-class
   // one (the machine cone is never a PAT's service).
   for (const c of [HUB, REGISTER]) {
     await store.upsertOidcClient({

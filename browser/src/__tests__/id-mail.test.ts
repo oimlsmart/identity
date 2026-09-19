@@ -403,8 +403,8 @@ describe('renderOpMail — the EN/FR templates', () => {
     expect(mail.html).not.toContain('onerror=alert(1)"')
   })
 
-  it('the brand mark is the deployment’s: the logoUrl param wins, the estate default otherwise (TODO.self-host/02)', () => {
-    // The default: the estate's self-hosted URL (the constant).
+  it('the brand mark is the deployment’s: the logoUrl param wins, the register-operator default otherwise (TODO.self-host/02)', () => {
+    // The default: the register operator's self-hosted URL (the constant).
     expect(renderOpMail('invite', 'en', params).html).toContain(`<img src="${OP_MAIL_LOGO_URL}"`)
     // A self-hosted OP declares its own absolute URL (sendOpMail fills
     // the param from OP_MAIL_LOGO_URL); the shell escapes it.

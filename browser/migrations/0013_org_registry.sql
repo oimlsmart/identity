@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS org_registry (
   name TEXT NOT NULL,
   short_name TEXT,
   -- The participant kind (the OIML-CS program's four); NULL = a
-  -- non-participant org (the estate operator's own org, a consumer).
+  -- non-participant org (the register operator's own org, a consumer).
   kind TEXT,
   country TEXT,
   -- The contacts (a JSON array of { name, email }; a malformed entry is

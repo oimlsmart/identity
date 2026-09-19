@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════
-// The estate status projection (the ISO-benchmark structural item 1,
+// The register status projection (the ISO-benchmark structural item 1,
 // the visual-elevation wave's move 4): GET /api/status-summary distills
-// the estate's OWN status service (status.oimlsmart.org's public
+// the register's OWN status service (status.oimlsmart.org's public
 // /api/summary.json — the shape discovered from oimlsmart/status's
 // src/worker.ts, verified live 2026-08-31) into the aggregate the
 // sign-in page + the shell footer's status pill render.
@@ -68,7 +68,7 @@ const LEVELS: readonly EstateState[] = ['operational', 'degraded', 'down', 'unkn
 /** The pure aggregate: the summary document → the projection. Exported
  *  for the unit legs. Worst-of with the honest ordering (any down → down;
  *  else any degraded → degraded; else ≥1 operational → operational — a
- *  never-probed service cannot drag the estate off green on its own, the
+ *  never-probed service cannot drag the register off green on its own, the
  *  status page shows it as unknown itself; else unknown). A stale prober
  *  collapses the whole read to unknown — never a hearsay green. */
 export function aggregateStatus(

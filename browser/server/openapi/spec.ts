@@ -30,9 +30,9 @@ export const OPENAPI_SPEC = {
   info: {
     title: 'OIML SMART Identity API',
     version: '1.0.0-edition1',
-    summary: 'The OpenID Connect Provider and account API of the OIML SMART estate.',
+    summary: 'The OpenID Connect Provider and account API of the OIML SMART register.',
     description:
-      'The identity service (id.oimlsmart.org) is the estate\'s OpenID Connect Provider. '
+      'The identity service (id.oimlsmart.org) is the register\'s OpenID Connect Provider. '
       + 'This edition documents the machine-facing surface: the OIDC endpoints a relying party integrates, '
       + 'the public join intake, and the session-authenticated self-service API every account owns. '
       + 'The interactive browser legs (authorize, end-session) follow the OIDC/Browser flows — link them from the discovery document — '
@@ -46,7 +46,7 @@ export const OPENAPI_SPEC = {
     { name: 'Instance', description: 'The instance\'s public facts and posture.' },
     { name: 'Join', description: 'The public account-request intake: the organizations register and the join-request filing.' },
     { name: 'Session', description: 'The session-authenticated account surface (the `oiml-session` cookie a console sign-in sets).' },
-    { name: 'Tokens', description: 'The personal access tokens a account mints, manages and revokes — the machine credential for the estate\'s services.' },
+    { name: 'Tokens', description: 'The personal access tokens a account mints, manages and revokes — the machine credential for the register\'s services.' },
   ],
   components: {
     securitySchemes: {

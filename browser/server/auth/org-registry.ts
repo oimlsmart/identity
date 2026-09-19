@@ -13,7 +13,7 @@
 // value directly — the mapping is identity, never a lookup table. The
 // row's OPTIONAL participantRef documents which participant record the
 // org mirrors (the annotation, never a key); a non-participant org (the
-// estate operator's own org, a scheme consumer) carries a free slug and
+// register operator's own org, a scheme consumer) carries a free slug and
 // kind NULL.
 //
 // THE OIML MEMBER CATEGORY (TODO.identity-features/10, the taxonomy
@@ -84,7 +84,7 @@ const REGISTRY_ORG_KINDS = new Set<string>(['member-state', 'corresponding-membe
 
 /** The OIML MEMBER kinds (the category): the member states + the
  *  corresponding members. Their personnel hold accounts and reach the
- *  estate's services (the member tier by construction); they carry NO
+ *  register's services (the member tier by construction); they carry NO
  *  workflow authority. */
 const MEMBER_KINDS = new Set<string>(['member-state', 'corresponding-member'])
 

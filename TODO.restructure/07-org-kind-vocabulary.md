@@ -40,7 +40,7 @@ entry in ONE map (OCP); the per-kind standing line on the orgs list
 
 The copy states the doctrine in one line each, e.g.:
 - member-state: "OIML Member State — the Convention's membership; read
-  access to the estate's services, never certificate workflow authority."
+  access to the register's services, never certificate workflow authority."
 - issuing-authority: "Issuing Authority — runs the OIML CS: evaluates,
   issues and endorses certificates; its staff hold the workflow roles."
 - test-laboratory: "Test Laboratory — performs the tests an IA dispatches;

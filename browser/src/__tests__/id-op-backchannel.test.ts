@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────
 // The OP back-channel's Astro-guard tripwire (the 2026-09-14
-// estate-wide SSO break): Astro's built-in origin check (security.
+// register-wide SSO break): Astro's built-in origin check (security.
 // checkOrigin, default ON) 403s every non-GET carrying a form content
 // type whose Origin header is absent or foreign — EXACTLY the OIDC
 // back-channel's shape: POST /op/token (the relying party's code

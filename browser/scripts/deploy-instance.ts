@@ -21,7 +21,7 @@
  *   npx tsx scripts/deploy-instance.ts selfhost --overlay wrangler.self-host.toml
  *     (the SELF-HOST path, TODO.self-host/02: the env block comes from an
  *     UNTRACKED overlay toml — the operator's own worker name, D1 ids,
- *     buckets, vars — so the tracked wrangler.toml stays the estate's
+ *     buckets, vars — so the tracked wrangler.toml stays the register operator's
  *     deployment and a self-host deploy never edits a tracked file; the
  *     runbook is docs/deployment/identity-self-host.md)
  */
@@ -31,7 +31,7 @@ import { parse } from 'smol-toml';
 
 const env = process.argv[2];
 const composeOnly = process.argv.includes('--compose-only');
-// The env block's source: the tracked wrangler.toml (the estate's
+// The env block's source: the tracked wrangler.toml (the register operator's
 // deployment) or an UNTRACKED overlay (`--overlay <path>` — the
 // self-host path, never a tracked-file edit).
 const overlayIdx = process.argv.indexOf('--overlay');

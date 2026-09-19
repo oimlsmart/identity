@@ -32,7 +32,7 @@
 // the credential read, one round-trip phase) and the rung write rides
 // the audit write's phase — the same slop class, never re-read.
 //
-// The estate's 60 s status probe (auth/op/probe.ts) rides the ladder
+// The register's 60 s status probe (auth/op/probe.ts) rides the ladder
 // like every caller: its fixed address long ago passed the spent cap
 // (failCount ≥ MFA_FAILURE_CAP ⇒ no wait owed), so the probe's timing
 // stays the route's own — and the recognition keeps its own doctrine

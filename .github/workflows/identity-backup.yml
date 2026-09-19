@@ -36,7 +36,7 @@ name: identity-backup
 # environment — deliberately WITHOUT required reviewers (a nightly job
 # cannot wait on an approval; the production environment's gate would
 # stall it) — carrying the two secrets:
-#   CLOUDFLARE_ACCOUNT_ID  the estate account id
+#   CLOUDFLARE_ACCOUNT_ID  the register operator's account id
 #   CLOUDFLARE_API_TOKEN   the Cloudflare pilot token (wrangler-
 #                          compatible; carries the export AND the R2
 #                          object verbs — no S3 key pair anywhere)

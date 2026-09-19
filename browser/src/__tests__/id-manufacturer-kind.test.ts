@@ -104,13 +104,13 @@ demo_personas: true
   // EX9 a second active IA (the operator's curating act), mfr-acme the
   // demo cast's manufacturer (TODO.register/01 — the platform's sample
   // id resolvable on the OP), mfr-dormant a DISABLED manufacturer (the
-  // join gate's negative leg), and estate a kind-NULL non-participant.
+  // join gate's negative leg), and the register operator a kind-NULL non-participant.
   await store.createOrgRegistryOrg({ id: 'EX1', name: 'Example Issuing Authority', shortName: 'EIA', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia.example.org' }], participantRef: 'EX1' })
   await store.createOrgRegistryOrg({ id: 'EX9', name: 'Second Example Issuing Authority', shortName: 'EIA-2', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia2.example.org' }], participantRef: 'EX9' })
   await store.createOrgRegistryOrg({ id: 'mfr-acme', name: 'ACME (the demonstration manufacturer)', shortName: 'ACME', kind: 'manufacturer', country: 'Example Member State', contacts: [{ name: 'ACME Applicant', email: 'applicant@oiml.org' }], participantRef: null })
   await store.createOrgRegistryOrg({ id: 'mfr-dormant', name: 'Dormant Instruments', shortName: null, kind: 'manufacturer', country: null, contacts: [{ name: null, email: 'office@dormant.example.org' }], participantRef: null })
   await store.setOrgRegistryOrgState('mfr-dormant', 'disabled', 'the test seed')
-  await store.createOrgRegistryOrg({ id: 'estate', name: 'The Estate Operator', shortName: null, kind: null, country: null, contacts: [], participantRef: null })
+  await store.createOrgRegistryOrg({ id: 'register-operator', name: 'The Register Operator', shortName: null, kind: null, country: null, contacts: [], participantRef: null })
 })
 
 afterAll(async () => {
@@ -146,7 +146,7 @@ describe('the manufacturer kind (the resolver)', () => {
     expect(ia.registered).toBe(true)
     expect(ia.standing).toBe('participant')
 
-    const plain = (await resolveRegistryOrg(store, 'estate'))!
+    const plain = (await resolveRegistryOrg(store, 'register-operator'))!
     expect(plain.standing).toBe('non-participant')
     expect(plain.registered).toBe(false)
     expect(admitsJoinFlow(plain)).toBe(false)

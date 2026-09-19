@@ -115,18 +115,18 @@ export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'v
  *  OIML/SMART wordmark), referenced by its absolute production URL (email
  *  clients need an ABSOLUTE public image URL and the platform's www asset
  *  path 404s today, so the OP serves its own copy,
- *  browser/public/brand/oiml-smart-logo.png — the estate's
+ *  browser/public/brand/oiml-smart-logo.png — the register operator's
  *  assets/oiml-logo_smart-light.svg rendered to PNG: no SVG in email).
  *  The light variant because the header sits on the light card.
  *
  *  SELF-HOST NOTE (TODO.self-host/02): a self-hosted OP that configures
  *  a mailer must declare OP_MAIL_LOGO_URL to its OWN absolute https
- *  image URL — the default names the estate's domain, and mail bearing
- *  another deployment's brand is the leak this env closes. */
+ *  image URL — the default names the register operator's domain, and
+ *  mail bearing another deployment's brand is the leak this env closes. */
 export const OP_MAIL_LOGO_URL = 'https://id.oimlsmart.org/brand/oiml-smart-logo.png'
 
-/** The deployment's mail brand mark: the OP_MAIL_LOGO_URL env wins, the
- *  estate's self-hosted default otherwise. */
+/** The deployment's mail brand mark: the OP_MAIL_LOGO_URL env wins,
+ *  the register operator's self-hosted default otherwise. */
 export function resolveMailLogoUrl(env: Record<string, unknown>): string {
   const declared = typeof env.OP_MAIL_LOGO_URL === 'string' ? env.OP_MAIL_LOGO_URL.trim() : ''
   return declared || OP_MAIL_LOGO_URL
@@ -241,7 +241,7 @@ export function renderOpMail(
   const esc = (key: MessageKey): string => interpolate(catalog[key], escaped)
   const product = escapeHtml(String(params.product ?? ''))
   // The brand mark: the caller's logoUrl (sendOpMail fills it from the
-  // deployment's env), else the estate default.
+  // deployment's env), else the register-operator default.
   const logoUrl = escapeHtml(typeof params.logoUrl === 'string' && params.logoUrl ? String(params.logoUrl) : OP_MAIL_LOGO_URL)
 
   // The action URL is per-template (the setup link for invite/reset,

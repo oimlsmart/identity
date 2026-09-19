@@ -10,7 +10,7 @@
 --     claims keep carrying the primary on a switch;
 --   - account_emails carries the ADDITIONAL addresses only — one row per
 --     (account, address), verified_at NULL until the per-address ceremony
---     proves the mailbox. An address is globally unique across the estate
+--     proves the mailbox. An address is globally unique across the register
 --     of addresses: the unique index keys it here, and the store's writes
 --     check BOTH tables (an additional on account A blocks the address as
 --     a primary or an additional anywhere else);
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS account_emails (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, email)
 );
--- An address names at most ONE account across the estate (the sign-in
+-- An address names at most ONE account across the register (the sign-in
 -- and recovery resolutions depend on it); the users.email UNIQUE covers
 -- the primaries, this index the additionals, and the store's writes
 -- check across both.

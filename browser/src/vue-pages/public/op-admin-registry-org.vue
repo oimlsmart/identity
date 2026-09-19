@@ -1055,8 +1055,8 @@ onMounted(async () => {
           </li>
         </ul>
 
-        <!-- The register form (the org admin manages theirs; the estate
-             admin sees all). -->
+        <!-- The register form (the org admin manages theirs; the
+             register-operator admin sees all). -->
         <div v-if="view.org.state === 'active'" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-3" data-testid="op-reg-org-key-register">
           <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.org.keys.registerTitle') }}</h3>
           <input v-model="keyLabel" type="text" data-testid="op-reg-org-key-label" :placeholder="t('admin.org.keys.fieldLabel')" class="mb-2 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-// The estate status, client half (the ISO-benchmark structural item 1,
+// The register status, client half (the ISO-benchmark structural item 1,
 // the visual-elevation wave's move 4): one shared probe of the service's
 // /api/status-summary projection (the server distills status.oimlsmart
 // .org's public summary — no CORS on the upstream, hence the proxy),

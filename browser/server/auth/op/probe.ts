@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // The status-probe recognition (the 2026-09-01 owner directive) — the
-// estate's status service (oimlsmart/status, the id-auth-route leg)
+// register's status service (oimlsmart/status, the id-auth-route leg)
 // EXERCISES this OP's password sign-in every 60s with a known-
 // nonexistent account: the fast 401 is the healthy answer, and the
 // exercised path deliberately INCLUDES the audit write (the probe
@@ -35,7 +35,7 @@ import { timingSafeEqual } from './secrets'
 /** The header the status probe presents (the shared token's vehicle). */
 export const STATUS_PROBE_HEADER = 'x-oiml-probe'
 
-/** Is this request the estate's status probe? True only when the
+/** Is this request the register's status probe? True only when the
  *  STATUS_PROBE_TOKEN secret is configured AND the presented header
  *  matches it under the constant-time compare. Every other posture —
  *  the header absent, mismatched, or the secret unset — is a normal

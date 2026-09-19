@@ -46,7 +46,7 @@ const ORG_ADMIN = 'applicant@oiml.org' // the demo cast's mfr-acme org_admin
 const MEMBER = 'tl@oiml.org'
 
 // The plain client (the golden's posture — never the cone claim) and the
-// cone-gated one (the estate's RP shape: the policy names it).
+// cone-gated one (the register's RP shape: the policy names it).
 const PLAIN_RP = {
   client_id: 'hub-instance',
   name: 'OIML SMART platform hub',

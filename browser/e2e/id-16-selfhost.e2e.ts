@@ -11,7 +11,7 @@
 // and env config only — the declared loopback issuer, one bootstrap
 // admin (OP_ACCOUNT_SEED), one test client (OP_CLIENT_SEED), one
 // stub-IdP registry row (OP_UPSTREAM_SEED), a GENERATED ES256 signing
-// key for the leg (fixtures/op-signing-key.ts — never the estate key),
+// key for the leg (fixtures/op-signing-key.ts — never the register-operator key),
 // and an instance-profile YAML written to the temp dir (the ACME cast,
 // demo_personas: false — the production posture). Explicitly NOT
 // configured: the mailer and the avatar store — the leg asserts the
@@ -188,7 +188,7 @@ demo_personas: false
       DEMO_ACCOUNTS_ENABLED: 'false',
       OP_ISSUER: ISSUER,
       // identity#7: a declared-issuer stack declares its signing key too —
-      // a FRESH ES256 pair for the leg (never the estate key, never a
+      // a FRESH ES256 pair for the leg (never the register-operator key, never a
       // checked-in key).
       OP_SIGNING_KEY: await fixtureOpSigningKey(),
       // The bootstrap admin (the first administrator arrives by
@@ -257,8 +257,8 @@ describe('TODO.self-host/03 — the self-host smoke proof (configuration-only bo
     expect(meta.userinfo_endpoint).toBe(`${ISSUER}/op/userinfo`)
     expect(meta.jwks_uri).toBe(`${ISSUER}/jwks.json`)
 
-    // The JWKS carries the LEG's kid (the generated pair), never an
-    // estate key.
+    // The JWKS carries the LEG's kid (the generated pair), never a
+    // register-operator key.
     const legKid = (JSON.parse(await fixtureOpSigningKey()) as { kid: string }).kid
     const jwks = await (await fetch(meta.jwks_uri)).json() as { keys: Array<Record<string, unknown>> }
     expect(jwks.keys.length).toBeGreaterThanOrEqual(1)

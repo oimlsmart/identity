@@ -124,13 +124,13 @@ OP_ISSUER = "https://id.oimlsmart.org"
 # The support affordance (the ISO-benchmark quick win, item 6): the
 # sign-in page + the shell footer render a plain "Need help?" link —
 # never a third-party widget on the credential surface. The address is
-# the estate's published contact (www.oimlsmart.org/privacy).
+# the register operator's published contact (www.oimlsmart.org/privacy).
 SUPPORT_URL = "mailto:info@oimlsmart.org"
 # TODO.identity/09: the sender identity for both mail postures. Inert
 # until a provider is configured (see the commented blocks above).
 EMAIL_FROM = "OIML SMART Identity <no-reply@oimlsmart.org>"
 # MAIL_PROVIDER_URL = "https://api.resend.com/emails"
-# The estate status probe's recognition token (server/auth/op/probe.ts):
+# The register status probe's recognition token (server/auth/op/probe.ts):
 # the status service's sign-in probe presents it as the X-OIML-Probe
 # header so its exercised invalid-credentials checks audit as the honest
 # account.sign_in_probe (excluded from the feeds + the burst signal)

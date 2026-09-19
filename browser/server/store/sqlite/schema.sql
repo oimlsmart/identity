@@ -750,7 +750,7 @@ CREATE TABLE IF NOT EXISTS org_registry (
   name TEXT NOT NULL,
   short_name TEXT,
   -- The participant kind (the OIML-CS program's four); NULL = a
-  -- non-participant org (the estate operator's own org, a consumer).
+  -- non-participant org (the register operator's own org, a consumer).
   kind TEXT,
   country TEXT,
   -- The contacts (a JSON array of { name, email }; a malformed entry is
@@ -793,7 +793,7 @@ CREATE INDEX IF NOT EXISTS idx_org_registry_state ON org_registry (state);
 -- records-mode / CSV) registered certificate carries a free-text holder
 -- and no descriptor; the manufacturer org's administrator claims by
 -- holder-name match (the matched name snapshots as the evidence), an
--- estate admin confirms or refuses (atomic on 'pending'), and the audit
+-- register-operator admin confirms or refuses (atomic on 'pending'), and the audit
 -- chain carries both acts. A refused claim never blocks a fresh one; a
 -- confirmed claim is terminal.
 -- The D1 migration set carries the identical end state

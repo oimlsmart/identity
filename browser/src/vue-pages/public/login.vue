@@ -535,7 +535,7 @@ async function submitReset() {
 <template>
   <!-- The editorial split (the ISO-benchmark structural item 7, the
        visual-elevation wave's move 2): at desktop widths the sign-in is
-       two panels — the left carries the brand/welcome space (the estate's
+       two panels — the left carries the brand/welcome space (the register's
        own globe mark as the illustration, never a stock photo), the right
        the form. Below lg the single proven column stands (the panel
        hides; the card carries the lockup itself). The panel is deep
@@ -543,12 +543,12 @@ async function submitReset() {
        dark mode is correct by construction. -->
   <div class="flex-1 flex flex-col">
     <!-- The incident banner (the ISO-benchmark structural item 1's banner
-         posture): a published problem on the estate's own status service
+         posture): a published problem on the register's own status service
          surfaces here, dignified; green and unknown render nothing. -->
     <StatusBanner />
     <div class="flex-1 flex lg:min-h-0">
     <aside class="hidden lg:flex lg:w-[45%] xl:w-1/2 flex-col relative overflow-hidden bg-brand-950 text-white" data-testid="login-panel">
-      <!-- The estate's globe mark, large and faint, anchored to the
+      <!-- The register's globe mark, large and faint, anchored to the
            panel's lower corner — the house's own visual language. -->
       <img
         src="/brand/oiml-logo-globe-dark.svg"

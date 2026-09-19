@@ -8,7 +8,7 @@
 //          Set member shape, the participant standing, the short
 //          max-age + the CORS-open header (through the astro proxy, the
 //          verifiers' posture);
-//   leg 2  the estate admin delegates org_admin to the demo IA officer
+//   leg 2  the register-operator admin delegates org_admin to the demo IA officer
 //          (fetch-level, the memberships roles act); the officer's
 //          account console shows the org's signing-keys section with
 //          the demonstration key active;
@@ -56,7 +56,7 @@ const ID_API = 10593
 const ID_WEB = 10594
 
 // The cast: EX1 the seeded active IA (the demonstration key's org), its
-// officer delegated to org_admin in leg 2, the estate admin, and the
+// officer delegated to org_admin in leg 2, the register-operator admin, and the
 // ACME applicant (the negative — never a key administrator).
 const IA_EMAIL = 'ia@oiml.org'
 const ADMIN_EMAIL = 'admin@oiml.org'
@@ -306,7 +306,7 @@ describe('TODO.trust-registry/01 — the org signing keys (the identity profile)
     expect(JSON.stringify(doc)).not.toContain('created_by')
   })
 
-  it('leg 2 — the estate admin delegates org_admin to the IA officer; the officer’s account console shows the signing-keys section', { timeout: 900_000 }, async () => {
+  it('leg 2 — the register-operator admin delegates org_admin to the IA officer; the officer’s account console shows the signing-keys section', { timeout: 900_000 }, async () => {
     // The delegation (fetch-level): the wide grant's org_admin assignment
     // on the officer's EX1 membership.
     const admin = await apiSignIn(stack.apiBase, ADMIN_EMAIL)
