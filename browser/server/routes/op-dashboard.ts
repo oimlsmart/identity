@@ -283,6 +283,58 @@ export function createOpDashboardRouter(): Hono {
     return { user, error: null }
   }
 
+  // GET /api/op/dashboard/org-activity — the per-org analytics
+  // (TODO.modern/09's last half, the whitelabel tenants' view): the
+  // org's sign-ins, failed sign-ins, and token exchanges over a
+  // bounded window, membership-joined IN MEMORY (the journal + every
+  // membership read ONCE — the scaling doctrine; the call count is
+  // invariant to rows). The exchange rows carry the account in
+  // metadata.account (the client-side family); the sign-in family
+  // keys on the account directly. The org's zeros are honest (a new
+  // org answers zeros, never a 404 — there is no registry existence
+  // claim to make).
+  dashboard.get('/api/op/dashboard/org-activity', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const org = c.req.query('org')?.trim() ?? ''
+    const days = Number(c.req.query('days') ?? 30)
+    if (!org) return c.json({ error: 'org (the organization id) is required' }, 400)
+    if (!Number.isInteger(days) || days < 1 || days > 90) {
+      return c.json({ error: 'days must be an integer 1–90' }, 400)
+    }
+    const since = Date.now() - days * 86_400_000
+    const [journal, memberships] = await Promise.all([
+      readJournal(),
+      getStore().listAllOrgMemberships(),
+    ])
+    const members = new Set(
+      memberships.filter(m => m.orgId === org && m.state === 'active').map(m => m.userId),
+    )
+    const totals = { signIns: 0, failedSignIns: 0, exchanges: 0 }
+    const byDay: Array<{ date: string; signIns: number; failedSignIns: number; exchanges: number }> = []
+    const buckets = new Map<string, { date: string; signIns: number; failedSignIns: number; exchanges: number }>()
+    for (let i = days - 1; i >= 0; i--) {
+      const bucket = { date: new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10), signIns: 0, failedSignIns: 0, exchanges: 0 }
+      buckets.set(bucket.date, bucket)
+      byDay.push(bucket)
+    }
+    for (const event of journal) {
+      const at = Date.parse(event.timestamp)
+      if (!(at >= since)) continue
+      const bucket = buckets.get(event.timestamp.slice(0, 10))
+      if (!bucket) continue
+      if (event.action === 'account.sign_in') {
+        if (members.has(event.entity_id)) { bucket.signIns++; totals.signIns++ }
+      } else if (event.action === 'account.sign_in_failed') {
+        if (members.has(event.entity_id)) { bucket.failedSignIns++; totals.failedSignIns++ }
+      } else if (event.action === 'client.token_issued') {
+        const account = typeof event.metadata?.account === 'string' ? event.metadata.account : event.user_id ?? ''
+        if (account && members.has(account)) { bucket.exchanges++; totals.exchanges++ }
+      }
+    }
+    return c.json({ org, days, totals, byDay })
+  })
+
   /** The revoke-all act's audit row (entity_type 'account', the same
    *  journal family as the neighboring registry acts; never blocks). */
   async function audit(
