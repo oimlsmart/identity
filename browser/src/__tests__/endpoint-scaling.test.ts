@@ -149,6 +149,22 @@ async function seedKnownDevices(from: number, count: number): Promise<void> {
   }
 }
 
+/** N more members + sign-in rows in ONE org for the analytics leg. */
+async function seedOrgActivity(from: number, count: number): Promise<void> {
+  for (let i = from; i < from + count; i++) {
+    const account = await store.createOpAccount({
+      email: `anly-gate-${i}-${crypto.randomUUID().slice(0, 6)}@example.org`,
+      name: `Analytics ${i}`, role: 'viewer', createdBy: 'gate',
+    })
+    await store.createOrgMembership({ userId: account!.id, orgId: 'gate-anly-org', roles: ['org_member'], state: 'active' })
+    await store.putEntity('auditEvents', crypto.randomUUID(), null, JSON.stringify({
+      id: crypto.randomUUID(), timestamp: new Date().toISOString(), standard_id: '',
+      entity_type: 'account', entity_id: account!.id, action: 'account.sign_in',
+      user_id: account!.id, metadata: {},
+    }))
+  }
+}
+
 /** N more provisioned accounts for the SCIM list leg (TODO.modern/05). */
 async function seedScimUsers(from: number, count: number): Promise<void> {
   for (let i = from; i < from + count; i++) {
@@ -387,6 +403,16 @@ describe('the account consoles — the fixed N+1s', () => {
       request: () => app.fetch(req('/api/op/account/devices', memberCookie)),
     })
     expectScalingInvariant({ label: 'GET /api/op/account/devices as member', ...leg })
+  })
+
+  it('GET /api/op/dashboard/org-activity (the journal + memberships, TWO reads)', async () => {
+    const req = (q: string) => new Request(`http://op.test${q}`, { headers: { cookie: adminCookie } })
+    const leg = await runLeg({
+      seedSmall: () => seedOrgActivity(0, SMALL).then(() => SMALL),
+      grow: () => seedOrgActivity(SMALL, LARGE - SMALL).then(() => LARGE),
+      request: () => app.fetch(req('/api/op/dashboard/org-activity?org=gate-anly-org&days=30')),
+    })
+    expectScalingInvariant({ label: 'GET /api/op/dashboard/org-activity', ...leg })
   })
 
   it('GET /scim/v2/Users (the one bulk read, paged in memory)', async () => {
