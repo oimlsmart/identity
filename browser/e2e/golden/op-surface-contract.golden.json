@@ -27,6 +27,7 @@
       ]
     },
     "idToken": {
+      "acr": "urn:oimlsmart:acr:single-factor",
       "amr": [
         "pwd"
       ],
@@ -70,7 +71,12 @@
     }
   },
   "discovery": {
+    "acr_values_supported": [
+      "urn:oimlsmart:acr:multi-factor",
+      "urn:oimlsmart:acr:single-factor"
+    ],
     "authorization_endpoint": "{issuer}/op/authorize",
+    "check_session_iframe": "{issuer}/op/session/check",
     "claims_supported": [
       "iss",
       "sub",

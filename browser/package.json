@@ -15,17 +15,19 @@
     "preview": "astro preview",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
-    "test:e2e": "tsx scripts/e2e-run.ts"
+    "test:e2e": "tsx scripts/e2e-run.ts",
+    "sdk:generate": "tsx scripts/generate-sdk.ts",
+    "sdk:check": "npm run -s sdk:generate && git diff --exit-code -- sdk"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",
     "@oimlsmart/site-shell": "^0.1.0",
+    "bcryptjs": "^3.0.2",
     "dotenv": "^17.4.2",
     "hono": "^4.12.23",
     "js-yaml": "^4.1.1",
     "vue": "^3.5.32",
-    "vue-router": "^4.6.4",
-    "bcryptjs": "^3.0.2"
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
@@ -33,6 +35,8 @@
     "@astrojs/node": "^11.0.2",
     "@astrojs/vue": "^7.0.1",
     "@cloudflare/workers-types": "^5.20260813.1",
+    "@hey-api/client-fetch": "^0.13.1",
+    "@hey-api/openapi-ts": "^0.99.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^7.6.13",
     "@types/js-yaml": "^4.0.9",

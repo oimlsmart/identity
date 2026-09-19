@@ -49,6 +49,13 @@ jobs:
         working-directory: browser
         run: npx vitest run
 
+      # The SDK freshness gate (TODO.modern/07): the committed sdk/gen
+      # artifact regenerates from the drift-gated spec byte-identically —
+      # a stale artifact fails the diff.
+      - name: The SDK freshness gate (regenerate → the diff must be empty)
+        working-directory: browser
+        run: npm run sdk:check
+
       # The endpoint-scaling gate (docs/deployment/endpoint-scaling.md):
       # the list endpoints' store-call invariance, as its own named
       # signal (the suite also rides the vitest run above).

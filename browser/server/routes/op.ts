@@ -130,6 +130,8 @@ import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
 import { resolveRegistryOrg } from '../auth/org-registry'
 import { APP_ROLES } from '../vocab'
+import { computeSessionState } from '../auth/op/session-state'
+import { acrOf, ACR_LEVELS, sessionMeetsMaxAge } from '../auth/op/step-up'
 import { SESSION_COOKIE, sessionUser } from '../session'
 import { deleteCookie, getCookie } from 'hono/cookie'
 
@@ -239,9 +241,18 @@ export function createOpRouter(): Hono {
       scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       code_challenge_methods_supported: ['S256'],
+      // The session management surface (TODO.modern/03): the RP's
+      // session observation — the OIDC Session Management poll (the
+      // iframe + the authorize answer's session_state). Front-channel
+      // logout is DELIBERATELY absent (backchannel logout already
+      // ships — the newer posture).
+      check_session_iframe: `${issuer}/op/session/check`,
       // auth_time joins: the prompt=login freshness proof the RP verifies
       // (the wave-A tail — the code carries the session's authentication
       // instant, kernel 0.2.5).
+      // The step-up ladder (TODO.modern/06): the achieved-acr
+      // vocabulary — derived from the session's amr, never asserted.
+      acr_values_supported: [...ACR_LEVELS],
       claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'amr'],
     })
   })
@@ -276,6 +287,67 @@ export function createOpRouter(): Hono {
     // two orders above a 5-minute freshness.
     c.header('Cache-Control', 'public, max-age=300')
     return c.json(await opJwks(store))
+  })
+
+  // ── session management (TODO.modern/03) ────────────────────────────
+  // The RP's session observation (the OIDC Session Management poll):
+  // the RP embeds /op/session/check (this OP's origin, so the cookie
+  // rides), posts `client_id=…&session_state=…` at it, and the iframe
+  // answers 'unchanged'/'changed' via postMessage — the recomputation
+  // runs per poll against the LIVE session (a revoked or signed-out
+  // session is an honest 'changed', the state endpoint refusing). Any
+  // failure of the poll itself is ALSO 'changed' — the fail-closed
+  // direction (the RP re-authenticates; it never trusts a dead
+  // session). client_secret is deliberately unused here: no RP secret
+  // belongs in browser JS (the public-client posture; the confidential
+  // client authenticates at the token endpoint, never in an iframe).
+  op.get('/op/session/check', (c) => {
+    const clientId = c.req.query('client_id')?.trim() ?? ''
+    if (!clientId) {
+      return c.html('<!doctype html><html><body><p>client_id is required</p></body></html>', 400)
+    }
+    const poll = [
+      'window.addEventListener("message", function (e) {',
+      '  var params = new URLSearchParams(String(e.data || ""))',
+      '  var cid = params.get("client_id")',
+      '  var ss = params.get("session_state")',
+      '  if (!cid) return',
+      '  fetch("/op/session/state?client_id=" + encodeURIComponent(cid) + "&origin=" + encodeURIComponent(e.origin), { credentials: "include" })',
+      '    .then(function (r) { return r.ok ? r.json() : null })',
+      '    .then(function (body) {',
+      '      var state = (body && body.session_state && ss && body.session_state === ss) ? "unchanged" : "changed"',
+      '      e.source.postMessage(state, e.origin)',
+      '    })',
+      '    .catch(function () { e.source.postMessage("changed", e.origin) })',
+      '})',
+    ].join('\n')
+    return c.html(
+      '<!doctype html><html><body><script>\n' + poll + '\n<\/script></body></html>',
+      200,
+      {
+        'cache-control': 'no-store',
+        // frameable by ANY RP (the poll's whole point) — the CSP form;
+        // the X-Frame-Options header has no allow-all value.
+        'content-security-policy': 'frame-ancestors *',
+      },
+    )
+  })
+
+  // The digest the iframe compares against: the live session's
+  // session_state for (client_id, RP origin). 401 = no live session =
+  // the honest 'changed'. One point read (the session's own), never a
+  // list — the scaling gate's doctrine holds trivially.
+  op.get('/op/session/state', async (c) => {
+    const clientId = c.req.query('client_id')?.trim() ?? ''
+    const origin = c.req.query('origin')?.trim() ?? ''
+    if (!clientId || !origin) {
+      return c.json({ error: 'client_id and origin are required' }, 400)
+    }
+    const token = getCookie(c, SESSION_COOKIE)
+    const user = token ? await getStore().getSessionUser(token) : null
+    if (!user || !token) return c.json({ error: 'no session' }, 401)
+    c.header('Cache-Control', 'no-store')
+    return c.json({ session_state: await computeSessionState(clientId, origin, token) })
   })
 
   // ── authorize ────────────────────────────────────────────────────
@@ -322,8 +394,9 @@ export function createOpRouter(): Hono {
     await ensureSeeded(c)
     const config = configFor(c)
     const q = (name: string) => c.req.query(name)?.trim() || undefined
-    const [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt] =
-      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt'].map(q)
+    const [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam] =
+      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age'].map(q)
+
 
     // 1. The client must be KNOWN + active — before any redirect logic.
     if (!clientId) {
@@ -372,6 +445,19 @@ export function createOpRouter(): Hono {
       return c.redirect(authorizeErrorRedirect(redirectUri, state, 'invalid_request', 'PKCE is required (code_challenge + code_challenge_method=S256)'))
     }
 
+    // max_age (TODO.modern/06): the RP's freshness demand — seconds. A
+    // present-but-unparseable value refuses the redirect-shaped way
+    // (invalid_request), never a silent ignore. (This check sits BELOW
+    // the redirect_uri wall — an error redirect is only safe for a
+    // registered URI.)
+    let maxAge: number | null = null
+    if (maxAgeParam !== undefined) {
+      maxAge = /^\d+$/.test(maxAgeParam) ? Number(maxAgeParam) : null
+      if (maxAge === null) {
+        return c.redirect(authorizeErrorRedirect(redirectUri, state, 'invalid_request', 'max_age must be a non-negative integer (seconds)'))
+      }
+    }
+
     // 4. The sign-in surface: no session → the instance's own login
     //    page, with this very request as the post-login destination (the
     //    flow re-enters /op/authorize, now signed in). NOTHING is stored
@@ -387,7 +473,12 @@ export function createOpRouter(): Hono {
     //    the strip is the flow's bookkeeping, never the assurance. The
     //    remaining prompt values (consent) ride on.
     const prompts = (prompt ?? '').split(/\s+/).filter(Boolean)
-    const forceLogin = prompts.includes('login')
+    // The freshness gate (TODO.modern/06): a max_age ask judges the
+    // session's authentication instant — stale (or unprovable) sends
+    // the SAME sign-in path as prompt=login (the re-entry re-checks;
+    // the fresh session satisfies the gate).
+    const authFresh = maxAge === null || sessionMeetsMaxAge(user?.sessionCreatedAt ?? null, maxAge)
+    const forceLogin = prompts.includes('login') || !authFresh
     // `user` arrived with the client read above (TODO.restructure/12's
     // one-phase boot).
     if (!user || forceLogin) {
@@ -492,6 +583,16 @@ export function createOpRouter(): Hono {
     const back = new URL(input.redirectUri)
     if (input.state) back.searchParams.set('state', input.state)
     back.searchParams.set('code', code)
+    // The session_state (TODO.modern/03): the RP's session-observation
+    // digest, bound to (this client, the RP's origin, the live session
+    // token). The check_session_iframe re-judges exactly this value on
+    // every poll — a signed-out or revoked session changes it.
+    if (sessionToken) {
+      back.searchParams.set(
+        'session_state',
+        await computeSessionState(input.clientId, new URL(input.redirectUri).origin, sessionToken),
+      )
+    }
     return back.toString()
   }
 
@@ -1092,6 +1193,7 @@ export function createOpRouter(): Hono {
       // rotation: the amr as recorded, the ORIGINAL authentication
       // instant (never the refresh's moment).
       if (grant.amr?.length) refreshClaims.amr = grant.amr
+      refreshClaims.acr = acrOf(grant.amr)
       if (grant.authTime) {
         const grantAuthTime = authTimeOf(grant.authTime)
         if (grantAuthTime) refreshClaims.auth_time = grantAuthTime
@@ -1238,6 +1340,7 @@ export function createOpRouter(): Hono {
     // RP-visible claim matches the session's truth. Absent when no
     // OP-side credential event was recorded (an upstream sign-in).
     if (code.amr?.length) claims.amr = code.amr
+    claims.acr = acrOf(code.amr)
     // TODO.identity-sso (the wave-A tail): the authentication INSTANT —
     // the prompt=login freshness proof the RP verifies (an RP that asked
     // for a forced re-authentication checks auth_time ≥ the request's
