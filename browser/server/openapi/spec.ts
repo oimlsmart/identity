@@ -454,6 +454,94 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/api/op/account/webhooks': {
+      get: {
+        tags: ['Webhooks'], operationId: 'listWebhookSubscriptions', summary: 'The account\'s LIVE event subscriptions',
+        description: 'The account\'s outbound-webhook subscriptions, active only (revoked rows leave the registry; the delivery history stays). The signing secret NEVER answers here — it was shown exactly once, at the mint.',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: {
+            description: 'The live subscriptions.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    subscriptions: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string', format: 'uuid' },
+                          url: { type: 'string', format: 'uri' },
+                          events: { type: 'array', items: { type: 'string' } },
+                          active: { type: 'boolean' },
+                          createdAt: { type: 'string' },
+                        },
+                        required: ['id', 'url', 'events', 'active', 'createdAt'],
+                      },
+                    },
+                  },
+                  required: ['subscriptions'],
+                },
+              },
+            },
+          },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+      post: {
+        tags: ['Webhooks'], operationId: 'createWebhookSubscription', summary: 'Subscribe an endpoint (the secret answers ONCE)',
+        description:
+          'The subscribe: an https public endpoint + the event set (a subset of the journal-action whitelist: account.password, account.session_revoked, account.pat_minted, account.pat_revoked, factor.totp_enrolled, factor.passkey_enrolled). '
+          + 'The answer carries the SHARED signing secret exactly once — the subscriber verifies every delivery with it. Deliveries ride `Webhook-Signature: t=<ms>,v1=<hmac-sha256(secret, t + "." + body)>` (the Stripe posture; verify with a 300 s replay bound). The delivery is fire-and-forget and never blocks the act.',
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  url: { type: 'string', format: 'uri', description: 'https, a public host — literal localhost/private-range hosts refuse.' },
+                  events: { type: 'array', items: { type: 'string' }, minItems: 1 },
+                },
+                required: ['url', 'events'],
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'The subscription — the shared `secret` rides this answer ONCE.', content: { 'application/json': { schema: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, url: { type: 'string' }, events: { type: 'array', items: { type: 'string' } }, secret: { type: 'string' }, active: { type: 'boolean' }, createdAt: { type: 'string' } }, required: ['id', 'url', 'events', 'secret', 'active', 'createdAt'] } } } },
+          400: { description: 'The URL is not an https public host, or the event set is empty or names non-events.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/account/webhooks/deliveries': {
+      get: {
+        tags: ['Webhooks'], operationId: 'listWebhookDeliveries', summary: 'The account\'s delivery log (newest first)',
+        description: 'The bounded ladder\'s outcomes: the attempt count, the last HTTP status, delivered or the dead letter. The body is NEVER recorded — only its SHA-256 digest (the support conversation\'s dedup key).',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: { description: 'The newest 50 delivery records.' },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/account/webhooks/{id}': {
+      delete: {
+        tags: ['Webhooks'], operationId: 'revokeWebhookSubscription', summary: 'Unsubscribe (the owner\'s guarded deactivation)',
+        description: 'Deactivates the subscription — the row stays for the delivery history. Owner-guarded: another account\'s subscription answers 404.',
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          200: { description: 'Revoked.' },
+          404: { description: 'No such subscription on this account.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/api/op/account/tokens': {
       get: {
         tags: ['Tokens'], operationId: 'listTokens', summary: 'The registry + the picker\'s catalog',

@@ -505,6 +505,133 @@ export type UpdateAccountResponses = {
 
 export type UpdateAccountResponse = UpdateAccountResponses[keyof UpdateAccountResponses];
 
+export type ListWebhookSubscriptionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/account/webhooks';
+};
+
+export type ListWebhookSubscriptionsErrors = {
+    /**
+     * No session.
+     */
+    401: Error;
+};
+
+export type ListWebhookSubscriptionsError = ListWebhookSubscriptionsErrors[keyof ListWebhookSubscriptionsErrors];
+
+export type ListWebhookSubscriptionsResponses = {
+    /**
+     * The live subscriptions.
+     */
+    200: {
+        subscriptions: Array<{
+            id: string;
+            url: string;
+            events: Array<string>;
+            active: boolean;
+            createdAt: string;
+        }>;
+    };
+};
+
+export type ListWebhookSubscriptionsResponse = ListWebhookSubscriptionsResponses[keyof ListWebhookSubscriptionsResponses];
+
+export type CreateWebhookSubscriptionData = {
+    body: {
+        /**
+         * https, a public host — literal localhost/private-range hosts refuse.
+         */
+        url: string;
+        events: Array<string>;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/op/account/webhooks';
+};
+
+export type CreateWebhookSubscriptionErrors = {
+    /**
+     * The URL is not an https public host, or the event set is empty or names non-events.
+     */
+    400: Error;
+    /**
+     * No session.
+     */
+    401: Error;
+};
+
+export type CreateWebhookSubscriptionError = CreateWebhookSubscriptionErrors[keyof CreateWebhookSubscriptionErrors];
+
+export type CreateWebhookSubscriptionResponses = {
+    /**
+     * The subscription — the shared `secret` rides this answer ONCE.
+     */
+    201: {
+        id: string;
+        url: string;
+        events: Array<string>;
+        secret: string;
+        active: boolean;
+        createdAt: string;
+    };
+};
+
+export type CreateWebhookSubscriptionResponse = CreateWebhookSubscriptionResponses[keyof CreateWebhookSubscriptionResponses];
+
+export type ListWebhookDeliveriesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/account/webhooks/deliveries';
+};
+
+export type ListWebhookDeliveriesErrors = {
+    /**
+     * No session.
+     */
+    401: Error;
+};
+
+export type ListWebhookDeliveriesError = ListWebhookDeliveriesErrors[keyof ListWebhookDeliveriesErrors];
+
+export type ListWebhookDeliveriesResponses = {
+    /**
+     * The newest 50 delivery records.
+     */
+    200: unknown;
+};
+
+export type RevokeWebhookSubscriptionData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/op/account/webhooks/{id}';
+};
+
+export type RevokeWebhookSubscriptionErrors = {
+    /**
+     * No session.
+     */
+    401: Error;
+    /**
+     * No such subscription on this account.
+     */
+    404: Error;
+};
+
+export type RevokeWebhookSubscriptionError = RevokeWebhookSubscriptionErrors[keyof RevokeWebhookSubscriptionErrors];
+
+export type RevokeWebhookSubscriptionResponses = {
+    /**
+     * Revoked.
+     */
+    200: unknown;
+};
+
 export type ListTokensData = {
     body?: never;
     path?: never;

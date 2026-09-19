@@ -175,6 +175,13 @@ import {
   stampPersonalAccessTokenUse,
 } from './sqlite/pat-store'
 import {
+  createWebhookSubscription,
+  listWebhookSubscriptions,
+  revokeWebhookSubscription,
+  recordWebhookDelivery,
+  listWebhookDeliveries,
+} from './sqlite/webhook-store'
+import {
   getConsentGrant,
   listConsentGrants,
   listOidcConsentGrantsForClient,
@@ -823,6 +830,29 @@ export class SqliteServerStore implements ServerStore {
     stamps: { usedAt: string; auditAt?: string | null; expiryNotifiedAt?: string | null },
   ): Promise<void> {
     stampPersonalAccessTokenUse(this.db, id, stamps)
+  }
+
+  // ── the outbound webhooks (TODO.modern/08) ──
+  async createWebhookSubscription(input: {
+    id: string
+    accountId: string
+    url: string
+    events: string[]
+    secret: string
+  }): Promise<import('../store').WebhookSubscription> {
+    return createWebhookSubscription(this.db, input)
+  }
+  async listWebhookSubscriptions(accountId: string): Promise<import('../store').WebhookSubscription[]> {
+    return listWebhookSubscriptions(this.db, accountId)
+  }
+  async revokeWebhookSubscription(id: string, accountId: string): Promise<boolean> {
+    return revokeWebhookSubscription(this.db, id, accountId)
+  }
+  async recordWebhookDelivery(input: Omit<import('../store').WebhookDeliveryRecord, 'id'> & { id?: string }): Promise<void> {
+    recordWebhookDelivery(this.db, input)
+  }
+  async listWebhookDeliveries(accountId: string, limit?: number): Promise<import('../store').WebhookDeliveryRecord[]> {
+    return listWebhookDeliveries(this.db, accountId, limit)
   }
 
   // ── the central user registry (TODO.identity/03) ──

@@ -25,6 +25,7 @@ import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpFactorsRouter } from './routes/op-factors'
 import { createOpTokensRouter } from './routes/op-tokens'
+import { createOpWebhooksRouter } from './routes/op-webhooks'
 import { createOpGrantsRouter } from './routes/op-grants'
 import { createOpMfaRouter } from './routes/op-mfa'
 import { createOpJoinRouter } from './routes/op-join'
@@ -197,6 +198,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // personal-access-token surface (list / mint / revoke); the exchange
   // grant itself lives on the OP router's /op/token.
   app.route('/', createOpTokensRouter())
+  // The outbound webhooks (TODO.modern/08): the account's event
+  // subscriptions + the delivery log; the emission sites live at the
+  // acts themselves (the audit-seam metadata, signed + fire-and-forget).
+  app.route('/', createOpWebhooksRouter())
   // The remembered consent grants (TODO.identity-features/12): the
   // console's "apps they can access" (list / revoke).
   app.route('/', createOpGrantsRouter())

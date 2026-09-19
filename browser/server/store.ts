@@ -192,6 +192,44 @@ export interface FederationPeer {
   revokedBy: string | null
 }
 
+// ── the outbound webhooks (TODO.modern/08) ────────────────────────────
+
+/** An account's event subscription: the endpoint, the subscribed
+ *  journal-action names (WEBHOOK_EVENTS — server/webhooks/events.ts),
+ *  and the SHARED signing secret (plaintext by design: we SIGN with
+ *  it, the subscriber verifies with the copy shown once at creation —
+ *  unlike the PAT credential it is never presented TO us). Revocation
+ *  flips active (the row stays for the delivery history). */
+export interface WebhookSubscription {
+  id: string
+  accountId: string
+  url: string
+  events: string[]
+  /** The SHARED signing key — part of the STORE row (the delivery
+   *  layer signs with it); the API's client view deliberately omits
+   *  it (the secret answered the mint ONCE, never listed again). */
+  secret: string
+  active: boolean
+  createdAt: string
+}
+
+/** One delivery attempt-set's outcome: the bounded ladder's attempt
+ *  count + last HTTP status, delivered=false = the dead letter. The
+ *  BODY is never recorded (privacy + size) — only its SHA-256 digest,
+ *  the support conversation's dedup key. */
+export interface WebhookDeliveryRecord {
+  id: string
+  subscriptionId: string
+  accountId: string
+  event: string
+  url: string
+  attempts: number
+  lastStatus: number
+  delivered: boolean
+  bodyDigest: string
+  recordedAt: string
+}
+
 export interface EntityChange {
   seq: number
   store: string
@@ -2405,6 +2443,27 @@ export interface ServerStore {
   // ── the notification subscriptions store (TODO.notify/02) ──
   // ── the inbox state (TODO.notify/03) ──
   // ── the email channel's delivery store (TODO.notify/04) ──
+  // ── the outbound webhooks (TODO.modern/08) ──
+  /** The subscription mint: one row per endpoint. events ⊆
+   *  WEBHOOK_EVENTS (the route validates; the store trusts). */
+  createWebhookSubscription(input: {
+    id: string
+    accountId: string
+    url: string
+    events: string[]
+    secret: string
+  }): Promise<WebhookSubscription>
+  /** The account's OWN subscriptions (SQL-narrowed by account — the
+   *  delivery path never scans the table). */
+  listWebhookSubscriptions(accountId: string): Promise<WebhookSubscription[]>
+  /** Owner-guarded deactivation. False = not the owner's (or unknown). */
+  revokeWebhookSubscription(id: string, accountId: string): Promise<boolean>
+  /** The delivery outcome row (delivered or the dead letter). Never
+   *  throws into the act's path — the route wraps. */
+  recordWebhookDelivery(input: Omit<WebhookDeliveryRecord, 'id'> & { id?: string }): Promise<void>
+  /** The account's delivery log, newest first. */
+  listWebhookDeliveries(accountId: string, limit?: number): Promise<WebhookDeliveryRecord[]>
+
   // ── provisioning / dev support ──
 }
 

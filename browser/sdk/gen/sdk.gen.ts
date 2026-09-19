@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, IntrospectTokenData, IntrospectTokenResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
+import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, IntrospectTokenData, IntrospectTokenResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -196,6 +196,70 @@ export const updateAccount = <ThrowOnError extends boolean = false>(options: Opt
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * The account's LIVE event subscriptions
+ *
+ * The account's outbound-webhook subscriptions, active only (revoked rows leave the registry; the delivery history stays). The signing secret NEVER answers here — it was shown exactly once, at the mint.
+ */
+export const listWebhookSubscriptions = <ThrowOnError extends boolean = false>(options?: Options<ListWebhookSubscriptionsData, ThrowOnError>): RequestResult<ListWebhookSubscriptionsResponses, ListWebhookSubscriptionsErrors, ThrowOnError> => (options?.client ?? client).get<ListWebhookSubscriptionsResponses, ListWebhookSubscriptionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'oiml-session',
+            type: 'apiKey'
+        }],
+    url: '/api/op/account/webhooks',
+    ...options
+});
+
+/**
+ * Subscribe an endpoint (the secret answers ONCE)
+ *
+ * The subscribe: an https public endpoint + the event set (a subset of the journal-action whitelist: account.password, account.session_revoked, account.pat_minted, account.pat_revoked, factor.totp_enrolled, factor.passkey_enrolled). The answer carries the SHARED signing secret exactly once — the subscriber verifies every delivery with it. Deliveries ride `Webhook-Signature: t=<ms>,v1=<hmac-sha256(secret, t + "." + body)>` (the Stripe posture; verify with a 300 s replay bound). The delivery is fire-and-forget and never blocks the act.
+ */
+export const createWebhookSubscription = <ThrowOnError extends boolean = false>(options: Options<CreateWebhookSubscriptionData, ThrowOnError>): RequestResult<CreateWebhookSubscriptionResponses, CreateWebhookSubscriptionErrors, ThrowOnError> => (options.client ?? client).post<CreateWebhookSubscriptionResponses, CreateWebhookSubscriptionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'oiml-session',
+            type: 'apiKey'
+        }],
+    url: '/api/op/account/webhooks',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The account's delivery log (newest first)
+ *
+ * The bounded ladder's outcomes: the attempt count, the last HTTP status, delivered or the dead letter. The body is NEVER recorded — only its SHA-256 digest (the support conversation's dedup key).
+ */
+export const listWebhookDeliveries = <ThrowOnError extends boolean = false>(options?: Options<ListWebhookDeliveriesData, ThrowOnError>): RequestResult<ListWebhookDeliveriesResponses, ListWebhookDeliveriesErrors, ThrowOnError> => (options?.client ?? client).get<ListWebhookDeliveriesResponses, ListWebhookDeliveriesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'oiml-session',
+            type: 'apiKey'
+        }],
+    url: '/api/op/account/webhooks/deliveries',
+    ...options
+});
+
+/**
+ * Unsubscribe (the owner's guarded deactivation)
+ *
+ * Deactivates the subscription — the row stays for the delivery history. Owner-guarded: another account's subscription answers 404.
+ */
+export const revokeWebhookSubscription = <ThrowOnError extends boolean = false>(options: Options<RevokeWebhookSubscriptionData, ThrowOnError>): RequestResult<RevokeWebhookSubscriptionResponses, RevokeWebhookSubscriptionErrors, ThrowOnError> => (options.client ?? client).delete<RevokeWebhookSubscriptionResponses, RevokeWebhookSubscriptionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'oiml-session',
+            type: 'apiKey'
+        }],
+    url: '/api/op/account/webhooks/{id}',
+    ...options
 });
 
 /**

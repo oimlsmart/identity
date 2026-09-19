@@ -55,6 +55,7 @@ import { getStore } from '../store'
 import { getInstanceProfile } from '../profile'
 import { clientInfo } from '../client-info'
 import { sessionUser } from '../session'
+import { emitWebhookEvent } from '../webhooks/deliver'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { opRandomToken } from '../auth/op/keys'
 import { generateTotpSecret, otpauthUri, verifyTotp } from '../auth/op/totp'
@@ -254,6 +255,7 @@ export function createOpFactorsRouter(): Hono {
     const name = readName(body?.name) ?? 'Authenticator app'
     await store.markTotpSecretVerified(row.id, user.id, name)
     await auditFactor('factor.totp_enrolled', user.id, { userId: user.id, userName: user.name }, { name })
+    emitWebhookEvent(c, { event: 'factor.totp_enrolled', accountId: user.id, data: { name } })
     await notifyFactor(c, user, 'factor_enrolled', 'totp', name)
     // The first factor lands the recovery floor (shown once).
     const recoveryCodes = await recoveryCodesAtFirstFactor(store, user.id)
@@ -387,6 +389,11 @@ export function createOpFactorsRouter(): Hono {
     }
     await auditFactor('factor.passkey_enrolled', user.id, { userId: user.id, userName: user.name }, {
       name, credentialId: registration.credentialId, aaguid: registration.aaguid, transports,
+    })
+    emitWebhookEvent(c, {
+      event: 'factor.passkey_enrolled',
+      accountId: user.id,
+      data: { name, credentialId: registration.credentialId, aaguid: registration.aaguid, transports },
     })
     await notifyFactor(c, user, 'factor_enrolled', 'passkey', name)
     const recoveryCodes = await recoveryCodesAtFirstFactor(store, user.id)
