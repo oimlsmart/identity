@@ -35,6 +35,7 @@ import { createOpRegistryRouter } from './routes/op-registry'
 import { createOpDashboardRouter } from './routes/op-dashboard'
 import { createOpHomeRouter } from './routes/op-home'
 import { createOpWhoamiRouter } from './routes/op-whoami'
+import { createOpenApiRouter } from './routes/openapi'
 import { createUsersRouter } from './routes/users'
 import { createAuthLeanRouter, opDemoAccountsEnabled } from './routes/auth-lean'
 import { createStatusSummaryRouter } from './routes/status-summary'
@@ -210,6 +211,9 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // properties' account chips read the OP session's minimal projection,
   // CORS-gated on the registered clients' declared origins.
   app.route('/', createOpWhoamiRouter())
+  // The machine-consumable API contract (edition 1 — the spec IS the
+  // source of truth; the gate drift-proves it against this app).
+  app.route('/', createOpenApiRouter())
   // The users surface (TODO.identity/10's org-scoped grant): the
   // org-admin consoles' data source. The router is the monorepo's
   // routes/users.ts moved byte-identical — its instance-wide half

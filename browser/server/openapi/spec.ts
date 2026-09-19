@@ -1,0 +1,491 @@
+// ═══════════════════════════════════════════════════════════════════
+// The identity service's OpenAPI 3.1 specification — EDITION 1.
+//
+// This object IS the contract: the router serves it at
+// GET /api/openapi.json (worker-safe: pure data, no file reads), and
+// the gate (id-openapi-contract.test.ts) proves it against the LIVE
+// Hono route table in BOTH directions — every documented operation
+// exists on the app, and every app route outside the declared
+// edition-1 exclusions is documented. A route that drifts fails CI
+// with its name.
+//
+// EDITION 1 covers the surfaces a consumer integrates against first:
+//   - the public OIDC machine surface (discovery, JWKS, the org keys,
+//     the token endpoint with the RFC 8693 PAT exchange, introspect,
+//     revoke, userinfo);
+//   - the instance's public facts (health, config) and the join
+//     intake (the organizations register, the join-request filing);
+//   - the session-authenticated self-service API (the session read,
+//     the account profile, the personal access tokens' full
+//     lifecycle incl. the issue-#115 management acts).
+//
+// EDITION 2 (declared, not yet here): the administration surface
+// (dashboard, registry, memberships, accounts, clients, providers,
+// org-keys, endorsements) and the interactive OIDC legs (authorize,
+// end-session) that belong to browser flows, not API clients.
+// ═══════════════════════════════════════════════════════════════════
+
+export const OPENAPI_SPEC = {
+  openapi: '3.1.0',
+  info: {
+    title: 'OIML SMART Identity API',
+    version: '1.0.0-edition1',
+    summary: 'The OpenID Connect Provider and account API of the OIML SMART estate.',
+    description:
+      'The identity service (id.oimlsmart.org) is the estate\'s OpenID Connect Provider. '
+      + 'This edition documents the machine-facing surface: the OIDC endpoints a relying party integrates, '
+      + 'the public join intake, and the session-authenticated self-service API every account owns. '
+      + 'The interactive browser legs (authorize, end-session) follow the OIDC/Browser flows — link them from the discovery document — '
+      + 'and the administration surface lands in edition 2.',
+  },
+  servers: [
+    { url: 'https://id.oimlsmart.org', description: 'Production' },
+  ],
+  tags: [
+    { name: 'OIDC', description: 'The OpenID Connect surface every relying party integrates: discovery, the key set, the token endpoint (incl. the RFC 8693 personal-access-token exchange), introspection, revocation, userinfo.' },
+    { name: 'Instance', description: 'The instance\'s public facts and posture.' },
+    { name: 'Join', description: 'The public account-request intake: the organizations register and the join-request filing.' },
+    { name: 'Session', description: 'The session-authenticated account surface (the `oiml-session` cookie a console sign-in sets).' },
+    { name: 'Tokens', description: 'The personal access tokens a account mints, manages and revokes — the machine credential for the estate\'s services.' },
+  ],
+  components: {
+    securitySchemes: {
+      sessionCookie: {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'oiml-session',
+        description: 'The console session (a sign-in sets it; 7-day life; same-origin).',
+      },
+      bearerToken: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'The OP-issued access token (the RFC 8693 exchange\'s answer).',
+      },
+    },
+    schemas: {
+      Error: {
+        type: 'object',
+        properties: { error: { type: 'string', description: 'The human-readable refusal.' } },
+        required: ['error'],
+        additionalProperties: false,
+      },
+      Organization: {
+        type: 'object',
+        description: 'A register entry the join flow admits (an active participant or OIML member org).',
+        properties: {
+          id: { type: 'string', example: 'ms-al' },
+          name: { type: 'string', example: 'Albania' },
+          shortName: { type: 'string', example: 'AL' },
+          kind: { type: 'string', example: 'member-state' },
+          country: { type: 'string', example: 'Albania' },
+          roles: { type: 'array', items: { type: 'string' }, example: ['viewer'] },
+        },
+        required: ['id', 'name', 'kind', 'country', 'roles'],
+      },
+      JoinRequest: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'Dana Example' },
+          email: { type: 'string', format: 'email', example: 'dana@example.org' },
+          orgId: { type: 'string', example: 'ms-al' },
+          requestedRole: { type: 'string', example: 'viewer' },
+          status: { type: 'string', enum: ['pending'] },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+        required: ['id', 'name', 'email', 'status', 'createdAt'],
+      },
+      SessionUser: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          email: { type: 'string', format: 'email' },
+          name: { type: 'string' },
+          role: { type: 'string', example: 'viewer' },
+          orgId: { type: ['string', 'null'] },
+          avatarUrl: { type: ['string', 'null'] },
+          provider: { type: 'string', example: 'password' },
+        },
+        required: ['id', 'email', 'name', 'role'],
+      },
+      AccountProfile: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          email: { type: 'string', format: 'email' },
+          name: { type: 'string' },
+          role: { type: 'string' },
+        },
+        required: ['id', 'email', 'name', 'role'],
+      },
+      TokenRow: {
+        type: 'object',
+        description: 'A personal access token\'s metadata — never the plaintext (that answers exactly once, at mint).',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'the lab CLI' },
+          prefix: { type: 'string', example: 'ospt_9xYz12', description: 'The display prefix (the first 13 characters).' },
+          scopes: { type: 'array', items: { type: 'string' }, example: ['hub-instance:write'] },
+          orgContext: { type: ['string', 'null'] },
+          createdAt: { type: 'string', format: 'date-time' },
+          expiresAt: { type: 'string', format: 'date-time' },
+          lastUsedAt: { type: ['string', 'null'], format: 'date-time' },
+          revokedAt: { type: ['string', 'null'], format: 'date-time' },
+          state: { type: 'string', enum: ['active', 'expired', 'revoked'] },
+        },
+        required: ['id', 'name', 'prefix', 'scopes', 'createdAt', 'expiresAt', 'state'],
+      },
+      TokensPayload: {
+        type: 'object',
+        properties: {
+          tokens: { type: 'array', items: { $ref: '#/components/schemas/TokenRow' } },
+          services: {
+            type: 'array',
+            description: 'The picker\'s catalog: the services the account may mint for, each with the widest action class its standing admits.',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', example: 'hub-instance' },
+                name: { type: 'string', example: 'OIML SMART platform hub' },
+                maxAction: { type: 'string', enum: ['read', 'write', 'admin'] },
+              },
+              required: ['id', 'name', 'maxAction'],
+            },
+          },
+        },
+        required: ['tokens', 'services'],
+      },
+      DiscoveryDocument: {
+        type: 'object',
+        description: 'The OP\'s OIDC discovery document (the OIDC Discovery spec\'s shape).',
+        properties: {
+          issuer: { type: 'string', format: 'uri' },
+          authorization_endpoint: { type: 'string', format: 'uri' },
+          token_endpoint: { type: 'string', format: 'uri' },
+          userinfo_endpoint: { type: 'string', format: 'uri' },
+          jwks_uri: { type: 'string', format: 'uri' },
+          id_token_signing_alg_values_supported: { type: 'array', items: { type: 'string' } },
+          scopes_supported: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['issuer', 'authorization_endpoint', 'token_endpoint', 'jwks_uri'],
+      },
+      JwkSet: {
+        type: 'object',
+        properties: {
+          keys: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                kty: { type: 'string', example: 'EC' },
+                crv: { type: 'string', example: 'P-256' },
+                kid: { type: 'string' },
+                alg: { type: 'string', example: 'ES256' },
+                use: { type: 'string', example: 'sig' },
+              },
+            },
+          },
+        },
+        required: ['keys'],
+      },
+    },
+  },
+  paths: {
+    '/.well-known/openid-configuration': {
+      get: {
+        tags: ['OIDC'], operationId: 'getDiscovery', summary: 'The OIDC discovery document',
+        security: [],
+        responses: {
+          200: {
+            description: 'The discovery document.',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/DiscoveryDocument' } } },
+          },
+        },
+      },
+    },
+    '/jwks.json': {
+      get: {
+        tags: ['OIDC'], operationId: 'getJwks', summary: 'The OP\'s public key set',
+        security: [],
+        responses: {
+          200: {
+            description: 'The registered key table (the JWK Set).',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/JwkSet' } } },
+          },
+        },
+      },
+    },
+    '/op/keys/{file}': {
+      get: {
+        tags: ['OIDC'], operationId: 'getOrgKeys', summary: 'An organization\'s public signing keys',
+        description: 'The org-account signing keys\' public halves — the registry custody stamps ride along. Anonymous, replayable, short max-age.',
+        security: [],
+        parameters: [{ name: 'orgId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'The org\'s JWK Set.', content: { 'application/json': { schema: { $ref: '#/components/schemas/JwkSet' } } } },
+          404: { description: 'No such organization.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/op/token': {
+      post: {
+        tags: ['OIDC'], operationId: 'exchangeToken', summary: 'The token endpoint — the grants, incl. the PAT exchange',
+        description:
+          'The OIDC token endpoint. The machine grant is the RFC 8693 token exchange: '
+          + '`grant_type=urn:ietf:params:oauth:grant-type:token-exchange` with '
+          + '`subject_token_type=urn:oimlsmart:params:oauth:token-type:pat` and the personal access token as '
+          + '`subject_token` — answering a short-lived, scope-narrowed OP JWT. '
+          + 'The token\'s scopes are re-judged against the holder\'s LIVE standing at every exchange.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/x-www-form-urlencoded': {
+              schema: {
+                type: 'object',
+                properties: {
+                  grant_type: { type: 'string', example: 'urn:ietf:params:oauth:grant-type:token-exchange' },
+                  subject_token_type: { type: 'string', example: 'urn:oimlsmart:params:oauth:token-type:pat' },
+                  subject_token: { type: 'string', example: 'ospt_…' },
+                  scope: { type: 'string', description: 'A per-exchange narrowing (never a widening).', example: 'openid profile' },
+                },
+                required: ['grant_type'],
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'The exchanged access token (an OP JWT; verify against the JWKS).',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    access_token: { type: 'string' },
+                    issued_token_type: { type: 'string' },
+                    token_type: { type: 'string', example: 'N_A' },
+                    expires_in: { type: 'integer' },
+                    scope: { type: 'string' },
+                  },
+                  required: ['access_token'],
+                },
+              },
+            },
+          },
+          400: { description: 'The ONE refusal: invalid_grant (unknown / expired / revoked / wrong-standing — never a distinction).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/op/introspect': {
+      post: {
+        tags: ['OIDC'], operationId: 'introspectToken', summary: 'The token-standing read (RFC 7662)',
+        security: [{ bearerToken: [] }, { sessionCookie: [] }],
+        requestBody: { required: true, content: { 'application/x-www-form-urlencoded': { schema: { type: 'object', properties: { token: { type: 'string' } }, required: ['token'] } } } },
+        responses: { 200: { description: 'The token\'s standing (active or not — never an error for an unknown token).' } },
+      },
+    },
+    '/op/revoke': {
+      post: {
+        tags: ['OIDC'], operationId: 'revokeToken', summary: 'The revocation (RFC 7009)',
+        security: [{ bearerToken: [] }, { sessionCookie: [] }],
+        requestBody: { required: true, content: { 'application/x-www-form-urlencoded': { schema: { type: 'object', properties: { token: { type: 'string' } }, required: ['token'] } } } },
+        responses: { 200: { description: 'The uniform 200 (an unknown token revokes nothing, silently — the RFC\'s posture).' } },
+      },
+    },
+    '/op/userinfo': {
+      get: {
+        tags: ['OIDC'], operationId: 'getUserinfo', summary: 'The userinfo',
+        security: [{ bearerToken: [] }],
+        responses: {
+          200: { description: 'The subject\'s claims (sub, and the scopes\' claims).' },
+          401: { description: 'No or invalid token.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/health': {
+      get: {
+        tags: ['Instance'], operationId: 'getHealth', summary: 'The liveness probe', security: [],
+        responses: { 200: { description: 'The instance answers.' } },
+      },
+    },
+    '/api/config': {
+      get: {
+        tags: ['Instance'], operationId: 'getConfig', summary: 'The instance\'s public posture (the branding, the provider flags)', security: [],
+        responses: { 200: { description: 'The posture object.' } },
+      },
+    },
+    '/api/openapi.json': {
+      get: {
+        tags: ['Instance'], operationId: 'getOpenApi', summary: 'This document (the OpenAPI 3.1 specification)',
+        description: 'The machine-consumable contract this reference renders — the drift-gated source of truth (every documented operation exists on the app; every app route outside the declared exclusions is documented).',
+        security: [],
+        responses: {
+          200: {
+            description: 'The OpenAPI 3.1 document.',
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+        },
+      },
+    },
+    '/api/op/organizations': {
+      get: {
+        tags: ['Join'], operationId: 'listOrganizations', summary: 'The join-flow register (public)',
+        description: 'The registered participant orgs plus the active OIML member orgs, each with the roles its kind bounds — the join page\'s selector feed. Public scheme data; edge-cached (5-minute freshness).',
+        security: [],
+        responses: {
+          200: {
+            description: 'The register.',
+            content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Organization' } } } },
+          },
+        },
+      },
+    },
+    '/api/op/join-requests': {
+      post: {
+        tags: ['Join'], operationId: 'fileJoinRequest', summary: 'File the account request (public, rate-bounded)',
+        description: 'The public submit: name, work email, the org (from the register) + the role asked for — or the not-listed path (a free-text org name, lands with BIML). One PENDING request per email; no account exists before the enrollment ceremony proves the mailbox.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', example: 'Dana Example' },
+                  email: { type: 'string', format: 'email', example: 'dana@example.org' },
+                  org_id: { type: 'string', example: 'ms-al' },
+                  requested_role: { type: 'string', example: 'viewer' },
+                  note: { type: 'string' },
+                },
+                required: ['name', 'email'],
+              },
+              examples: {
+                registryPath: { summary: 'The registry path', value: { name: 'Dana Example', email: 'dana@example.org', org_id: 'ms-al', requested_role: 'viewer' } },
+                notListedPath: { summary: 'The not-listed path (BIML verifies participation)', value: { name: 'Dana Example', email: 'dana@example.org', org_name_text: 'Dana Instruments Co' } },
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'The request files (pending).', content: { 'application/json': { schema: { $ref: '#/components/schemas/JoinRequest' } } } },
+          400: { description: 'Malformed, or the org/role refuses.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          409: { description: 'A request from this email is already waiting.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          429: { description: 'The rate bound (the anonymous intake\'s row-count bound).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/auth/session': {
+      get: {
+        tags: ['Session'], operationId: 'getSession', summary: 'The session\'s user (or 401)',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: { description: 'The signed-in user.', content: { 'application/json': { schema: { $ref: '#/components/schemas/SessionUser' } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/account': {
+      get: {
+        tags: ['Session'], operationId: 'getAccount', summary: 'The account profile',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: { description: 'The profile.', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountProfile' } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/account/profile': {
+      post: {
+        tags: ['Session'], operationId: 'updateAccount', summary: 'Update the profile (the name; the password change)',
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { name: { type: 'string' }, currentPassword: { type: 'string' }, newPassword: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'The updated profile.', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountProfile' } } } },
+          400: { description: 'The change refuses (the policy, the current password).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/account/tokens': {
+      get: {
+        tags: ['Tokens'], operationId: 'listTokens', summary: 'The registry + the picker\'s catalog',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: { description: 'The account\'s tokens (metadata only — never the plaintext) + the services it may mint for.', content: { 'application/json': { schema: { $ref: '#/components/schemas/TokensPayload' } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+      post: {
+        tags: ['Tokens'], operationId: 'mintToken', summary: 'Mint a token (the plaintext answers ONCE)',
+        description: 'The mint: the name + the scope picker + the expiration. The plaintext secret answers exactly once — this response — and the store holds only its SHA-256. The scopes must be a subset of the holder\'s standing under the session\'s org context.',
+        security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', maxLength: 60, example: 'the lab CLI' },
+                  scopes: { type: 'array', items: { type: 'string', pattern: '^[^:]+:(read|write|admin)$' }, example: ['hub-instance:read', 'hub-instance:write'] },
+                  expiresInDays: { type: 'integer', enum: [30, 60, 90, 180, 365], default: 90 },
+                },
+                required: ['name', 'scopes'],
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'The minted token — the plaintext rides this answer ONCE.', content: { 'application/json': { schema: { allOf: [{ $ref: '#/components/schemas/TokensPayload' }, { type: 'object' }] } } } },
+          400: { description: 'Malformed name or scopes.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          403: { description: 'Over-broad (not a subset of the holder\'s standing).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/account/tokens/{id}': {
+      patch: {
+        tags: ['Tokens'], operationId: 'manageToken', summary: 'The management act — rename and/or edit the scopes (issue #115)',
+        description:
+          'The managed-token act. The rename is presentation-only (from→to on the audit). The scope edit is the complete replacement set, the mint\'s validation exactly — safe both ways because the exchange re-judges standing on every use. Widening is audited (and mailed) distinctly. A revoked or expired token refuses edits.',
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', maxLength: 60 },
+                  scopes: { type: 'array', items: { type: 'string', pattern: '^[^:]+:(read|write|admin)$' } },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'The updated row.', content: { 'application/json': { schema: { type: 'object', properties: { token: { $ref: '#/components/schemas/TokenRow' } }, required: ['token'] } } } },
+          400: { description: 'Malformed.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          403: { description: 'Over-broad scopes.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          404: { description: 'Not this account\'s token.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          409: { description: 'Revoked or expired — mint a fresh one instead.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+      delete: {
+        tags: ['Tokens'], operationId: 'revokeToken', summary: 'Revoke the token (the row stays for the audit)',
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: {
+          200: { description: 'Revoked.' },
+          404: { description: 'Not this account\'s token.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          409: { description: 'Already revoked.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+  },
+} as const
+
+export type IdentityOpenApiSpec = typeof OPENAPI_SPEC
