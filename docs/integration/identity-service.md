@@ -24,7 +24,7 @@ wins on any drift.
 
 - **The OP (OpenID Provider)** — the identity service at
   `https://id.oimlsmart.org`. It authenticates users and issues OIDC ID
-  tokens (JWT, ES256). It is the ONLY account registry in the estate.
+  tokens (JWT, ES256). It is the ONLY account registry in the register.
 - **Your service is an RP (Relying Party)** — it trusts the OP. It runs
   NO login form and holds NO account list of its own.
 - **Upstream IdPs** (GitHub today; member-body providers such as
@@ -110,7 +110,7 @@ Your service needs a client registration on the OP. One entry:
 ### The device class (the machine cone)
 
 A **device client** is a NON-HUMAN client registered PER DEVICE (the
-SMART Measuring Instruments' twins — the estate register, docs/future/07
+SMART Measuring Instruments' twins — the register, docs/future/07
 Part I.3 item 2). It speaks `client_credentials` at the token endpoint
 ONLY — no authorization-code flow, no redirect URIs, no refresh, no
 launch card, no user claims — and it is always confidential (the secret
@@ -187,7 +187,7 @@ account may hold several verified addresses — any of them signs in — and
 the holder may move the primary between them). The claim's shape never
 changes, but its VALUE is not a stable identifier: `sub` is.
 
-- `roles` — the account's estate role codes (see §6 for the vocabulary).
+- `roles` — the account's platform role codes (see §6 for the vocabulary).
 - `groups` — the account's group memberships.
 - `org` — the account's registered organization affiliation.
 - `cone` — the active-org membership's **data cone**
@@ -436,10 +436,11 @@ the exchange, the validation, the logout URL, and the error taxonomy.
 
 This is the question every integrator asks. The division:
 
-- **The OP declares WHO the user is** — identity plus the coarse estate
-  role claims your client's policy allows. The OP's administrator
-  controls which roles exist and which accounts hold them; the OP's
-  per-client claims policy bounds what your service may SEE.
+- **The OP declares WHO the user is** — identity plus the coarse
+  platform role claims your client's policy allows. The OP's
+  administrator controls which roles exist and which accounts hold
+  them; the OP's per-client claims policy bounds what your service may
+  SEE.
 - **Your service declares WHAT those roles may do** — your action
   vocabulary, your role→permission map, your enforcement at your own
   routes. Never invert this (the OP is not a fine-grained policy
@@ -451,49 +452,50 @@ The platform's own RBAC is the reference shape (`oimlsmart/smart`):
 `browser/server/rbac.ts` resolves the EFFECTIVE map per instance
 (an installed profile map, then the `INSTANCE_RBAC_JSON` env, then the
 shipped default) and the entity routes enforce the write gates. The
-estate role vocabulary today: `applicant`, `ia_officer`, `tl_operator`,
+platform role vocabulary today: `applicant`, `ia_officer`, `tl_operator`,
 `biml_officer`, `cs_admin`, `mc_member`, `rc_member`,
 `executive_secretary`, `admin`, `viewer`, plus the NMI split roles
 (`case_officer`, `certification_officer`, `signatory`) and `org_admin`
 (delegated organization administration). Map your service's actions to
 the roles your claims policy receives — or keep your own roles internal
-and map the estate roles into them at your boundary.
+and map the platform roles into them at your boundary.
 
 ## 8. Centralized management or multiple services — both, deliberately
 
-- **Centralized (the estate's shape):** ONE OP, many registered
+- **Centralized (the register's shape):** ONE OP, many registered
   clients. Every service onboards per §3. Users have one account with
   linked login methods; the admin surface is one console. This is the
-  recommended shape for anything in the oimlsmart.org estate.
+  recommended shape for anything in the register.
 - **Multiple SERVICES on one OP** is the normal case (one client
   registration each) — nothing extra to do.
 - **Multiple identity PROVIDERS** (a sovereign deployment): a
   self-hosted platform instance can point its RP side at a DIFFERENT
   issuer entirely (the instance's `OIDC_ISSUER` configuration) — e.g. a
   national body's own provider. Supported, with the trade named: that
-  deployment leaves the estate's shared account registry and role
-  coherence. The softer shape for most members: keep trusting the
-  estate OP and link the member's provider as an UPSTREAM login method
-  (users sign in with their national IdP; the account stays the
-  estate's).
+  deployment leaves the register operator's shared account registry and
+  role coherence. The softer shape for most members: keep trusting the
+  register operator's OP and link the member's provider as an UPSTREAM
+  login method (users sign in with their national IdP; the account
+  stays the register operator's).
 - The OP itself is deployable outside the hosted Cloudflare shape
   (Node + SQLite / a container image — see
   `docs/deployment/identity-operations.md` §"Deployment portability"),
   so a sovereign operator can run the whole OP too.
 
 The four postures an operator can take toward identity — trust the
-estate's OP, deploy this service on their own domain, bring their own
-OIDC provider entirely, or the hybrid (estate accounts behind their
-upstream IdP) — are the canonical matrix in the smart monorepo's
+register operator's OP, deploy this service on their own domain, bring
+their own OIDC provider entirely, or the hybrid (register accounts
+behind their upstream IdP) — are the canonical matrix in the smart
+monorepo's
 [identity-postures.md](https://github.com/oimlsmart/smart/blob/v2/docs/deployment/identity-postures.md),
 each pinned as a configuration act with its proof; the self-host
 posture's runbook lives here as `docs/deployment/identity-self-host.md`.
 
 ## 8a. One login across every oimlsmart.org property (the SSO doctrine)
 
-The estate spans many properties (the platform instances, the identity
-console, the minisites, the future services). The rule for how a login
-spans them:
+The register spans many properties (the platform instances, the
+identity console, the minisites, the future services). The rule for
+how a login spans them:
 
 - **The OP holds the single sign-on session.** Its own session cookie
   lives on id.oimlsmart.org and nowhere else. Every interactive
@@ -579,7 +581,7 @@ OP's access token TTL; an expired token re-authenticates (the secret is
 the credential). Revocation is the client's disable: in-flight tokens
 die at their `exp`, new mints refuse at once. The grant is NOT
 advertised in the discovery document (`grant_types_supported` stays
-`authorization_code`): the machine cone is an estate-internal class, not
+`authorization_code`): the machine cone is a register-internal class, not
 an RP flow — application clients asking `client_credentials` get the
 plain `unsupported_grant_type` refusal.
 
@@ -632,7 +634,7 @@ The shape (the GitHub fine-grained pattern):
   token's owner learns while the automation still works).
 - **A token only ever narrows the account.** The scope grammar is
   `<service>:<action-class>` — the service is a registered,
-  application-class client id (§3; the estate's service registry IS the
+  application-class client id (§3; the register's service registry IS the
   OP's client registry — a device client is never a PAT's service); the
   action class is ordinal (`admin ⊃ write ⊃ read`). The OP enforces the
   bound at mint AND at exchange: `read` needs the account to enter the
@@ -662,13 +664,13 @@ refuses from that instant — `invalid_grant`; an already-exchanged JWT
 lives out its short `exp`, the same posture as the device cone). The
 audit chain carries mint / exchange (a throttled heartbeat, never
 per-request) / revoke. The grant is NOT advertised in the discovery
-document (the device cone's precedent — the estate-internal cone; the
+document (the device cone's precedent — the register-internal cone; the
 OIDC surface the golden pins is byte-identical).
 
 ## 9b. The session delegation (TODO.ai-platform/03)
 
 A **delegation** is a service acting ON THE USER'S behalf inside the
-user's own session — the estate assistant's "my account" reads are the
+user's own session — the AI assistant's "my account" reads are the
 reference caller: the user signs the assistant in (the §2 code flow),
 the assistant exchanges for a narrowly-scoped token, and your service is
 called WITH it — the cones bind exactly as for the user's own browser.

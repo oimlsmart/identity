@@ -8,8 +8,8 @@ The production discipline for the OIML SMART identity service: the OIDC
 Provider (OP) plus its account registry, admin console, and upstream-IdP
 linking. Terminology: the OP authenticates users and issues ID tokens;
 every service trusting it is a Relying Party (RP) — the platform hub,
-the NMI/TL/demo instances today, the estate's other services (the RAG,
-future tooling) next.
+the NMI/TL/demo instances today, the register's other services (the
+RAG, future tooling) next.
 
 The governing principle: the OP is the federation's single
 authentication point. Every discipline below is blast-radius control
@@ -170,7 +170,7 @@ STAMP=$(date +%Y%m%d)          # the drill's scratch namespace
 SCRATCH="identity-dr-drill-$STAMP"
 
 # 1. Fetch the LATEST scheduled snapshot from R2 — the drill's restore
-#    source is the artifact the estate would actually recover from, so
+#    source is the artifact the register would actually recover from, so
 #    the drill proves the R2 path, not just the export. The key is the
 #    one the latest identity-backup run's upload step printed
 #    (identity/YYYYMMDD-HHMMZ.sql; the bucket's object list is also
@@ -299,7 +299,7 @@ npx wrangler r2 object get \
 The one-time provisioning — OWNER ACTS, done once, never by the
 workflow (all landed 2026-09-07):
 
-1. The bucket (the estate account, the coordinator): the private
+1. The bucket (the register operator's account, the coordinator): the private
    `oiml-identity-backups` — no public access, no custom domain.
 2. The lifecycle rule (above): `expire-30-days` on prefix
    `identity/`. Re-apply with the same command if the nightly
@@ -308,7 +308,7 @@ workflow (all landed 2026-09-07):
    required reviewers, on purpose: a nightly job cannot wait on an
    approval (the production environment's gate would stall it; the
    contrast is the point) — carrying the two secrets:
-   `CLOUDFLARE_ACCOUNT_ID` (the estate account id) and
+   `CLOUDFLARE_ACCOUNT_ID` (the register operator's account id) and
    `CLOUDFLARE_API_TOKEN` (the Cloudflare pilot token,
    wrangler-compatible — it carries the export AND the R2 object
    verbs; no S3 key pair exists in this lane).
@@ -429,7 +429,7 @@ npx tsx scripts/import-org-registry.ts --db .cache/bootstrap-proof/identity.db  
 
 # 2. the plan against the LIVE registry (read-only) + the apply SQL.
 #    The operator's wrangler credentials ride the environment; with more
-#    than one account on the token, name the estate's account:
+#    than one account on the token, name the register operator's account:
 export CLOUDFLARE_ACCOUNT_ID=<the OIML SMART account id>   # `npx wrangler whoami` lists them
 npx tsx scripts/import-org-registry.ts --remote            # prints the plan, emits the SQL (default .cache/org-registry.bootstrap.sql)
 #    — review the printed plan (217 create on a fresh registry) and the
@@ -536,7 +536,7 @@ TODO.repos/01.)
 
 ## Downstream services
 
-The standing rule: no service in the estate keeps its own account list,
+The standing rule: no service in the register keeps its own account list,
 ever. Every service trusts the OP as an RP.
 
 The onboarding checklist (the RAG service is the reference):
@@ -594,7 +594,7 @@ entry. The icon names ride a small named set (`grid`, `monitor`,
 `scale`, `flask`, `chat`, `external`); the write path refuses unknown
 names.
 
-The estate's cards (the recommended starting posture; the admin's act
+The register's cards (the recommended starting posture; the admin's act
 on the live registry, one console session):
 
 | Service | Registry client id | Launch URL | Icon | Visibility |

@@ -32,9 +32,9 @@ discipline around it is `identity-operations.md`.
 - *The operator read:* the admin dashboard's SLO panel
   (`/op/admin`, the overview) reads the heartbeat workflow's own run
   history — the same data, no second pipeline.
-- *The public read:* https://status.oimlsmart.org — the estate's status
-  service probes the OP among its surfaces; the OP's current state is
-  visible there without an account.
+- *The public read:* https://status.oimlsmart.org — the register's
+  status service probes the OP among its surfaces; the OP's current
+  state is visible there without an account.
 - *A red probe is never silent:* the workflow opens (or updates) the
   standing issue in this repository with the run link and the failing
   leg named.

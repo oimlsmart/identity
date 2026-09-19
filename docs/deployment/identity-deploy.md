@@ -76,7 +76,7 @@ with the lane. The production-side items stand:
    of its exact redirect URIs) as variables on
    `cloudflare-identity-production`. Undeclared, those legs skip
    honestly and the public legs still run.
-4. **The status probe's token**: the estate status service
+4. **The status probe's token**: the register's status service
    (oimlsmart/status, the id-auth-route leg) exercises POST
    /api/op/login every 60s; presenting the shared token as
    `X-OIML-Probe` lets this OP label those rows `account.sign_in_probe`

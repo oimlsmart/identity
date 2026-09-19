@@ -1,6 +1,6 @@
 # Endpoint scaling: the N+1 gate
 
-The identity service's half of the estate's endpoint-scaling doctrine (the
+The identity service's half of the register's endpoint-scaling doctrine (the
 sibling platform repo's AGENTS.d/17 is the platform half). Born of two
 measurements of the same disease class: the 2026-09 portal load audit on
 the platform (a 423-row store behind a per-row visibility gate = a 107 s

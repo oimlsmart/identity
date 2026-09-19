@@ -5,10 +5,10 @@
 
 This is the runbook for **posture (b)** of the four identity postures —
 deploying THIS repository as your own OpenID Connect Provider for your
-own users on your own domain, instead of trusting the estate's OP at
-`id.oimlsmart.org`. The full matrix (trust the estate's OP / deploy this
-service / bring your own OIDC provider entirely / the hybrid) is the
-smart monorepo's
+own users on your own domain, instead of trusting the register
+operator's OP at `id.oimlsmart.org`. The full matrix (trust the
+register operator's OP / deploy this service / bring your own OIDC
+provider entirely / the hybrid) is the smart monorepo's
 [identity-postures.md](https://github.com/oimlsmart/smart/blob/v2/docs/deployment/identity-postures.md).
 
 **The guarantee this page keeps:** self-hosting is a *configuration*
@@ -30,9 +30,9 @@ Two deployment shapes are supported, both continuously proven:
 
 - **Node + SQLite** — on-prem or a container: the same store seam and
   the same build; the CI e2e legs boot exactly this shape.
-- **Cloudflare Workers + D1** — on YOUR OWN Cloudflare account (a
-  non-estate account): the same Workers bundle the estate deploys,
-  composed from your own untracked overlay config.
+- **Cloudflare Workers + D1** — on YOUR OWN Cloudflare account (an
+  org-free account): the same Workers bundle the register operator
+  deploys, composed from your own untracked overlay config.
 
 The worked example below is the neutral cast: the operator is "ACME",
 the public issuer is `https://id.example.invalid` (`.invalid` — RFC
@@ -174,7 +174,7 @@ declares it.)
 | `OP_UPSTREAM_SEED` | optional | A JSON array of upstream sign-in providers (GitHub / generic OIDC — shape and secrets discipline: `identity-upstreams.md`). |
 | `EMAIL_FROM` + `MAIL_PROVIDER_URL` / `MAIL_PROVIDER_KEY` | optional | The transactional mailer (HTTPS provider posture). Undeclared, the mailer is an honest console no-op — see "The mailer" below. |
 | `MAIL_LOCALE` | optional | `en` (default) or `fr`. |
-| `OP_MAIL_LOGO_URL` | recommended with a mailer | The absolute https URL of YOUR brand mark in outbound mail. Default: the estate's logo URL — declare your own, or your mail wears another deployment's brand. |
+| `OP_MAIL_LOGO_URL` | recommended with a mailer | The absolute https URL of YOUR brand mark in outbound mail. Default: the register operator's logo URL — declare your own, or your mail wears another deployment's brand. |
 | `BLOBS_DIR` | optional | The avatar uploads' disk directory (default `browser/data/blobs`, gitignored scratch — declare a real path for production). |
 | `BLOBS_DISABLED` | optional | `true` binds NO avatar store: uploads answer an honest 503 and accounts render initials (the console says so). |
 | `AVATAR_MAX_BYTES` | optional | The upload cap (default 2 MiB). |
@@ -185,8 +185,9 @@ declares it.)
 
 ## Shape B: Cloudflare Workers + D1 (your own account)
 
-The estate's tracked `browser/wrangler.toml` names the ESTATE's worker,
-D1 ids, and domains — you never edit it. Your deployment composes from
+The register operator's tracked `browser/wrangler.toml` names the
+register operator's worker, D1 ids, and domains — you never edit it.
+Your deployment composes from
 an **untracked overlay** (`browser/wrangler.self-host.toml`, gitignored
 by name) that carries your own values.
 
@@ -269,8 +270,8 @@ keys does not) and the logs warn loudly — the declared-issuer posture
 never registers an ephemeral development key into the keyset your RPs
 validate against.
 
-The composer strips routes deliberately (the estate attaches domains by
-a script of its own). Your bring-up URL is the free
+The composer strips routes deliberately (the register operator attaches
+domains by a script of their own). Your bring-up URL is the free
 `<worker-name>.<account-subdomain>.workers.dev` — set `OP_ISSUER` to it
 for the first boot if you like. When your DNS zone is on the same
 account, attach the custom domain in the dashboard (Workers →
@@ -334,8 +335,8 @@ Three postures, resolved at send time, the never-blocks rule throughout:
   their setup links, the self-service reset answers its honest 503.
 
 With a mailer configured, declare `OP_MAIL_LOGO_URL` as YOUR absolute
-https brand-mark URL (default: the estate's logo — a self-host
-deployment wants its own) and `MAIL_LOCALE` (`en`/`fr`).
+https brand-mark URL (default: the register operator's logo — a
+self-host deployment wants its own) and `MAIL_LOCALE` (`en`/`fr`).
 
 ## The avatar store (optional, honestly degraded without)
 
@@ -348,21 +349,22 @@ console says so on the account page.
 
 ## The federation note
 
-Your OP is fully independent. There is no hidden estate dependency: no
-call home, no shared registry, no estate key material. The WHOLE
-coupling between your OP and any relying party (an OIML SMART platform
-instance, or anything else speaking OIDC code+PKCE) is the RP's own
-configuration: `OIDC_ISSUER=https://id.example.invalid` plus a client
-registration in YOUR registry (`OP_CLIENT_SEED`, the console, or
-`POST /api/op/clients`). The estate's RPs do not trust your OP unless
-they choose to point at it, and your OP knows nothing of the estate's.
+Your OP is fully independent. There is no hidden dependency on the
+register: no call home, no shared registry, no register-operator key
+material. The WHOLE coupling between your OP and any relying party (an
+OIML SMART platform instance, or anything else speaking OIDC code+PKCE)
+is the RP's own configuration: `OIDC_ISSUER=https://id.example.invalid`
+plus a client registration in YOUR registry (`OP_CLIENT_SEED`, the
+console, or `POST /api/op/clients`). The register's RPs do not trust
+your OP unless they choose to point at it, and your OP knows nothing
+of the register's.
 The RP-side integration guide is `docs/integration/identity-service.md`
 — it reads the same for your OP, with your issuer substituted.
 
 ## Upgrades and the pre-deploy proof
 
 Track `main` (or the `id-v*` tags). The compatibility contract is the
-same one the estate runs on:
+same one the register runs on:
 
 - **Migrations are expand-only** (the kernel package's
   `migrations/` set: appends only, never a renumber, never a drop
@@ -399,6 +401,6 @@ data lifecycle (backups — your own arrangement on node; the D1 export
 pattern on Workers), the admin dashboard's security signals, and the
 monitoring posture are deployment-shape-independent:
 [identity-operations.md](identity-operations.md). Where that page names
-estate infrastructure (the estate's heartbeat workflow, its D1
+register infrastructure (the register's heartbeat workflow, its D1
 bookkeeping), substitute your own — the disciplines, not the hostnames,
 are the doctrine.
