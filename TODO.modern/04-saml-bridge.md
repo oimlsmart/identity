@@ -19,3 +19,33 @@ choice (a WASM or pure-TS library, its supply chain, its interop record) is a
 decision that deserves its own focused PR, not a slice of a batch. The link
 model, the metadata shape, and the ACS route design are already fixed by this
 brief — implementation can start the moment the crypto choice is made.
+
+## The registry adjudication (2026-09-19)
+
+Every credible SAML library on npm is node-crypto-bound — none is
+Worker-safe (WebCrypto) today:
+
+| candidate | the blocker |
+|---|---|
+| `samlify` 2.13 | `node-rsa` + `@authenio/xml-encryption` (node crypto) |
+| `@node-saml/node-saml` 5.1 | `xml-encryption` + node `crypto` throughout |
+| `xml-crypto` 6.3 | pure-JS deps but node `crypto` (`createVerify`) in-code |
+| WASM xmlsec | nothing published and maintained on npm today |
+
+**The options, honestly:**
+1. **The companion-bridge architecture (RECOMMENDED):** a small node-side
+   "SAML-to-OIDC bridge" service (the self-host runbook's node posture,
+   using a maintained lib there) presents to this OP as a GENERIC OIDC
+   UPSTREAM — the proven federation model (`identity-upstreams.md`),
+   zero XML-DSig inside the Worker core. The members' national IdPs
+   terminate SAML at the bridge; the OP's link model (identity_links,
+   the honest unlinked refusal, never email-alone) applies verbatim.
+2. A WASM xmlsec1 build — viable in principle, a supply-chain vetting
+   + bundle-size decision for the owner (no maintained artifact exists).
+3. Hand-rolled XML-DSig over WebCrypto — REFUSED (canonicalization +
+   XPath filtering + X.509 chains is the hand-rolled-crypto
+   anti-pattern; this repo's doctrine).
+
+**First slice when scheduled:** the bridge service's skeleton (the
+generic-OIDC upstream registration + a samlify/node-saml IdP metadata
+import), its own repo/PR — the Worker core stays untouched.
