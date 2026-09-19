@@ -1,6 +1,6 @@
 # TODO.modern/05 — SCIM 2.0 provisioning (the enterprise lifecycle)
 
-**Priority:** P1 · **Status:** HELD (a full protocol surface — its own PR)
+**Priority:** P1 · **Status:** IMPLEMENTED (Users lifecycle; Groups = edition 2.1)
 Members provision/deprovision accounts from their HR systems via SCIM 2.0 (RFC 7644).
 
 ## The acts
@@ -19,3 +19,37 @@ never a partial one behind a half-open door. The mapping target already exists
 maps, never duplicates. First slice when scheduled: `/scim/v2/Users` with the
 create/get/filter-by-username/deactivate lifecycle + the `scim:admin` PAT scope,
 then Groups as edition 2.1.
+
+## What shipped
+1. **The surface** (`browser/server/routes/scim.ts`, RFC 7644):
+   POST /scim/v2/Users (the create → the EXISTING account model: the
+   account row + the one-time enrollment setup link, emailed
+   best-effort), GET the list (pagination + the ONE supported filter
+   `userName eq "<email>"` — anything else refuses 400
+   scimType=invalid_filter, never a silent mis-answer), GET /:id,
+   PATCH (the active replace, pathful or pathless; the HONEST disable
+   kills every session; the row stays), DELETE = deactivate NEVER the
+   erase (§3.6 — the erase is the console's own sovereign act). The
+   RFC's Error schema on every refusal.
+2. **The credential — a deliberate deviation, recorded:** the brief
+   named a PAT `scim:admin` scope; the PAT grammar is
+   client-service-derived and a synthetic 'scim' service would contort
+   it. The shipped credential is a DEDICATED `SCIM_BEARER_TOKEN` (a
+   Worker secret, constant-time compare) — the Okta/Auth0 SCIM
+   connector norm; a dedicated token IS the scoped credential
+   (only-SCIM by construction). UNSET = the surface answers 404
+   entirely (the Turnstile pattern — zero attack surface).
+3. **The mapping (MECE):** SCIM maps, never duplicates — createOpAccount,
+   the enrollment invite machinery, setUserActive, deleteAllUserSessions.
+   No migration, no second account store.
+4. **Documented** in the OpenAPI spec (the SCIM tag + the scimBearer
+   scheme; the drift gate holds); the SDK artifact regenerated. The
+   endpoint-scaling gate's list leg (one bulk read, paged in memory —
+   invariant). Specs: `id-scim.test.ts` (10) — the unset-404 posture,
+   the 401 taxonomy, the create/duplicate/malformed trio, the reads +
+   the filter subset + invalid_filter, the honest disable (sessions
+   die), the deactivate-never-erase tail.
+
+**Open (honest):** Groups (edition 2.1, when an HR system asks);
+externalId (no column — maps nothing today); PATCH name updates (the
+store has one name field; a rename act would be its own seam).

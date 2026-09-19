@@ -47,9 +47,17 @@ export const OPENAPI_SPEC = {
     { name: 'Join', description: 'The public account-request intake: the organizations register and the join-request filing.' },
     { name: 'Session', description: 'The session-authenticated account surface (the `oiml-session` cookie a console sign-in sets).' },
     { name: 'Tokens', description: 'The personal access tokens a account mints, manages and revokes — the machine credential for the register\'s services.' },
+    { name: 'Webhooks', description: 'The account\'s outbound event subscriptions — HMAC-signed deliveries (TODO.modern/08).' },
+    { name: 'SCIM', description: 'The SCIM 2.0 provisioning surface (RFC 7644) — the enterprise lifecycle on the existing account model (TODO.modern/05; the SCIM_BEARER_TOKEN arms it).' },
   ],
   components: {
     securitySchemes: {
+      scimBearer: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'SCIM_BEARER_TOKEN',
+        description: 'The dedicated SCIM connector token (a Worker secret; unset = the surface answers 404 entirely).',
+      },
       sessionCookie: {
         type: 'apiKey',
         in: 'cookie',
@@ -451,6 +459,109 @@ export const OPENAPI_SPEC = {
           200: { description: 'The updated profile.', content: { 'application/json': { schema: { $ref: '#/components/schemas/AccountProfile' } } } },
           400: { description: 'The change refuses (the policy, the current password).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/scim/v2/Users': {
+      get: {
+        tags: ['SCIM'], operationId: 'scimListUsers', summary: 'The provisioning list (RFC 7644 §3.4.2)',
+        description:
+          'Pagination (startIndex, count ≤ 200) + the ONE supported filter: `filter=userName eq "<email>"` — anything else refuses '
+          + '`400 scimType=invalid_filter` (never a silent mis-answer). Erased accounts never appear.',
+        security: [{ scimBearer: [] }],
+        parameters: [
+          { name: 'filter', in: 'query', schema: { type: 'string' }, example: 'userName eq "person@example.org"' },
+          { name: 'startIndex', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'count', in: 'query', schema: { type: 'integer', minimum: 0, maximum: 200, default: 100 } },
+        ],
+        responses: {
+          200: { description: 'The ListResponse (totalResults, Resources).', content: { 'application/json': { schema: { type: 'object', properties: { schemas: { type: 'array', items: { type: 'string' } }, totalResults: { type: 'integer' }, startIndex: { type: 'integer' }, itemsPerPage: { type: 'integer' }, Resources: { type: 'array', items: { type: 'object' } } }, required: ['totalResults', 'Resources'] } } } },
+          400: { description: 'An unsupported filter (scimType=invalid_filter).' },
+          401: { description: 'The SCIM bearer token is required.' },
+        },
+      },
+      post: {
+        tags: ['SCIM'], operationId: 'scimCreateUser', summary: 'Provision the invited account (RFC 7644 §3.3)',
+        description:
+          'userName IS the account\'s email. The create maps onto the EXISTING account model: the account row (role viewer) + the '
+          + 'one-time enrollment setup link (emailed when a provider is configured — best-effort, never blocking; the console\'s resend '
+          + 'stands behind it). A duplicate userName refuses 409.',
+        security: [{ scimBearer: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  schemas: { type: 'array', items: { type: 'string' } },
+                  userName: { type: 'string', format: 'email' },
+                  name: { type: 'object', properties: { givenName: { type: 'string' }, familyName: { type: 'string' } } },
+                  active: { type: 'boolean' },
+                },
+                required: ['userName'],
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'The provisioned user (Location rides).' },
+          400: { description: 'userName missing or not an address.' },
+          401: { description: 'The SCIM bearer token is required.' },
+          409: { description: 'An account already exists for the address.' },
+        },
+      },
+    },
+    '/scim/v2/Users/{id}': {
+      get: {
+        tags: ['SCIM'], operationId: 'scimGetUser', summary: 'The projection (RFC 7644 §3.4.1)',
+        security: [{ scimBearer: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'The user resource.' },
+          404: { description: 'No such user (the RFC Error schema).' },
+          401: { description: 'The SCIM bearer token is required.' },
+        },
+      },
+      patch: {
+        tags: ['SCIM'], operationId: 'scimPatchUser', summary: 'The update — the active replace (RFC 7644 §3.5.2)',
+        description:
+          'The supported act: `replace active` (pathful or the pathless value form). `active=false` is the HONEST disable — every '
+          + 'session of the account dies with it; the row stays. Anything else refuses `400 scimType=invalidPath`.',
+        security: [{ scimBearer: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  schemas: { type: 'array', items: { type: 'string' } },
+                  Operations: { type: 'array', items: { type: 'object', properties: { op: { type: 'string', enum: ['replace'] }, path: { type: 'string', enum: ['active'] }, value: {} } } },
+                },
+                required: ['Operations'],
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'The updated user.' },
+          400: { description: 'An unsupported operation (scimType=invalidPath).' },
+          404: { description: 'No such user.' },
+          401: { description: 'The SCIM bearer token is required.' },
+        },
+      },
+      delete: {
+        tags: ['SCIM'], operationId: 'scimDeleteUser', summary: 'Deactivate — never the erase (RFC 7644 §3.6)',
+        description:
+          'The deprovision: active=false + the sessions die. The account row NEVER erases (the audit + the history keep it; the erase is the console\'s own sovereign act).',
+        security: [{ scimBearer: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          204: { description: 'Deactivated.' },
+          404: { description: 'No such user.' },
+          401: { description: 'The SCIM bearer token is required.' },
         },
       },
     },

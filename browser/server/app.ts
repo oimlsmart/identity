@@ -26,6 +26,7 @@ import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpFactorsRouter } from './routes/op-factors'
 import { createOpTokensRouter } from './routes/op-tokens'
 import { createOpWebhooksRouter } from './routes/op-webhooks'
+import { createScimRouter } from './routes/scim'
 import { createOpGrantsRouter } from './routes/op-grants'
 import { createOpMfaRouter } from './routes/op-mfa'
 import { createOpJoinRouter } from './routes/op-join'
@@ -253,6 +254,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // The machine-consumable API contract (edition 1 — the spec IS the
   // source of truth; the gate drift-proves it against this app).
   app.route('/', createOpenApiRouter())
+  // The SCIM 2.0 provisioning surface (TODO.modern/05): the enterprise
+  // lifecycle on the EXISTING account model; config-gated on
+  // SCIM_BEARER_TOKEN (unset = 404, the surface does not exist).
+  app.route('/', createScimRouter())
   // The users surface (TODO.identity/10's org-scoped grant): the
   // org-admin consoles' data source. The router is the monorepo's
   // routes/users.ts moved byte-identical — its instance-wide half
