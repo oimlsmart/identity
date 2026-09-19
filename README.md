@@ -76,3 +76,8 @@ runbook (Node + SQLite and Workers + D1 on a non-estate account, the
 bootstrap admin, the degradation story, the upgrade path):
 `docs/deployment/identity-self-host.md`. Its executable proof:
 `browser/e2e/id-16-selfhost.e2e.ts`.
+**Members and OIML-CS organizations** (member states, corresponding
+members, issuing authorities, test laboratories) start from the
+member's connective guide — your own instance + federation with the
+official identity service:
+`docs/deployment/identity-member-deployment.md`.
