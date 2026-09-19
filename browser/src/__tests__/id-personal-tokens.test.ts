@@ -445,7 +445,7 @@ describe('the org inventory + the erasure', () => {
   it('the org detail carries the members’ tokens (the metadata only, the holder resolved)', async () => {
     const ia = await demoLogin('ia@oiml.org')
     const admin = await demoLogin('admin@oiml.org')
-    const minted = await (await mintPat(ia, { name: 'the inventory row', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string } }
+    const minted = await (await mintPat(ia, { name: 'the inventory row', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string; plaintext: string } }
 
     const res = await app.request(`${ISSUER}/api/op/registry/orgs/EX1`, { headers: { cookie: admin } })
     expect(res.status).toBe(200)
@@ -454,7 +454,9 @@ describe('the org inventory + the erasure', () => {
     expect(row, 'the member’s token is on the org’s inventory').toBeTruthy()
     expect(row.holder).toMatchObject({ name: 'IA Officer', email: 'ia@oiml.org' })
     expect(row.state).toBe('active')
-    expect(JSON.stringify(row), 'the inventory never carries the plaintext or the hash').not.toContain('ospt_2')
+    // The FULL plaintext is the leak vector — a fixed prefix would
+    // flake against the row's own random display prefix (the 1/64).
+    expect(JSON.stringify(row), 'the inventory never carries the plaintext or the hash').not.toContain(minted.token.plaintext)
     // A foreign org’s inventory stays empty (the membership join).
     await store.createOrgRegistryOrg({ id: 'XX9', name: 'The Empty One', shortName: 'XX9', kind: 'issuing-authority', country: null, contacts: [], participantRef: null, createdBy: 'the test' })
     const empty = await (await app.request(`${ISSUER}/api/op/registry/orgs/XX9`, { headers: { cookie: admin } })).json() as { tokens: unknown[] }
