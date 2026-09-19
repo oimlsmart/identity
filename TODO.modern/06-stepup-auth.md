@@ -21,11 +21,22 @@
    truth table (fresh/stale/max_age=0/unprovable), the authorize gate's three
    postures, the ID-token round trip, the discovery key.
 
-**Open (honest):** the RISK SIGNALS (new-device recognition, impossible-travel)
-and the per-route freshness gate on sensitive console acts (the "confirm it's
-you" re-auth flow) are the remaining half — the signals need a known-device
-record (a store migration) and the confirm-flow is console UX, each worth its
-own PR.
+**The confirm-it's-you gate (shipped, the follow-up PR):**
+`requireFreshAuth` (auth/op/step-up.ts) — the bank-grade acts demand a
+recently-authenticated session (FRESH_AUTH_MAX_AGE_SEC, default 900 s), and
+the refusal is DISTINCT (`code: fresh_auth_required`, never a bare 401) so
+the console routes the holder through sign-in again (the fresh session
+restamps auth_time). Wired at: the token-scope WIDENING edit only
+(narrow/rename deliberately never gated — friction only where the risk is)
+and the org-key rotation (fires on the session's age before any target
+lookup — the refusal carries no target information). The password change
+needs NO gate: it already re-presents the credential (the current-password
+proof IS the fresh proof). Specs: `id-freshauth.test.ts` (6, with the
+session row itself backdated).
+
+**Open (honest):** the RISK SIGNALS (new-device recognition, impossible
+travel) remain — a known-device record (a store migration) + the sign-in
+path's recognition + the advisory banner, their own PR.
 Per-transaction re-authentication (ACR levels) and the risk posture (new device, impossible travel).
 
 ## The acts

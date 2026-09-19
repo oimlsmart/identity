@@ -38,3 +38,29 @@ export function sessionMeetsMaxAge(authTimeIso: string | null, maxAgeSeconds: nu
   if (epochSec === null) return false
   return Date.now() - epochSec * 1000 <= maxAgeSeconds * 1000
 }
+
+// ── the per-route freshness gate (the "confirm it's you") ────────────
+
+import type { Context } from 'hono'
+import { env as runtimeEnv } from 'hono/adapter'
+import { sessionUser } from '../../session'
+
+export const FRESH_AUTH_DEFAULT_MAX_AGE_SEC = 900
+
+/** The bank-grade acts (the token-scope WIDEN, the org-key rotation)
+ *  demand a recently-authenticated session — the "confirm it's you".
+ *  The refusal is DISTINCT (code fresh_auth_required, never a bare
+ *  401) so the console can route the holder through sign-in again
+ *  (the fresh session restamps auth_time). Null = the gate passed.
+ *  FRESH_AUTH_MAX_AGE_SEC tunes the window (seconds, default 900). */
+export async function requireFreshAuth(c: Context): Promise<Response | null> {
+  const user = await sessionUser(c as Parameters<typeof sessionUser>[0])
+  if (!user) return c.json({ error: 'the session is required' }, 401)
+  const raw = runtimeEnv<Record<string, string | undefined>>(c).FRESH_AUTH_MAX_AGE_SEC?.trim()
+  const maxAge = raw && /^\d+$/.test(raw) ? Number(raw) : FRESH_AUTH_DEFAULT_MAX_AGE_SEC
+  if (sessionMeetsMaxAge(user.sessionCreatedAt ?? null, maxAge)) return null
+  return c.json(
+    { error: 'this act needs fresh proof — sign in again and retry', code: 'fresh_auth_required' },
+    403,
+  )
+}

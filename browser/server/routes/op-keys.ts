@@ -39,6 +39,7 @@ import { getStore, type AuthUserPayload } from '../store'
 import { getInstanceProfile } from '../profile'
 import { effectiveRolesOf } from '../vocab'
 import { sessionUser } from '../session'
+import { requireFreshAuth } from '../auth/op/step-up'
 import { isActiveRegistryOrg, resolveRegistryOrg } from '../auth/org-registry'
 import {
   listOrgSigningKeys,
@@ -201,6 +202,11 @@ export function createOpKeysRouter(): Hono {
   // key never rotates; register afresh), the already-rotated one (409 —
   // the chain never forks), the duplicate successor coordinates (409).
   router.post('/api/op/org-keys/:orgId/:kid/rotate', async (c) => {
+    // The freshness gate (TODO.modern/06's open half): the rotation is
+    // a bank-grade act — it fires on the SESSION's age, before any
+    // target lookup (the refusal carries no target information).
+    const stale = await requireFreshAuth(c)
+    if (stale) return stale
     const orgId = c.req.param('orgId')
     const kid = c.req.param('kid')
     const body = await c.req.json<{ label?: string; public_jwk?: JsonWebKey }>().catch(() => null)
