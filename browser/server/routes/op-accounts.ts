@@ -142,6 +142,7 @@ import { getStore, type AuthUserPayload, type ServerStore } from '../store'
 import { getInstanceProfile } from '../profile'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { clientInfo } from '../client-info'
+import { assessSignInRisk, countryOf } from '../auth/op/risk'
 import { deliverEmailChangeLink, OP_EMAIL_CHANGE_TTL_MS } from '../auth/op/email-change'
 import { deliverEmailVerificationLink, type EmailVerificationDelivery } from '../auth/op/emails'
 import {
@@ -169,6 +170,15 @@ import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
 import { emitWebhookEvent } from '../webhooks/deliver'
 
 type EnvLike = Record<string, string | undefined>
+
+/** The IPv4 display mask (x.y.z.*) — the devices view's privacy
+ *  posture; a non-IPv4 address answers null (never raw). */
+function maskIpv4(ip: string | null): string | null {
+  if (!ip) return null
+  const parts = ip.split('.')
+  if (parts.length !== 4 || parts.some(p => !/^\d{1,3}$/.test(p))) return null
+  return `${parts[0]}.${parts[1]}.${parts[2]}.*`
+}
 
 export function createOpAccountsRouter(): Hono {
   const accounts = new Hono()
@@ -456,10 +466,24 @@ export function createOpAccountsRouter(): Hono {
       store.getUserById(cred.userId),
     ])
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    // TODO.modern/06's risk signals: the assessment rides AFTER the
+    // session mint (the advisory layer — never in front of the
+    // sign-in critical path; the bounded-write doctrine's
+    // first-tripped write stays the users stamp).
+    const info = clientInfo(c)
+    const risk = await assessSignInRisk(store, {
+      accountId: cred.userId, userAgent: info.userAgent, ip: info.ip,
+      country: countryOf({ req: c.req.raw }),
+    })
     // Every OP-side sign-in lands on the audit chain: TODO.identity/03's
     // registry reads it back for the last-sign-in column, and
     // TODO.identity/06's console shows it on the account's activity feed.
-    await audit('account.sign_in', cred.userId, { userId: cred.userId }, { method: 'password', amr: ['pwd'] })
+    // TODO.modern/06: the risk advisories ride the metadata (the
+    // journal is the risk truth).
+    await audit('account.sign_in', cred.userId, { userId: cred.userId }, {
+      method: 'password', amr: ['pwd'],
+      newDevice: risk.newDevice, countryChanged: risk.countryChanged,
+    })
     // TODO.identity/09 — the account holder learns of every entry. The
     // notification never blocks or fails the sign-in (sendOpMail's
     // results are honest; the console posture just logs).
@@ -1317,6 +1341,27 @@ export function createOpAccountsRouter(): Hono {
   // — it only ever serves "me". 404 when no upload exists (the initials
   // stand in); 503 when no blob store is bound (the bytes are
   // unavailable, honestly).
+  // GET /api/op/account/devices — the account's recognized devices
+  // (TODO.modern/06's risk signals): the recognition record, honestly
+  // masked (the IPv4's last octet folds; a non-IPv4 address answers
+  // null — never a raw identifier on a list surface).
+  accounts.get('/api/op/account/devices', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const devices = await getStore().listKnownDevices(user.id)
+    return c.json({
+      devices: devices.map(d => ({
+        id: d.id,
+        userAgent: d.userAgent?.slice(0, 160) ?? null,
+        ipMasked: maskIpv4(d.ip),
+        firstCountry: d.firstCountry,
+        lastCountry: d.lastCountry,
+        firstSeenAt: d.firstSeenAt,
+        lastSeenAt: d.lastSeenAt,
+      })),
+    })
+  })
+
   accounts.get('/api/op/account/avatar', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)

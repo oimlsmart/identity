@@ -983,3 +983,24 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_account ON webhook_deliveries (account_id, recorded_at);
+
+-- ═══════════════════════════════════════════════════════════════════
+-- The known-device record (TODO.modern/06's risk signals): one row
+-- per (account, device hash) — SHA-256(UA + IP), never a cross-account
+-- tracking artifact. The first/last country + instants carry the
+-- impossible-travel advisory's prior state. The D1 migration set
+-- carries the identical end state (0030_known_devices.sql).
+-- ═══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS known_devices (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES users(id),
+  device_hash TEXT NOT NULL,
+  user_agent TEXT,
+  ip TEXT,
+  first_country TEXT,
+  last_country TEXT,
+  first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (account_id, device_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_known_devices_account ON known_devices (account_id);

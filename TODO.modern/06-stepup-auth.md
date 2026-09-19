@@ -34,9 +34,36 @@ needs NO gate: it already re-presents the credential (the current-password
 proof IS the fresh proof). Specs: `id-freshauth.test.ts` (6, with the
 session row itself backdated).
 
-**Open (honest):** the RISK SIGNALS (new-device recognition, impossible
-travel) remain — a known-device record (a store migration) + the sign-in
-path's recognition + the advisory banner, their own PR.
+**The risk signals (shipped, the last half):**
+- **The known-device record** (migration `0030_known_devices.sql` in
+  schema lockstep, both backends): one row per (account,
+  SHA-256(UA + IP)) — the recognition key, never a cross-account
+  tracking artifact; the first/last country + instants carry the
+  advisory's prior state.
+- **The assessment** (`auth/op/risk.ts`): new-device recognition +
+  the country-change advisory (the impossible-travel signal's honest
+  country-resolution form — the Worker's `cf.country`, then
+  `cf-ipcountry`, absent = the advisory honestly does not fire).
+  Called at EVERY OP-side session mint (the password path + the MFA
+  completion), **AFTER the mint** — the advisory layer never stands in
+  front of the sign-in critical path (the bounded-write doctrine's
+  first-tripped write stays the users stamp).
+- **The journal is the risk truth**: `account.sign_in`'s metadata
+  carries `newDevice` + `countryChanged` always. The step-up TRIGGER
+  posture is structurally satisfied — the second factor ALWAYS gates a
+  password sign-in when factors exist (the factor registry's own
+  rule); the signals add the advisory layer, never a second gate.
+- **The console's devices view**: `GET /api/op/account/devices` — the
+  recognized devices, honestly masked (the IPv4's last octet folds;
+  non-IPv4 answers null). Documented in the OpenAPI spec; the scaling
+  gate's leg (one read, invariant).
+- Specs: `id-risk.test.ts` (6) incl. a REAL password sign-in (a
+  SCIM-provisioned account) recording the device + flagging the audit,
+  and the repeat sighting answering known.
+
+**Open (honest):** the console BANNER for risky sign-ins (the Vue
+island's rendering of the advisories) and the sign-in NOTICE carrying
+the new-device flag (the mail template's param) — UX follow-ups.
 Per-transaction re-authentication (ACR levels) and the risk posture (new device, impossible travel).
 
 ## The acts

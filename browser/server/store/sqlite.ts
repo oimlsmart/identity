@@ -182,6 +182,10 @@ import {
   listWebhookDeliveries,
 } from './sqlite/webhook-store'
 import {
+  recordKnownDevice,
+  listKnownDevices,
+} from './sqlite/known-devices-store'
+import {
   getConsentGrant,
   listConsentGrants,
   listOidcConsentGrantsForClient,
@@ -853,6 +857,21 @@ export class SqliteServerStore implements ServerStore {
   }
   async listWebhookDeliveries(accountId: string, limit?: number): Promise<import('../store').WebhookDeliveryRecord[]> {
     return listWebhookDeliveries(this.db, accountId, limit)
+  }
+
+  // ── the known-device record (TODO.modern/06's risk signals) ──
+  async recordKnownDevice(input: {
+    id: string
+    accountId: string
+    deviceHash: string
+    userAgent: string | null
+    ip: string | null
+    country: string | null
+  }): Promise<import('../store').KnownDeviceSighting> {
+    return recordKnownDevice(this.db, input)
+  }
+  async listKnownDevices(accountId: string): Promise<import('../store').KnownDeviceRow[]> {
+    return listKnownDevices(this.db, accountId)
   }
 
   // ── the central user registry (TODO.identity/03) ──
