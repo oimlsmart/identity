@@ -61,9 +61,13 @@ session row itself backdated).
   SCIM-provisioned account) recording the device + flagging the audit,
   and the repeat sighting answering known.
 
-**Open (honest):** the console BANNER for risky sign-ins (the Vue
-island's rendering of the advisories) and the sign-in NOTICE carrying
-the new-device flag (the mail template's param) — UX follow-ups.
+**The notice + banner half (shipped):** the sign-in NOTICE carries the
+NEW DEVICE line (renderOpMail's signin conditional — the resetUrl
+precedent; EN/FR; absent flag = the mail's shape unchanged), passed by
+both sign-in paths (password + MFA completion) from the assessment;
+the account's ACTIVITY feed badges every new-device sign-in with the
+amber chip (the journal's metadata — no API change, the feed already
+carried it). TODO.modern/06 is COMPLETE.
 Per-transaction re-authentication (ACR levels) and the risk posture (new device, impossible travel).
 
 ## The acts

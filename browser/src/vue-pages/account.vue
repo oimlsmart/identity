@@ -1778,7 +1778,17 @@ async function revokeOthers() {
               class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2.5"
               :data-testid="`account-activity-${event.action.replaceAll('.', '-')}`"
             >
-              <p class="text-sm text-slate-700 dark:text-slate-300">{{ activityLabel(event) }}</p>
+              <p class="text-sm text-slate-700 dark:text-slate-300">
+                {{ activityLabel(event) }}
+                <!-- TODO.modern/06: the NEW DEVICE advisory chip (the
+                     journal's metadata carries the flag on every
+                     sign-in; the first sighting of a device badges it). -->
+                <span
+                  v-if="event.action === 'account.sign_in' && event.metadata?.newDevice === true"
+                  class="ml-2 inline-block rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+                  :data-testid="`account-activity-${event.id}-new-device`"
+                >{{ t('account.activity.newDevice') }}</span>
+              </p>
               <p class="shrink-0 pl-4 text-xs text-slate-400 dark:text-slate-500">{{ fmtDate(event.timestamp) }}</p>
             </li>
           </ul>

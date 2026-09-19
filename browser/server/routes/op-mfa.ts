@@ -99,7 +99,7 @@ export function createOpMfaRouter(): Hono {
    *  OWN notice ('recovery_code_used' — the spent code IS the news, and
    *  the reset pointer is urgent there) INSTEAD of the generic sign-in
    *  mail; every other completion keeps 'signin'. */
-  async function notifySignIn(c: Context, userId: string, methodKey: string, notifyTemplate: 'signin' | 'recovery_code_used' = 'signin'): Promise<void> {
+  async function notifySignIn(c: Context, userId: string, methodKey: string, notifyTemplate: 'signin' | 'recovery_code_used' = 'signin', newDevice = false): Promise<void> {
     const account = await getStore().getUserById(userId)
     if (!account) return
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
@@ -107,7 +107,9 @@ export function createOpMfaRouter(): Hono {
       userId,
       template: notifyTemplate,
       issuer,
-      params: { name: account.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), method: methodKey },
+      // TODO.modern/06: the NEW DEVICE advisory rides the notice when
+      // the assessment flagged the sighting (absent = unchanged mail).
+      params: { name: account.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), method: methodKey, ...(newDevice ? { newDevice: true } : {}) },
     })
   }
 
@@ -143,7 +145,7 @@ export function createOpMfaRouter(): Hono {
       method: auditMethod, amr,
       newDevice: risk.newDevice, countryChanged: risk.countryChanged,
     })
-    await notifySignIn(c, pending.userId, methodKey, notifyTemplate)
+    await notifySignIn(c, pending.userId, methodKey, notifyTemplate, risk.newDevice)
     return { userId: pending.userId, amr }
   }
 

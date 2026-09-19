@@ -202,7 +202,7 @@ export function resolveMailLocale(env: MailEnv): { locale: MailLocale; problem: 
 }
 
 /** The catalogs' interpolation rule (the same {name} shape t() uses). */
-function interpolate(message: string, params: Record<string, string | number>): string {
+function interpolate(message: string, params: Record<string, string | number | boolean>): string {
   return message.replace(/\{(\w+)\}/g, (match, name: string) =>
     params[name] !== undefined ? String(params[name]) : match)
 }
@@ -232,7 +232,7 @@ export interface RenderedMail {
 export function renderOpMail(
   template: OpMailTemplate,
   locale: MailLocale,
-  params: Record<string, string | number>,
+  params: Record<string, string | number | boolean>,
 ): RenderedMail {
   const catalog: Record<MessageKey, string> = locale === 'fr' ? fr : en
   const keys = TEMPLATE_KEYS[template]
@@ -256,11 +256,17 @@ export function renderOpMail(
   // sendOpMail auto-fills params.resetUrl from the issuer for these.
   const resetUrl = keys.reset === true && typeof params.resetUrl === 'string' && params.resetUrl ? String(params.resetUrl) : null
 
+  // TODO.modern/06's notice half: the NEW DEVICE advisory (the first
+  // sighting of a (UA, IP) pair) — the signin template's conditional
+  // line, present only when the caller carries the flag (absent = the
+  // mail's shape unchanged).
+  const newDevice = template === 'signin' && params.newDevice === true
+
   // ── The plain-text part: the message IS the text. The expiry note sits
   //    right after the action link; the footer mirrors the HTML footer. ──
   const textBody = raw(keys.body).split(/\n\n+/).flatMap((p) =>
     actionUrl && p.trim() === String(params[actionKey]) ? [p, raw('mail.link.once')] : [p])
-  const text = [...textBody, ...(resetUrl ? [raw('mail.resetLink.text')] : []), '--', raw(keys.why), raw('mail.footer'), raw('mail.footer.support')].join('\n\n')
+  const text = [...textBody, ...(newDevice ? [raw('mail.signin.newDevice')] : []), ...(resetUrl ? [raw('mail.resetLink.text')] : []), '--', raw(keys.why), raw('mail.footer'), raw('mail.footer.support')].join('\n\n')
   const subject = raw(keys.subject)
 
   // ── The HTML shell. The primary action: the bulletproof button (a
@@ -276,12 +282,16 @@ export function renderOpMail(
       + `<p style="margin:0 0 4px;font-family:${SANS};font-size:12px;line-height:1.5;color:#5b6b7f">${esc('mail.link.once')}</p>`
     : ''
 
+  const newDeviceBlock = newDevice
+    ? '<p style="margin:16px 0 0;padding:10px 14px;background:#fdf6ec;border-radius:8px;font-family:' + SANS + ';font-size:13px;line-height:1.6;color:#8a5a00">' + esc('mail.signin.newDevice') + '</p>'
+    : ''
+
   const paragraphs = esc(keys.body).split(/\n\n+/).map((p) => {
     // The standalone action URL (its own paragraph) becomes the button
     // block in place — everything else is a body paragraph.
     if (actionUrl && p.trim() === escapeHtml(actionUrl)) return actionBlock
     return `<p style="margin:0 0 16px;font-family:${SANS};font-size:15px;line-height:1.6;color:#1d1d1b">${p.replace(/\n/g, '<br>')}</p>`
-  }).join('')
+  }).join('') + newDeviceBlock
 
   // The reset pointer's HTML: the copy line with its URL wrapped in a
   // plain anchor (the escaped-interpolation trick: the escaped URL is a
@@ -340,12 +350,12 @@ export async function sendOpMail(
     to: string
     template: OpMailTemplate
     issuer: string
-    params?: Record<string, string | number>
+    params?: Record<string, string | number | boolean>
   },
 ): Promise<OpMailResult> {
   const { locale, problem } = resolveMailLocale(env)
   if (problem) console.warn(`[mail] ${problem}`)
-  const params: Record<string, string | number> = {
+  const params: Record<string, string | number | boolean> = {
     product: getInstanceProfile().branding.name,
     issuer: input.issuer,
     logoUrl: resolveMailLogoUrl(env),
@@ -423,7 +433,7 @@ export async function sendOpSecurityMail(
     userId: string
     template: OpMailTemplate
     issuer: string
-    params?: Record<string, string | number>
+    params?: Record<string, string | number | boolean>
   },
 ): Promise<OpMailResult> {
   const addresses = await store.listAccountEmails(input.userId)
