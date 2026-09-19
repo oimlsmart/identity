@@ -40,6 +40,12 @@ process.env.DATABASE_PATH = join(TMP, 'test.db')
 
 const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
+// The OP-surface rate limiter answers its OWN 429 (no \`locked\`) — on CI
+// timing the whole file's rapid MFA attempts drain the shared per-caller
+// bucket MID-ladder, racing the ladder's own cap. The limiter's
+// documented honest off-switch makes the file deterministic (the
+// ladder's cap is what this file exercises).
+process.env.OP_RATE_LIMIT_CAPACITY = '0'
 // The throttle ladder's test value (the honest env seam): 1 ms base, so
 // the backoff exists without sleeping the suite.
 process.env.OP_MFA_BACKOFF_BASE_MS = '1'
