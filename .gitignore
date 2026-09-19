@@ -37,3 +37,6 @@ browser/data/blobs/
 # The node dev stack's local SQLite (the kernel's default path:
 # <cwd>/../data/oiml-smart.db — scratch, gitignored by name).
 /data/oiml-smart.db*
+
+# CI/local sibling-checkout scaffold positions (the file: dependency chain)
+x/
