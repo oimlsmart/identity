@@ -25,11 +25,15 @@
    `src/__tests__/id-otel.test.ts` (7).
 4. The Server-Timing instrument stays as-is (exact per-request wall time).
 
-**Open (honest):** the deeper span TREE (store phase → statement children) —
-the store-phase timing exists (Server-Timing); riding it as span children is
-follow-up once a collector sees real use. OUTBOUND traceparent on third-party
-fetches (mail/siteverify/webhooks) — the correlation core (inbound + echo +
-export) is in; outbound propagation to providers that ignore it is marginal.
+**The tail increments (shipped):** the span carries the STORE PHASE
+(Server-Timing's own measurement mirrored as `store.calls` +
+`store.duration_ms` attributes — the two instruments join without a
+second measurement); the webhook DELIVERIES carry the request's
+traceparent out (a fresh child span id per endpoint, W3C; unarmed =
+no header, byte-identical). **Open (honest):** outbound traceparent on
+mail/siteverify fetches (plumbing the context through the env-based
+mailer seam — marginal; the providers ignore it) and the
+statement-level span children (if a collector ever asks).
 Per-org analytics is the dashboard's aggregation work over the journal (the
 rows exist) — its own PR with the scaling gate's full attention.
 **The per-org analytics (shipped, the last half):**

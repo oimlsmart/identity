@@ -33,9 +33,10 @@ identity:
   role_codes: [identity]
 roles: [identity]
 branding: { name: OIML SMART Identity }
+demo_personas: true
 `))
   const { createApiApp } = await import('../../server/app')
-  app = createApiApp({ autoSeedDemo: false, instanceProfile: profileMod.getInstanceProfile() })
+  app = createApiApp({ autoSeedDemo: true, instanceProfile: profileMod.getInstanceProfile() })
 
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
@@ -138,5 +139,82 @@ describe('the OTLP export (fire-and-forget, one span per request)', () => {
       if (url.startsWith(ENDPOINT)) exported.push({ url, body: JSON.parse(String(init?.body)) })
       return new Response('{}', { status: 200 })
     }) as typeof fetch
+  })
+})
+
+describe('the store-phase correlation + the outbound traceparent', () => {
+  it('the span carries the store phase when Server-Timing is armed', async () => {
+    process.env.SERVER_TIMING = '1'
+    try {
+      await app.request(`${ISSUER}/api/health`)
+      const deadline = Date.now() + 5_000
+      while (exported.length === 0 && Date.now() < deadline) await new Promise(r => setTimeout(r, 50))
+      const span = exported[0]!.body.resourceSpans[0].scopeSpans[0].spans[0]
+      expect(span.attributes).toContainEqual({ key: 'store.calls', value: { intValue: expect.any(Number) } })
+      expect(span.attributes.some((a: { key: string }) => a.key === 'store.duration_ms')).toBe(true)
+    } finally {
+      delete process.env.SERVER_TIMING
+    }
+  })
+
+  it('the span omits the store attributes when Server-Timing is off', async () => {
+    await app.request(`${ISSUER}/api/health`)
+    const deadline = Date.now() + 5_000
+    while (exported.length === 0 && Date.now() < deadline) await new Promise(r => setTimeout(r, 50))
+    const span = exported[0]!.body.resourceSpans[0].scopeSpans[0].spans[0]
+    expect(span.attributes.some((a: { key: string }) => a.key === 'store.calls')).toBe(false)
+  })
+
+  it('the webhook delivery carries the request traceparent out (armed); none when unarmed', async () => {
+    process.env.WEBHOOK_RETRY_DELAYS_MS = '0,0,0'
+    const { verifyWebhookSignature } = await import('../../server/webhooks/signature')
+    const cookie = await (await app.request('/api/auth/demo', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'biml@oiml.org', password: 'demo2026' }),
+    })).headers.get('set-cookie')!.split(';')[0]
+
+    const subRes = await app.request(`${ISSUER}/api/op/account/webhooks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ url: 'https://rp.example/hooks', events: ['account.password'] }),
+    })
+    const created = await subRes.json() as { id: string; secret: string }
+
+    const seen: Array<{ headers: Headers; body: string }> = []
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const u = String(typeof input === 'string' ? input : input instanceof URL ? input : input.url)
+      if (u.includes('rp.example')) {
+        seen.push({ headers: new Headers(init?.headers), body: String(init?.body) })
+      }
+      return new Response('{}', { status: 200 })
+    }) as typeof fetch
+
+    // The act — with the trace armed, the delivery inherits the context.
+    const res = await app.request(`${ISSUER}/api/op/account/password`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ next: 'a-traced-delivery-probe-2026' }),
+    })
+    expect(res.status).toBe(200)
+    const deadline = Date.now() + 5_000
+    while (seen.length === 0 && Date.now() < deadline) await new Promise(r => setTimeout(r, 50))
+    expect(seen).toHaveLength(1)
+    const tp = seen[0]!.headers.get('traceparent')!
+    expect(tp).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/)
+    expect(await verifyWebhookSignature({ secret: created.secret, header: seen[0]!.headers.get('webhook-signature')!, body: seen[0]!.body, nowMs: Date.now(), toleranceSec: 300 })).toBe(true)
+
+    // UNARMED: no traceparent header at all (byte-identical posture).
+    delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+    seen.length = 0
+    const second = await app.request(`${ISSUER}/api/op/account/password`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      // The first change SET the password — the second presents it.
+      body: JSON.stringify({ current: 'a-traced-delivery-probe-2026', next: 'an-untraced-delivery-probe-2026' }),
+    })
+    expect(second.status).toBe(200)
+    const deadline2 = Date.now() + 5_000
+    while (seen.length === 0 && Date.now() < deadline2) await new Promise(r => setTimeout(r, 50))
+    expect(seen[0]!.headers.get('traceparent')).toBeNull()
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = ENDPOINT
+    delete process.env.WEBHOOK_RETRY_DELAYS_MS
   })
 })

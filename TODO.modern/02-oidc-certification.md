@@ -1,6 +1,6 @@
 # TODO.modern/02 — the OpenID conformance suite (OIDC Certification)
 
-**Priority:** P1 · **Status:** HELD (needs the owner's scratch host)
+**Priority:** P1 · **Status:** READY — the runbook is written (`docs/deployment/identity-conformance.md`); the run itself waits on the owner's scratch host
 Run the OpenID Foundation's conformance suite (Basic OP + Config + Refresh OP) against a scratch deployment; fix every finding; record the certification.
 
 ## The acts
