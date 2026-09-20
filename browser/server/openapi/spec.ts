@@ -324,6 +324,24 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/.well-known/webfinger': {
+      get: {
+        tags: ['OIDC'], operationId: 'getWebfinger', summary: 'The federation discovery front door (RFC 7033)',
+        description:
+          'An RP holding an email address discovers the issuer with zero configuration: '
+          + '`resource=acct:<local>@<this host>` (or the mailto form) answers the JRD with the '
+          + '`http://openid.net/specs/connect/1.0/issuer` link. The DOMAIN decides — any local part answers '
+          + '(the mailbox is never probed; enumeration-safe by construction); a foreign domain answers 404 '
+          + '(never a proxy, never an open resolver).',
+        security: [],
+        parameters: [{ name: 'resource', in: 'query', required: true, schema: { type: 'string' }, example: 'acct:ada@id.oimlsmart.org' }],
+        responses: {
+          200: { description: 'The JRD (application/jrd+json), edge-cached 5 minutes.', content: { 'application/jrd+json': { schema: { type: 'object', properties: { subject: { type: 'string' }, links: { type: 'array', items: { type: 'object' } } }, required: ['subject', 'links'] } } } },
+          400: { description: 'The resource parameter is absent.' },
+          404: { description: 'The resource names another domain.' },
+        },
+      },
+    },
     '/.well-known/security.txt': {
       get: {
         tags: ['OIDC'], operationId: 'getSecurityTxt', summary: 'The vulnerability disclosure pointer (RFC 9116)',
