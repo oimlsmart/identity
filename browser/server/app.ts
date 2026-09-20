@@ -76,6 +76,25 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // the outage body names it (support conversations reference it).
   app.use('*', requestIdMiddleware())
 
+  // The transport/document hardening baseline (TODO.modern/13):
+  // nosniff on EVERY answer (set before next() so error answers carry
+  // it too); HSTS + no-referrer + frame-ancestors 'none' on the HTML
+  // answers — EXCEPT answers already carrying a CSP (the check
+  // iframe's frame-ancestors * wins by design: the RPs frame it).
+  // The first-set-wins rule throughout — this seam never overrides.
+  app.use('*', async (c, next) => {
+    c.header('X-Content-Type-Options', 'nosniff')
+    await next()
+    if ((c.res.headers.get('content-type') ?? '').includes('text/html')) {
+      // This host is TLS-only by construction; includeSubDomains
+      // deliberately omitted — the zone's subdomain policy is the
+      // owner's, not the app's to decree.
+      if (!c.res.headers.has('strict-transport-security')) c.header('Strict-Transport-Security', 'max-age=31536000')
+      if (!c.res.headers.has('referrer-policy')) c.header('Referrer-Policy', 'no-referrer')
+      if (!c.res.headers.has('content-security-policy')) c.header('Content-Security-Policy', "frame-ancestors 'none'")
+    }
+  })
+
   // The trace-context seam (TODO.modern/09): W3C traceparent honored
   // inbound + echoed, and the config-gated OTLP export (one span per
   // request, fire-and-forget). UNSET OTEL_EXPORTER_OTLP_ENDPOINT =
