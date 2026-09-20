@@ -48,7 +48,13 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 // The remembered email (the account-chooser wave): a dead jar entry
 // falls back to the login page with the address prefilled (?email=).
-const email = ref(typeof route.query.email === 'string' ? route.query.email : '')
+// TODO.modern/17: the authorize's login_hint prefills beside the
+// legacy email param — a hint, the human corrects.
+const email = ref(
+  typeof route.query.email === 'string' ? route.query.email
+  : typeof route.query.login_hint === 'string' ? route.query.login_hint
+  : '',
+)
 const password = ref('')
 const submitting = ref(false)
 

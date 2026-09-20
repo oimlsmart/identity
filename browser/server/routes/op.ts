@@ -431,8 +431,8 @@ export function createOpRouter(): Hono {
     await ensureSeeded(c)
     const config = configFor(c)
     const q = (name: string) => c.req.query(name)?.trim() || undefined
-    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam] =
-      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode'].map(q)
+    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam, loginHintParam] =
+      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode', 'login_hint'].map(q)
     // RFC 9126 (TODO.modern/11): the PUSHED request — the pushed
     // parameters REPLACE the query's (any other query parameter is
     // ignored, never merged); the consume is single-use, expiry-bound,
@@ -458,8 +458,8 @@ export function createOpRouter(): Hono {
         const value = pushedParams[name]
         return typeof value === 'string' ? (value.trim() || undefined) : undefined
       }
-      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam] =
-        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode'].map(g)
+      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam, loginHintParam] =
+        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode', 'login_hint'].map(g)
       clientId = clientId ?? pushed.clientId
     }
 
@@ -586,7 +586,10 @@ export function createOpRouter(): Hono {
       }
       const target = `${here.pathname}${here.search}`
       const flag = forceLogin ? '&prompt=login' : ''
-      return c.redirect(`/?redirect=${encodeURIComponent(target)}${flag}`)
+      // TODO.modern/17: the login_hint rides the sign-in page (the
+      // address field prefills — a hint, the human corrects).
+      const hintSuffix = loginHintParam ? `&login_hint=${encodeURIComponent(loginHintParam)}` : ''
+      return c.redirect(`/?redirect=${encodeURIComponent(target)}${flag}${hintSuffix}`)
     }
 
     // 4b. The remembered consent (TODO.identity-features/12): a LIVE
