@@ -584,6 +584,9 @@ export interface OidcAuthorization {
   codeChallenge: string
   userId: string | null
   decision: 'allow' | 'deny' | null
+  /** TODO.modern/12 (RFC 9150): 'jwt' when the request asked JARM;
+   *  null = the default query mode. */
+  responseMode: string | null
   createdAt: string
   expiresAt: string
 }
@@ -1766,6 +1769,7 @@ export interface ServerStore {
     codeChallenge: string
     userId: string | null
     ttlMs: number
+    responseMode?: string | null
   }): Promise<OidcAuthorization>
   getOidcAuthorization(id: string): Promise<OidcAuthorization | null>
   /** The consent decision: binds the row's OWN account (userId must
