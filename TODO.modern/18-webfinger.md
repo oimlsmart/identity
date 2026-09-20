@@ -1,6 +1,17 @@
 # TODO.modern/18 — WebFinger (RFC 7033): the federation's discovery front door
 
-**Priority:** P2 · **Status:** DISPATCHABLE
+**Priority:** P2 · **Status:** IMPLEMENTED
+Shipped: the route answers on id.oimlsmart.org (the acct + mailto
+forms for this service's own domain answer the JRD with the issuer
+link; a foreign domain 404s — the never-a-proxy posture), the specs
+pin the four legs (`id-webfinger.test.ts`), the OpenAPI spec documents
+the route, and the member guide's federation step zero (#144)
+completed the acceptance line. Live proof 2026-09-21:
+`acct:ada@id.oimlsmart.org` and `mailto:ada@id.oimlsmart.org` answer
+200 with the issuer link; `@oimlsmart.org` (a different domain from
+this endpoint's) answers 404 by design — the member's OWN instance
+answers for its own mail domain, per the guide.
+
 The OIML member-federation story's missing first step: an RP holding
 `someone@oimlsmart.org` discovers the issuer without configuration.
 
