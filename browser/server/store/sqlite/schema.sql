@@ -872,7 +872,12 @@ CREATE INDEX IF NOT EXISTS idx_instrument_registrations_lifecycle ON instrument_
 -- (token_hash, the exchange's UNIQUE lookup key) + the display prefix.
 -- Expiration is MANDATORY (expires_at NOT NULL — no permanent tokens).
 -- scopes is the pinned JSON set ('<service>:<action-class>' — the
--- store.ts grammar; narrowing-only against the holder's standing);
+-- scopes is the granted scope set (JSON array of '<service>:<action-
+-- class>' — the kernel's PAT grammar; narrowing-only against the
+-- holder's standing); permissions is the pinned permissions-catalog id
+-- set (JSON array of the TARGET INSTANCE's '<group>.<resource>.<verb>'
+-- ids — TODO.openapi/03; the instance serves its own catalog, the OP
+-- never holds a copy; migration 0031).
 -- org_context pins the mint's active-org context (NULL = the primary).
 -- last_used_at + last_exchange_audit_at carry the exchange path's
 -- THROTTLED heartbeat (never a write per exchange); expiry_notified_at
@@ -889,6 +894,7 @@ CREATE TABLE IF NOT EXISTS personal_access_tokens (
   token_hash TEXT NOT NULL,
   token_prefix TEXT NOT NULL,
   scopes TEXT NOT NULL DEFAULT '[]',
+  permissions TEXT NOT NULL DEFAULT '[]',
   org_context TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT NOT NULL,
@@ -1004,3 +1010,18 @@ CREATE TABLE IF NOT EXISTS known_devices (
   UNIQUE (account_id, device_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_known_devices_account ON known_devices (account_id);
+
+-- ═══════════════════════════════════════════════════════════════════
+-- The pushed authorization requests (TODO.modern/11, RFC 9126): the
+-- authorize parameters posted to the BACK channel, consumed once, the
+-- client binding in the consume's WHERE. The D1 migration set carries
+-- the identical end state (0031_pushed_authorization_requests.sql).
+-- ═══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS pushed_authorization_requests (
+  uri TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL,
+  params TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

@@ -145,6 +145,11 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // OP_RATE_LIMIT_CAPACITY=0 disables it honestly.
   const rateLimit = createOpRateLimiter()
   app.use('/op/authorize', rateLimit)
+  // RFC 9126's push (TODO.modern/11): the same per-caller bucket as
+  // the authorize it feeds.
+  app.use('/op/par', rateLimit)
+  // RFC 9126's push (TODO.modern/11): the same per-caller bucket as the
+  // authorize it feeds.
   app.use('/op/token', rateLimit)
   app.use('/api/op/login', rateLimit)
   app.use('/api/op/login/reset', rateLimit)

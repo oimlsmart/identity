@@ -108,6 +108,7 @@ import {
   WebhookDeliveryRecord,
   KnownDeviceRow,
   KnownDeviceSighting,
+  PushedAuthorizationRequest,
 } from '../store'
 // TODO.federation/01 — the account plan follows the deployment profile
 // (the Worker's seed route installs it from the env binding first; the
@@ -244,6 +245,7 @@ interface EnsureMemos {
   personalAccessTokenSupport: Promise<void> | null
   webhookSupport: Promise<void> | null
   knownDeviceSupport: Promise<void> | null
+  parSupport: Promise<void> | null
   consentGrantSupport: Promise<void> | null
   oidcRefreshTokenSupport: Promise<void> | null
   accountEmailSupport: Promise<void> | null
@@ -266,6 +268,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
       accountEmailSupport: null, notifyDeliverySupport: null,
       webhookSupport: null,
       knownDeviceSupport: null,
+      parSupport: null,
     }
     ensureMemosByBinding.set(binding, memos)
   }
@@ -880,7 +883,9 @@ export class D1ServerStore implements ServerStore {
   // personal_access_tokens table arrives with migration 0020 — a dev D1
   // migrated from before it lacks the table, so the PAT methods ensure
   // it defensively (the ensureOrgRegistrySupport posture, memoized per
-  // (binding, chain) at module scope).
+  // (binding, chain) at module scope). The permissions column arrives
+  // with 0031 (TODO.openapi/03) — the same PRAGMA-probe + ALTER posture
+  // covers a table created before it.
   private ensurePersonalAccessTokenSupport(): Promise<void> {
     return ensured(this.binding, 'personalAccessTokenSupport', async () => {
       await this.db.prepare(
@@ -891,6 +896,7 @@ export class D1ServerStore implements ServerStore {
            token_hash TEXT NOT NULL,
            token_prefix TEXT NOT NULL,
            scopes TEXT NOT NULL DEFAULT '[]',
+           permissions TEXT NOT NULL DEFAULT '[]',
            org_context TEXT,
            created_at TEXT NOT NULL DEFAULT (datetime('now')),
            expires_at TEXT NOT NULL,
@@ -902,6 +908,10 @@ export class D1ServerStore implements ServerStore {
            UNIQUE (token_hash)
          )`,
       ).run()
+      const cols = await this.db.prepare('PRAGMA table_info(personal_access_tokens)').all<{ name: string }>()
+      if (!cols.results.some(c => c.name === 'permissions')) {
+        await this.db.prepare("ALTER TABLE personal_access_tokens ADD COLUMN permissions TEXT NOT NULL DEFAULT '[]'").run()
+      }
       await this.db.prepare('CREATE INDEX IF NOT EXISTS idx_personal_access_tokens_user ON personal_access_tokens (user_id)').run()
     })
   }
@@ -2733,16 +2743,17 @@ export class D1ServerStore implements ServerStore {
     tokenHash: string
     tokenPrefix: string
     scopes: string[]
+    permissions?: string[]
     orgContext: string | null
     expiresAt: string
   }): Promise<PersonalAccessToken> {
     await this.ensurePersonalAccessTokenSupport()
     await this.stmt(
       `INSERT INTO personal_access_tokens
-         (id, user_id, name, token_hash, token_prefix, scopes, org_context, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, user_id, name, token_hash, token_prefix, scopes, permissions, org_context, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       input.id, input.userId, input.name, input.tokenHash, input.tokenPrefix,
-      JSON.stringify(input.scopes), input.orgContext, input.expiresAt,
+      JSON.stringify(input.scopes), JSON.stringify(input.permissions ?? []), input.orgContext, input.expiresAt,
     ).run()
     return (await this.getPersonalAccessToken(input.id))!
   }
@@ -2943,6 +2954,53 @@ export class D1ServerStore implements ServerStore {
     }
   }
 
+  // ── the pushed authorization requests (TODO.modern/11, RFC 9126) ──
+  private ensureParSupport(): Promise<void> {
+    return ensured(this.binding, 'parSupport', async () => {
+      await this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS pushed_authorization_requests (
+           uri TEXT PRIMARY KEY,
+           client_id TEXT NOT NULL,
+           params TEXT NOT NULL,
+           expires_at TEXT NOT NULL,
+           consumed INTEGER NOT NULL DEFAULT 0,
+           created_at TEXT NOT NULL DEFAULT (datetime('now'))
+         )`,
+      ).run()
+    })
+  }
+
+  async createPushedAuthorizationRequest(input: {
+    uri: string
+    clientId: string
+    params: string
+    expiresAt: string
+  }): Promise<void> {
+    await this.ensureParSupport()
+    await this.stmt(
+      'INSERT INTO pushed_authorization_requests (uri, client_id, params, expires_at) VALUES (?, ?, ?, ?)',
+      input.uri, input.clientId, input.params, input.expiresAt,
+    ).run()
+    await this.stmt(
+      "DELETE FROM pushed_authorization_requests WHERE julianday(expires_at) <= julianday('now')",
+    ).run()
+  }
+
+  async consumePushedAuthorizationRequest(uri: string): Promise<PushedAuthorizationRequest | null> {
+    await this.ensureParSupport()
+    const consume = await this.stmt(
+      `UPDATE pushed_authorization_requests
+         SET consumed = 1
+       WHERE uri = ? AND consumed = 0
+         AND julianday(expires_at) > julianday('now')`,
+      uri,
+    ).run()
+    if ((consume.meta.changes ?? 0) === 0) return null
+    const row = await this.stmt('SELECT * FROM pushed_authorization_requests WHERE uri = ?', uri)
+      .first<{ uri: string; client_id: string; params: string; expires_at: string }>()
+    return row ? { uri: row.uri, clientId: row.client_id, params: row.params, expiresAt: row.expires_at } : null
+  }
+
   async listKnownDevices(accountId: string): Promise<KnownDeviceRow[]> {
     await this.ensureKnownDeviceSupport()
     const rows = (await this.stmt(
@@ -2970,6 +3028,18 @@ export class D1ServerStore implements ServerStore {
     const res = await this.stmt(
       'UPDATE personal_access_tokens SET scopes = ? WHERE id = ? AND user_id = ?',
       JSON.stringify(scopes), id, userId,
+    ).run()
+    return (res.meta.changes ?? 0) > 0 ? this.getPersonalAccessToken(id) : null
+  }
+
+  async updatePersonalAccessTokenPermissions(id: string, userId: string, permissions: string[]): Promise<PersonalAccessToken | null> {
+    // The permissions-edit act (TODO.openapi/03): the ROUTE validates
+    // against the target instance's served catalog; the store only
+    // writes (the scope-edit act's posture).
+    await this.ensurePersonalAccessTokenSupport()
+    const res = await this.stmt(
+      'UPDATE personal_access_tokens SET permissions = ? WHERE id = ? AND user_id = ?',
+      JSON.stringify(permissions), id, userId,
     ).run()
     return (res.meta.changes ?? 0) > 0 ? this.getPersonalAccessToken(id) : null
   }
@@ -3056,8 +3126,9 @@ export class D1ServerStore implements ServerStore {
   }
 
   /** The personal_access_tokens row → the seam's shape (TODO.identity-
-   *  features/08). The scopes cell parses defensively — a hand-edited
-   *  row's malformed JSON reads as the empty set, never trusted. */
+   *  features/08). The scopes + permissions cells parse defensively — a
+   *  hand-edited row's malformed JSON reads as the empty set, never
+   *  trusted. */
   private static toPersonalAccessToken(row: Record<string, unknown>): PersonalAccessToken {
     return {
       id: row.id as string,
@@ -3066,6 +3137,7 @@ export class D1ServerStore implements ServerStore {
       tokenHash: row.token_hash as string,
       tokenPrefix: row.token_prefix as string,
       scopes: parseRoles((row.scopes as string | null) ?? null) ?? [],
+      permissions: parseRoles((row.permissions as string | null) ?? null) ?? [],
       orgContext: (row.org_context as string | null) ?? null,
       createdAt: D1ServerStore.storeTimeToIso(row.created_at as string)!,
       expiresAt: D1ServerStore.storeTimeToIso(row.expires_at as string)!,

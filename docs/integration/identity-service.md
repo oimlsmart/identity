@@ -414,7 +414,9 @@ JWTs (§9) introspect through the signature + the named client's LIVE
 standing: a disabled device or service client's in-flight tokens read
 inactive — so a consumer that wants revocation semantics for machine
 tokens gets them by introspecting instead of trusting the `exp` alone.
-Prefer the local JWT check for latency, introspect when standing
+The §9a personal access tokens introspect too — the RAW `ospt_…`
+credential is itself an access-token class now (see §9a for the claim
+set). Prefer the local JWT check for latency, introspect when standing
 matters.
 
 ## 6. Validating tokens (the must-dos)
@@ -641,6 +643,23 @@ The shape (the GitHub fine-grained pattern):
   service with roles at all; `write` needs those roles to hold a
   workflow permission; `admin` needs an administration-class one. A
   disabled or erased account's tokens die with it.
+- **Permissions (TODO.openapi/03).** Beside the scope set, a PAT may
+  pin a set of the TARGET INSTANCE's permissions-catalog ids (the shape
+  `<group>.<resource>.<verb>`; groups: portal, ia-console,
+  tl-workbench, biml-register, cs-admin, federation, cnml, twin,
+  identity-admin). THE OP NEVER HOLDS A COPY OF THE CATALOG: each
+  instance serves its own at `GET <instance>/api/openapi.json` under
+  `x-oiml-permissions-catalog` (the version, the closed verb set, and
+  groups → descriptions → permission ids → descriptions). The OP
+  validates at mint and at every permissions edit by FETCHING that
+  document from the instance the token scopes to (the registered
+  client's redirect-URI origin resolves the instance; the probe is
+  timeout-bounded and FAILS CLOSED — an instance that cannot answer
+  refuses the grant, and an id not in the served catalogs refuses the
+  mint naming it). The OP stores the ids verbatim and echoes them at
+  introspection; it never JUDGES them — your instance's catalog and
+  your own gate are the enforcement. A token with no permissions (the
+  default) behaves exactly as before.
 - **The exchanged JWT's claims**: `iss`, `sub` (the account id), `aud`
   (the scope set's services — check your client id is IN it), `iat`,
   `exp`, `scope` (the granted set), `name`, `email`, `org` + `cone` (the
@@ -649,6 +668,47 @@ The shape (the GitHub fine-grained pattern):
   never a callback), and `pat` (the credential's row id — log it for the
   revocation correlation). Never an ID token, never a refresh, never
   `amr` (the exchange is not an authentication ceremony).
+
+**The PAT is an access-token class: introspecting it directly
+(TODO.openapi/03).** An instance that consumes the RAW `ospt_…`
+credential per request (no cache — revocation reads through instantly)
+presents it as `Authorization: Bearer` to its own enforcement layer and
+resolves its standing at `{issuer}/op/introspect` (`token=<the raw
+PAT>` + your client authentication). The exchange path (above) is
+UNCHANGED and stays the recommended shape when your instance wants
+short-lived JWTs; the direct class exists because the platform's
+enforcement reads the credential live.
+
+A LIVE PAT answers:
+
+```json
+{
+  "active": true,
+  "iss": "https://id.oimlsmart.org",
+  "sub": "<the account id>",
+  "scope": "oiml-smart:read",
+  "permissions": ["tl-workbench.runs.read", "tl-workbench.runs.edit"],
+  "service_roles": { "oiml-smart": ["tl_operator"] },
+  "org": "<the active org, when the context carries one>",
+  "cone": "<the live membership cone, when org is set>",
+  "pat": "<the PAT row id>",
+  "token_type": "access_token",
+  "exp": 1789000000
+}
+```
+
+The judgment is LIVE at every introspection — the now-truth, never the
+mint's memory: a role lost since the mint falls away from
+`service_roles` and `scope`, a disabled membership re-resolves the org
+context, a deactivated or erased account's token reads inactive, and a
+revoked or expired PAT answers `{"active": false}` — the SAME honest
+inactive every other unknown token gets (deliberately indistinguishable;
+the caller's hot path is never an error channel). `permissions` echoes
+the pinned catalog ids verbatim (an empty array when none were minted) —
+the enforcement lives with YOUR instance's catalog and gate. The use
+lands on the audit chain at the SAME throttled heartbeat the exchange
+beats (`account.pat_introspected`, at most once an hour per token —
+never a per-request write).
 
 Your service's bearer gate (the at-use half): validate the JWT per §6,
 then enforce the scope cone — the request's act must fit a granted

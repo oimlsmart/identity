@@ -171,6 +171,7 @@ import {
   listPersonalAccessTokens,
   revokePersonalAccessToken,
   renamePersonalAccessToken,
+  updatePersonalAccessTokenPermissions,
   updatePersonalAccessTokenScopes,
   stampPersonalAccessTokenUse,
 } from './sqlite/pat-store'
@@ -185,6 +186,10 @@ import {
   recordKnownDevice,
   listKnownDevices,
 } from './sqlite/known-devices-store'
+import {
+  createPushedAuthorizationRequest,
+  consumePushedAuthorizationRequest,
+} from './sqlite/par-store'
 import {
   getConsentGrant,
   listConsentGrants,
@@ -803,6 +808,7 @@ export class SqliteServerStore implements ServerStore {
     tokenHash: string
     tokenPrefix: string
     scopes: string[]
+    permissions?: string[]
     orgContext: string | null
     expiresAt: string
   }): Promise<PersonalAccessToken> {
@@ -828,6 +834,9 @@ export class SqliteServerStore implements ServerStore {
   }
   async updatePersonalAccessTokenScopes(id: string, userId: string, scopes: string[]): Promise<PersonalAccessToken | null> {
     return updatePersonalAccessTokenScopes(this.db, id, userId, scopes)
+  }
+  async updatePersonalAccessTokenPermissions(id: string, userId: string, permissions: string[]): Promise<PersonalAccessToken | null> {
+    return updatePersonalAccessTokenPermissions(this.db, id, userId, permissions)
   }
   async stampPersonalAccessTokenUse(
     id: string,
@@ -872,6 +881,19 @@ export class SqliteServerStore implements ServerStore {
   }
   async listKnownDevices(accountId: string): Promise<import('../store').KnownDeviceRow[]> {
     return listKnownDevices(this.db, accountId)
+  }
+
+  // ── the pushed authorization requests (TODO.modern/11, RFC 9126) ──
+  async createPushedAuthorizationRequest(input: {
+    uri: string
+    clientId: string
+    params: string
+    expiresAt: string
+  }): Promise<void> {
+    createPushedAuthorizationRequest(this.db, input)
+  }
+  async consumePushedAuthorizationRequest(uri: string): Promise<import('../store').PushedAuthorizationRequest | null> {
+    return consumePushedAuthorizationRequest(this.db, uri)
   }
 
   // ── the central user registry (TODO.identity/03) ──

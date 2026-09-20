@@ -192,6 +192,18 @@ export interface FederationPeer {
   revokedBy: string | null
 }
 
+// ── the pushed authorization requests (TODO.modern/11, RFC 9126) ────
+
+/** One pushed authorization request: the parameter set as JSON (the
+ *  authorize consumes it in place of the query), the owning client
+ *  (the consume is client-bound), the expiry. */
+export interface PushedAuthorizationRequest {
+  uri: string
+  clientId: string
+  params: string
+  expiresAt: string
+}
+
 // ── the known-device record (TODO.modern/06's risk signals) ──────────
 
 /** One recognized (account, device-hash) pair. The hash is
@@ -1089,9 +1101,12 @@ export function patScopeCovers(granted: readonly PatScope[], service: string, ac
  *  NEVER the plaintext, never reversible material: tokenHash is the
  *  SHA-256 lookup key, tokenPrefix the console's display fragment.
  *  orgContext pins the mint's active-org context (null = the account's
- *  primary); lastUsedAt / lastExchangeAuditAt carry the exchange path's
- *  throttled heartbeat; expiryNotifiedAt the expiry-soon mailer's
- *  one-shot mark. */
+ *  primary); lastUsedAt / lastExchangeAuditAt carry the use path's
+ *  throttled heartbeat (the exchange AND the introspection share the
+ *  one beat — TODO.openapi/03); expiryNotifiedAt the expiry-soon
+ *  mailer's one-shot mark. permissions is the pinned permissions-catalog
+ *  id set (the TARGET INSTANCE's ids, verbatim — the OP never holds a
+ *  copy of the catalog). */
 export interface PersonalAccessToken {
   id: string
   userId: string
@@ -1100,6 +1115,10 @@ export interface PersonalAccessToken {
   tokenPrefix: string
   /** The pinned scope set (the encoded spellings, normalized at mint). */
   scopes: string[]
+  /** The pinned permissions-catalog ids (TODO.openapi/03; empty = the
+   *  token carries no catalog grant — the exchange/introspection
+   *  posture is unchanged). */
+  permissions: string[]
   orgContext: string | null
   createdAt: string
   expiresAt: string
@@ -2235,6 +2254,7 @@ export interface ServerStore {
     tokenHash: string
     tokenPrefix: string
     scopes: string[]
+    permissions?: string[]
     orgContext: string | null
     expiresAt: string
   }): Promise<PersonalAccessToken>
@@ -2264,6 +2284,13 @@ export interface ServerStore {
    *  subset validation; the store only writes. Answers the updated row,
    *  or null when the row is not this owner's. */
   updatePersonalAccessTokenScopes(id: string, userId: string, scopes: string[]): Promise<PersonalAccessToken | null>
+  /** The permissions-edit act (TODO.openapi/03): replaces the pinned
+   *  permissions-catalog id set — the same write-only posture as the
+   *  scope edit (the ROUTE validates against the target instance's
+   *  served catalog; the store only writes). The introspection echoes
+   *  whatever is pinned; the enforcement lives with the instance.
+   *  Answers the updated row, or null when the row is not this owner's. */
+  updatePersonalAccessTokenPermissions(id: string, userId: string, permissions: string[]): Promise<PersonalAccessToken | null>
   /** The exchange path's throttled heartbeat: the caller decides the
    *  throttle from the row it already read; the store stamps. auditAt
    *  rides along when the heartbeat crossed the audit window; the
@@ -2468,6 +2495,20 @@ export interface ServerStore {
   // ── the notification subscriptions store (TODO.notify/02) ──
   // ── the inbox state (TODO.notify/03) ──
   // ── the email channel's delivery store (TODO.notify/04) ──
+  // ── the pushed authorization requests (TODO.modern/11, RFC 9126) ──
+  /** The push: one row, the 90 s life. */
+  createPushedAuthorizationRequest(input: {
+    uri: string
+    clientId: string
+    params: string
+    expiresAt: string
+  }): Promise<void>
+  /** The SINGLE-USE, expiry-checked consume (the client binding is
+   *  the consumer's compare — a request without a query client_id
+   *  passes through to the pushed owner). Null = unknown, consumed,
+   *  or expired. */
+  consumePushedAuthorizationRequest(uri: string): Promise<PushedAuthorizationRequest | null>
+
   // ── the known-device record (TODO.modern/06's risk signals) ──
   /** The upsert: the first sighting of (account, device) answers
    *  isNew; a repeat answers the PRE-UPDATE row's country + instant
