@@ -54,6 +54,7 @@ const EXCLUDED_PREFIXES: ReadonlyArray<{ prefix: string; reason: string }> = [
   { prefix: '/api/op/account/sessions', reason: 'edition 2: the session management' },
   { prefix: '/api/op/accounts', reason: 'edition 2: the ADMINISTRATION surface' },
   { prefix: '/api/op/clients', reason: 'edition 2: the administration surface' },
+  { prefix: '/api/op/choose-account', reason: 'the account chooser\'s browser leg (the prompt=select_account page\'s context + swap — the consent route\'s posture)' },
   { prefix: '/api/op/consent', reason: 'the OIDC browser leg (documented via discovery, not REST docs)' },
   { prefix: '/api/op/dashboard', reason: 'edition 2: the administration surface' },
   { prefix: '/api/op/email-change', reason: 'the one-time ceremony (a browser flow)' },

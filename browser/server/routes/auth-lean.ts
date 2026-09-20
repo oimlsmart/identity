@@ -13,6 +13,8 @@
 //                                   gated by demoAccountsEnabled)
 //   GET  /api/auth/demo-accounts    the demo cast's public list
 //   POST /api/auth/signout          close the session
+//   POST /api/auth/signout-all      close every session the account jar
+//                                   remembers (the chooser wave)
 //
 // The OP is never an RP of itself: the SSO/GitHub projections the
 // monorepo's router computes are honestly absent here, and the signout
@@ -30,6 +32,9 @@ import { getStore } from '../store'
 import { getInstanceProfile } from '../profile'
 import { clientInfo } from '../client-info'
 import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
+import {
+  clearAccountJar, dropAccountJarSession, readAccountJar, touchAccountJar,
+} from '../auth/op/account-jar'
 import { prepareBackchannelLogout } from '../auth/op/logout'
 
 type EnvLike = Record<string, string | undefined>
@@ -96,6 +101,9 @@ export function createAuthLeanRouter(options: AuthLeanRouterOptions): Hono {
     // demo cast never carries factors).
     const token = await getStore().createSession(user.id, { ...clientInfo(c), amr: ['pwd'] })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    // The account jar (the chooser wave): the demo sign-in remembers the
+    // account exactly as every other completed sign-in does.
+    touchAccountJar(c, token, user)
     return c.json(user)
   })
 
@@ -130,9 +138,64 @@ export function createAuthLeanRouter(options: AuthLeanRouterOptions): Hono {
       } else {
         await store.deleteSession(token)
       }
+      // The account jar (the chooser wave): the ended session's entry
+      // goes; the other remembered accounts stay.
+      dropAccountJarSession(c, token)
     }
     deleteCookie(c, SESSION_COOKIE, { path: '/' })
     return c.json({ ok: true })
+  })
+
+  // POST /api/auth/signout-all — the account chooser's wholesale act
+  // (the multi-account wave): every LIVE session the account jar
+  // remembers ends, each with the OP-initiated backchannel fan-out (one
+  // send per DISTINCT account — the logout_token names the subject, no
+  // sid), and both cookies clear. The presenting session ends too when
+  // it is live but not a jar row (the jar is the act's declared scope;
+  // the active cookie never survives a sign-out-everything). A dead
+  // entry costs nothing — its row is already gone.
+  auth.post('/signout-all', async (c) => {
+    await ensureInit()
+    const store = getStore()
+    const env = runtimeEnv<EnvLike>(c)
+    const jar = readAccountJar(c)
+    const live = new Map<string, { userId: string }>()
+    for (const entry of jar) {
+      const user = await store.getSessionUser(entry.sessionId)
+      if (user) live.set(entry.sessionId, { userId: user.id })
+    }
+    // Distinct accounts in jar order (most recent first).
+    const userIds: string[] = []
+    for (const { userId } of live.values()) {
+      if (!userIds.includes(userId)) userIds.push(userId)
+    }
+    let ended = 0
+    for (const userId of userIds) {
+      // The fan-out's targets collect BEFORE the deletes (the grant set
+      // is the one the ending presence belonged to) — the end-session's
+      // own order.
+      const floatBackchannel = await prepareBackchannelLogout(c, env, c.req.raw, userId)
+      for (const [token, owner] of live) {
+        if (owner.userId !== userId) continue
+        await store.deleteSession(token)
+        ended++
+      }
+      floatBackchannel()
+    }
+    // The presenting session when it is live but not a jar row.
+    const activeToken = getCookie(c, SESSION_COOKIE)
+    if (activeToken && !live.has(activeToken)) {
+      const active = await store.getSessionUser(activeToken)
+      if (active) {
+        const floatBackchannel = await prepareBackchannelLogout(c, env, c.req.raw, active.id)
+        await store.deleteSession(activeToken)
+        floatBackchannel()
+        ended++
+      }
+    }
+    clearAccountJar(c)
+    deleteCookie(c, SESSION_COOKIE, { path: '/' })
+    return c.json({ ok: true, ended })
   })
 
   return auth

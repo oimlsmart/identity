@@ -46,7 +46,9 @@ const { branding } = useBranding()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
-const email = ref('')
+// The remembered email (the account-chooser wave): a dead jar entry
+// falls back to the login page with the address prefilled (?email=).
+const email = ref(typeof route.query.email === 'string' ? route.query.email : '')
 const password = ref('')
 const submitting = ref(false)
 

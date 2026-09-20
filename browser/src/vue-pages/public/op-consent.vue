@@ -32,6 +32,10 @@ interface ConsentContext {
   /** The organization binding the token will carry (policy 'org'). */
   orgClaim?: string | null
   account: { name: string; email: string; avatarUrl?: string | null }
+  /** The flow's re-entry URL (the account-chooser wave): the raw
+   *  material the "switch account" link builds its chooser target
+   *  from. */
+  authorizeUrl?: string
   issuer: string
   issuerName: string
 }
@@ -42,6 +46,19 @@ const loading = ref(true)
 const deciding = ref(false)
 const error = ref<string | null>(null)
 const context = ref<ConsentContext | null>(null)
+
+/** The "switch account" target (the account-chooser wave): the
+ *  chooser page carrying the flow's re-entry as its continue target,
+ *  with prompt=select_account AHEAD of the flow's own remaining values
+ *  (the chooser's re-entry sheds the consumed 'select_account' and the
+ *  rest — login, consent — re-applies on the authorize). */
+const switchAccountUrl = (): string | null => {
+  const base = context.value?.authorizeUrl
+  if (!base) return null
+  const prompt = typeof route.query.prompt === 'string' ? route.query.prompt.trim() : ''
+  const withPrompt = `${base}&prompt=${encodeURIComponent(`${prompt ? `${prompt} ` : ''}select_account`)}`
+  return `/op/choose-account?continue=${encodeURIComponent(withPrompt)}`
+}
 
 /** Human labels for the scopes (an unknown scope shows its raw name —
  *  honest, never silently dropped). */
@@ -205,6 +222,13 @@ async function decide(decision: 'allow' | 'deny') {
             />
             <span class="font-medium">{{ context.account.name }}</span>
             <span class="text-slate-400 dark:text-slate-500"> &lt;{{ context.account.email }}&gt;</span>
+          </p>
+          <p v-if="switchAccountUrl()" class="mt-2 text-right">
+            <a
+              :href="switchAccountUrl()!"
+              data-testid="op-consent-switch-account"
+              class="text-sm text-brand-600 dark:text-brand-300 hover:underline"
+            >{{ t('consent.switchAccount') }}</a>
           </p>
         </div>
 
