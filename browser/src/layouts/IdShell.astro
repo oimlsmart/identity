@@ -41,8 +41,12 @@ interface Props {
   page: string
   /** The sign-in page's chromeless posture. */
   bare?: boolean
+  /** The PUBLIC pages (the landing) opt into indexing; the credential
+   *  and console surfaces default noindex (TODO.modern/14 — the
+   *  account consoles never leak into search indexes). */
+  indexable?: boolean
 }
-const { title = 'OIML SMART Identity', page, bare = false } = Astro.props
+const { title = 'OIML SMART Identity', page, bare = false, indexable = false } = Astro.props
 
 // The page key decides the console chrome: the area (home / account /
 // admin — the flow pages get none) and the admin rail's current entry
@@ -78,6 +82,7 @@ const adminCurrent = ADMIN_CURRENT[page]
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="theme-color" content="#004996" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="robots" content={indexable ? 'index, follow' : 'noindex, nofollow'} />
     <meta name="description" content="The OIML SMART identity service: the single sign-on service for the oimlsmart.org register." />
     <title>{title} | OIML SMART Identity</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

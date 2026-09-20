@@ -261,6 +261,22 @@ export type GetUserinfoResponses = {
     200: unknown;
 };
 
+export type GetSecurityTxtData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/.well-known/security.txt';
+};
+
+export type GetSecurityTxtResponses = {
+    /**
+     * The security.txt document (text/plain).
+     */
+    200: string;
+};
+
+export type GetSecurityTxtResponse = GetSecurityTxtResponses[keyof GetSecurityTxtResponses];
+
 export type PushAuthorizationRequestData = {
     body: {
         response_type: 'code';

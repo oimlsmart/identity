@@ -324,6 +324,17 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/.well-known/security.txt': {
+      get: {
+        tags: ['OIDC'], operationId: 'getSecurityTxt', summary: 'The vulnerability disclosure pointer (RFC 9116)',
+        description:
+          'The disclosure contact (the repository\'s private security advisories — the real, monitored channel), the expiry, the preferred languages, and the policy pointer. Refreshed at the yearly deploy review.',
+        security: [],
+        responses: {
+          200: { description: 'The security.txt document (text/plain).', content: { 'text/plain': { schema: { type: 'string' } } } },
+        },
+      },
+    },
     '/op/par': {
       post: {
         tags: ['OIDC'], operationId: 'pushAuthorizationRequest', summary: 'The pushed authorization request (RFC 9126)',
