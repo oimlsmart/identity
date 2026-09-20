@@ -167,6 +167,33 @@ describe('the signed response (response_mode=jwt)', () => {
     expect(back.searchParams.get('error')).toBe('invalid_request')
   })
 
+  it('the PUSHED response_mode rides the PAR path (the regression the e2e leg caught: the mode was silently dropped)', async () => {
+    const cookie = await login()
+    const push = await app.request(`${ISSUER}/op/par`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic },
+      body: new URLSearchParams({
+        response_type: 'code', client_id: CONFIDENTIAL.client_id, redirect_uri: REDIRECT,
+        scope: 'openid', code_challenge: 'd'.repeat(43), code_challenge_method: 'S256',
+        response_mode: 'jwt', prompt: 'consent', state: 'st-pushed-mode',
+      }),
+    })
+    expect(push.status).toBe(201)
+    const pushed = await push.json() as { request_uri: string }
+    const authorize = await app.request(`${ISSUER}/op/authorize?request_uri=${encodeURIComponent(pushed.request_uri)}`, { headers: { cookie } })
+    expect(authorize.status).toBe(302)
+    const authId = new URL(authorize.headers.get('location')!, ISSUER).searchParams.get('auth')!
+    const decide = await app.request(`${ISSUER}/api/op/consent/${authId}/decide`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ decision: 'allow' }),
+    })
+    const { redirect } = await decide.json() as { redirect: string }
+    const back = new URL(redirect)
+    expect(back.searchParams.get('code'), 'the PUSHED mode wraps — no plain code').toBeNull()
+    const claims = decodeJwt(back.searchParams.get('response')!)
+    expect(claims.state).toBe('st-pushed-mode')
+  })
+
   it('the default stays the plain query (byte-identical for existing RPs)', async () => {
     const cookie = await login()
     const query = new URLSearchParams({

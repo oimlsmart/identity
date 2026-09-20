@@ -454,7 +454,7 @@ export function createOpRouter(): Hono {
         const value = pushedParams[name]
         return typeof value === 'string' ? (value.trim() || undefined) : undefined
       }
-      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam] =
+      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam] =
         ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode'].map(g)
       clientId = clientId ?? pushed.clientId
     }
