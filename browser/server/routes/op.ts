@@ -258,6 +258,8 @@ export function createOpRouter(): Hono {
       acr_values_supported: [...ACR_LEVELS],
       // RFC 9126 (TODO.modern/11): the pushed authorization request.
       pushed_authorization_request_endpoint: `${issuer}/op/par`,
+      // RFC 9150 (TODO.modern/12): the JWT-secured response mode.
+      response_modes_supported: ['query', 'jwt'],
       claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'amr'],
     })
   })
@@ -386,12 +388,38 @@ export function createOpRouter(): Hono {
 
   /** The redirect-back error (the redirect_uri is validated, so the
    *  OIDC error redirect is safe). */
-  function authorizeErrorRedirect(redirectUri: string, state: string | undefined, error: string, description: string): string {
+  async function authorizeErrorRedirect(
+    c: Context,
+    redirectUri: string,
+    state: string | undefined,
+    error: string,
+    description: string,
+    responseMode: string = 'query',
+    clientId: string = '',
+  ): Promise<string> {
     const back = new URL(redirectUri)
     back.searchParams.set('error', error)
     back.searchParams.set('error_description', description)
     if (state) back.searchParams.set('state', state)
-    return back.toString()
+    return jarmWrap(c, back, responseMode, clientId)
+  }
+
+  /** RFC 9150 (TODO.modern/12): the JARM wrap — response_mode=jwt
+   *  moves every response parameter into redirect_uri?response=<JWT>,
+   *  ES256-signed with the OP's own key (the RPs verify against the
+   *  JWKS they already hold), iss + aud + the parameters verbatim.
+   *  Any other mode: the URL stands untouched (the default's
+   *  byte-identical answers). */
+  async function jarmWrap(c: Context, back: URL, responseMode: string, clientId: string): Promise<string> {
+    if (responseMode !== 'jwt') return back.toString()
+    const claims: Record<string, unknown> = {
+      iss: configFor(c).issuer,
+      ...(clientId ? { aud: clientId } : {}),
+    }
+    for (const [key, value] of back.searchParams) claims[key] = value
+    const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+    const jwt = await signOpIdToken(key, claims)
+    return `${back.origin}${back.pathname}?response=${encodeURIComponent(jwt)}`
   }
 
   // GET /op/authorize — the authorization endpoint.
@@ -399,8 +427,8 @@ export function createOpRouter(): Hono {
     await ensureSeeded(c)
     const config = configFor(c)
     const q = (name: string) => c.req.query(name)?.trim() || undefined
-    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam] =
-      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age'].map(q)
+    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam] =
+      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode'].map(q)
     // RFC 9126 (TODO.modern/11): the PUSHED request — the pushed
     // parameters REPLACE the query's (any other query parameter is
     // ignored, never merged); the consume is single-use, expiry-bound,
@@ -427,7 +455,7 @@ export function createOpRouter(): Hono {
         return typeof value === 'string' ? (value.trim() || undefined) : undefined
       }
       ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam] =
-        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age'].map(g)
+        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode'].map(g)
       clientId = clientId ?? pushed.clientId
     }
 
@@ -469,14 +497,21 @@ export function createOpRouter(): Hono {
     }
 
     // 3. From here the error redirect is safe (the URI is the client's own).
+    // RFC 9150 (TODO.modern/12): the response mode — absent = the
+    // default query (byte-identical for every existing RP); 'jwt' is
+    // JARM (the signed response); anything else refuses.
+    const responseMode = responseModeParam ?? 'query'
+    if (responseMode !== 'query' && responseMode !== 'jwt') {
+      return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'invalid_request', `the response_mode ${responseMode} is not supported (query, jwt)`, responseMode, clientId))
+    }
     if (responseType !== 'code') {
-      return c.redirect(authorizeErrorRedirect(redirectUri, state, 'unsupported_response_type', 'only response_type=code is served'))
+      return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'unsupported_response_type', 'only response_type=code is served', responseMode, clientId))
     }
     if (!(scope ?? '').split(/\s+/).includes('openid')) {
-      return c.redirect(authorizeErrorRedirect(redirectUri, state, 'invalid_scope', 'the openid scope is required'))
+      return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'invalid_scope', 'the openid scope is required', responseMode, clientId))
     }
     if (!challenge || challengeMethod !== 'S256') {
-      return c.redirect(authorizeErrorRedirect(redirectUri, state, 'invalid_request', 'PKCE is required (code_challenge + code_challenge_method=S256)'))
+      return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'invalid_request', 'PKCE is required (code_challenge + code_challenge_method=S256)', responseMode, clientId))
     }
 
     // max_age (TODO.modern/06): the RP's freshness demand — seconds. A
@@ -488,7 +523,7 @@ export function createOpRouter(): Hono {
     if (maxAgeParam !== undefined) {
       maxAge = /^\d+$/.test(maxAgeParam) ? Number(maxAgeParam) : null
       if (maxAge === null) {
-        return c.redirect(authorizeErrorRedirect(redirectUri, state, 'invalid_request', 'max_age must be a non-negative integer (seconds)'))
+        return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'invalid_request', 'max_age must be a non-negative integer (seconds)', responseMode, clientId))
       }
     }
 
@@ -545,6 +580,7 @@ export function createOpRouter(): Hono {
         userId: user.id,
         amr: user.amr ?? null,
         authTime: user.sessionCreatedAt ?? null,
+        responseMode,
       })
       return c.redirect(redirect)
     }
@@ -561,6 +597,7 @@ export function createOpRouter(): Hono {
       nonce: nonce ?? null,
       codeChallenge: challenge,
       userId: user.id,
+      responseMode,
       ttlMs: config.authorizationTtlMs,
     })
     return c.redirect(`/op/consent?auth=${encodeURIComponent(id)}`)
@@ -625,6 +662,9 @@ export function createOpRouter(): Hono {
      *  authentication instant (AuthUserPayload.sessionCreatedAt, verbatim)
      *  — the ID token's auth_time. Null = none recorded. */
     authTime: string | null
+    /** TODO.modern/12 (RFC 9150): the JARM mode ('jwt' wraps the
+     *  redirect; the default stands). */
+    responseMode?: string | null
   }): Promise<string> {
     const config = configFor(c)
     const code = opRandomToken()
@@ -664,7 +704,7 @@ export function createOpRouter(): Hono {
         await computeSessionState(input.clientId, new URL(input.redirectUri).origin, sessionToken),
       )
     }
-    return back.toString()
+    return jarmWrap(c, back, input.responseMode ?? 'query', input.clientId)
   }
 
   /** The pending row for the consent API, or the error response. */
@@ -772,7 +812,8 @@ export function createOpRouter(): Hono {
     if (body.decision === 'deny') {
       back.searchParams.set('error', 'access_denied')
       back.searchParams.set('error_description', 'the account holder declined the authorization')
-      return c.json({ redirect: back.toString() })
+      // TODO.modern/12: the refusal wraps in the row's own mode.
+      return c.json({ redirect: await jarmWrap(c, back, decided.responseMode ?? 'query', decided.clientId) })
     }
 
     // TODO.identity-features/12: the allow is REMEMBERED — the grant per
@@ -802,6 +843,7 @@ export function createOpRouter(): Hono {
       userId: user.id,
       amr: user.amr ?? null,
       authTime: user.sessionCreatedAt ?? null,
+      responseMode: decided.responseMode,
     })
     return c.json({ redirect })
   })

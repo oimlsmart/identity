@@ -57,6 +57,7 @@ function toOidcAuthorization(row: Record<string, unknown>): OidcAuthorization {
     codeChallenge: row.code_challenge as string,
     userId: (row.user_id as string | null) ?? null,
     decision: (row.decision as OidcAuthorization['decision']) ?? null,
+    responseMode: (row.response_mode as string | null) ?? null,
     createdAt: row.created_at as string,
     expiresAt: row.expires_at as string,
   }
@@ -130,16 +131,17 @@ export function createOidcAuthorization(db: Database.Database, input: {
   nonce: string | null
   codeChallenge: string
   userId: string | null
+  responseMode?: string | null
   ttlMs: number
 }): OidcAuthorization {
   const expiresAt = new Date(Date.now() + input.ttlMs).toISOString()
   db.prepare(`
     INSERT INTO oidc_authorizations
-      (id, client_id, redirect_uri, scope, state, nonce, code_challenge, user_id, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, client_id, redirect_uri, scope, state, nonce, code_challenge, user_id, response_mode, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     input.id, input.clientId, input.redirectUri, input.scope, input.state,
-    input.nonce, input.codeChallenge, input.userId, expiresAt,
+    input.nonce, input.codeChallenge, input.userId, input.responseMode ?? null, expiresAt,
   )
   return getOidcAuthorization(db, input.id)!
 }

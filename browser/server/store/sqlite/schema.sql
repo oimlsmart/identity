@@ -342,6 +342,10 @@ CREATE TABLE IF NOT EXISTS oidc_authorizations (
   code_challenge TEXT NOT NULL,
   user_id TEXT,
   decision TEXT,
+  -- TODO.modern/12 (RFC 9150): the JARM response mode ('jwt' when the
+  -- request asked; NULL = the default query). The 0032 ALTER carries
+  -- the same end state for existing databases.
+  response_mode TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT NOT NULL
 );
