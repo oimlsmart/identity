@@ -1,4 +1,4 @@
--- Migration 0031 — the personal access tokens' PERMISSIONS column
+-- Migration 0033 — the personal access tokens' PERMISSIONS column
 -- (TODO.openapi/03, the identity-service half): a PAT may carry, beside
 -- its scope set, a JSON array of the TARGET INSTANCE's permissions-
 -- catalog ids (`<group>.<resource>.<verb>` — the instance serves its
@@ -9,10 +9,19 @@
 -- the row is the pinned grant.
 --
 -- Expand-only (the migration contract): an ALTER on the 0020 table, no
--- renumber, no rewrite. '[]' = no catalog permissions — the token
--- exchanges exactly as before (backward compatible). schema.sql carries
+-- rewrite. '[]' = no catalog permissions — the token exchanges exactly
+-- as before (backward compatible). schema.sql carries
 -- the same end state for fresh databases —
 -- src/__tests__/migrations.test.ts pins the UNION of every migration to
 -- schema.sql's CREATE set.
+--
+-- NUMBERED 0033 (renamed from the 0031 it first shipped under): main's
+-- 0031/0032 (the pushed authorization requests + the response_mode)
+-- claimed the numbers first. The class's content already reached main
+-- and the tagged deploys under the old name, so a registry that applied
+-- it reads this file as pending while its effect is already present —
+-- stamp the journal (d1_migrations) for it, never re-run the ALTER
+-- (the column exists; the bare form would refuse). Fresh journals
+-- apply it exactly once.
 
 ALTER TABLE personal_access_tokens ADD COLUMN permissions TEXT NOT NULL DEFAULT '[]';

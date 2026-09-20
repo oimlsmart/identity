@@ -884,7 +884,7 @@ export class D1ServerStore implements ServerStore {
   // migrated from before it lacks the table, so the PAT methods ensure
   // it defensively (the ensureOrgRegistrySupport posture, memoized per
   // (binding, chain) at module scope). The permissions column arrives
-  // with 0031 (TODO.openapi/03) — the same PRAGMA-probe + ALTER posture
+  // with 0033 (TODO.openapi/03) — the same PRAGMA-probe + ALTER posture
   // covers a table created before it.
   private ensurePersonalAccessTokenSupport(): Promise<void> {
     return ensured(this.binding, 'personalAccessTokenSupport', async () => {

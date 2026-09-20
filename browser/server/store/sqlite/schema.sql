@@ -881,7 +881,7 @@ CREATE INDEX IF NOT EXISTS idx_instrument_registrations_lifecycle ON instrument_
 -- holder's standing); permissions is the pinned permissions-catalog id
 -- set (JSON array of the TARGET INSTANCE's '<group>.<resource>.<verb>'
 -- ids — TODO.openapi/03; the instance serves its own catalog, the OP
--- never holds a copy; migration 0031).
+-- never holds a copy; migration 0033).
 -- org_context pins the mint's active-org context (NULL = the primary).
 -- last_used_at + last_exchange_audit_at carry the exchange path's
 -- THROTTLED heartbeat (never a write per exchange); expiry_notified_at

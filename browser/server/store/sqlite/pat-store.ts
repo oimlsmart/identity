@@ -53,7 +53,7 @@ function toPersonalAccessToken(row: Record<string, unknown>): PersonalAccessToke
 }
 
 /** A JSON string-array cell's defensive read (the scopes cell's
- *  posture, shared with the 0031 permissions column). */
+ *  posture, shared with the 0033 permissions column). */
 function parseStringArrayCell(cell: unknown): string[] {
   try {
     const parsed = JSON.parse((cell as string | null) ?? '[]') as unknown
