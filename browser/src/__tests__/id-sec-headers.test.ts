@@ -58,7 +58,8 @@ describe('the HTML answers', () => {
     expect(res.headers.get('strict-transport-security')).toBe('max-age=31536000')
     expect(res.headers.get('x-content-type-options')).toBe('nosniff')
     expect(res.headers.get('referrer-policy')).toBe('no-referrer')
-    expect(res.headers.get('content-security-policy')).toBe("frame-ancestors 'none'")
+    expect(res.headers.get('content-security-policy')).toBe("frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'")
+    expect(res.headers.get('cross-origin-opener-policy')).toBe('same-origin')
   })
 
   it("the session iframe own frame-ancestors * WINS (the RPs frame it by design)", async () => {

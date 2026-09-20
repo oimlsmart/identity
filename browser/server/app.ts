@@ -91,7 +91,16 @@ export function createApiApp(options: ApiAppOptions): Hono {
       // owner's, not the app's to decree.
       if (!c.res.headers.has('strict-transport-security')) c.header('Strict-Transport-Security', 'max-age=31536000')
       if (!c.res.headers.has('referrer-policy')) c.header('Referrer-Policy', 'no-referrer')
-      if (!c.res.headers.has('content-security-policy')) c.header('Content-Security-Policy', "frame-ancestors 'none'")
+      // TODO.modern/16: the CSP-lite additions — the directives that do
+      // NOT depend on the static shells' script story: object-src (the
+      // plugin vector), base-uri (the <base>-hijack class), form-action
+      // (the form-exfiltration class; every form here posts to itself).
+      // script-src deliberately ABSENT (13's named architectural item).
+      if (!c.res.headers.has('content-security-policy')) c.header('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'")
+      // The opener isolation (TODO.modern/16): no cross-origin opener
+      // relationship this service relies on — the RPs arrive by
+      // REDIRECT, never window.open; response_mode=popup is not served.
+      if (!c.res.headers.has('cross-origin-opener-policy')) c.header('Cross-Origin-Opener-Policy', 'same-origin')
     }
   })
 
