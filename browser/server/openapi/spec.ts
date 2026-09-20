@@ -324,6 +324,58 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/op/par': {
+      post: {
+        tags: ['OIDC'], operationId: 'pushAuthorizationRequest', summary: 'The pushed authorization request (RFC 9126)',
+        description:
+          'The FAPI-class posture: the authorize parameter set posted to the back channel (the token endpoint\'s own client authentication — Basic or post), '
+          + 'the browser redirect carrying only the request_uri. The pushed parameters REPLACE the query\'s at the authorize (any other query parameter is '
+          + 'ignored, never merged); the request_uri is SINGLE-USE, lives 90 seconds, and is client-bound (a query client_id must match the owner). The '
+          + 'redirect wall applies AT PUSH TIME — an unregistered redirect_uri refuses before anything is stored.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/x-www-form-urlencoded': {
+              schema: {
+                type: 'object',
+                properties: {
+                  response_type: { type: 'string', enum: ['code'] },
+                  redirect_uri: { type: 'string', format: 'uri' },
+                  scope: { type: 'string' },
+                  state: { type: 'string' },
+                  nonce: { type: 'string' },
+                  code_challenge: { type: 'string' },
+                  code_challenge_method: { type: 'string', enum: ['S256'] },
+                  prompt: { type: 'string' },
+                  max_age: { type: 'string', pattern: '^\\d+$' },
+                },
+                required: ['response_type', 'redirect_uri', 'scope', 'code_challenge', 'code_challenge_method'],
+              },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: 'The pushed request\'s reference.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    request_uri: { type: 'string', pattern: '^urn:ietf:params:oauth:request_uri:' },
+                    expires_in: { type: 'integer', example: 90 },
+                  },
+                  required: ['request_uri', 'expires_in'],
+                },
+              },
+            },
+          },
+          400: { description: 'An unregistered redirect_uri, or a machine-class client.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'The client authentication refused.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/op/session/check': {
       get: {
         tags: ['OIDC'], operationId: 'getSessionCheck', summary: 'The session-management poll iframe',

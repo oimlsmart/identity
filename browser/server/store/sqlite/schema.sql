@@ -1010,3 +1010,18 @@ CREATE TABLE IF NOT EXISTS known_devices (
   UNIQUE (account_id, device_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_known_devices_account ON known_devices (account_id);
+
+-- ═══════════════════════════════════════════════════════════════════
+-- The pushed authorization requests (TODO.modern/11, RFC 9126): the
+-- authorize parameters posted to the BACK channel, consumed once, the
+-- client binding in the consume's WHERE. The D1 migration set carries
+-- the identical end state (0031_pushed_authorization_requests.sql).
+-- ═══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS pushed_authorization_requests (
+  uri TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL,
+  params TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
+import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -107,6 +107,21 @@ export const getUserinfo = <ThrowOnError extends boolean = false>(options?: Opti
         }],
     url: '/op/userinfo',
     ...options
+});
+
+/**
+ * The pushed authorization request (RFC 9126)
+ *
+ * The FAPI-class posture: the authorize parameter set posted to the back channel (the token endpoint's own client authentication — Basic or post), the browser redirect carrying only the request_uri. The pushed parameters REPLACE the query's at the authorize (any other query parameter is ignored, never merged); the request_uri is SINGLE-USE, lives 90 seconds, and is client-bound (a query client_id must match the owner). The redirect wall applies AT PUSH TIME — an unregistered redirect_uri refuses before anything is stored.
+ */
+export const pushAuthorizationRequest = <ThrowOnError extends boolean = false>(options: Options<PushAuthorizationRequestData, ThrowOnError>): RequestResult<PushAuthorizationRequestResponses, PushAuthorizationRequestErrors, ThrowOnError> => (options.client ?? client).post<PushAuthorizationRequestResponses, PushAuthorizationRequestErrors, ThrowOnError>({
+    ...urlSearchParamsBodySerializer,
+    url: '/op/par',
+    ...options,
+    headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...options.headers
+    }
 });
 
 /**

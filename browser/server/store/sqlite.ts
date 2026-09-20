@@ -187,6 +187,10 @@ import {
   listKnownDevices,
 } from './sqlite/known-devices-store'
 import {
+  createPushedAuthorizationRequest,
+  consumePushedAuthorizationRequest,
+} from './sqlite/par-store'
+import {
   getConsentGrant,
   listConsentGrants,
   listOidcConsentGrantsForClient,
@@ -877,6 +881,19 @@ export class SqliteServerStore implements ServerStore {
   }
   async listKnownDevices(accountId: string): Promise<import('../store').KnownDeviceRow[]> {
     return listKnownDevices(this.db, accountId)
+  }
+
+  // ── the pushed authorization requests (TODO.modern/11, RFC 9126) ──
+  async createPushedAuthorizationRequest(input: {
+    uri: string
+    clientId: string
+    params: string
+    expiresAt: string
+  }): Promise<void> {
+    createPushedAuthorizationRequest(this.db, input)
+  }
+  async consumePushedAuthorizationRequest(uri: string): Promise<import('../store').PushedAuthorizationRequest | null> {
+    return consumePushedAuthorizationRequest(this.db, uri)
   }
 
   // ── the central user registry (TODO.identity/03) ──

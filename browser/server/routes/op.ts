@@ -132,6 +132,9 @@ import { resolveRegistryOrg } from '../auth/org-registry'
 import { APP_ROLES } from '../vocab'
 import { computeSessionState } from '../auth/op/session-state'
 import { acrOf, ACR_LEVELS, sessionMeetsMaxAge } from '../auth/op/step-up'
+
+/** The pushed request's life (RFC 9126 recommends <= 90 s). */
+const PAR_TTL_MS = 90 * 1000
 import { SESSION_COOKIE, sessionUser } from '../session'
 import { deleteCookie, getCookie } from 'hono/cookie'
 
@@ -253,6 +256,8 @@ export function createOpRouter(): Hono {
       // The step-up ladder (TODO.modern/06): the achieved-acr
       // vocabulary — derived from the session's amr, never asserted.
       acr_values_supported: [...ACR_LEVELS],
+      // RFC 9126 (TODO.modern/11): the pushed authorization request.
+      pushed_authorization_request_endpoint: `${issuer}/op/par`,
       claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'amr'],
     })
   })
@@ -394,8 +399,37 @@ export function createOpRouter(): Hono {
     await ensureSeeded(c)
     const config = configFor(c)
     const q = (name: string) => c.req.query(name)?.trim() || undefined
-    const [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam] =
+    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam] =
       ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age'].map(q)
+    // RFC 9126 (TODO.modern/11): the PUSHED request — the pushed
+    // parameters REPLACE the query's (any other query parameter is
+    // ignored, never merged); the consume is single-use, expiry-bound,
+    // and client-bound (a query client_id must match the owner). An
+    // unknown/consumed/expired request_uri answers the IN-PLACE refusal
+    // — no validated redirect remains to error to (the wall).
+    const requestUri = q('request_uri')
+    if (requestUri) {
+      const queryClientId = clientId
+      const pushed = await getStore().consumePushedAuthorizationRequest(requestUri)
+      // The client binding: a query client_id must match the pushed
+      // owner; absent, the owner stands.
+      if (!pushed || (queryClientId && queryClientId !== pushed.clientId)) {
+        return authorizeRefusal(c, 'Cannot authorize this request', 'The <code>request_uri</code> is unknown, expired, already used, or belongs to another client.')
+      }
+      let pushedParams: Record<string, unknown>
+      try {
+        pushedParams = JSON.parse(pushed.params) as Record<string, unknown>
+      } catch {
+        return authorizeRefusal(c, 'Cannot authorize this request', 'The pushed request is malformed.')
+      }
+      const g = (name: string): string | undefined => {
+        const value = pushedParams[name]
+        return typeof value === 'string' ? (value.trim() || undefined) : undefined
+      }
+      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam] =
+        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age'].map(g)
+      clientId = clientId ?? pushed.clientId
+    }
 
 
     // 1. The client must be KNOWN + active — before any redirect logic.
@@ -530,6 +564,43 @@ export function createOpRouter(): Hono {
       ttlMs: config.authorizationTtlMs,
     })
     return c.redirect(`/op/consent?auth=${encodeURIComponent(id)}`)
+  })
+
+  // ── PAR (TODO.modern/11, RFC 9126) ────────────────────────────────
+
+  // POST /op/par — the PUSHED authorization request: the authorize
+  // parameter set posted to the back channel (the token endpoint's own
+  // client authentication), the browser redirect carrying only the
+  // request_uri. The open-redirect wall applies AT PAR TIME — an
+  // unregistered redirect_uri refuses before anything is stored; the
+  // machine classes refuse exactly as the authorize itself does.
+  op.post('/op/par', async (c) => {
+    await ensureSeeded(c)
+    const form = await c.req.parseBody()
+    const params: Record<string, string> = {}
+    for (const [key, value] of Object.entries(form)) {
+      if (typeof value === 'string') params[key] = value
+    }
+    const { client, error: clientError } = await authenticateClient(c, new URLSearchParams(Object.entries(params)))
+    if (clientError || !client) return clientError!
+    const redirectUri = params.redirect_uri ?? ''
+    if (!redirectUri || !client.redirectUris.includes(redirectUri)) {
+      return oidcError(c, 400, 'invalid_request', 'the redirect_uri is not one this client registered')
+    }
+    const machineClass = deviceClassOf(client.claimsPolicy) ? DEVICE_CLASS
+      : serviceClassOf(client.claimsPolicy) ? SERVICE_CLASS
+        : null
+    if (machineClass) {
+      return oidcError(c, 400, 'invalid_request', `a ${machineClass} client authenticates at the token endpoint (client_credentials), never through a sign-in flow`)
+    }
+    const uri = `urn:ietf:params:oauth:request_uri:${opRandomToken()}`
+    await getStore().createPushedAuthorizationRequest({
+      uri,
+      clientId: client.clientId,
+      params: JSON.stringify(params),
+      expiresAt: new Date(Date.now() + PAR_TTL_MS).toISOString(),
+    })
+    return c.json({ request_uri: uri, expires_in: Math.round(PAR_TTL_MS / 1000) }, 201)
   })
 
   // ── consent (the Vue island's API) ───────────────────────────────

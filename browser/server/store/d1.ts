@@ -108,6 +108,7 @@ import {
   WebhookDeliveryRecord,
   KnownDeviceRow,
   KnownDeviceSighting,
+  PushedAuthorizationRequest,
 } from '../store'
 // TODO.federation/01 — the account plan follows the deployment profile
 // (the Worker's seed route installs it from the env binding first; the
@@ -244,6 +245,7 @@ interface EnsureMemos {
   personalAccessTokenSupport: Promise<void> | null
   webhookSupport: Promise<void> | null
   knownDeviceSupport: Promise<void> | null
+  parSupport: Promise<void> | null
   consentGrantSupport: Promise<void> | null
   oidcRefreshTokenSupport: Promise<void> | null
   accountEmailSupport: Promise<void> | null
@@ -266,6 +268,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
       accountEmailSupport: null, notifyDeliverySupport: null,
       webhookSupport: null,
       knownDeviceSupport: null,
+      parSupport: null,
     }
     ensureMemosByBinding.set(binding, memos)
   }
@@ -2949,6 +2952,53 @@ export class D1ServerStore implements ServerStore {
       previousCountry: prior?.last_country ?? null,
       previousSeenAt: prior?.last_seen_at ?? null,
     }
+  }
+
+  // ── the pushed authorization requests (TODO.modern/11, RFC 9126) ──
+  private ensureParSupport(): Promise<void> {
+    return ensured(this.binding, 'parSupport', async () => {
+      await this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS pushed_authorization_requests (
+           uri TEXT PRIMARY KEY,
+           client_id TEXT NOT NULL,
+           params TEXT NOT NULL,
+           expires_at TEXT NOT NULL,
+           consumed INTEGER NOT NULL DEFAULT 0,
+           created_at TEXT NOT NULL DEFAULT (datetime('now'))
+         )`,
+      ).run()
+    })
+  }
+
+  async createPushedAuthorizationRequest(input: {
+    uri: string
+    clientId: string
+    params: string
+    expiresAt: string
+  }): Promise<void> {
+    await this.ensureParSupport()
+    await this.stmt(
+      'INSERT INTO pushed_authorization_requests (uri, client_id, params, expires_at) VALUES (?, ?, ?, ?)',
+      input.uri, input.clientId, input.params, input.expiresAt,
+    ).run()
+    await this.stmt(
+      "DELETE FROM pushed_authorization_requests WHERE julianday(expires_at) <= julianday('now')",
+    ).run()
+  }
+
+  async consumePushedAuthorizationRequest(uri: string): Promise<PushedAuthorizationRequest | null> {
+    await this.ensureParSupport()
+    const consume = await this.stmt(
+      `UPDATE pushed_authorization_requests
+         SET consumed = 1
+       WHERE uri = ? AND consumed = 0
+         AND julianday(expires_at) > julianday('now')`,
+      uri,
+    ).run()
+    if ((consume.meta.changes ?? 0) === 0) return null
+    const row = await this.stmt('SELECT * FROM pushed_authorization_requests WHERE uri = ?', uri)
+      .first<{ uri: string; client_id: string; params: string; expires_at: string }>()
+    return row ? { uri: row.uri, clientId: row.client_id, params: row.params, expiresAt: row.expires_at } : null
   }
 
   async listKnownDevices(accountId: string): Promise<KnownDeviceRow[]> {

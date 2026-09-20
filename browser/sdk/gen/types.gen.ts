@@ -261,6 +261,48 @@ export type GetUserinfoResponses = {
     200: unknown;
 };
 
+export type PushAuthorizationRequestData = {
+    body: {
+        response_type: 'code';
+        redirect_uri: string;
+        scope: string;
+        state?: string;
+        nonce?: string;
+        code_challenge: string;
+        code_challenge_method: 'S256';
+        prompt?: string;
+        max_age?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/op/par';
+};
+
+export type PushAuthorizationRequestErrors = {
+    /**
+     * An unregistered redirect_uri, or a machine-class client.
+     */
+    400: Error;
+    /**
+     * The client authentication refused.
+     */
+    401: Error;
+};
+
+export type PushAuthorizationRequestError = PushAuthorizationRequestErrors[keyof PushAuthorizationRequestErrors];
+
+export type PushAuthorizationRequestResponses = {
+    /**
+     * The pushed request's reference.
+     */
+    201: {
+        request_uri: string;
+        expires_in: number;
+    };
+};
+
+export type PushAuthorizationRequestResponse = PushAuthorizationRequestResponses[keyof PushAuthorizationRequestResponses];
+
 export type GetSessionCheckData = {
     body?: never;
     path?: never;

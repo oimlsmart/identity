@@ -192,6 +192,18 @@ export interface FederationPeer {
   revokedBy: string | null
 }
 
+// ── the pushed authorization requests (TODO.modern/11, RFC 9126) ────
+
+/** One pushed authorization request: the parameter set as JSON (the
+ *  authorize consumes it in place of the query), the owning client
+ *  (the consume is client-bound), the expiry. */
+export interface PushedAuthorizationRequest {
+  uri: string
+  clientId: string
+  params: string
+  expiresAt: string
+}
+
 // ── the known-device record (TODO.modern/06's risk signals) ──────────
 
 /** One recognized (account, device-hash) pair. The hash is
@@ -2483,6 +2495,20 @@ export interface ServerStore {
   // ── the notification subscriptions store (TODO.notify/02) ──
   // ── the inbox state (TODO.notify/03) ──
   // ── the email channel's delivery store (TODO.notify/04) ──
+  // ── the pushed authorization requests (TODO.modern/11, RFC 9126) ──
+  /** The push: one row, the 90 s life. */
+  createPushedAuthorizationRequest(input: {
+    uri: string
+    clientId: string
+    params: string
+    expiresAt: string
+  }): Promise<void>
+  /** The SINGLE-USE, expiry-checked consume (the client binding is
+   *  the consumer's compare — a request without a query client_id
+   *  passes through to the pushed owner). Null = unknown, consumed,
+   *  or expired. */
+  consumePushedAuthorizationRequest(uri: string): Promise<PushedAuthorizationRequest | null>
+
   // ── the known-device record (TODO.modern/06's risk signals) ──
   /** The upsert: the first sighting of (account, device) answers
    *  isNew; a repeat answers the PRE-UPDATE row's country + instant
