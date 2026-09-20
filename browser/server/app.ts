@@ -49,6 +49,7 @@ import { effectiveRbacMap } from './rbac'
 import { StoreUnavailable } from './store'
 import { measureStorePhase, serverTimingEnabled } from './store-timing'
 import { currentRequestId, requestIdMiddleware } from './request-id'
+import { resolveOpConfig } from './auth/op/config'
 import { traceContextMiddleware } from './obs/trace'
 import { getInstanceProfile, projectModuleToggles, publicProfileView, type InstanceProfile } from './profile'
 
@@ -300,6 +301,30 @@ export function createApiApp(options: ApiAppOptions): Hono {
 
   // Health check
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
+
+  // RFC 7033 (TODO.modern/18): WebFinger — the federation's discovery
+  // front door. The DOMAIN decides (the issuer's own host answers for
+  // its addresses — any local part, the mailbox is never probed;
+  // enumeration-safe by construction); a foreign domain's resource
+  // answers 404 (never a proxy, never an open resolver).
+  app.get('/.well-known/webfinger', (c) => {
+    const resource = c.req.query('resource')?.trim() ?? ''
+    if (!resource) {
+      return c.json({ error: 'the resource parameter is required' }, 400)
+    }
+    // The acceptable resource forms: acct:<local>@<host> and
+    // mailto:<local>@<host> — the host must be THIS issuer's own.
+    const config = resolveOpConfig(runtimeEnv<Record<string, string | undefined>>(c), c.req.header('origin') ?? new URL(c.req.url).origin)
+    const issuer = new URL(config.issuer)
+    const match = /^(?:acct:|mailto:)([^@]+)@([^@]+)$/.exec(resource)
+    if (!match || match[2]!.toLowerCase() !== issuer.hostname.toLowerCase()) {
+      return c.json({ error: 'this service answers only for its own domain' }, 404)
+    }
+    return c.json({
+      subject: resource,
+      links: [{ rel: 'http://openid.net/specs/connect/1.0/issuer', href: config.issuer }],
+    }, 200, { 'content-type': 'application/jrd+json', 'cache-control': 'public, max-age=300' })
+  })
 
   // RFC 9116 (TODO.modern/14): the vulnerability disclosure pointer.
   // The contact is the repository's private security advisories — the

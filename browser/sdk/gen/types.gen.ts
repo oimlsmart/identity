@@ -261,6 +261,40 @@ export type GetUserinfoResponses = {
     200: unknown;
 };
 
+export type GetWebfingerData = {
+    body?: never;
+    path?: never;
+    query: {
+        resource: string;
+    };
+    url: '/.well-known/webfinger';
+};
+
+export type GetWebfingerErrors = {
+    /**
+     * The resource parameter is absent.
+     */
+    400: unknown;
+    /**
+     * The resource names another domain.
+     */
+    404: unknown;
+};
+
+export type GetWebfingerResponses = {
+    /**
+     * The JRD (application/jrd+json), edge-cached 5 minutes.
+     */
+    200: {
+        subject: string;
+        links: Array<{
+            [key: string]: unknown;
+        }>;
+    };
+};
+
+export type GetWebfingerResponse = GetWebfingerResponses[keyof GetWebfingerResponses];
+
 export type GetSecurityTxtData = {
     body?: never;
     path?: never;
