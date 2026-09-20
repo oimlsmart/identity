@@ -1,6 +1,6 @@
 # TODO.modern/09 — the observability depth (OTel + per-org analytics)
 
-**Priority:** P2 · **Status:** IMPLEMENTED (the request-id seam + the trace-context/export core) — per-org analytics is the honest open half
+**Priority:** P2 · **Status:** COMPLETE — request ids, the W3C trace context + OTLP export (the store phase joined), and the per-org analytics
 
 ## What shipped
 1. **X-Request-Id on every answer** (`browser/server/request-id.ts`, first in the
