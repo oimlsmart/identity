@@ -43,6 +43,7 @@ import { getInstanceProfile } from '../profile'
 import { clientInfo } from '../client-info'
 import { assessSignInRisk, countryOf } from '../auth/op/risk'
 import { SESSION_COOKIE, sessionCookieOpts } from '../session'
+import { touchAccountJar } from '../auth/op/account-jar'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { opRandomToken } from '../auth/op/keys'
 import { verifyTotp } from '../auth/op/totp'
@@ -134,6 +135,10 @@ export function createOpMfaRouter(): Hono {
     await store.touchLastLogin(pending.userId)
     const token = await store.createSession(pending.userId, { ...info, amr })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    // The account jar (the chooser wave): the completed sign-in
+    // remembers the account (LRU, one per account).
+    const jarUser = await store.getUserById(pending.userId)
+    if (jarUser) touchAccountJar(c, token, jarUser)
     // TODO.modern/06's risk signals: the assessment rides AFTER the
     // session mint (the advisory layer — never in front of the
     // sign-in critical path).
@@ -388,9 +393,13 @@ export function createOpMfaRouter(): Hono {
     await store.touchLastLogin(cred.userId)
     const token = await store.createSession(cred.userId, { ...clientInfo(c), amr })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    // The account jar (the chooser wave): the completed sign-in
+    // remembers the account (LRU, one per account).
+    const jarUser = await store.getUserById(cred.userId)
+    if (jarUser) touchAccountJar(c, token, jarUser)
     await auditFactor('account.sign_in', cred.userId, { userId: cred.userId }, { method: 'webauthn', amr })
     await notifySignIn(c, cred.userId, 'mail.signin.methodPasskey')
-    return c.json(await store.getUserById(cred.userId))
+    return c.json(jarUser)
   })
 
   return mfa

@@ -167,6 +167,7 @@ import { avatarKey, avatarKeys, avatarMaxBytes, AVATAR_TYPES, sniffAvatar } from
 import { getBlobStore } from '../blobs'
 import { APP_ROLES } from '../vocab'
 import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
+import { touchAccountJar } from '../auth/op/account-jar'
 import { emitWebhookEvent } from '../webhooks/deliver'
 
 type EnvLike = Record<string, string | undefined>
@@ -468,6 +469,9 @@ export function createOpAccountsRouter(): Hono {
       store.getUserById(cred.userId),
     ])
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    // The account jar (the chooser wave): every completed sign-in
+    // remembers the account (LRU, one per account).
+    if (user) touchAccountJar(c, token, user)
     // TODO.modern/06's risk signals: the assessment rides AFTER the
     // session mint (the advisory layer — never in front of the
     // sign-in critical path; the bounded-write doctrine's
@@ -1091,7 +1095,10 @@ export function createOpAccountsRouter(): Hono {
     const enrolled = await store.getUserById(result.userId)
     // TODO.identity-sso/04 slice D: the password-set notice rides the
     // completion (the holder's first proof the credential is live).
-    if (enrolled) await notifyPasswordChanged(c, enrolled)
+    if (enrolled) {
+      touchAccountJar(c, token, enrolled)
+      await notifyPasswordChanged(c, enrolled)
+    }
     return c.json(enrolled)
   })
 

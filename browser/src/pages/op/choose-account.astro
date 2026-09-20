@@ -1,0 +1,14 @@
+---
+// The account chooser (the multi-account wave): the flow page where a
+// browser with remembered accounts picks who continues — mounted by
+// /op/authorize's prompt=select_account routing (the `continue` target
+// resumes the original authorize for the chosen account) and by the
+// console's "switch account" link (no `continue` — the standalone
+// posture that ends at the account console). The island reads the
+// context from GET /api/op/choose-account; the trust posture is the
+// jar seam's (server/auth/op/account-jar.ts — httpOnly +
+// server-verified; the page renders only what the store re-confirmed).
+import IdShell from '../../layouts/IdShell.astro'
+export const prerender = true
+---
+<IdShell title="Choose an account" page="public/op-choose-account" />

@@ -135,8 +135,12 @@ import { acrOf, ACR_LEVELS, sessionMeetsMaxAge } from '../auth/op/step-up'
 
 /** The pushed request's life (RFC 9126 recommends <= 90 s). */
 const PAR_TTL_MS = 90 * 1000
-import { SESSION_COOKIE, sessionUser } from '../session'
-import { deleteCookie, getCookie } from 'hono/cookie'
+import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
+import {
+  activeJarContext, dropAccountJarSession, loginUrlForContinue,
+  liveJarEntryForUser, resolveAccountJar, sanitizeContinueTarget, touchAccountJar,
+} from '../auth/op/account-jar'
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -427,8 +431,8 @@ export function createOpRouter(): Hono {
     await ensureSeeded(c)
     const config = configFor(c)
     const q = (name: string) => c.req.query(name)?.trim() || undefined
-    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam] =
-      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode'].map(q)
+    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam, loginHintParam] =
+      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode', 'login_hint'].map(q)
     // RFC 9126 (TODO.modern/11): the PUSHED request — the pushed
     // parameters REPLACE the query's (any other query parameter is
     // ignored, never merged); the consume is single-use, expiry-bound,
@@ -454,8 +458,8 @@ export function createOpRouter(): Hono {
         const value = pushedParams[name]
         return typeof value === 'string' ? (value.trim() || undefined) : undefined
       }
-      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam] =
-        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode'].map(g)
+      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam, loginHintParam] =
+        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode', 'login_hint'].map(g)
       clientId = clientId ?? pushed.clientId
     }
 
@@ -542,6 +546,29 @@ export function createOpRouter(): Hono {
     //    the strip is the flow's bookkeeping, never the assurance. The
     //    remaining prompt values (consent) ride on.
     const prompts = (prompt ?? '').split(/\s+/).filter(Boolean)
+    // prompt=select_account (the account-chooser wave): the flow ALWAYS
+    // routes through the chooser (/op/choose-account) — a live session
+    // never shortcuts the question "which account?". The continue target
+    // carries the request's RESOLVED parameters (the query's or the
+    // pushed request's — a re-presented request_uri is already consumed)
+    // with the 'select_account' value shed (consumed by this redirect —
+    // the same stateless loop guard prompt=login uses); the remaining
+    // values (login, consent) ride on so their semantics re-apply on the
+    // re-entry. The chooser itself decides between the remembered
+    // accounts, a fresh sign-in, and (no jar) the plain login form.
+    if (prompts.includes('select_account')) {
+      const carried = new URLSearchParams()
+      const params: Array<[string, string | undefined]> = [
+        ['response_type', responseType], ['client_id', clientId], ['redirect_uri', redirectUri],
+        ['scope', scope], ['state', state], ['nonce', nonce], ['code_challenge', challenge],
+        ['code_challenge_method', challengeMethod], ['max_age', maxAgeParam],
+        ['response_mode', responseModeParam],
+      ]
+      for (const [name, value] of params) if (value !== undefined) carried.set(name, value)
+      const rest = prompts.filter(p => p !== 'select_account')
+      if (rest.length) carried.set('prompt', rest.join(' '))
+      return c.redirect(`/op/choose-account?continue=${encodeURIComponent(`/op/authorize?${carried}`)}`)
+    }
     // The freshness gate (TODO.modern/06): a max_age ask judges the
     // session's authentication instant — stale (or unprovable) sends
     // the SAME sign-in path as prompt=login (the re-entry re-checks;
@@ -559,7 +586,10 @@ export function createOpRouter(): Hono {
       }
       const target = `${here.pathname}${here.search}`
       const flag = forceLogin ? '&prompt=login' : ''
-      return c.redirect(`/?redirect=${encodeURIComponent(target)}${flag}`)
+      // TODO.modern/17: the login_hint rides the sign-in page (the
+      // address field prefills — a hint, the human corrects).
+      const hintSuffix = loginHintParam ? `&login_hint=${encodeURIComponent(loginHintParam)}` : ''
+      return c.redirect(`/?redirect=${encodeURIComponent(target)}${flag}${hintSuffix}`)
     }
 
     // 4b. The remembered consent (TODO.identity-features/12): a LIVE
@@ -783,6 +813,12 @@ export function createOpRouter(): Hono {
       roleClaims: (roleClaims.roles ?? []) as string[],
       orgClaim: (roleClaims.org ?? null) as string | null,
       account: { name: user.name, email: user.email, avatarUrl: user.avatarUrl ?? null },
+      // The flow's re-entry URL (the account-chooser wave): the consent
+      // page's "switch account" link builds its chooser target from it —
+      // a switch re-runs the authorize with the newly chosen session,
+      // which re-derives every per-account artifact (the pending row,
+      // the remembered grant, the claims) from scratch.
+      authorizeUrl: authorizeUrlFor(row!),
       issuer: configFor(c).issuer,
       issuerName: profile.branding.name || profile.identity.org_name,
     })
@@ -846,6 +882,77 @@ export function createOpRouter(): Hono {
       responseMode: decided.responseMode,
     })
     return c.json({ redirect })
+  })
+
+  // ── the account chooser (the multi-account wave) ───────────────────
+
+  // GET /api/op/choose-account — the chooser page's context: the jar's
+  // accounts, each re-judged against its live session row (the trust
+  // posture — auth/op/account-jar.ts), the presenting account badged,
+  // and the RP's display name resolved from the continue target's
+  // client_id when the chooser rides an authorize flow. Works signed
+  // out (the jar may hold accounts while no session is active); an
+  // invalid or absent `continue` reads as the standalone posture (the
+  // chooser that ends at the account console).
+  op.get('/api/op/choose-account', async (c) => {
+    await ensureSeeded(c)
+    const continueTarget = sanitizeContinueTarget(c.req.query('continue'))
+    const [active, resolved] = await Promise.all([activeJarContext(c), resolveAccountJar(c)])
+    // The RP's name (display only): the continue target's client_id.
+    let clientName: string | null = null
+    if (continueTarget) {
+      const clientId = new URL(continueTarget, 'http://op.local').searchParams.get('client_id')
+      if (clientId) clientName = (await getStore().getOidcClient(clientId))?.name ?? null
+    }
+    // The org display names, one read per distinct org.
+    const orgIds = [...new Set(resolved.map(r => r.entry.orgId).filter((id): id is string => !!id))]
+    const orgNames = new Map<string, string | null>()
+    for (const id of orgIds) {
+      orgNames.set(id, (await getStore().getOrgRegistryOrg(id))?.name ?? null)
+    }
+    return c.json({
+      continue: continueTarget,
+      client: clientName ? { name: clientName } : null,
+      currentUserId: active?.user.id ?? null,
+      accounts: resolved.map(({ entry, live, user }) => ({
+        userId: entry.userId,
+        name: live && user ? user.name : entry.displayName,
+        email: live && user ? user.email : entry.email,
+        avatarUrl: live && user ? (user.avatarUrl ?? null) : null,
+        org: entry.orgId ? (orgNames.get(entry.orgId) ?? entry.orgId) : null,
+        live,
+        current: !!active && active.user.id === entry.userId,
+      })),
+    })
+  })
+
+  // POST /api/op/choose-account — continue as the named account. A LIVE
+  // jar entry: the active session cookie swaps to the remembered token
+  // (the old session row stays alive — switching accounts never signs
+  // the other account out), the jar refreshes its order, and the answer
+  // carries the navigation target (the authorize re-entry, or the
+  // account console for the standalone chooser). No live session behind
+  // the choice: the honest fallback — the login page with the flow's
+  // re-entry target and the remembered email prefilled.
+  op.post('/api/op/choose-account', async (c) => {
+    await ensureSeeded(c)
+    const body = await c.req.json<{ userId?: string; continue?: string }>().catch(() => null)
+    if (!body || typeof body.userId !== 'string' || !body.userId) {
+      return c.json({ error: 'userId is required' }, 400)
+    }
+    const continueTarget = sanitizeContinueTarget(body.continue)
+    const target = await liveJarEntryForUser(c, body.userId)
+    if (!target) {
+      // The honest fallback: the remembered entry (if the jar still
+      // knows the account) lends its email to the login prefill.
+      const entry = (await resolveAccountJar(c)).find(r => r.entry.userId === body.userId)
+      return c.json({ ok: false, login: loginUrlForContinue(continueTarget, entry?.entry.email ?? null) })
+    }
+    setCookie(c, SESSION_COOKIE, target.entry.sessionId, sessionCookieOpts(c))
+    // The chosen account moves to the jar's front (the LRU refresh) —
+    // the same act a fresh sign-in would perform.
+    touchAccountJar(c, target.entry.sessionId, target.payload)
+    return c.json({ ok: true, redirect: continueTarget ?? '/op/account' })
   })
 
   // ── token ────────────────────────────────────────────────────────
@@ -1802,10 +1909,15 @@ export function createOpRouter(): Hono {
       const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, sessionOwner.id)
       await store.deleteSession(sessionToken)
       deleteCookie(c, SESSION_COOKIE, { path: '/' })
+      // The account jar (the chooser wave): the ended session's entry
+      // goes; the other remembered accounts stay.
+      dropAccountJarSession(c, sessionToken)
       floatBackchannel()
     } else if (sessionToken) {
-      // The cookie named a dead/expired row — clear it honestly.
+      // The cookie named a dead/expired row — clear it honestly (the
+      // jar's matching entry goes with it).
       deleteCookie(c, SESSION_COOKIE, { path: '/' })
+      dropAccountJarSession(c, sessionToken)
     }
 
     // The redirect's guard: ONLY a registered URI of the RESOLVED,

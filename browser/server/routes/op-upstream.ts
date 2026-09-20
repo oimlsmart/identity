@@ -65,6 +65,7 @@ import {
 import { generateAppleClientSecret, resolveAppleSecretConfig } from '../auth/upstream/apple'
 import { buildGitHubAuthorizeUrl, fetchGitHubIdentity, gitHubEndpoints, GitHubUpstreamError } from '../auth/upstream/github-client'
 import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
+import { touchAccountJar } from '../auth/op/account-jar'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -454,6 +455,9 @@ export function createOpUpstreamRouter(): Hono {
     const token = await store.createSession(user.id, clientInfo(c))
     await store.touchLastLogin(user.id)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    // The account jar (the chooser wave): the upstream sign-in remembers
+    // the account exactly as every other completed sign-in does.
+    touchAccountJar(c, token, user)
     await audit('upstream_sign_in', user.id, { userId: user.id, userName: user.name }, {
       provider: providerId, handle: identity.handle,
     })

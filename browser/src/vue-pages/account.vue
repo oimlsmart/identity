@@ -256,6 +256,7 @@ const passwordBusy = ref(false)
 
 const sessionBusy = ref<string | null>(null)
 const revokeOthersBusy = ref(false)
+const signOutAllBusy = ref(false)
 const acting = ref<string | null>(null) // a provider id, or 'password'
 
 // ── the organizations (TODO.identity/11 — the multi-org model) ───────
@@ -1043,6 +1044,23 @@ async function revokeOthers() {
     revokeOthersBusy.value = false
   }
 }
+
+// ── the multi-account controls (the chooser wave) ────────────────────
+
+/** Sign out of EVERY account this browser remembers: the jar's live
+ *  sessions all end (each account's live-grant RPs get the backchannel
+ *  logout), and both cookies clear. The answer never matters — the
+ *  landing is the sign-in page either way; the act's honesty is the
+ *  server's. */
+async function signOutAll() {
+  if (signOutAllBusy.value) return
+  signOutAllBusy.value = true
+  error.value = null
+  try {
+    await fetch('/api/auth/signout-all', { method: 'POST', credentials: 'include' })
+  } catch { /* the navigation reloads the posture anyway */ }
+  window.location.assign('/')
+}
 </script>
 
 <template>
@@ -1762,6 +1780,24 @@ async function revokeOthers() {
               >{{ t('account.sessions.revoke') }}</button>
             </li>
           </ul>
+          <!-- The multi-account controls (the chooser wave): switch who
+               this browser acts as (the chooser page; the standalone
+               posture ends back here), or end every remembered
+               account's session at once. -->
+          <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4 flex-wrap">
+            <a
+              href="/op/choose-account"
+              data-testid="account-switch-account"
+              class="text-sm text-brand-600 dark:text-brand-300 hover:underline"
+            >{{ t('account.switchAccount') }}</a>
+            <button
+              type="button"
+              :disabled="signOutAllBusy"
+              data-testid="account-signout-all"
+              @click="signOutAll"
+              class="text-sm text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-300 hover:underline transition-colors disabled:opacity-50"
+            >{{ signOutAllBusy ? t('account.signoutAllBusy') : t('account.signoutAll') }}</button>
+          </div>
         </section>
 
         <!-- 6 · The activity feed. -->
