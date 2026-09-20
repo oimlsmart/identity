@@ -61,6 +61,10 @@ export type TokenRow = {
      */
     prefix: string;
     scopes: Array<string>;
+    /**
+     * The pinned permissions-catalog ids (TODO.openapi/03) — the TARGET INSTANCE's own `<group>.<resource>.<verb>` ids, validated at mint against the instance's served catalog and echoed verbatim at introspection. The OP never holds a copy of the catalog.
+     */
+    permissions: Array<string>;
     orgContext?: string | null;
     createdAt: string;
     expiresAt: string;
@@ -854,6 +858,10 @@ export type MintTokenData = {
     body: {
         name: string;
         scopes: Array<string>;
+        /**
+         * The optional permissions-catalog ids (the scoped instances' own `<group>.<resource>.<verb>` ids — fetch each instance's catalog through GET /api/op/account/tokens/catalog?service=…). Empty/absent = no catalog permissions (the token exchanges exactly as before).
+         */
+        permissions?: Array<string>;
         expiresInDays?: 30 | 60 | 90 | 180 | 365;
     };
     path?: never;
@@ -863,7 +871,7 @@ export type MintTokenData = {
 
 export type MintTokenErrors = {
     /**
-     * Malformed name or scopes.
+     * Malformed name or scopes, or the permissions refuse (a non-array shape, an id outside the served catalogs, or the instance cannot answer — fail closed).
      */
     400: Error;
     /**
@@ -884,6 +892,60 @@ export type MintTokenResponses = {
 };
 
 export type MintTokenResponse = MintTokenResponses[keyof MintTokenResponses];
+
+export type GetTokenPermissionsCatalogData = {
+    body?: never;
+    path?: never;
+    query: {
+        service: string;
+    };
+    url: '/api/op/account/tokens/catalog';
+};
+
+export type GetTokenPermissionsCatalogErrors = {
+    /**
+     * The service parameter is missing.
+     */
+    400: Error;
+    /**
+     * No session.
+     */
+    401: Error;
+    /**
+     * No such service, or it registers no instance URL.
+     */
+    404: Error;
+    /**
+     * The instance does not answer with a permissions catalog.
+     */
+    502: Error;
+};
+
+export type GetTokenPermissionsCatalogError = GetTokenPermissionsCatalogErrors[keyof GetTokenPermissionsCatalogErrors];
+
+export type GetTokenPermissionsCatalogResponses = {
+    /**
+     * The catalog projection.
+     */
+    200: {
+        service: string;
+        baseUrl: string;
+        catalog: {
+            version: number;
+            verbs: Array<string>;
+            groups: Array<{
+                id: string;
+                description: string;
+                permissions: Array<{
+                    id: string;
+                    description: string;
+                }>;
+            }>;
+        };
+    };
+};
+
+export type GetTokenPermissionsCatalogResponse = GetTokenPermissionsCatalogResponses[keyof GetTokenPermissionsCatalogResponses];
 
 export type RevokeToken2Data = {
     body?: never;
@@ -918,6 +980,10 @@ export type ManageTokenData = {
     body: {
         name?: string;
         scopes?: Array<string>;
+        /**
+         * The complete replacement permissions-catalog-id set ([] clears the set; the mint's fail-closed validation exactly).
+         */
+        permissions?: Array<string>;
     };
     path: {
         id: string;

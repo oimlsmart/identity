@@ -135,6 +135,12 @@ export const OPENAPI_SPEC = {
           name: { type: 'string', example: 'the lab CLI' },
           prefix: { type: 'string', example: 'ospt_9xYz12', description: 'The display prefix (the first 13 characters).' },
           scopes: { type: 'array', items: { type: 'string' }, example: ['hub-instance:write'] },
+          permissions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'The pinned permissions-catalog ids (TODO.openapi/03) — the TARGET INSTANCE\'s own `<group>.<resource>.<verb>` ids, validated at mint against the instance\'s served catalog and echoed verbatim at introspection. The OP never holds a copy of the catalog.',
+            example: ['tl-workbench.runs.read'],
+          },
           orgContext: { type: ['string', 'null'] },
           createdAt: { type: 'string', format: 'date-time' },
           expiresAt: { type: 'string', format: 'date-time' },
@@ -142,7 +148,7 @@ export const OPENAPI_SPEC = {
           revokedAt: { type: ['string', 'null'], format: 'date-time' },
           state: { type: 'string', enum: ['active', 'expired', 'revoked'] },
         },
-        required: ['id', 'name', 'prefix', 'scopes', 'createdAt', 'expiresAt', 'state'],
+        required: ['id', 'name', 'prefix', 'scopes', 'permissions', 'createdAt', 'expiresAt', 'state'],
       },
       TokensPayload: {
         type: 'object',
@@ -289,6 +295,12 @@ export const OPENAPI_SPEC = {
     '/op/introspect': {
       post: {
         tags: ['OIDC'], operationId: 'introspectToken', summary: 'The token-standing read (RFC 7662)',
+        description:
+          'Answers active + the claim set for a live OP-issued access token, and { active: false } for everything else. '
+          + 'The token classes: the opaque access tokens (the table read), the self-contained machine JWTs (the signature + the named client\'s live standing), '
+          + 'and the RAW personal access tokens (TODO.openapi/03 — the platform\'s per-request enforcement read: a live PAT answers active with '
+          + 'iss/sub/scope/permissions/service_roles/org/cone/pat/token_type=access_token/exp, all of it the LIVE judgment; revoked, expired, or standing-lost reads inactive). '
+          + 'Never an error for an unknown token.',
         security: [{ bearerToken: [] }, { sessionCookie: [] }],
         requestBody: { required: true, content: { 'application/x-www-form-urlencoded': { schema: { type: 'object', properties: { token: { type: 'string' } }, required: ['token'] } } } },
         responses: { 200: { description: 'The token\'s standing (active or not — never an error for an unknown token).' } },
@@ -678,7 +690,7 @@ export const OPENAPI_SPEC = {
       },
       post: {
         tags: ['Tokens'], operationId: 'mintToken', summary: 'Mint a token (the plaintext answers ONCE)',
-        description: 'The mint: the name + the scope picker + the expiration. The plaintext secret answers exactly once — this response — and the store holds only its SHA-256. The scopes must be a subset of the holder\'s standing under the session\'s org context.',
+        description: 'The mint: the name + the scope picker + the expiration. The plaintext secret answers exactly once — this response — and the store holds only its SHA-256. The scopes must be a subset of the holder\'s standing under the session\'s org context. The optional permissions set is validated against the TARGET INSTANCES\' served permissions catalogs (fail closed — an instance that cannot answer, or an id outside the served catalogs, refuses the mint).',
         security: [{ sessionCookie: [] }],
         requestBody: {
           required: true,
@@ -689,6 +701,12 @@ export const OPENAPI_SPEC = {
                 properties: {
                   name: { type: 'string', maxLength: 60, example: 'the lab CLI' },
                   scopes: { type: 'array', items: { type: 'string', pattern: '^[^:]+:(read|write|admin)$' }, example: ['hub-instance:read', 'hub-instance:write'] },
+                  permissions: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'The optional permissions-catalog ids (the scoped instances\' own `<group>.<resource>.<verb>` ids — fetch each instance\'s catalog through GET /api/op/account/tokens/catalog?service=…). Empty/absent = no catalog permissions (the token exchanges exactly as before).',
+                    example: ['tl-workbench.runs.read'],
+                  },
                   expiresInDays: { type: 'integer', enum: [30, 60, 90, 180, 365], default: 90 },
                 },
                 required: ['name', 'scopes'],
@@ -698,16 +716,75 @@ export const OPENAPI_SPEC = {
         },
         responses: {
           201: { description: 'The minted token — the plaintext rides this answer ONCE.', content: { 'application/json': { schema: { allOf: [{ $ref: '#/components/schemas/TokensPayload' }, { type: 'object' }] } } } },
-          400: { description: 'Malformed name or scopes.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          400: { description: 'Malformed name or scopes, or the permissions refuse (a non-array shape, an id outside the served catalogs, or the instance cannot answer — fail closed).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           403: { description: 'Over-broad (not a subset of the holder\'s standing).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/account/tokens/catalog': {
+      get: {
+        tags: ['Tokens'], operationId: 'getTokenPermissionsCatalog', summary: 'The mint picker\'s permissions catalog for one scoped service (TODO.openapi/03)',
+        description:
+          'The TARGET INSTANCE\'s served permissions catalog, fetched server-side and projected to sorted arrays (the OP never holds a copy). '
+          + 'The instance resolves from the registered client\'s own redirect-URI origin. The mint dialog renders groups → checkboxes from it. '
+          + '502 = the instance cannot answer (the mint will refuse too — fail closed).',
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: 'service', in: 'query', required: true, schema: { type: 'string' }, example: 'hub-instance' }],
+        responses: {
+          200: {
+            description: 'The catalog projection.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    service: { type: 'string' },
+                    baseUrl: { type: 'string', format: 'uri' },
+                    catalog: {
+                      type: 'object',
+                      properties: {
+                        version: { type: 'integer' },
+                        verbs: { type: 'array', items: { type: 'string' } },
+                        groups: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string' },
+                              description: { type: 'string' },
+                              permissions: {
+                                type: 'array',
+                                items: {
+                                  type: 'object',
+                                  properties: { id: { type: 'string' }, description: { type: 'string' } },
+                                  required: ['id', 'description'],
+                                },
+                              },
+                            },
+                            required: ['id', 'description', 'permissions'],
+                          },
+                        },
+                      },
+                      required: ['version', 'verbs', 'groups'],
+                    },
+                  },
+                  required: ['service', 'baseUrl', 'catalog'],
+                },
+              },
+            },
+          },
+          400: { description: 'The service parameter is missing.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          404: { description: 'No such service, or it registers no instance URL.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          502: { description: 'The instance does not answer with a permissions catalog.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
     },
     '/api/op/account/tokens/{id}': {
       patch: {
-        tags: ['Tokens'], operationId: 'manageToken', summary: 'The management act — rename and/or edit the scopes (issue #115)',
+        tags: ['Tokens'], operationId: 'manageToken', summary: 'The management act — rename, edit the scopes, edit the permissions (issue #115 + TODO.openapi/03)',
         description:
-          'The managed-token act. The rename is presentation-only (from→to on the audit). The scope edit is the complete replacement set, the mint\'s validation exactly — safe both ways because the exchange re-judges standing on every use. Widening is audited (and mailed) distinctly. A revoked or expired token refuses edits.',
+          'The managed-token act. The rename is presentation-only (from→to on the audit). The scope edit is the complete replacement set, the mint\'s validation exactly — safe both ways because the exchange re-judges standing on every use. Widening is audited (and mailed) distinctly. The permissions edit replaces the pinned catalog-id set, validated against the scoped instances\' served catalogs (fail closed); ADDING a permission is the widening-sensitive act (a stale session refuses with fresh_auth_required). A revoked or expired token refuses edits.',
         security: [{ sessionCookie: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
         requestBody: {
@@ -719,6 +796,7 @@ export const OPENAPI_SPEC = {
                 properties: {
                   name: { type: 'string', maxLength: 60 },
                   scopes: { type: 'array', items: { type: 'string', pattern: '^[^:]+:(read|write|admin)$' } },
+                  permissions: { type: 'array', items: { type: 'string' }, description: 'The complete replacement permissions-catalog-id set ([] clears the set; the mint\'s fail-closed validation exactly).' },
                 },
               },
             },

@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
+import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -52,6 +52,8 @@ export const exchangeToken = <ThrowOnError extends boolean = false>(options: Opt
 
 /**
  * The token-standing read (RFC 7662)
+ *
+ * Answers active + the claim set for a live OP-issued access token, and { active: false } for everything else. The token classes: the opaque access tokens (the table read), the self-contained machine JWTs (the signature + the named client's live standing), and the RAW personal access tokens (TODO.openapi/03 — the platform's per-request enforcement read: a live PAT answers active with iss/sub/scope/permissions/service_roles/org/cone/pat/token_type=access_token/exp, all of it the LIVE judgment; revoked, expired, or standing-lost reads inactive). Never an error for an unknown token.
  */
 export const introspectToken = <ThrowOnError extends boolean = false>(options: Options<IntrospectTokenData, ThrowOnError>): RequestResult<IntrospectTokenResponses, unknown, ThrowOnError> => (options.client ?? client).post<IntrospectTokenResponses, unknown, ThrowOnError>({
     ...urlSearchParamsBodySerializer,
@@ -386,7 +388,7 @@ export const listTokens = <ThrowOnError extends boolean = false>(options?: Optio
 /**
  * Mint a token (the plaintext answers ONCE)
  *
- * The mint: the name + the scope picker + the expiration. The plaintext secret answers exactly once — this response — and the store holds only its SHA-256. The scopes must be a subset of the holder's standing under the session's org context.
+ * The mint: the name + the scope picker + the expiration. The plaintext secret answers exactly once — this response — and the store holds only its SHA-256. The scopes must be a subset of the holder's standing under the session's org context. The optional permissions set is validated against the TARGET INSTANCES' served permissions catalogs (fail closed — an instance that cannot answer, or an id outside the served catalogs, refuses the mint).
  */
 export const mintToken = <ThrowOnError extends boolean = false>(options: Options<MintTokenData, ThrowOnError>): RequestResult<MintTokenResponses, MintTokenErrors, ThrowOnError> => (options.client ?? client).post<MintTokenResponses, MintTokenErrors, ThrowOnError>({
     security: [{
@@ -403,6 +405,21 @@ export const mintToken = <ThrowOnError extends boolean = false>(options: Options
 });
 
 /**
+ * The mint picker's permissions catalog for one scoped service (TODO.openapi/03)
+ *
+ * The TARGET INSTANCE's served permissions catalog, fetched server-side and projected to sorted arrays (the OP never holds a copy). The instance resolves from the registered client's own redirect-URI origin. The mint dialog renders groups → checkboxes from it. 502 = the instance cannot answer (the mint will refuse too — fail closed).
+ */
+export const getTokenPermissionsCatalog = <ThrowOnError extends boolean = false>(options: Options<GetTokenPermissionsCatalogData, ThrowOnError>): RequestResult<GetTokenPermissionsCatalogResponses, GetTokenPermissionsCatalogErrors, ThrowOnError> => (options.client ?? client).get<GetTokenPermissionsCatalogResponses, GetTokenPermissionsCatalogErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'oiml-session',
+            type: 'apiKey'
+        }],
+    url: '/api/op/account/tokens/catalog',
+    ...options
+});
+
+/**
  * Revoke the token (the row stays for the audit)
  */
 export const revokeToken2 = <ThrowOnError extends boolean = false>(options: Options<RevokeToken2Data, ThrowOnError>): RequestResult<RevokeToken2Responses, RevokeToken2Errors, ThrowOnError> => (options.client ?? client).delete<RevokeToken2Responses, RevokeToken2Errors, ThrowOnError>({
@@ -416,9 +433,9 @@ export const revokeToken2 = <ThrowOnError extends boolean = false>(options: Opti
 });
 
 /**
- * The management act — rename and/or edit the scopes (issue #115)
+ * The management act — rename, edit the scopes, edit the permissions (issue #115 + TODO.openapi/03)
  *
- * The managed-token act. The rename is presentation-only (from→to on the audit). The scope edit is the complete replacement set, the mint's validation exactly — safe both ways because the exchange re-judges standing on every use. Widening is audited (and mailed) distinctly. A revoked or expired token refuses edits.
+ * The managed-token act. The rename is presentation-only (from→to on the audit). The scope edit is the complete replacement set, the mint's validation exactly — safe both ways because the exchange re-judges standing on every use. Widening is audited (and mailed) distinctly. The permissions edit replaces the pinned catalog-id set, validated against the scoped instances' served catalogs (fail closed); ADDING a permission is the widening-sensitive act (a stale session refuses with fresh_auth_required). A revoked or expired token refuses edits.
  */
 export const manageToken = <ThrowOnError extends boolean = false>(options: Options<ManageTokenData, ThrowOnError>): RequestResult<ManageTokenResponses, ManageTokenErrors, ThrowOnError> => (options.client ?? client).patch<ManageTokenResponses, ManageTokenErrors, ThrowOnError>({
     security: [{

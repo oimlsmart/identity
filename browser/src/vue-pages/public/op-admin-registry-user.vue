@@ -132,6 +132,8 @@ interface Detail {
   appAccess: AppAccessRow[]
   /** TODO.identity/11: the account's org memberships, every state. */
   memberships?: MembershipRow[]
+  /** TODO.openapi/03: the account's developer tokens (metadata only). */
+  tokens?: TokenRow[]
   activity: AuditEvent[]
   activityTotal: number
 }
@@ -163,6 +165,43 @@ interface MembershipRow {
   activatedAt: string | null
   disabledAt: string | null
   disabledBy: string | null
+}
+
+/** A developer-token row (TODO.openapi/03 — the metadata-only
+ *  projection; the plaintext answers ONCE at mint, the hash never
+ *  leaves a read). */
+interface TokenRow {
+  id: string
+  name: string
+  prefix: string
+  scopes: string[]
+  permissions: string[]
+  orgContext: string | null
+  createdAt: string
+  expiresAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+  state: 'active' | 'expired' | 'revoked'
+}
+
+/** The target instance's served permissions catalog (the same-origin
+ *  proxy's projection — the server normalizes the instance's own
+ *  document to sorted arrays; the OP never holds a copy). */
+interface PermissionCatalogGroup {
+  id: string
+  description: string
+  permissions: Array<{ id: string; description: string }>
+}
+interface PermissionCatalog {
+  version: number
+  verbs: string[]
+  groups: PermissionCatalogGroup[]
+}
+type CatalogState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; catalog: PermissionCatalog }
+
+/** The template's safe read: the groups only when the catalog landed. */
+function catalogGroups(state: CatalogState | undefined): PermissionCatalogGroup[] {
+  return state?.status === 'ready' ? state.catalog.groups : []
 }
 
 /** The public selector feed's org (GET /api/op/organizations) — the
@@ -750,6 +789,148 @@ async function revokeGrant(clientId: string) {
   } finally {
     acting.value = null
   }
+}
+
+// ── the TOKENS section (TODO.openapi/03): the mint-FOR-user + the
+//    revoke-for-user. The same doctrine the account console follows —
+//    the plaintext answers once, the scopes bound to the TARGET's own
+//    standing (the server re-judges; this form only offers), the
+//    permissions ride the instance's own catalog through the same-origin
+//    proxy the console picker uses.
+
+const tokensMintOpen = ref(false)
+const tokensName = ref('')
+const tokensScopes = ref<Record<string, '' | 'read' | 'write' | 'admin'>>({})
+const tokensDays = ref(90)
+const EXPIRY_CHOICES = [30, 60, 90, 180, 365]
+const tokensRevokeArmed = ref<Record<string, boolean>>({})
+const tokensOnce = ref<{ name: string; plaintext: string } | null>(null)
+const tokensCopied = ref(false)
+const tokensPermOpen = ref<Record<string, boolean>>({})
+const tokensPermSearch = ref('')
+const tokensCatalogs = ref<Record<string, CatalogState>>({})
+const tokensSelection = ref<Record<string, string[]>>({})
+
+/** The services the mint form offers: the account's app-access rows the
+ *  server marks enterable (the TARGET's standing bounds the grant — the
+ *  server refuses over-broad anyway; this only offers honestly). */
+const tokenServices = computed(() => (detail.value?.appAccess ?? []).filter(cl => cl.canEnter))
+
+const tokensChosenPermissions = computed(() =>
+  [...new Set(Object.values(tokensSelection.value).flat())].sort((a, b) => a.localeCompare(b)),
+)
+
+function openTokenMint() {
+  tokensMintOpen.value = true
+  tokensName.value = ''
+  tokensDays.value = 90
+  tokensScopes.value = Object.fromEntries(tokenServices.value.map(cl => [cl.clientId, '' as const]))
+  tokensPermOpen.value = {}
+  tokensPermSearch.value = ''
+  tokensCatalogs.value = {}
+  tokensSelection.value = {}
+  error.value = null
+  notice.value = null
+}
+
+async function toggleTokenPerms(clientId: string) {
+  const open = !tokensPermOpen.value[clientId]
+  tokensPermOpen.value = { ...tokensPermOpen.value, [clientId]: open }
+  if (open && !tokensCatalogs.value[clientId]) {
+    tokensCatalogs.value = { ...tokensCatalogs.value, [clientId]: { status: 'loading' } }
+    tokensPermSearch.value = ''
+    try {
+      const res = await api(`/api/op/account/tokens/catalog?service=${encodeURIComponent(clientId)}`)
+      const body = await res.json().catch(() => null) as { catalog?: PermissionCatalog } | null
+      if (res.ok && body?.catalog) {
+        tokensCatalogs.value = { ...tokensCatalogs.value, [clientId]: { status: 'ready', catalog: body.catalog } }
+      } else {
+        tokensCatalogs.value = { ...tokensCatalogs.value, [clientId]: { status: 'error' } }
+      }
+    } catch {
+      tokensCatalogs.value = { ...tokensCatalogs.value, [clientId]: { status: 'error' } }
+    }
+  }
+}
+
+function tokenPermVisible(group: PermissionCatalogGroup): PermissionCatalogGroup['permissions'] {
+  const q = tokensPermSearch.value.trim().toLowerCase()
+  if (!q) return group.permissions
+  return group.permissions.filter(p => p.id.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
+}
+
+function tokenPermToggle(serviceId: string, id: string) {
+  const held = new Set(tokensSelection.value[serviceId] ?? [])
+  if (held.has(id)) held.delete(id)
+  else held.add(id)
+  tokensSelection.value = { ...tokensSelection.value, [serviceId]: [...held] }
+}
+
+async function mintTokenForUser() {
+  if (acting.value || !detail.value) return
+  if (!tokensName.value.trim()) {
+    error.value = t('admin.user.tokens.nameRequired')
+    return
+  }
+  acting.value = 'mint-token'
+  error.value = null
+  notice.value = null
+  try {
+    const scopes = Object.entries(tokensScopes.value)
+      .filter(([, action]) => action !== '')
+      .map(([service, action]) => `${service}:${action}`)
+    const res = await api(`/api/op/registry/users/${encodeURIComponent(userId.value)}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: tokensName.value.trim(),
+        scopes,
+        expiresInDays: tokensDays.value,
+        ...(tokensChosenPermissions.value.length ? { permissions: tokensChosenPermissions.value } : {}),
+      }),
+    })
+    const body = await res.json().catch(() => null) as { token?: TokenRow & { plaintext?: string }; error?: string } | null
+    if (!res.ok) {
+      error.value = body?.error ?? t('admin.user.failed', { status: res.status })
+      return
+    }
+    if (body?.token?.plaintext) {
+      tokensOnce.value = { name: body.token.name, plaintext: body.token.plaintext }
+      tokensCopied.value = false
+    }
+    tokensMintOpen.value = false
+    notice.value = t('admin.user.tokens.minted')
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+async function revokeUserToken(token: TokenRow) {
+  if (acting.value) return
+  acting.value = `revoke-token-${token.id}`
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/registry/users/${encodeURIComponent(userId.value)}/tokens/${encodeURIComponent(token.id)}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { error?: string } | null
+      error.value = body?.error ?? t('admin.user.failed', { status: res.status })
+      return
+    }
+    notice.value = t('admin.user.tokens.revoked')
+    tokensRevokeArmed.value[token.id] = false
+    await load()
+  } catch {
+    error.value = t('account.networkError')
+  } finally {
+    acting.value = null
+  }
+}
+
+function copyTokenOnce() {
+  if (tokensOnce.value) void navigator.clipboard.writeText(tokensOnce.value.plaintext)
 }
 
 function copySetupUrl() {
@@ -1514,6 +1695,187 @@ onMounted(async () => {
           {{ t('admin.user.grants.policyNote') }}
           <router-link to="/op/admin/clients" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-reg-grants-policy-link">→ {{ t('admin.user.apps.consoleLink') }}</router-link>
         </p>
+      </section>
+
+      <!-- The developer tokens (TODO.openapi/03): the account's PATs —
+           the list (metadata only), the mint-FOR-user (the plaintext
+           shown once), the revoke-for-user. The server bounds every act
+           to the target's own standing; this page only renders. -->
+      <section v-if="!erased" class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-tokens">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.user.tokens.title') }}</h2>
+        <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.user.tokens.description') }}</p>
+
+        <p v-if="!detail.tokens?.length" class="text-sm text-slate-500 dark:text-slate-400 mb-3" data-testid="op-reg-tokens-empty">
+          {{ t('admin.user.tokens.empty') }}
+        </p>
+        <ul v-else class="space-y-2 mb-3" data-testid="op-reg-tokens-list">
+          <li v-for="tk in detail.tokens" :key="tk.id" class="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2" :data-testid="`op-reg-token-${tk.id}`">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-slate-800 dark:text-slate-100 break-words">
+                  {{ tk.name }}
+                  <span class="ml-2 font-mono text-[11px] text-slate-400 dark:text-slate-500">{{ tk.prefix }}…</span>
+                  <span
+                    class="ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    :class="tk.state === 'active'
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'"
+                  >{{ tk.state }}</span>
+                </p>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 font-mono break-all">{{ tk.scopes.join('  ') }}</p>
+                <p v-if="tk.permissions?.length" class="text-[11px] text-slate-500 dark:text-slate-400 font-mono break-all">{{ t('account.tokens.permissionsCount', { count: tk.permissions.length }) }}: {{ tk.permissions.join(', ') }}</p>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500">
+                  {{ t('account.tokens.expires', { date: fmtStamp(tk.expiresAt) }) }}
+                  · {{ tk.lastUsedAt ? t('account.tokens.lastUsed', { date: fmtStamp(tk.lastUsedAt) }) : t('account.tokens.neverUsed') }}
+                </p>
+              </div>
+              <button
+                v-if="tk.state === 'active'"
+                :data-testid="`op-reg-token-revoke-${tk.id}`"
+                :disabled="acting === `revoke-token-${tk.id}`"
+                class="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                @click="tokensRevokeArmed[tk.id] = !tokensRevokeArmed[tk.id]"
+              >{{ t('admin.user.tokens.revoke') }}</button>
+            </div>
+            <div v-if="tokensRevokeArmed[tk.id] && tk.state === 'active'" class="mt-2 flex items-center gap-2">
+              <button
+                :data-testid="`op-reg-token-revoke-confirm-${tk.id}`"
+                :disabled="acting === `revoke-token-${tk.id}`"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                @click="revokeUserToken(tk)"
+              >{{ t('account.tokens.revoke') }}</button>
+              <button
+                class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                @click="tokensRevokeArmed[tk.id] = false"
+              >{{ t('account.profile.cancel') }}</button>
+            </div>
+          </li>
+        </ul>
+
+        <button
+          v-if="!tokensMintOpen"
+          data-testid="op-reg-token-mint-open"
+          class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          @click="openTokenMint"
+        >+ {{ t('admin.user.tokens.mint') }}</button>
+
+        <div v-if="tokensMintOpen" class="rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 p-3" data-testid="op-reg-token-mint-form">
+          <input
+            v-model="tokensName"
+            type="text"
+            :placeholder="t('admin.user.tokens.name')"
+            data-testid="op-reg-token-name"
+            class="mb-2 w-full max-w-lg px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          <p class="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">{{ t('admin.user.tokens.scopes') }}</p>
+          <ul class="space-y-2 mb-2">
+            <li v-for="cl in tokenServices" :key="cl.clientId" class="rounded-lg px-1 py-1" :data-testid="`op-reg-token-scope-row-${cl.clientId}`">
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-700 dark:text-slate-200 min-w-0 flex-1 break-words">{{ cl.name }} <span class="font-mono text-slate-400">({{ cl.clientId }})</span></span>
+                <select
+                  v-model="tokensScopes[cl.clientId]"
+                  :data-testid="`op-reg-token-scope-${cl.clientId}`"
+                  class="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                >
+                  <option value="">{{ t('account.tokens.scopeOff') }}</option>
+                  <option value="read">{{ t('account.tokens.scopeAction.read') }}</option>
+                  <option value="write">{{ t('account.tokens.scopeAction.write') }}</option>
+                  <option value="admin">{{ t('admin.user.tokens.scopeAdminNote') }}</option>
+                </select>
+              </div>
+              <div v-if="tokensScopes[cl.clientId]" class="mt-1 ml-3">
+                <button
+                  type="button"
+                  class="text-[11px] text-slate-500 dark:text-slate-400 hover:underline"
+                  :data-testid="`op-reg-token-perms-toggle-${cl.clientId}`"
+                  @click="toggleTokenPerms(cl.clientId)"
+                >{{ tokensPermOpen[cl.clientId] ? '▾' : '▸' }} {{ t('admin.user.tokens.permissions') }}<template v-if="(tokensSelection[cl.clientId] ?? []).length"> ({{ (tokensSelection[cl.clientId] ?? []).length }})</template></button>
+                <div v-if="tokensPermOpen[cl.clientId]" class="mt-2 rounded-lg border border-slate-100 dark:border-slate-700/60 p-2">
+                  <p v-if="tokensCatalogs[cl.clientId]?.status === 'loading'" class="text-[11px] text-slate-400">{{ t('account.tokens.permissionsLoading') }}</p>
+                  <p v-else-if="tokensCatalogs[cl.clientId]?.status === 'error'" class="text-[11px] text-red-600 dark:text-red-400">{{ t('account.tokens.permissionsError') }}</p>
+                  <template v-else>
+                    <input
+                      v-model="tokensPermSearch"
+                      type="search"
+                      :placeholder="t('account.tokens.permissionsSearch')"
+                      data-testid="op-reg-token-perms-search"
+                      class="mb-2 w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                    <div v-for="group in catalogGroups(tokensCatalogs[cl.clientId])" :key="group.id" class="mb-2" :data-testid="`op-reg-token-perms-group-${cl.clientId}-${group.id}`">
+                      <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-300" :title="group.description">{{ group.id }}</p>
+                      <label
+                        v-for="permission in tokenPermVisible(group)"
+                        :key="permission.id"
+                        class="flex items-start gap-2 py-0.5 text-[11px] text-slate-600 dark:text-slate-300"
+                        :data-testid="`op-reg-token-perm-${cl.clientId}-${permission.id}`"
+                      >
+                        <input
+                          type="checkbox"
+                          class="mt-0.5"
+                          :checked="(tokensSelection[cl.clientId] ?? []).includes(permission.id)"
+                          @change="tokenPermToggle(cl.clientId, permission.id)"
+                        />
+                        <span class="min-w-0"><span class="font-mono">{{ permission.id }}</span> — {{ permission.description }}</span>
+                      </label>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </li>
+          </ul>
+          <p v-if="!tokensChosenPermissions.length" class="text-[11px] text-slate-400 dark:text-slate-500 mb-2">{{ t('account.tokens.permissionsNone') }}</p>
+          <div class="flex flex-wrap items-center gap-2 mb-3">
+            <label class="text-xs text-slate-600 dark:text-slate-300">{{ t('admin.user.tokens.expiry') }}</label>
+            <select
+              v-model.number="tokensDays"
+              data-testid="op-reg-token-expiry"
+              class="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+            >
+              <option v-for="days in EXPIRY_CHOICES" :key="days" :value="days">{{ t('account.tokens.expiryDays', { days }) }}</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              :disabled="acting === 'mint-token'"
+              data-testid="op-reg-token-mint-submit"
+              class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+              @click="mintTokenForUser"
+            >{{ acting === 'mint-token' ? t('account.tokens.busy') : t('admin.user.tokens.mint') }}</button>
+            <button
+              class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              @click="tokensMintOpen = false"
+            >{{ t('account.profile.cancel') }}</button>
+          </div>
+        </div>
+
+        <!-- The one-time plaintext dialog (the mint-for-user's answer —
+             the admin hands it to the holder; it never shows again). -->
+        <div
+          v-if="tokensOnce"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
+          data-testid="op-reg-token-once-dialog"
+          @click.self="tokensOnce = null"
+        >
+          <div class="w-full max-w-lg rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 shadow-xl">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">{{ t('account.tokens.onceTitle') }}</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">{{ t('account.tokens.onceNote') }}</p>
+            <code class="block rounded-lg bg-slate-50 dark:bg-slate-900 px-3 py-2 mb-4 text-sm font-mono text-slate-800 dark:text-slate-100 break-all select-all" data-testid="op-reg-token-once">{{ tokensOnce.plaintext }}</code>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                data-testid="op-reg-token-once-copy"
+                class="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                @click="copyTokenOnce"
+              >{{ tokensCopied ? t('account.tokens.copied') : t('account.tokens.copy') }}</button>
+              <button
+                type="button"
+                data-testid="op-reg-token-once-dismiss"
+                class="px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+                @click="tokensOnce = null"
+              >✓</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- 6. THE AUDIT TRAIL: the account's own events, newest first,

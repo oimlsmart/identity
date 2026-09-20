@@ -38,7 +38,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 // The store's DB path is read at module evaluation — set it before any
 // import below touches @oimlsmart/platform-server/store/sqlite (the
@@ -131,7 +131,7 @@ async function verifyOpJwt(token: string): Promise<Record<string, unknown>> {
 }
 
 /** The audit journal (the store directly). */
-async function journal(): Promise<Array<{ action: string; entity_type: string; entity_id: string; metadata?: Record<string, unknown> }>> {
+async function journal(): Promise<Array<{ action: string; entity_type: string; entity_id: string; user_id?: string; user_name?: string; metadata?: Record<string, unknown> }>> {
   return (await store.listEntities('auditEvents')).map(row => JSON.parse(row.data) as never)
 }
 
@@ -550,5 +550,318 @@ describe('the management acts (issue #115 — rename + scope editing after creat
     // A revoked token's permissions are not meaningfully editable.
     await app.request(`${ISSUER}/api/op/account/tokens/${id}`, { method: 'DELETE', headers: { cookie: ia } })
     expect((await patch(ia, { name: 'the dead rename' })).status).toBe(409)
+  })
+})
+
+// ── the introspection + the permissions (TODO.openapi/03) ────────────
+// The platform contract's access-token class: a RAW PAT introspects
+// ACTIVE with the LIVE judgment (the platform's per-request enforcement
+// read), and the mint/edit paths pin permissions-catalog ids validated
+// against the TARGET INSTANCE's own served catalog (fail closed). The
+// instance is stubbed at the fetch seam (the id-turnstile pattern): the
+// hub's redirect-URI origin answers a fixture catalog, the register's
+// is the unreachable / catalog-less probe.
+
+const REAL_FETCH = globalThis.fetch
+
+/** The fixture instance document (the served x-oiml-permissions-catalog
+ *  projection's exact shape). */
+const FIXTURE_CATALOG = {
+  'x-oiml-permissions-catalog': {
+    version: 1,
+    verbs: ['read', 'edit'],
+    groups: {
+      'tl-workbench': {
+        description: 'The test-laboratory workbench.',
+        permissions: {
+          'runs.read': 'Reads the runs.',
+          'runs.edit': 'Edits the runs.',
+        },
+      },
+      portal: {
+        description: 'The portal shell.',
+        permissions: {
+          'profile.read': 'Reads the profile.',
+        },
+      },
+    },
+  },
+}
+
+const HUB_CATALOG_URL = `https://${HUB.clientId}.example/api/openapi.json`
+const REGISTER_CATALOG_URL = `https://${REGISTER.clientId}.example/api/openapi.json`
+
+/** Stub the outbound fetch at the seam: the named URLs answer the
+ *  scripted replies, everything else passes through to the real fetch. */
+function stubInstanceFetch(routes: Record<string, { status: number; body?: unknown } | 'fail'>): void {
+  globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : String((input as Request).url)
+    const route = routes[url]
+    if (route === 'fail') throw new Error('network down (the stub)')
+    if (route && typeof route === 'object') {
+      return new Response(route.status === 200 ? JSON.stringify(route.body) : 'nope', {
+        status: route.status,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    return REAL_FETCH(input as RequestInfo, init)
+  }) as typeof fetch
+}
+
+afterEach(() => {
+  globalThis.fetch = REAL_FETCH
+})
+
+/** RFC 7662 over the raw PAT (the platform's posture: the token +
+ *  client_id in the form — the hub is a public client here). */
+async function introspect(pat: string, clientId = HUB.clientId): Promise<Response> {
+  return app.request(`${ISSUER}/op/introspect`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ token: pat, client_id: clientId }),
+  })
+}
+
+describe('the introspection + the permissions (TODO.openapi/03)', () => {
+  it('the catalog proxy serves the instance\'s own projection (never a local copy)', async () => {
+    const ia = await demoLogin('ia@oiml.org')
+    stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
+    const res = await app.request(`${ISSUER}/api/op/account/tokens/catalog?service=${HUB.clientId}`, { headers: { cookie: ia } })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { service: string; baseUrl: string; catalog: { version: number; groups: Array<{ id: string; description: string; permissions: Array<{ id: string; description: string }> }> } }
+    expect(body.service).toBe(HUB.clientId)
+    expect(body.baseUrl).toBe(`https://${HUB.clientId}.example`)
+    expect(body.catalog.version).toBe(1)
+    const group = body.catalog.groups.find(g => g.id === 'tl-workbench')!
+    expect(group.description).toBe('The test-laboratory workbench.')
+    expect(group.permissions.map(p => p.id)).toEqual(['tl-workbench.runs.edit', 'tl-workbench.runs.read'])
+    // The unknown service 404s; the instance that cannot answer 502s.
+    expect((await app.request(`${ISSUER}/api/op/account/tokens/catalog?service=no-such`, { headers: { cookie: ia } })).status).toBe(404)
+    stubInstanceFetch({ [REGISTER_CATALOG_URL]: 'fail' })
+    expect((await app.request(`${ISSUER}/api/op/account/tokens/catalog?service=${REGISTER.clientId}`, { headers: { cookie: ia } })).status).toBe(502)
+  })
+
+  it('the mint validates the permissions against the instance\'s served catalog, persists, echoes', async () => {
+    const ia = await demoLogin('ia@oiml.org')
+    stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
+    // The unknown id refuses, NAMING it.
+    const refused = await mintPat(ia, { name: 'the over-reach', scopes: [`${HUB.clientId}:read`], permissions: ['tl-workbench.runs.purge'] })
+    expect(refused.status).toBe(400)
+    expect(((await refused.json()) as { error: string }).error).toContain('tl-workbench.runs.purge')
+    // The malformed shape refuses without an instance round trip.
+    const malformed = await mintPat(ia, { name: 'x', scopes: [`${HUB.clientId}:read`], permissions: ['not a permission id'] })
+    expect(malformed.status).toBe(400)
+    // The instance that cannot answer refuses (fail closed — the mint
+    // is a deliberate act). The register's base was never cached (its
+    // probes always fail — failures never cache), so the probe really
+    // runs.
+    stubInstanceFetch({ [REGISTER_CATALOG_URL]: 'fail' })
+    const dead = await mintPat(ia, { name: 'x', scopes: [`${REGISTER.clientId}:read`], permissions: ['tl-workbench.runs.read'] })
+    expect(dead.status).toBe(400)
+    expect(((await dead.json()) as { error: string }).error).toContain('fail')
+
+    // The valid mint: 201, the row pins the deduped + sorted set.
+    stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
+    const minted = await mintPat(ia, {
+      name: 'the permissioned one',
+      scopes: [`${HUB.clientId}:read`],
+      permissions: ['tl-workbench.runs.edit', 'tl-workbench.runs.read', 'tl-workbench.runs.edit'],
+    })
+    expect(minted.status).toBe(201)
+    const mintBody = await minted.json() as { token: { id: string; plaintext: string; permissions: string[] } }
+    expect(mintBody.token.permissions).toEqual(['tl-workbench.runs.edit', 'tl-workbench.runs.read'])
+    const row = (await store.getPersonalAccessToken(mintBody.token.id))!
+    expect(row.permissions).toEqual(['tl-workbench.runs.edit', 'tl-workbench.runs.read'])
+
+    // The LIVE introspection: active with the claim set — the pinned
+    // permissions echoed, the live service_roles, the org + cone, the
+    // PAT's own exp, the honest token_type.
+    const res = await introspect(mintBody.token.plaintext)
+    expect(res.status).toBe(200)
+    const answer = await res.json() as Record<string, unknown>
+    expect(answer).toMatchObject({
+      active: true,
+      iss: ISSUER,
+      scope: `${HUB.clientId}:read`,
+      permissions: ['tl-workbench.runs.edit', 'tl-workbench.runs.read'],
+      pat: mintBody.token.id,
+      token_type: 'access_token',
+    })
+    expect(answer.sub, 'the account id').toBe((await store.listUsers()).find(u => u.email === 'ia@oiml.org')!.id)
+    expect(answer.service_roles).toMatchObject({ [HUB.clientId]: ['ia_officer'] })
+    expect(answer.org, 'the active-org context (the demo IA’s EX1)').toBe('EX1')
+    expect(typeof answer.cone, 'the live membership cone').toBe('string')
+    expect(Math.abs((answer.exp as number) * 1000 - new Date(row.expiresAt).getTime()), 'the exp is the PAT’s own expiry').toBeLessThan(2000)
+
+    // The throttled heartbeat: the audit beat lands once across two
+    // introspections (never a per-request write).
+    const beats = async () => (await journal()).filter(e => e.action === 'account.pat_introspected' && e.metadata?.pat === mintBody.token.id)
+    expect((await introspect(mintBody.token.plaintext)).status).toBe(200)
+    expect((await beats()).length, 'one beat for the first use').toBe(1)
+  })
+
+  it('the introspection lattice: revoked, expired, unknown answer the ONE inactive', async () => {
+    const ia = await demoLogin('ia@oiml.org')
+    stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
+    const minted = await mintPat(ia, { name: 'the lattice', scopes: [`${HUB.clientId}:read`] })
+    const { id, plaintext } = ((await minted.json()) as { token: { id: string; plaintext: string } }).token
+    expect(await (await introspect(plaintext)).json()).toMatchObject({ active: true })
+
+    // Revoked → inactive.
+    await app.request(`${ISSUER}/api/op/account/tokens/${id}`, { method: 'DELETE', headers: { cookie: ia } })
+    expect(await (await introspect(plaintext)).json()).toEqual({ active: false })
+
+    // Expired → inactive (the row written directly with a past expiry).
+    const { mintPatSecret, hashPat, patDisplayPrefix } = await import('../../server/auth/op/tokens')
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
+    const expiredSecret = mintPatSecret()
+    await store.createPersonalAccessToken({
+      id: 'pat-introspect-expired', userId: iaRow.id, name: 'the expired probe',
+      tokenHash: await hashPat(expiredSecret), tokenPrefix: patDisplayPrefix(expiredSecret),
+      scopes: [`${HUB.clientId}:read`], permissions: [], orgContext: null,
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    })
+    expect(await (await introspect(expiredSecret)).json()).toEqual({ active: false })
+
+    // Unknown (well-shaped, no row) → the same inactive.
+    expect(await (await introspect(`ospt_${'b'.repeat(43)}`)).json()).toEqual({ active: false })
+
+    // The unauthenticated caller never reaches any of it.
+    const noAuth = await app.request(`${ISSUER}/op/introspect`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token: plaintext }),
+    })
+    expect(noAuth.status).toBe(401)
+  })
+
+  it('the introspection is the LIVE judgment: a service lost since the mint falls away', async () => {
+    const ia = await demoLogin('ia@oiml.org')
+    stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
+    const minted = await mintPat(ia, { name: 'the re-judged probe', scopes: [`${HUB.clientId}:read`, `${REGISTER.clientId}:read`] })
+    const { plaintext } = ((await minted.json()) as { token: { plaintext: string } }).token
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
+    // The account loses the hub explicitly (the register stays on the
+    // account-wide roles).
+    await store.setOpClientRoles(iaRow.id, HUB.clientId, [], 'the test')
+    const answer = await (await introspect(plaintext)).json() as { active: boolean; scope: string; service_roles: Record<string, string[]> }
+    expect(answer.active).toBe(true)
+    expect(answer.scope, 'the dropped service fell away').toBe(`${REGISTER.clientId}:read`)
+    expect(Object.keys(answer.service_roles)).toEqual([REGISTER.clientId])
+    // Restore (the other legs' cast stands).
+    await store.deleteOpClientRoles(iaRow.id, HUB.clientId)
+  })
+
+  it('the permissions edit: adding gates on fresh auth, removing never gates', async () => {
+    const ia = await demoLogin('ia@oiml.org')
+    stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
+    const minted = await mintPat(ia, {
+      name: 'the edited one', scopes: [`${HUB.clientId}:read`], permissions: ['tl-workbench.runs.read'],
+    })
+    const { id } = ((await minted.json()) as { token: { id: string } }).token
+    const patch = (body: Record<string, unknown>) => app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json', cookie: ia }, body: JSON.stringify(body),
+    })
+
+    // The stale session (the row backdated 2h — the id-freshauth
+    // posture): the ADDITION refuses with the distinct shape...
+    const Database = (await import('better-sqlite3')).default
+    const raw = new Database(process.env.DATABASE_PATH!)
+    raw.prepare("UPDATE sessions SET created_at = datetime('now', '-2 hours') WHERE token = ?").run(ia.split('=')[1]!)
+    raw.close()
+    const widened = await patch({ permissions: ['tl-workbench.runs.read', 'tl-workbench.runs.edit'] })
+    expect(widened.status).toBe(403)
+    expect(((await widened.json()) as { code: string }).code).toBe('fresh_auth_required')
+    // ...the REMOVAL applies (friction only where the risk is).
+    const narrowed = await patch({ permissions: [] })
+    expect(narrowed.status).toBe(200)
+    expect((await store.getPersonalAccessToken(id))!.permissions).toEqual([])
+    const events = await journal()
+    const narrowedEvent = events.find(e => e.action === 'account.pat_permissions_narrowed' && e.metadata?.pat === id)
+    expect(narrowedEvent, 'the removal is on the chain').toBeTruthy()
+    expect((narrowedEvent!.metadata as { removed?: string[] }).removed).toContain('tl-workbench.runs.read')
+
+    // A fresh session widens; the widened act is audited distinctly.
+    const fresh = await demoLogin('ia@oiml.org')
+    const widenFresh = await app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json', cookie: fresh },
+      body: JSON.stringify({ permissions: ['tl-workbench.runs.read'] }),
+    })
+    expect(widenFresh.status).toBe(200)
+    const widenedEvent = (await journal()).find(e => e.action === 'account.pat_permissions_widened' && e.metadata?.pat === id)
+    expect(widenedEvent, 'the widening is on the chain').toBeTruthy()
+  })
+
+  it('the admin mint for another user: the target\'s standing bounds, the admin is the audit actor', async () => {
+    stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
+    const admin = await demoLogin('admin@oiml.org')
+    const ia = await demoLogin('ia@oiml.org')
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
+
+    // The non-admin caller never reaches the family.
+    const forbidden = await app.request(`${ISSUER}/api/op/registry/users/${iaRow.id}/tokens`, { headers: { cookie: ia } })
+    expect(forbidden.status).toBe(403)
+
+    // The mint-for-user: 201, the plaintext ONCE, the target's own
+    // context pinned (the IA's EX1 — never the admin's context).
+    const mintRes = await app.request(`${ISSUER}/api/op/registry/users/${iaRow.id}/tokens`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({
+        name: 'the admin-minted CLI',
+        scopes: [`${HUB.clientId}:read`],
+        permissions: ['tl-workbench.runs.read'],
+        expiresInDays: 30,
+      }),
+    })
+    expect(mintRes.status).toBe(201)
+    const mintBody = await mintRes.json() as { token: { id: string; plaintext: string; orgContext: string | null; state: string } }
+    expect(mintBody.token.state).toBe('active')
+    expect(mintBody.token.orgContext).toBe('EX1')
+
+    // The row + the standalone list (metadata only — the plaintext never
+    // re-answers, the hash never leaves a read).
+    const row = (await store.getPersonalAccessToken(mintBody.token.id))!
+    expect(row.userId).toBe(iaRow.id)
+    expect(row.permissions).toEqual(['tl-workbench.runs.read'])
+    const listRes = await app.request(`${ISSUER}/api/op/registry/users/${iaRow.id}/tokens`, { headers: { cookie: admin } })
+    expect(listRes.status).toBe(200)
+    const list = await listRes.json() as { tokens: Array<Record<string, unknown>> }
+    const listed = list.tokens.find(t => t.id === mintBody.token.id)!
+    expect(listed.name).toBe('the admin-minted CLI')
+    expect(JSON.stringify(listed)).not.toContain(mintBody.token.plaintext)
+    expect(JSON.stringify(listed)).not.toContain(row.tokenHash)
+
+    // The audit names the ADMIN as the actor; the holder's notice mailed.
+    const events = await journal()
+    const mintedEvent = events.find(e => e.action === 'account.pat_minted' && e.metadata?.pat === mintBody.token.id)
+    expect(mintedEvent, 'the mint is on the chain').toBeTruthy()
+    expect(mintedEvent!.entity_id).toBe(iaRow.id)
+    expect(mintedEvent!.user_id, 'the admin is the actor').toBe((await store.listUsers()).find(u => u.email === 'admin@oiml.org')!.id)
+    expect(mintedEvent!.metadata?.by).toBe('administrator')
+    expect(events.find(e => e.entity_type === 'email' && (e.metadata as { template?: string })?.template === 'pat_minted'), 'the holder learned').toBeTruthy()
+
+    // The target's standing bounds: the viewer never takes a write class
+    // from an admin's hand either.
+    const viewerRow = (await store.listUsers()).find(u => u.email === 'viewer@oiml.org')!
+    const overBroad = await app.request(`${ISSUER}/api/op/registry/users/${viewerRow.id}/tokens`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ name: 'the over-broad', scopes: [`${HUB.clientId}:write`] }),
+    })
+    expect(overBroad.status).toBe(403)
+
+    // The revoke-for-user: the guarded flip, the audit names the admin,
+    // the introspection flips to inactive.
+    const revokeRes = await app.request(`${ISSUER}/api/op/registry/users/${iaRow.id}/tokens/${mintBody.token.id}`, {
+      method: 'DELETE', headers: { cookie: admin },
+    })
+    expect(revokeRes.status).toBe(200)
+    expect(await (await introspect(mintBody.token.plaintext)).json()).toEqual({ active: false })
+    const revokedEvent = (await journal()).find(e => e.action === 'account.pat_revoked' && e.metadata?.pat === mintBody.token.id)
+    expect(revokedEvent, 'the revoke is on the chain').toBeTruthy()
+    expect(revokedEvent!.metadata?.by).toBe('administrator')
+    // A foreign token id is a 404 (the owner-scoped guard).
+    expect((await app.request(`${ISSUER}/api/op/registry/users/${viewerRow.id}/tokens/${mintBody.token.id}`, { method: 'DELETE', headers: { cookie: admin } })).status).toBe(404)
   })
 })

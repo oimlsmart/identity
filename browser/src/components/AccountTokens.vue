@@ -9,6 +9,7 @@ export interface TokenRow {
   name: string
   prefix: string
   scopes: string[]
+  permissions: string[]
   orgContext: string | null
   createdAt: string
   expiresAt: string
@@ -25,6 +26,20 @@ export interface TokensPayload {
   tokens: TokenRow[]
   services: TokenServiceOption[]
 }
+/** The served permissions catalog's projection (GET
+ *  /api/op/account/tokens/catalog — the server normalizes the target
+ *  instance's own document to sorted arrays; the OP never holds a
+ *  copy). */
+export interface PermissionCatalogGroup {
+  id: string
+  description: string
+  permissions: Array<{ id: string; description: string }>
+}
+export interface PermissionCatalog {
+  version: number
+  verbs: string[]
+  groups: PermissionCatalogGroup[]
+}
 </script>
 
 <script setup lang="ts">
@@ -36,6 +51,13 @@ export interface TokensPayload {
 // own standing + the expiration picker, mandatory), the one-time
 // plaintext dialog (the GitHub doctrine: shown once, the store holds
 // the hash), and the revoke act.
+//
+// TODO.openapi/03: the mint/edit forms carry a per-service PERMISSIONS
+// picker — the target instance's OWN catalog (fetched through the
+// same-origin proxy route, never a local copy), groups → checkboxes
+// with the catalog's descriptions, a search box. An empty selection
+// mints a token with no catalog permissions — it exchanges exactly as
+// before.
 //
 // The token NEVER rides a request directly — the dialog's copy says it:
 // it exchanges for a short-lived access token (RFC 8693). A token is a
@@ -86,9 +108,79 @@ function actionAllowed(service: TokenServiceOption, action: string): boolean {
   return ACTION_ORDER.indexOf(action as typeof ACTION_ORDER[number]) <= ACTION_ORDER.indexOf(service.maxAction)
 }
 
+// ── the permissions picker (TODO.openapi/03) ─────────────────────────
+// One catalog fetch per service, on first expand, through the same-
+// origin proxy (the server-side probe is the fail-closed one — the UI
+// just renders what it answers).
+
+type CatalogState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; catalog: PermissionCatalog }
+
+/** The template's safe read: the groups only when the catalog landed. */
+function catalogGroups(state: CatalogState | undefined): PermissionCatalogGroup[] {
+  return state?.status === 'ready' ? state.catalog.groups : []
+}
+const permOpen = ref<Record<string, boolean>>({})
+const permCatalogs = ref<Record<string, CatalogState>>({})
+/** The chosen ids per service (the union rides the payload — the
+ *  server dedupes + sorts into the stored form). */
+const permSelection = ref<Record<string, string[]>>({})
+const permSearch = ref('')
+
+async function togglePermissions(service: TokenServiceOption) {
+  const open = !permOpen.value[service.id]
+  permOpen.value = { ...permOpen.value, [service.id]: open }
+  if (open && !permCatalogs.value[service.id]) {
+    permCatalogs.value = { ...permCatalogs.value, [service.id]: { status: 'loading' } }
+    permSearch.value = ''
+    try {
+      const res = await fetch(`/api/op/account/tokens/catalog?service=${encodeURIComponent(service.id)}`, {
+        credentials: 'include',
+      })
+      const body = await res.json().catch(() => null) as { catalog?: PermissionCatalog } | null
+      if (res.ok && body?.catalog) {
+        permCatalogs.value = { ...permCatalogs.value, [service.id]: { status: 'ready', catalog: body.catalog } }
+        // The edit mode's seeding: the row's pinned ids land in every
+        // service whose catalog carries them (the union re-dedupes on
+        // submit — the stored flat set survives the round trip).
+        const carrying = body.catalog.groups.flatMap(g => g.permissions.map(p => p.id))
+        if (editId.value) {
+          const pinned = props.tokens?.tokens.find(tk => tk.id === editId.value)?.permissions ?? []
+          permSelection.value = {
+            ...permSelection.value,
+            [service.id]: [...new Set(pinned.filter(id => carrying.includes(id)))],
+          }
+        }
+      } else {
+        permCatalogs.value = { ...permCatalogs.value, [service.id]: { status: 'error' } }
+      }
+    } catch {
+      permCatalogs.value = { ...permCatalogs.value, [service.id]: { status: 'error' } }
+    }
+  }
+}
+
+function permVisible(group: PermissionCatalogGroup): PermissionCatalogGroup['permissions'] {
+  const q = permSearch.value.trim().toLowerCase()
+  if (!q) return group.permissions
+  return group.permissions.filter(p => p.id.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
+}
+
+function permToggle(serviceId: string, id: string) {
+  const held = new Set(permSelection.value[serviceId] ?? [])
+  if (held.has(id)) held.delete(id)
+  else held.add(id)
+  permSelection.value = { ...permSelection.value, [serviceId]: [...held] }
+}
+
 const mintable = computed(() =>
   mintName.value.trim().length > 0
   && Object.values(mintScopes.value).some(v => v !== ''),
+)
+
+/** The chosen permissions across the open pickers (the flat payload
+ *  form; the server validates + normalizes). */
+const chosenPermissions = computed(() =>
+  [...new Set(Object.values(permSelection.value).flat())].sort((a, b) => a.localeCompare(b)),
 )
 
 /** The edit-mode submit's guard: the same shape as the mint's. */
@@ -107,7 +199,12 @@ async function mint() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ name: mintName.value.trim(), scopes, expiresInDays: mintDays.value }),
+      body: JSON.stringify({
+        name: mintName.value.trim(),
+        scopes,
+        expiresInDays: mintDays.value,
+        ...(chosenPermissions.value.length ? { permissions: chosenPermissions.value } : {}),
+      }),
     })
     const body = await res.json().catch(() => null) as { token?: TokenRow & { plaintext?: string }; error?: string } | null
     if (!res.ok) {
@@ -156,6 +253,12 @@ function openEdit(token: TokenRow) {
   const seed = (cls: string | undefined): '' | 'read' | 'write' | 'admin' =>
     cls === 'admin' || cls === 'write' || cls === 'read' ? cls : ''
   mintScopes.value = Object.fromEntries((props.tokens?.services ?? []).map(s => [s.id, seed(current.get(s.id))]))
+  // The permissions pickers reset (the catalogs re-probe on expand; the
+  // seeding rides each fetch — the row's pinned set).
+  permOpen.value = {}
+  permCatalogs.value = {}
+  permSelection.value = {}
+  permSearch.value = ''
   error.value = null
   notice.value = null
 }
@@ -167,6 +270,10 @@ function openMint() {
   mintName.value = ''
   mintDays.value = 90
   mintScopes.value = Object.fromEntries((props.tokens?.services ?? []).map(s => [s.id, '' as const]))
+  permOpen.value = {}
+  permCatalogs.value = {}
+  permSelection.value = {}
+  permSearch.value = ''
   error.value = null
   notice.value = null
 }
@@ -184,7 +291,11 @@ async function saveEdit() {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ name: mintName.value.trim(), scopes }),
+      body: JSON.stringify({
+        name: mintName.value.trim(),
+        scopes,
+        permissions: chosenPermissions.value,
+      }),
     })
     const body = await res.json().catch(() => null) as { token?: TokenRow; error?: string } | null
     if (!res.ok) {
@@ -266,6 +377,9 @@ function stateLabel(state: TokenRow['state']): string {
             >{{ stateLabel(token.state) }}</span>
           </p>
           <p class="text-xs text-slate-500 dark:text-slate-400 font-mono break-all" :data-testid="`token-${token.id}-scopes`">{{ token.scopes.join('  ') }}</p>
+          <p v-if="token.permissions?.length" class="text-[11px] text-slate-500 dark:text-slate-400 font-mono break-all" :data-testid="`token-${token.id}-permissions`">
+            {{ t('account.tokens.permissionsCount', { count: token.permissions.length }) }}: {{ token.permissions.join(', ') }}
+          </p>
           <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`token-${token.id}-stamps`">
             {{ t('account.tokens.expires', { date: fmtDate(token.expiresAt) }) }}
             · {{ token.lastUsedAt ? t('account.tokens.lastUsed', { date: fmtDate(token.lastUsedAt) }) : t('account.tokens.neverUsed') }}
@@ -302,20 +416,63 @@ function stateLabel(state: TokenRow['state']): string {
       />
       <p class="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">{{ t('account.tokens.fieldScopes') }}</p>
       <ul class="space-y-1 mb-3" data-testid="token-scope-picker">
-        <li v-for="service in tokens?.services ?? []" :key="service.id" class="flex items-center gap-3" :data-testid="`token-scope-row-${service.id}`">
-          <span class="text-xs text-slate-700 dark:text-slate-200 min-w-0 flex-1 break-words">{{ service.name }} <span class="font-mono text-slate-400">({{ service.id }})</span></span>
-          <select
-            v-model="mintScopes[service.id]"
-            :data-testid="`token-scope-${service.id}`"
-            class="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-          >
-            <option value="">{{ t('account.tokens.scopeOff') }}</option>
-            <option v-for="action in ACTION_ORDER" :key="action" :value="action" :disabled="!actionAllowed(service, action)" :data-testid="`token-scope-${service.id}-${action}`">
-              {{ t(`account.tokens.scopeAction.${action}`) }}
-            </option>
-          </select>
+        <li v-for="service in tokens?.services ?? []" :key="service.id" class="rounded-lg px-1 py-1" :data-testid="`token-scope-row-${service.id}`">
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-700 dark:text-slate-200 min-w-0 flex-1 break-words">{{ service.name }} <span class="font-mono text-slate-400">({{ service.id }})</span></span>
+            <select
+              v-model="mintScopes[service.id]"
+              :data-testid="`token-scope-${service.id}`"
+              class="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+            >
+              <option value="">{{ t('account.tokens.scopeOff') }}</option>
+              <option v-for="action in ACTION_ORDER" :key="action" :value="action" :disabled="!actionAllowed(service, action)" :data-testid="`token-scope-${service.id}-${action}`">
+                {{ t(`account.tokens.scopeAction.${action}`) }}
+              </option>
+            </select>
+          </div>
+          <!-- The per-service permissions picker (the instance's own
+               catalog through the same-origin proxy; lazy on expand). -->
+          <div v-if="mintScopes[service.id]" class="mt-1 ml-3" :data-testid="`token-perms-${service.id}`">
+            <button
+              type="button"
+              class="text-[11px] text-slate-500 dark:text-slate-400 hover:underline"
+              :data-testid="`token-perms-toggle-${service.id}`"
+              @click="togglePermissions(service)"
+            >{{ permOpen[service.id] ? '▾' : '▸' }} {{ t('account.tokens.fieldPermissions') }}<template v-if="(permSelection[service.id] ?? []).length"> ({{ (permSelection[service.id] ?? []).length }})</template></button>
+            <div v-if="permOpen[service.id]" class="mt-2 rounded-lg border border-slate-100 dark:border-slate-700/60 p-2">
+              <p v-if="permCatalogs[service.id]?.status === 'loading'" class="text-[11px] text-slate-400" data-testid="token-perms-loading">{{ t('account.tokens.permissionsLoading') }}</p>
+              <p v-else-if="permCatalogs[service.id]?.status === 'error'" class="text-[11px] text-red-600 dark:text-red-400" data-testid="token-perms-error">{{ t('account.tokens.permissionsError') }}</p>
+              <template v-else>
+                <input
+                  v-model="permSearch"
+                  type="search"
+                  :placeholder="t('account.tokens.permissionsSearch')"
+                  data-testid="token-perms-search"
+                  class="mb-2 w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                />
+                <div v-for="group in catalogGroups(permCatalogs[service.id])" :key="group.id" class="mb-2" :data-testid="`token-perms-group-${service.id}-${group.id}`">
+                  <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-300" :title="group.description">{{ group.id }}</p>
+                  <label
+                    v-for="permission in permVisible(group)"
+                    :key="permission.id"
+                    class="flex items-start gap-2 py-0.5 text-[11px] text-slate-600 dark:text-slate-300"
+                    :data-testid="`token-perm-${service.id}-${permission.id}`"
+                  >
+                    <input
+                      type="checkbox"
+                      class="mt-0.5"
+                      :checked="(permSelection[service.id] ?? []).includes(permission.id)"
+                      @change="permToggle(service.id, permission.id)"
+                    />
+                    <span class="min-w-0"><span class="font-mono">{{ permission.id }}</span> — {{ permission.description }}</span>
+                  </label>
+                </div>
+              </template>
+            </div>
+          </div>
         </li>
       </ul>
+      <p v-if="!chosenPermissions.length" class="text-[11px] text-slate-400 dark:text-slate-500 mb-3" data-testid="token-perms-empty">{{ t('account.tokens.permissionsNone') }}</p>
       <div v-if="formMode === 'mint'" class="flex flex-wrap items-center gap-2 mb-3">
         <label class="text-xs text-slate-600 dark:text-slate-300">{{ t('account.tokens.fieldExpiry') }}</label>
         <select

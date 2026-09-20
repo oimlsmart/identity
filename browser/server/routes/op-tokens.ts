@@ -8,6 +8,12 @@
 //                                              stamp, the expiration, the
 //                                              state) — NEVER the
 //                                              plaintext, never the hash;
+//   GET    /api/op/account/tokens/catalog    — the mint picker's catalog
+//                                              projection (TODO.openapi/
+//                                              03): the TARGET INSTANCE's
+//                                              served permissions catalog
+//                                              for one scoped service,
+//                                              fetched server-side;
 //   POST   /api/op/account/tokens            — the mint: the name + the
 //                                              scope picker + the
 //                                              expiration picker → the
@@ -15,13 +21,22 @@
 //                                              doctrine — the store holds
 //                                              the SHA-256 only), the
 //                                              audit event, the
-//                                              notification email;
+//                                              notification email; the
+//                                              OPTIONAL permissions set
+//                                              validates against the
+//                                              instance's served catalog
+//                                              (fail closed);
 //   PATCH  /api/op/account/tokens/:id        — the management act
 //                                              (issue #115): the rename
 //                                              and/or the scope edit
 //                                              (the live narrowing
 //                                              bound; the direction
-//                                              audited + mailed).
+//                                              audited + mailed) and/or
+//                                              the permissions edit
+//                                              (TODO.openapi/03 — the
+//                                              same doctrine, adding a
+//                                              permission gates on fresh
+//                                              auth).
 //   DELETE /api/op/account/tokens/:id        — the revoke (the owner's
 //                                              guarded flip; the row stays
 //                                              for the audit + the org
@@ -48,6 +63,12 @@ import { sessionUser } from '../session'
 import { emitWebhookEvent } from '../webhooks/deliver'
 import { requireFreshAuth } from '../auth/op/step-up'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
+import {
+  fetchPermissionsCatalog,
+  instanceBaseUrlOf,
+  parsePermissionsPayload,
+  validatePatPermissions,
+} from '../auth/op/catalog'
 import {
   auditPat,
   hashPat,
@@ -100,12 +121,40 @@ export function createOpTokensRouter(): Hono {
     return c.json({ tokens: rows.map(row => patListRow(row)), services })
   })
 
+  // GET /api/op/account/tokens/catalog?service=<clientId> — the mint
+  // picker's catalog projection (TODO.openapi/03): the TARGET INSTANCE's
+  // served permissions catalog (its own /api/openapi.json — never a
+  // copy), fetched server-side through the one source the registry
+  // vouches for (the client's registered redirect-URI origin). The
+  // picker (the account console AND the registry's mint-for-user form —
+  // the admin session reads it the same way) renders groups →
+  // checkboxes from it. Session-gated (any signed-in account — the
+  // served catalog is the instance's public document; nothing
+  // account-scoped rides it). Honest failures: 404 the unknown/not-an-
+  // application client, 502 the unreachable or catalog-less instance.
+  tokens.get('/api/op/account/tokens/catalog', async (c) => {
+    const { user, error } = await requireUser(c)
+    if (error || !user) return error!
+    const service = (c.req.query('service') ?? '').trim()
+    if (!service) return c.json({ error: 'the service parameter is required' }, 400)
+    const store = getStore()
+    const client = await store.getOidcClient(service)
+    if (!client || client.status !== 'active') return c.json({ error: 'no such service' }, 404)
+    const base = instanceBaseUrlOf(client.redirectUris)
+    if (!base) return c.json({ error: `the service '${service}' registers no instance URL` }, 404)
+    const result = await fetchPermissionsCatalog(base)
+    if (!result.ok) {
+      return c.json({ error: `the instance at ${base} does not answer with a permissions catalog (${result.reason})` }, 502)
+    }
+    return c.json({ service, baseUrl: base, catalog: result.catalog })
+  })
+
   // POST /api/op/account/tokens — the mint. The plaintext answers ONCE
   // (this response), never stores, never re-answers.
   tokens.post('/api/op/account/tokens', async (c) => {
     const { user, error } = await requireUser(c)
     if (error || !user) return error!
-    const body = await c.req.json<{ name?: unknown; scopes?: unknown; expiresInDays?: unknown }>().catch(() => null)
+    const body = await c.req.json<{ name?: unknown; scopes?: unknown; expiresInDays?: unknown; permissions?: unknown }>().catch(() => null)
     const name = typeof body?.name === 'string' ? body.name.trim() : ''
     if (name.length < 1 || name.length > 60) {
       return c.json({ error: 'the token needs a name (1–60 characters) — the console list labels by it' }, 400)
@@ -116,6 +165,10 @@ export function createOpTokensRouter(): Hono {
     }
     const expiry = resolvePatExpiry(body?.expiresInDays)
     if ('error' in expiry) return c.json({ error: expiry.error }, 400)
+    const permissions = parsePermissionsPayload(body?.permissions)
+    if (!permissions.ok) {
+      return c.json({ error: 'the permissions are an optional array of the instance\'s catalog ids (strings)' }, 400)
+    }
 
     // THE NARROWING BOUND, at mint (the exchange re-judges it live): the
     // session's resolved context IS the token's ceiling (the account acts
@@ -129,6 +182,12 @@ export function createOpTokensRouter(): Hono {
     const verdict = await resolvePatScopesForAccount(store, user, context, scopes, runtimeEnv<EnvLike>(c))
     if (!verdict.ok) return c.json({ error: verdict.error }, 403)
 
+    // The permissions bound (TODO.openapi/03): validated against the
+    // TARGET INSTANCES' served catalogs (fail closed — a permission
+    // grant is a deliberate act), then pinned verbatim.
+    const permissionsVerdict = await validatePatPermissions(store, scopes.map(s => s.service), permissions.requested)
+    if (!permissionsVerdict.ok) return c.json({ error: permissionsVerdict.error }, 400)
+
     const plaintext = mintPatSecret()
     const pat = await store.createPersonalAccessToken({
       id: crypto.randomUUID(),
@@ -137,6 +196,7 @@ export function createOpTokensRouter(): Hono {
       tokenHash: await hashPat(plaintext),
       tokenPrefix: patDisplayPrefix(plaintext),
       scopes: scopes.map(s => `${s.service}:${s.action}`),
+      permissions: permissionsVerdict.permissions,
       orgContext: context.orgId,
       expiresAt: expiry.expiresAt,
     })
@@ -144,6 +204,7 @@ export function createOpTokensRouter(): Hono {
       pat: pat.id,
       name,
       scopes: pat.scopes,
+      ...(pat.permissions.length ? { permissions: pat.permissions } : {}),
       orgContext: pat.orgContext,
       expiresAt: pat.expiresAt,
     })
@@ -212,9 +273,9 @@ export function createOpTokensRouter(): Hono {
     if (pat.revokedAt || new Date(pat.expiresAt).getTime() <= Date.now()) {
       return c.json({ error: 'this token is revoked or expired — mint a fresh one instead of editing a dead credential' }, 409)
     }
-    const body = await c.req.json<{ name?: unknown; scopes?: unknown }>().catch(() => null)
-    if (!body || (body.name === undefined && body.scopes === undefined)) {
-      return c.json({ error: 'the edit needs a name and/or a scopes field' }, 400)
+    const body = await c.req.json<{ name?: unknown; scopes?: unknown; permissions?: unknown }>().catch(() => null)
+    if (!body || (body.name === undefined && body.scopes === undefined && body.permissions === undefined)) {
+      return c.json({ error: 'the edit needs a name, a scopes, and/or a permissions field' }, 400)
     }
     const config = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw))
 
@@ -301,6 +362,55 @@ export function createOpTokensRouter(): Hono {
             tokenName: updated.name,
             change: added.length ? 'widened' : 'narrowed',
             scopes: nextScopes.join(', '),
+            expires: new Date(pat.expiresAt).toISOString().slice(0, 10),
+          },
+        })
+      }
+    }
+
+    if (body.permissions !== undefined) {
+      const parsed = parsePermissionsPayload(body.permissions)
+      if (!parsed.ok) {
+        return c.json({ error: 'the permissions are an array of the instance\'s catalog ids (strings; [] clears the set)' }, 400)
+      }
+      // The validation targets the token's EFFECTIVE scope set: the
+      // scopes act above has already applied its replacement (when this
+      // edit carried one), so the row in `updated` pins it — a
+      // permission must always sit inside a service the token can
+      // actually reach.
+      const effectiveServices = (normalizePatScopes(updated.scopes) ?? []).map(s => s.service)
+      const permissionsVerdict = await validatePatPermissions(store, effectiveServices, parsed.requested)
+      if (!permissionsVerdict.ok) return c.json({ error: permissionsVerdict.error }, 400)
+      const nextPermissions = permissionsVerdict.permissions
+      const addedPerms = nextPermissions.filter(p => !updated.permissions.includes(p))
+      const removedPerms = updated.permissions.filter(p => !nextPermissions.includes(p))
+      if (addedPerms.length || removedPerms.length) {
+        // The widening-sensitive act (the scope edit's doctrine): ADDING
+        // a catalog permission widens what the instance will let the
+        // token do — a stale session refuses with the distinct
+        // fresh_auth_required shape; a removal-only edit never gates.
+        if (addedPerms.length) {
+          const stale = await requireFreshAuth(c)
+          if (stale) return stale
+        }
+        updated = (await store.updatePersonalAccessTokenPermissions(pat.id, user.id, nextPermissions))!
+        const action = addedPerms.length ? 'account.pat_permissions_widened' : 'account.pat_permissions_narrowed'
+        await auditPat(action, user.id, { userId: user.id, userName: user.name }, {
+          pat: pat.id,
+          name: updated.name,
+          added: addedPerms,
+          removed: removedPerms,
+          permissions: nextPermissions,
+        })
+        await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+          userId: user.id,
+          template: 'pat_edited',
+          issuer: config.issuer,
+          params: {
+            name: user.name,
+            tokenName: updated.name,
+            change: addedPerms.length ? 'widened' : 'narrowed',
+            scopes: updated.scopes.join(', '),
             expires: new Date(pat.expiresAt).toISOString().slice(0, 10),
           },
         })

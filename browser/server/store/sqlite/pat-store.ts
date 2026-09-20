@@ -24,9 +24,9 @@ import type Database from 'better-sqlite3'
 import { storeTimeToIso } from './factors-store'
 import type { PersonalAccessToken } from '../../store'
 
-/** The row → the seam's shape. The scopes cell parses defensively (a
- *  hand-edited row's malformed JSON reads as the empty set — never
- *  trusted, never breaking the read). */
+/** The row → the seam's shape. The scopes + permissions cells parse
+ *  defensively (a hand-edited row's malformed JSON reads as the empty
+ *  set — never trusted, never breaking the read). */
 function toPersonalAccessToken(row: Record<string, unknown>): PersonalAccessToken {
   let scopes: string[] = []
   try {
@@ -40,6 +40,7 @@ function toPersonalAccessToken(row: Record<string, unknown>): PersonalAccessToke
     tokenHash: row.token_hash as string,
     tokenPrefix: row.token_prefix as string,
     scopes,
+    permissions: parseStringArrayCell(row.permissions),
     orgContext: (row.org_context as string | null) ?? null,
     createdAt: storeTimeToIso(row.created_at as string)!,
     expiresAt: storeTimeToIso(row.expires_at as string)!,
@@ -51,6 +52,16 @@ function toPersonalAccessToken(row: Record<string, unknown>): PersonalAccessToke
   }
 }
 
+/** A JSON string-array cell's defensive read (the scopes cell's
+ *  posture, shared with the 0031 permissions column). */
+function parseStringArrayCell(cell: unknown): string[] {
+  try {
+    const parsed = JSON.parse((cell as string | null) ?? '[]') as unknown
+    if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === 'string')
+  } catch { /* a malformed cell reads as the empty set */ }
+  return []
+}
+
 export function createPersonalAccessToken(db: Database.Database, input: {
   id: string
   userId: string
@@ -58,16 +69,17 @@ export function createPersonalAccessToken(db: Database.Database, input: {
   tokenHash: string
   tokenPrefix: string
   scopes: string[]
+  permissions?: string[]
   orgContext: string | null
   expiresAt: string
 }): PersonalAccessToken {
   db.prepare(
     `INSERT INTO personal_access_tokens
-       (id, user_id, name, token_hash, token_prefix, scopes, org_context, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, user_id, name, token_hash, token_prefix, scopes, permissions, org_context, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.id, input.userId, input.name, input.tokenHash, input.tokenPrefix,
-    JSON.stringify(input.scopes), input.orgContext, input.expiresAt,
+    JSON.stringify(input.scopes), JSON.stringify(input.permissions ?? []), input.orgContext, input.expiresAt,
   )
   return getPersonalAccessToken(db, input.id)!
 }
@@ -127,6 +139,17 @@ export function updatePersonalAccessTokenScopes(db: Database.Database, id: strin
   const changes = db.prepare(
     'UPDATE personal_access_tokens SET scopes = ? WHERE id = ? AND user_id = ?',
   ).run(JSON.stringify(scopes), id, userId).changes
+  return changes > 0 ? getPersonalAccessToken(db, id) : null
+}
+
+/** The permissions-edit act (TODO.openapi/03): the route validates
+ *  against the target instance's served catalog; the store only writes
+ *  (the scope-edit act's posture). Answers the updated row, or null
+ *  when not the owner's. */
+export function updatePersonalAccessTokenPermissions(db: Database.Database, id: string, userId: string, permissions: string[]): PersonalAccessToken | null {
+  const changes = db.prepare(
+    'UPDATE personal_access_tokens SET permissions = ? WHERE id = ? AND user_id = ?',
+  ).run(JSON.stringify(permissions), id, userId).changes
   return changes > 0 ? getPersonalAccessToken(db, id) : null
 }
 

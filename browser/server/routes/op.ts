@@ -117,7 +117,7 @@ import {
 } from '../auth/op/service-clients'
 import {
   auditPat, hashPat, narrowPatScopesParam, patExchangeBeatDue, patExpiryNoticeDue,
-  patPlausible, patTokenClaims, resolvePatScopesForAccount,
+  patIntrospectionClaims, patPlausible, patTokenClaims, resolvePatScopesForAccount,
   delegationScopesParam, delegationTokenClaims,
   DELEGATION_TOKEN_TYPE, PAT_EXCHANGE_GRANT, PAT_EXCHANGE_HEARTBEAT_MS, PAT_TOKEN_TYPE,
 } from '../auth/op/tokens'
@@ -1503,8 +1503,10 @@ export function createOpRouter(): Hono {
   // client's LIVE standing — never a table read (there are no rows). A
   // refresh token answers { active: false }: the refresh rows serve the
   // token endpoint's rotation, never introspection (the named scope of
-  // this surface). Everything unknown, expired, or revoked answers the
-  // honest inactive.
+  // this surface). The PAT class (TODO.openapi/03 — the platform's
+  // per-request enforcement read) answers from the credential row with
+  // the LIVE standing judgment (the comment at the PAT leg below).
+  // Everything unknown, expired, or revoked answers the honest inactive.
   op.post('/op/introspect', async (c) => {
     const contentType = c.req.header('content-type') ?? ''
     if (!contentType.includes('application/x-www-form-urlencoded')) {
@@ -1568,6 +1570,59 @@ export function createOpRouter(): Hono {
             ...(typeof claims.iat === 'number' ? { iat: claims.iat } : {}),
             exp: claims.exp,
           })
+        }
+      }
+    }
+
+    // The PAT half (TODO.openapi/03 — the platform contract's
+    // access-token class): a RAW personal access token, which never
+    // resolved above (no access-token row, not a JWT), introspects
+    // ACTIVE with the LIVE judgment — the account's standing, the pinned
+    // org context and every scope re-judged against the account's
+    // now-truth (the exchange's exact lattice, patTokenClaims's
+    // resolution), so a role lost since the mint narrows the answer and
+    // a revoked / expired / standing-lost token reads inactive. This IS
+    // the platform's per-request enforcement read (no RP-side cache —
+    // revocation is instant here); the throttled heartbeat keeps the
+    // use stamps + the audit beat from becoming per-request writes.
+    // Everything unknown/revoked/expired falls to the ONE honest
+    // inactive below — silent, like every other introspection miss (the
+    // RFC's indistinguishable answer; the caller's hot path never
+    // drafts the journal per probe). Client auth above stays the gate.
+    if (patPlausible(token)) {
+      const pat = await store.findPersonalAccessTokenByHash(await hashPat(token))
+      if (pat && !pat.revokedAt && new Date(pat.expiresAt).getTime() > Date.now()) {
+        const accountRow = (await store.listUsers()).find(u => u.id === pat.userId)
+        const account = await store.getUserById(pat.userId)
+        if (accountRow && account && accountRow.active && accountRow.provider !== 'erased') {
+          const context = await claimsContextFor(store, account, pat.orgContext)
+          const pinned = normalizePatScopes(pat.scopes) ?? []
+          const granted: PatScope[] = []
+          const serviceRoles: Record<string, string[]> = {}
+          for (const scope of pinned) {
+            const verdict = await resolvePatScopesForAccount(store, account, context, [scope], runtimeEnv<EnvLike>(c))
+            if (verdict.ok) {
+              granted.push(scope)
+              Object.assign(serviceRoles, verdict.serviceRoles)
+            }
+          }
+          if (granted.length) {
+            const nowMs = Date.now()
+            const nowIso = new Date(nowMs).toISOString()
+            const useStale = !pat.lastUsedAt || nowMs - new Date(pat.lastUsedAt).getTime() >= PAT_EXCHANGE_HEARTBEAT_MS
+            const beatDue = patExchangeBeatDue(pat, nowMs)
+            if (useStale || beatDue) {
+              await store.stampPersonalAccessTokenUse(pat.id, { usedAt: nowIso, ...(beatDue ? { auditAt: nowIso } : {}) })
+            }
+            if (beatDue) {
+              await auditPat('account.pat_introspected', pat.userId, {}, {
+                pat: pat.id,
+                name: pat.name,
+                client: client!.clientId,
+              })
+            }
+            return c.json(patIntrospectionClaims(pat, account, context, granted, serviceRoles, config))
+          }
         }
       }
     }

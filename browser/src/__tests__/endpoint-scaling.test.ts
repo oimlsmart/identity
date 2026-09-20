@@ -37,6 +37,7 @@ const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
 
 import { installStore, type ServerStore } from '../../server/store'
+import { hashPat, mintPatSecret, patDisplayPrefix } from '../../server/auth/op/tokens'
 import { StoreCallCounter, expectScalingInvariant, type StoreCallReport } from './endpoint-scaling'
 
 const SMALL = 3
@@ -178,6 +179,21 @@ async function seedWebhookSubs(from: number, count: number): Promise<void> {
     await store.createWebhookSubscription({
       id: crypto.randomUUID(), accountId: memberId,
       url: `https://gate-${i}.example/hooks`, events: ['account.password'], secret: `oswh_gate_${i}`,
+    })
+  }
+}
+
+/** N more personal access tokens on the member account (TODO.openapi/03
+ *  — the registry's per-user TOKENS list leg). */
+async function seedPatTokens(from: number, count: number): Promise<void> {
+  for (let i = from; i < from + count; i++) {
+    const plaintext = mintPatSecret()
+    await store.createPersonalAccessToken({
+      id: crypto.randomUUID(), userId: memberId,
+      name: `Gate Token ${i}`,
+      tokenHash: await hashPat(plaintext), tokenPrefix: patDisplayPrefix(plaintext),
+      scopes: ['gate-client:read'], permissions: [], orgContext: null,
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
     })
   }
 }
@@ -703,6 +719,17 @@ describe('the pinned constants (the regression net)', () => {
       request: () => app.fetch(req('/api/op/account/activity', memberCookie)),
     })
     expectScalingInvariant({ label: 'GET /api/op/account/activity as member', ...leg, largeRows: SMALL })
+  })
+
+  it('GET /api/op/registry/users/:id/tokens (the per-user PAT list, TODO.openapi/03)', async () => {
+    // One users read + ONE listPersonalAccessTokens read — invariant to
+    // the row count by construction; the gate proves it stays that way.
+    const leg = await runLeg({
+      seedSmall: () => seedPatTokens(0, SMALL).then(() => SMALL),
+      grow: () => seedPatTokens(SMALL, LARGE - SMALL).then(() => LARGE),
+      request: () => app.fetch(req(`/api/op/registry/users/${memberId}/tokens`, adminCookie)),
+    })
+    expectScalingInvariant({ label: 'GET /api/op/registry/users/:id/tokens as admin', ...leg })
   })
 
   it('GET /api/op/clients (the client registry)', async () => {

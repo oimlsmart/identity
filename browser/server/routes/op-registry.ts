@@ -90,10 +90,19 @@
 //                                                      sessions
 //   POST   /api/op/registry/users/:id/sessions/revoke-all
 //                                                    — the admin ends
-//                                                      EVERY live session
-//                                                      of the account (the
-//                                                      light act, short of
-//                                                      deactivation)
+//                                                    EVERY live session
+//   GET    /api/op/registry/users/:id/tokens    — the account's developer
+//                                                    tokens (metadata
+//                                                    only; TODO.openapi/03)
+//   POST   /api/op/registry/users/:id/tokens    — the mint-FOR-user (the
+//                                                    target's standing
+//                                                    bounds it; the admin
+//                                                    is the audit actor;
+//                                                    TODO.openapi/03)
+//   DELETE /api/op/registry/users/:id/tokens/:tokenId
+//                                                    — the revoke-for-user
+//                                                    (guarded, audited;
+//                                                    TODO.openapi/03)
 //   DELETE /api/op/registry/users/:id/factors/passkeys/:cred
 //   DELETE /api/op/registry/users/:id/factors/totp/:tid
 //                                                    — the admin revokes
@@ -122,14 +131,22 @@
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
-import { getStore, type AuthUserPayload, type OpClientRoleAssignment, type OrgRegistryContact, type UserAdminRow } from '../store'
+import { getStore, normalizePatScopes, type AuthUserPayload, type OpClientRoleAssignment, type OrgRegistryContact, type UserAdminRow } from '../store'
 import { getInstanceProfile } from '../profile'
 import { isRegistryOrgKind, listOrgEndorsements, listRegistryOrganizations, resolveRegistryOrg, validateOrgLinks, type RegistryOrg, type RegistryOrgKind } from '../auth/org-registry'
 import { listOrgSigningKeys } from '../auth/org-signing-keys'
 import { accountRoleSet, rolesForClient } from '../auth/op/claims'
+import { claimsContextFor } from '../auth/op/memberships'
 import { prepareBackchannelLogout } from '../auth/op/logout'
 import { orgAuditSlice } from '../auth/op/org-audit'
-import { patListRow } from '../auth/op/tokens'
+import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
+import { parsePermissionsPayload, validatePatPermissions } from '../auth/op/catalog'
+import {
+  auditPat, hashPat, mintPatSecret, patDisplayPrefix, patListRow,
+  resolvePatExpiry, resolvePatScopesForAccount,
+} from '../auth/op/tokens'
+import { sendOpSecurityMail } from '../auth/op/mail'
+import type { MailEnv } from '../mailer'
 import { sessionUser } from '../session'
 
 type EnvLike = Record<string, string | undefined>
@@ -395,7 +412,7 @@ export function createOpRegistryRouter(): Hono {
     // clientRoles field AND the app-access computation both read this
     // set (appAccessFor groups it by client, never a per-client loop).
     const clientRoles = await store.listOpClientRoles(user.id)
-    const [methods, links, sessions, org, memberships, registryOrgs, profile, trail, appAccess, passkeys, totp, recovery] = await Promise.all([
+    const [methods, links, sessions, org, memberships, registryOrgs, profile, trail, appAccess, passkeys, totp, recovery, tokens] = await Promise.all([
       store.countSignInMethods(user.id),
       store.listIdentityLinks(user.id),
       store.listUserSessions(user.id),
@@ -412,6 +429,10 @@ export function createOpRegistryRouter(): Hono {
       store.listWebauthnCredentials(user.id),
       store.listTotpSecrets(user.id),
       store.recoveryCodeState(user.id),
+      // TODO.openapi/03: the account's developer tokens (metadata only —
+      // the per-user page's TOKENS section; one read, invariant to the
+      // row count).
+      store.listPersonalAccessTokens(user.id),
     ])
     const orgsById = new Map(registryOrgs.map(o => [o.id, o]))
     const factors = {
@@ -472,6 +493,9 @@ export function createOpRegistryRouter(): Hono {
       })),
       activity: trail.slice(0, ACTIVITY_PAGE),
       activityTotal: trail.length,
+      // TODO.openapi/03 — the developer tokens (the metadata-only
+      // projection; the hash never leaves a read).
+      tokens: tokens.map(row => patListRow(row)),
     })
   })
 
@@ -606,6 +630,150 @@ export function createOpRegistryRouter(): Hono {
     })
     if (count > 0) floatBackchannel()
     return c.json({ ok: true, revoked: count })
+  })
+
+  // ── the developer tokens' admin half (TODO.openapi/03) ──────────────
+  // The administrator mints FOR an account and revokes an account's
+  // token (the registry's per-user page's TOKENS section). The doctrine
+  // the self-service mint follows holds verbatim — the narrowing bound
+  // re-judges the TARGET's live standing (never the admin's), the
+  // expiration is mandatory + bounded, the permissions validate against
+  // the target instances' served catalogs (fail closed), and the
+  // plaintext answers ONCE. The provenance rides the audit chain's
+  // ACTOR fields: user_id/user_name name the administering account (the
+  // row itself carries no created_by — the chain IS the provenance),
+  // and the holder's mint notice mails as for a self-mint.
+
+  /** The admin mint's shared body validation + act. Answers the JSON
+   *  response (201 with the plaintext, or the honest refusal). */
+  async function mintTokenForUser(
+    c: Context,
+    admin: AuthUserPayload,
+    target: { id: string; name: string; email: string; role: string; roles?: string[] | null; orgId: string | null },
+    body: Record<string, unknown> | null,
+  ): Promise<Response> {
+    const name = typeof body?.name === 'string' ? body.name.trim() : ''
+    if (name.length < 1 || name.length > 60) {
+      return c.json({ error: 'the token needs a name (1–60 characters) — the console list labels by it' }, 400)
+    }
+    const scopes = normalizePatScopes(body?.scopes)
+    if (!scopes) {
+      return c.json({ error: 'the scopes are the PAT grammar: a non-empty list of \'<service>:<read|write|admin>\'' }, 400)
+    }
+    const expiry = resolvePatExpiry(body?.expiresInDays)
+    if ('error' in expiry) return c.json({ error: expiry.error }, 400)
+    const permissions = parsePermissionsPayload(body?.permissions)
+    if (!permissions.ok) {
+      return c.json({ error: 'the permissions are an optional array of the instance\'s catalog ids (strings)' }, 400)
+    }
+    const store = getStore()
+    // THE NARROWING BOUND against the TARGET's standing (the raw row —
+    // never the admin's session): the target's effective org context is
+    // the token's ceiling, exactly the self-mint's rule with the
+    // holder's own context in place of the session's.
+    const context = await claimsContextFor(store, target, target.orgId ?? null)
+    const verdict = await resolvePatScopesForAccount(store, target, context, scopes, runtimeEnv<EnvLike>(c))
+    if (!verdict.ok) return c.json({ error: verdict.error }, 403)
+    // The permissions bound: the target instances' served catalogs (the
+    // same fail-closed computation the self-mint runs).
+    const permissionsVerdict = await validatePatPermissions(store, scopes.map(s => s.service), permissions.requested)
+    if (!permissionsVerdict.ok) return c.json({ error: permissionsVerdict.error }, 400)
+
+    const plaintext = mintPatSecret()
+    const pat = await store.createPersonalAccessToken({
+      id: crypto.randomUUID(),
+      userId: target.id,
+      name,
+      tokenHash: await hashPat(plaintext),
+      tokenPrefix: patDisplayPrefix(plaintext),
+      scopes: scopes.map(s => `${s.service}:${s.action}`),
+      permissions: permissionsVerdict.permissions,
+      orgContext: context.orgId,
+      expiresAt: expiry.expiresAt,
+    })
+    // The audit names the ADMIN as the actor (the chain's provenance
+    // fields); the metadata carries the holder + the grant set.
+    await auditPat('account.pat_minted', target.id, { userId: admin.id, userName: admin.name }, {
+      pat: pat.id,
+      name,
+      scopes: pat.scopes,
+      ...(pat.permissions.length ? { permissions: pat.permissions } : {}),
+      orgContext: pat.orgContext,
+      expiresAt: pat.expiresAt,
+      by: 'administrator',
+    })
+    // The holder learns of every mint on their credential (the same
+    // notice a self-mint sends — never blocking the act).
+    const config = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw))
+    await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+      userId: target.id,
+      template: 'pat_minted',
+      issuer: config.issuer,
+      params: {
+        name: target.name,
+        tokenName: name,
+        scopes: pat.scopes.join(', '),
+        expires: new Date(pat.expiresAt).toISOString().slice(0, 10),
+      },
+    })
+    return c.json({ token: { ...patListRow(pat), plaintext } }, 201)
+  }
+
+  // GET /api/op/registry/users/:id/tokens — the account's tokens (the
+  // metadata only; the detail aggregate carries the same list — this
+  // standalone read serves the section's refresh).
+  registry.get('/api/op/registry/users/:id/tokens', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const user = (await store.listUsers()).find(u => u.id === c.req.param('id'))
+    if (!user) return c.json({ error: 'not found' }, 404)
+    const rows = await store.listPersonalAccessTokens(user.id)
+    return c.json({ tokens: rows.map(row => patListRow(row)) })
+  })
+
+  // POST /api/op/registry/users/:id/tokens — the mint-for-user. The
+  // plaintext answers ONCE (this response — the admin hands it to the
+  // holder through their own channel; the store holds only the hash).
+  registry.post('/api/op/registry/users/:id/tokens', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const accountRow = (await store.listUsers()).find(u => u.id === c.req.param('id'))
+    const user = accountRow ? await store.getUserById(accountRow.id) : null
+    if (!accountRow || !user) return c.json({ error: 'not found' }, 404)
+    // A dead account holds no tokens (the standing leg — the exchange
+    // and the introspection refuse them regardless).
+    if (!accountRow.active || accountRow.provider === 'erased') {
+      return c.json({ error: 'the account is deactivated or erased — its credentials cannot be minted' }, 409)
+    }
+    const body = await c.req.json().catch(() => null)
+    return mintTokenForUser(c, gate.user, {
+      id: user.id, name: user.name, email: user.email,
+      role: user.role, roles: user.roles ?? null, orgId: user.orgId ?? null,
+    }, body)
+  })
+
+  // DELETE /api/op/registry/users/:id/tokens/:tokenId — the revoke-
+  // for-user (the guarded flip: the store scopes on the OWNER, so a
+  // foreign token id is a 404; the chain names the admin as actor).
+  registry.delete('/api/op/registry/users/:id/tokens/:tokenId', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const user = (await store.listUsers()).find(u => u.id === c.req.param('id'))
+    if (!user) return c.json({ error: 'not found' }, 404)
+    const pat = await store.getPersonalAccessToken(c.req.param('tokenId'))
+    if (!pat || pat.userId !== user.id) return c.json({ error: 'no such token' }, 404)
+    const flipped = await store.revokePersonalAccessToken(pat.id, user.id, gate.user.email)
+    if (!flipped) return c.json({ error: 'this token is already revoked' }, 409)
+    await auditPat('account.pat_revoked', user.id, { userId: gate.user.id, userName: gate.user.name }, {
+      pat: pat.id,
+      name: pat.name,
+      scopes: pat.scopes,
+      by: 'administrator',
+    })
+    return c.json({ ok: true })
   })
 
   // ── the organization registry's lifecycle (TODO.identity-features/05 ─

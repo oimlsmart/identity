@@ -171,6 +171,7 @@ import {
   listPersonalAccessTokens,
   revokePersonalAccessToken,
   renamePersonalAccessToken,
+  updatePersonalAccessTokenPermissions,
   updatePersonalAccessTokenScopes,
   stampPersonalAccessTokenUse,
 } from './sqlite/pat-store'
@@ -803,6 +804,7 @@ export class SqliteServerStore implements ServerStore {
     tokenHash: string
     tokenPrefix: string
     scopes: string[]
+    permissions?: string[]
     orgContext: string | null
     expiresAt: string
   }): Promise<PersonalAccessToken> {
@@ -828,6 +830,9 @@ export class SqliteServerStore implements ServerStore {
   }
   async updatePersonalAccessTokenScopes(id: string, userId: string, scopes: string[]): Promise<PersonalAccessToken | null> {
     return updatePersonalAccessTokenScopes(this.db, id, userId, scopes)
+  }
+  async updatePersonalAccessTokenPermissions(id: string, userId: string, permissions: string[]): Promise<PersonalAccessToken | null> {
+    return updatePersonalAccessTokenPermissions(this.db, id, userId, permissions)
   }
   async stampPersonalAccessTokenUse(
     id: string,

@@ -86,8 +86,10 @@ export const PAT_MAX_EXPIRY_DAYS = 366
  *  mails the holder ONCE (the expiry_notified_at mark). */
 export const PAT_EXPIRY_NOTICE_WINDOW_MS = 7 * 86_400_000
 
-/** The exchange audit's heartbeat: the use stamps + the audit event fire
- *  at most once per window per token (never a per-request write). */
+/** The use-path audit's heartbeat: the use stamps + the audit event fire
+ *  at most once per window per token (never a per-request write). The
+ *  exchange AND the introspection share the one row beat
+ *  (last_exchange_audit_at — TODO.openapi/03 widened the readers). */
 export const PAT_EXCHANGE_HEARTBEAT_MS = 3_600_000
 
 /** The administration-class permissions (the admin action class's
@@ -281,6 +283,49 @@ export function patTokenClaims(
   return claims
 }
 
+/** The introspection answer's claim set (TODO.openapi/03 — the RFC 7662
+ *  widening): the platform's per-request enforcement read. Where
+ *  patTokenClaims mints a NEW short-lived JWT, this mirrors the PAT's
+ *  OWN standing: the LIVE standing re-judgment (the caller resolved
+ *  granted + serviceRoles against the account's now-truth — the answer
+ *  is the now-judgment, the platform re-judges locally on top), the
+ *  pinned permissions echoed verbatim (the OP never judges them — the
+ *  instance's catalog + its own gate do), and the PAT's own expiry (the
+ *  credential's ceiling, not a fresh TTL). token_type names the
+ *  access-token class honestly (this IS the bearer credential, not an
+ *  exchange product). */
+export function patIntrospectionClaims(
+  pat: PersonalAccessToken,
+  account: { id: string },
+  context: OrgContextResolution,
+  granted: readonly PatScope[],
+  serviceRoles: Record<string, string[]>,
+  config: { issuer: string },
+): Record<string, unknown> {
+  const services = [...new Set(granted.map(s => s.service))].sort()
+  const claims: Record<string, unknown> = {
+    active: true,
+    iss: config.issuer,
+    sub: account.id,
+    scope: granted.map(s => `${s.service}:${s.action}`).join(' '),
+    permissions: pat.permissions,
+    service_roles: Object.fromEntries(
+      services.map(s => [s, serviceRoles[s] ?? []]),
+    ),
+    pat: pat.id,
+    token_type: 'access_token',
+    exp: Math.floor(new Date(pat.expiresAt).getTime() / 1000),
+  }
+  // The active-org context (never a dead org's claims — the same
+  // judgment patTokenClaims makes: the caller resolved the pinned
+  // context against the LIVE membership).
+  if (context.orgId) claims.org = context.orgId
+  if (context.orgId && context.cone) {
+    claims.cone = encodeOrgMemberCone(context.cone) ?? 'org-wide'
+  }
+  return claims
+}
+
 // ── the audit chain (entity_type 'account' — the account's own
 //    activity feed shows them, the factors' auditFactor discipline) ───
 
@@ -319,13 +364,15 @@ export function patStateOf(pat: PersonalAccessToken, now = Date.now()): 'active'
 }
 
 /** The metadata-only projection (NEVER the hash: every read surface is
- *  a display surface). */
+ *  a display surface). permissions rides as the pinned id set (the
+ *  console's row line — TODO.openapi/03). */
 export function patListRow(pat: PersonalAccessToken, now = Date.now()) {
   return {
     id: pat.id,
     name: pat.name,
     prefix: pat.tokenPrefix,
     scopes: pat.scopes,
+    permissions: pat.permissions,
     orgContext: pat.orgContext,
     createdAt: pat.createdAt,
     expiresAt: pat.expiresAt,
