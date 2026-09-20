@@ -292,6 +292,22 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // Health check
   app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
+  // RFC 9116 (TODO.modern/14): the vulnerability disclosure pointer.
+  // The contact is the repository's private security advisories — the
+  // real, monitored channel for this estate (never an invented
+  // mailbox). Expires yearly; the deploy review refreshes it.
+  app.get('/.well-known/security.txt', (c) => {
+    return c.text(
+      'Contact: https://github.com/oimlsmart/identity/security/advisories/new\n'
+        + 'Expires: 2027-09-20T00:00:00Z\n'
+        + 'Preferred-Languages: en, fr\n'
+        + 'Canonical: https://id.oimlsmart.org/.well-known/security.txt\n'
+        + 'Policy: https://github.com/oimlsmart/identity/blob/main/docs/deployment/identity.md\n',
+      200,
+      { 'content-type': 'text/plain; charset=utf-8' },
+    )
+  })
+
   // The sign-in panel feed (the ISO-benchmark structural item 4, the
   // visual-elevation wave): the honest JSON the editorial left panel
   // rotates through — scheduled (startDate/endDate, inclusive, date-only),
