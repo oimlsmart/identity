@@ -1,6 +1,6 @@
 # TODO.modern/06 — step-up authentication + the risk signals
 
-**Priority:** P1 · **Status:** IMPLEMENTED (the OIDC step-up core) — the risk signals are the honest open half
+**Priority:** P1 · **Status:** COMPLETE — the step-up core + the confirm-it's-you gate + the risk signals + the notice/banner advisories
 
 ## What shipped (the core)
 1. **The step-up module** (`browser/server/auth/op/step-up.ts`): the achieved-acr

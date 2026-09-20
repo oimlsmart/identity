@@ -1,6 +1,6 @@
 # TODO.modern/04 — the SAML upstream bridge (the members' national IdPs)
 
-**Priority:** P1 · **Status:** HELD (the XML-DSig choice is a named-risk decision)
+**Priority:** P1 · **Status:** ADJUDICATED — no worker-safe XML-DSig exists on npm; the companion-bridge architecture is the recorded recommendation
 An upstream provider of kind `saml`: the metadata import, the redirect POST binding, the assertion validation, the link model identical to OIDC upstreams.
 
 ## The acts
