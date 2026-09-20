@@ -98,6 +98,21 @@ stop after Act 2. Interoperation then rides the claims: services
 that accept both issuers simply see two providers (the multi-issuer
 posture every OIDC RP library supports natively).
 
+**Step zero — the address discovers the issuer (WebFinger, RFC 7033).**
+Before any configuration, a relying party holding a bare email address
+on this domain can discover the issuer with zero configuration:
+
+```sh
+curl 'https://id.oimlsmart.org/.well-known/webfinger?resource=acct:ada@id.oimlsmart.org'
+```
+
+The JRD answers the `http://openid.net/specs/connect/1.0/issuer` link
+(`https://id.oimlsmart.org`) — the domain decides (any local part; the
+mailbox is never probed), and a foreign domain's resource answers 404.
+An RP implementing the standard discovery dance starts here; the
+member's own instance serves the same endpoint for ITS domain when you
+deploy this software.
+
 ## The verification leg
 
 The federation wiring above is proven in this repo's test suite:
