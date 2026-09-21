@@ -107,7 +107,7 @@ change requires re-recording the golden, never editing assertions to pass.
   (`oiml-smart-platform-identity`) is owned by this repo's deployment. The
   migration set is this repo's own (`browser/migrations/`); wrangler keys
   bookkeeping on filenames — append expand-only, never renumber.
-- **The issuer is load-bearing.** `OP_ISSUER=https://id.oimlsmart.org` in
+- **The issuer is fixed.** `OP_ISSUER=https://id.oimlsmart.org` in
   production; never repoint outside the cutover plan.
 - **Deploys are deliberate acts.** Only an `id-v*` tag runs
   `deploy-identity.yml` (contract gate → e2e legs → build →
