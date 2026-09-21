@@ -40,6 +40,9 @@ export function openSqliteDatabase(path: string): Database.Database {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   const db = new Database(path)
   db.pragma('journal_mode = WAL')
+  // The pre-schema healing (BEFORE schema.sql: its CREATE INDEX on the
+  // redelivery columns would fail against an old-shape table).
+  healWebhookDeliveryColumns(db)
   db.exec(readFileSync(join(__dirname, 'schema.sql'), 'utf-8'))
   migrateAuthTables(db)
   return db
@@ -52,6 +55,22 @@ export function getDb(): Database.Database {
   if (_db) return _db
   _db = openSqliteDatabase(DB_PATH)
   return _db
+}
+
+/** The webhook deliveries' redelivery half (0033): a pre-0033 file
+ *  (the self-host upgrade path — node runs no migration set) heals
+ *  before the shipped schema executes; a fresh file has no table yet
+ *  and this no-ops (schema.sql creates the full shape). */
+function healWebhookDeliveryColumns(db: Database.Database): void {
+  if (!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='webhook_deliveries'").get()) return
+  const deliveryCols = db.prepare('PRAGMA table_info(webhook_deliveries)').all() as Array<{ name: string }>
+  if (!deliveryCols.some(c => c.name === 'body')) {
+    db.exec('ALTER TABLE webhook_deliveries ADD COLUMN body TEXT')
+  }
+  if (!deliveryCols.some(c => c.name === 'redelivered_at')) {
+    db.exec('ALTER TABLE webhook_deliveries ADD COLUMN redelivered_at TEXT')
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_redelivery ON webhook_deliveries (delivered, redelivered_at, recorded_at)')
 }
 
 /** Migration-safe column adds for DBs created before a schema change. */

@@ -567,6 +567,8 @@ interface WebhookDeliveryRow {
   delivered: number
   body_digest: string
   recorded_at: string
+  body: string | null
+  redelivered_at: string | null
 }
 
 function webhookRowToSubscription(row: WebhookRow): WebhookSubscription {
@@ -598,6 +600,8 @@ function webhookRowToDelivery(row: WebhookDeliveryRow): WebhookDeliveryRecord {
     delivered: row.delivered === 1,
     bodyDigest: row.body_digest,
     recordedAt: row.recorded_at,
+    body: row.body,
+    redeliveredAt: row.redelivered_at,
   }
 }
 
@@ -2845,6 +2849,16 @@ export class D1ServerStore implements ServerStore {
           'CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_account ON webhook_deliveries (account_id, recorded_at)',
         ),
       ])
+      // The redelivery half (0033): the dead letter's envelope body +
+      // the one-pass stamp — conditional ALTERs per the house pattern
+      // (a D1 migrated from before 0033 lacks them).
+      const cols = await this.db.prepare('PRAGMA table_info(webhook_deliveries)').all<{ name: string }>()
+      const names = new Set(cols.results.map(c => c.name))
+      if (!names.has('body')) await this.db.prepare('ALTER TABLE webhook_deliveries ADD COLUMN body TEXT').run()
+      if (!names.has('redelivered_at')) await this.db.prepare('ALTER TABLE webhook_deliveries ADD COLUMN redelivered_at TEXT').run()
+      await this.db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_redelivery ON webhook_deliveries (delivered, redelivered_at, recorded_at)',
+      ).run()
     })
   }
 
@@ -2885,11 +2899,34 @@ export class D1ServerStore implements ServerStore {
     await this.ensureWebhookSupport()
     await this.stmt(
       `INSERT INTO webhook_deliveries
-         (id, subscription_id, account_id, event, url, attempts, last_status, delivered, body_digest)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, subscription_id, account_id, event, url, attempts, last_status, delivered, body_digest, recorded_at, body, redelivered_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       input.id ?? crypto.randomUUID(), input.subscriptionId, input.accountId, input.event, input.url,
-      input.attempts, input.lastStatus, input.delivered ? 1 : 0, input.bodyDigest,
+      input.attempts, input.lastStatus, input.delivered ? 1 : 0, input.bodyDigest, input.recordedAt, input.body ?? null, input.redeliveredAt ?? null,
     ).run()
+  }
+
+  async listDeadWebhookDeliveries(input: { olderThan: string; limit: number }): Promise<WebhookDeliveryRecord[]> {
+    await this.ensureWebhookSupport()
+    // julianday() on BOTH sides — the table mixes the delivery path's
+    // ISO strings with the datetime('now') default (the sqlite mirror
+    // carries the same comment).
+    const rows = (await this.stmt(
+      `SELECT * FROM webhook_deliveries
+        WHERE delivered = 0 AND redelivered_at IS NULL AND julianday(recorded_at) < julianday(?)
+        ORDER BY julianday(recorded_at) ASC LIMIT ?`,
+      input.olderThan, input.limit,
+    ).all<WebhookDeliveryRow>()).results
+    return rows.map(webhookRowToDelivery)
+  }
+
+  async stampWebhookRedelivered(id: string, when: string): Promise<boolean> {
+    await this.ensureWebhookSupport()
+    const res = await this.stmt(
+      'UPDATE webhook_deliveries SET redelivered_at = ? WHERE id = ? AND delivered = 0 AND redelivered_at IS NULL',
+      when, id,
+    ).run()
+    return (res.meta.changes ?? 0) > 0
   }
 
   async listWebhookDeliveries(accountId: string, limit = 50): Promise<WebhookDeliveryRecord[]> {

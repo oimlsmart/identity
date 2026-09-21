@@ -990,9 +990,12 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   last_status INTEGER NOT NULL,
   delivered INTEGER NOT NULL,
   body_digest TEXT NOT NULL,
-  recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+  recorded_at TEXT NOT NULL DEFAULT (datetime('now')),
+  body TEXT,
+  redelivered_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_account ON webhook_deliveries (account_id, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_redelivery ON webhook_deliveries (delivered, redelivered_at, recorded_at);
 
 -- ═══════════════════════════════════════════════════════════════════
 -- The known-device record (TODO.modern/06's risk signals): one row

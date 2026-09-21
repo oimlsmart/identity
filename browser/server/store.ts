@@ -265,6 +265,13 @@ export interface WebhookDeliveryRecord {
   delivered: boolean
   bodyDigest: string
   recordedAt: string
+  /** The dead letter's envelope body (the act's own no-secrets
+   *  projection) — the redelivery pass re-signs it verbatim. Present
+   *  on dead letters only; the success path stays digest-only. */
+  body?: string | null
+  /** The ONE bounded redelivery pass's stamp — a stamped letter never
+   *  re-enters the pool. */
+  redeliveredAt?: string | null
 }
 
 export interface EntityChange {
@@ -2548,6 +2555,12 @@ export interface ServerStore {
   recordWebhookDelivery(input: Omit<WebhookDeliveryRecord, 'id'> & { id?: string }): Promise<void>
   /** The account's delivery log, newest first. */
   listWebhookDeliveries(accountId: string, limit?: number): Promise<WebhookDeliveryRecord[]>
+  /** The open dead letters (delivered=false, never passed on, older
+   *  than the cutoff) — the redelivery pass's pool, oldest first. */
+  listDeadWebhookDeliveries(input: { olderThan: string; limit: number }): Promise<WebhookDeliveryRecord[]>
+  /** The one-pass stamp (a redelivery pass settles a letter whether
+   *  the attempt landed or not). False = unknown or already stamped. */
+  stampWebhookRedelivered(id: string, when: string): Promise<boolean>
 
   // ── provisioning / dev support ──
 }

@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSecurityTxtData, GetSecurityTxtResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, GetWebfingerData, GetWebfingerErrors, GetWebfingerResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
+import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetSecurityTxtData, GetSecurityTxtResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, GetWebfingerData, GetWebfingerErrors, GetWebfingerResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RedeliverDeadWebhooksData, RedeliverDeadWebhooksErrors, RedeliverDeadWebhooksResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -374,7 +374,7 @@ export const createWebhookSubscription = <ThrowOnError extends boolean = false>(
 /**
  * The account's delivery log (newest first)
  *
- * The bounded ladder's outcomes: the attempt count, the last HTTP status, delivered or the dead letter. The body is NEVER recorded — only its SHA-256 digest (the support conversation's dedup key).
+ * The bounded ladder's outcomes: the attempt count, the last HTTP status, delivered or the dead letter. A delivered row records only the body's SHA-256 digest (the support conversation's dedup key); a DEAD letter additionally stores the envelope body itself — the act's own no-secrets projection — because the redelivery pass re-signs it verbatim.
  */
 export const listWebhookDeliveries = <ThrowOnError extends boolean = false>(options?: Options<ListWebhookDeliveriesData, ThrowOnError>): RequestResult<ListWebhookDeliveriesResponses, ListWebhookDeliveriesErrors, ThrowOnError> => (options?.client ?? client).get<ListWebhookDeliveriesResponses, ListWebhookDeliveriesErrors, ThrowOnError>({
     security: [{
@@ -383,6 +383,21 @@ export const listWebhookDeliveries = <ThrowOnError extends boolean = false>(opti
             type: 'apiKey'
         }],
     url: '/api/op/account/webhooks/deliveries',
+    ...options
+});
+
+/**
+ * The dead-letter redelivery pass (the scheduled workflow's caller)
+ *
+ * ONE bounded pass over the open dead letters: older than 15 minutes, at most 100 per call, ONE redelivery attempt per letter ever (the pass stamps the letter whether the attempt landed or not — a persistently-down endpoint never storms). The stored envelope body re-signs with a fresh timestamp; the subscriber dedupes by the envelope id. A revoked subscription's letter and a body-less legacy letter retire without a fetch.
+ */
+export const redeliverDeadWebhooks = <ThrowOnError extends boolean = false>(options?: Options<RedeliverDeadWebhooksData, ThrowOnError>): RequestResult<RedeliverDeadWebhooksResponses, RedeliverDeadWebhooksErrors, ThrowOnError> => (options?.client ?? client).post<RedeliverDeadWebhooksResponses, RedeliverDeadWebhooksErrors, ThrowOnError>({
+    security: [{
+            key: 'redeliveryBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/op/webhooks/redeliver',
     ...options
 });
 

@@ -58,6 +58,12 @@ export const OPENAPI_SPEC = {
         bearerFormat: 'SCIM_BEARER_TOKEN',
         description: 'The dedicated SCIM connector token (a Worker secret; unset = the surface answers 404 entirely).',
       },
+      redeliveryBearer: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'WEBHOOK_REDELIVERY_TOKEN',
+        description: 'The dead-letter redelivery pass\'s caller token (a Worker secret; unset = the endpoint answers 404 entirely).',
+      },
       sessionCookie: {
         type: 'apiKey',
         in: 'cookie',
@@ -739,11 +745,38 @@ export const OPENAPI_SPEC = {
     '/api/op/account/webhooks/deliveries': {
       get: {
         tags: ['Webhooks'], operationId: 'listWebhookDeliveries', summary: 'The account\'s delivery log (newest first)',
-        description: 'The bounded ladder\'s outcomes: the attempt count, the last HTTP status, delivered or the dead letter. The body is NEVER recorded — only its SHA-256 digest (the support conversation\'s dedup key).',
+        description: 'The bounded ladder\'s outcomes: the attempt count, the last HTTP status, delivered or the dead letter. A delivered row records only the body\'s SHA-256 digest (the support conversation\'s dedup key); a DEAD letter additionally stores the envelope body itself — the act\'s own no-secrets projection — because the redelivery pass re-signs it verbatim.',
         security: [{ sessionCookie: [] }],
         responses: {
           200: { description: 'The newest 50 delivery records.' },
           401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/webhooks/redeliver': {
+      post: {
+        tags: ['Webhooks'], operationId: 'redeliverDeadWebhooks', summary: 'The dead-letter redelivery pass (the scheduled workflow\'s caller)',
+        description: 'ONE bounded pass over the open dead letters: older than 15 minutes, at most 100 per call, ONE redelivery attempt per letter ever (the pass stamps the letter whether the attempt landed or not — a persistently-down endpoint never storms). The stored envelope body re-signs with a fresh timestamp; the subscriber dedupes by the envelope id. A revoked subscription\'s letter and a body-less legacy letter retire without a fetch.',
+        security: [{ redeliveryBearer: [] }],
+        responses: {
+          200: {
+            description: 'The pass\'s tally.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    attempted: { type: 'integer' },
+                    delivered: { type: 'integer' },
+                    retired: { type: 'integer' },
+                  },
+                  required: ['attempted', 'delivered', 'retired'],
+                },
+              },
+            },
+          },
+          401: { description: 'The wrong bearer.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          404: { description: 'The token is unset — the endpoint does not exist.' },
         },
       },
     },

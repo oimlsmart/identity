@@ -288,3 +288,141 @@ describe('the fan-out at a real act (the PAT mint)', () => {
     })).toBe(true)
   })
 })
+
+describe('the dead-letter redelivery (edition 2: the cron pass)', () => {
+  // The system boundary again: the pass's own POST is the network.
+  const pass = async (handler: (url: string, init: RequestInit | undefined) => Promise<Response>) => {
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = []
+    globalThis.fetch = (async (url: unknown, init?: RequestInit) => {
+      calls.push({ url: String(url), init })
+      return handler(String(url), init)
+    }) as typeof fetch
+    return calls
+  }
+
+  it('UNSET: the redelivery endpoint does not exist (the house 404 pattern)', async () => {
+    const res = await app.request(`${ISSUER}/api/op/webhooks/redeliver`, { method: 'POST' })
+    expect(res.status).toBe(404)
+  })
+
+  it('SET: the wrong bearer refuses; the right bearer answers the pass tally', async () => {
+    process.env.WEBHOOK_REDELIVERY_TOKEN = 'the-redelivery-bearer'
+    try {
+      const wrong = await app.request(`${ISSUER}/api/op/webhooks/redeliver`, {
+        method: 'POST', headers: { authorization: 'Bearer not-it' },
+      })
+      expect(wrong.status).toBe(401)
+      const right = await app.request(`${ISSUER}/api/op/webhooks/redeliver`, {
+        method: 'POST', headers: { authorization: 'Bearer the-redelivery-bearer' },
+      })
+      expect(right.status).toBe(200)
+      expect(await right.json() as { attempted: number; delivered: number; retired: number }).toEqual({ attempted: 0, delivered: 0, retired: 0 })
+    } finally {
+      delete process.env.WEBHOOK_REDELIVERY_TOKEN
+    }
+  })
+
+  it('a dead letter with its envelope body: ONE pass re-signs and re-POSTs it verbatim; the letter retires; the log gains the outcome', async () => {
+    const { getStore } = await import('../../server/store')
+    const store = getStore()
+    const cookie = await demoLogin('biml@oiml.org')
+    const created = ((await (await createSubscription(cookie, 'https://redeliver.example/hooks', ['account.password'])).json()) as SubscriptionAnswer)
+    const { getStore: gs0 } = await import('../../server/store')
+    const ownerId = (await gs0().findUserByEmail('biml@oiml.org'))!.id
+    const envelope = JSON.stringify({ id: 'the-envelope-id', event: 'account.password', account: ownerId, created: new Date().toISOString(), data: { otherSessionsRevoked: 0 } })
+    await store.recordWebhookDelivery({
+      subscriptionId: created.id, accountId: ownerId, event: 'account.password',
+      url: 'https://redeliver.example/hooks', attempts: 3, lastStatus: 500, delivered: false,
+      bodyDigest: 'the-digest', recordedAt: new Date(Date.now() - 3_600_000).toISOString(), body: envelope,
+    })
+    process.env.WEBHOOK_REDELIVERY_TOKEN = 'the-redelivery-bearer'
+    try {
+      const calls = await pass(async () => new Response('ok', { status: 200 }))
+      const res = await app.request(`${ISSUER}/api/op/webhooks/redeliver`, {
+        method: 'POST', headers: { authorization: 'Bearer the-redelivery-bearer' },
+      })
+      expect(res.status).toBe(200)
+      expect(await res.json() as { attempted: number; delivered: number; retired: number }).toEqual({ attempted: 1, delivered: 1, retired: 0 })
+      expect(calls).toHaveLength(1)
+      expect(calls[0]!.url).toBe('https://redeliver.example/hooks')
+      expect(calls[0]!.init!.body).toBe(envelope)
+      // The fresh signature verifies against the subscription's secret.
+      const { verifyWebhookSignature } = await import('../../server/webhooks/signature')
+      expect(await verifyWebhookSignature({
+        secret: created.secret, header: (calls[0]!.init!.headers as Record<string, string>)['webhook-signature'],
+        body: envelope, nowMs: Date.now(), toleranceSec: 300,
+      })).toBe(true)
+      // The letter retired (no re-entry) and the log carries the outcome.
+      const store2 = getStore()
+      expect(await store2.listDeadWebhookDeliveries({ olderThan: new Date(Date.now() - 60_000).toISOString(), limit: 100 })).toHaveLength(0)
+      const log = await store2.listWebhookDeliveries(ownerId)
+      expect(log.some(d => d.delivered === true && d.attempts === 1)).toBe(true)
+    } finally {
+      delete process.env.WEBHOOK_REDELIVERY_TOKEN
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('the receiver still down: the pass attempts ONCE and the letter retires regardless (bounded — no storm)', async () => {
+    const { getStore } = await import('../../server/store')
+    const store = getStore()
+    const cookie = await demoLogin('biml@oiml.org')
+    const created = ((await (await createSubscription(cookie, 'https://still-down.example/hooks', ['account.password'])).json()) as SubscriptionAnswer)
+    const { getStore: gs1 } = await import('../../server/store')
+    const ownerId2 = (await gs1().findUserByEmail('biml@oiml.org'))!.id
+    await store.recordWebhookDelivery({
+      subscriptionId: created.id, accountId: ownerId2, event: 'account.password',
+      url: 'https://still-down.example/hooks', attempts: 3, lastStatus: 500, delivered: false,
+      bodyDigest: 'digest-2', recordedAt: new Date(Date.now() - 3_600_000).toISOString(), body: '{"id":"e2"}',
+    })
+    process.env.WEBHOOK_REDELIVERY_TOKEN = 'the-redelivery-bearer'
+    try {
+      await pass(async () => new Response('nope', { status: 500 }))
+      const first = await app.request(`${ISSUER}/api/op/webhooks/redeliver`, {
+        method: 'POST', headers: { authorization: 'Bearer the-redelivery-bearer' },
+      })
+      expect(await first.json() as { attempted: number }).toEqual({ attempted: 1, delivered: 0, retired: 0 })
+      globalThis.fetch = (async () => { throw new Error('the pass must not call again') }) as typeof fetch
+      const second = await app.request(`${ISSUER}/api/op/webhooks/redeliver`, {
+        method: 'POST', headers: { authorization: 'Bearer the-redelivery-bearer' },
+      })
+      expect(await second.json() as { attempted: number }).toEqual({ attempted: 0, delivered: 0, retired: 0 })
+    } finally {
+      delete process.env.WEBHOOK_REDELIVERY_TOKEN
+      globalThis.fetch = realFetch
+    }
+  })
+
+  it('a revoked subscription or a body-less legacy letter retires WITHOUT a fetch', async () => {
+    const { getStore } = await import('../../server/store')
+    const store = getStore()
+    const cookie = await demoLogin('biml@oiml.org')
+    const created = ((await (await createSubscription(cookie, 'https://revoked.example/hooks', ['account.password'])).json()) as SubscriptionAnswer)
+    const { getStore: gs2 } = await import('../../server/store')
+    const ownerId3 = (await gs2().findUserByEmail('biml@oiml.org'))!.id
+    const revoked = await store.revokeWebhookSubscription(created.id, ownerId3)
+    expect(revoked, 'the owner-guarded revoke lands (the test owns the account)').toBe(true)
+      await store.recordWebhookDelivery({
+        subscriptionId: created.id, accountId: ownerId3, event: 'account.password',
+        url: 'https://revoked.example/hooks', attempts: 3, lastStatus: 500, delivered: false,
+        bodyDigest: 'digest-3', recordedAt: new Date(Date.now() - 3_600_000).toISOString(), body: '{"id":"e3"}',
+      })
+      await store.recordWebhookDelivery({
+        subscriptionId: created.id, accountId: ownerId3, event: 'account.password',
+        url: 'https://legacy.example/hooks', attempts: 3, lastStatus: 500, delivered: false,
+        bodyDigest: 'digest-4', recordedAt: new Date(Date.now() - 3_600_000).toISOString(),
+      })
+    process.env.WEBHOOK_REDELIVERY_TOKEN = 'the-redelivery-bearer'
+    try {
+      const calls = await pass(async () => new Response('ok', { status: 200 }))
+      const res = await app.request(`${ISSUER}/api/op/webhooks/redeliver`, {
+        method: 'POST', headers: { authorization: 'Bearer the-redelivery-bearer' },
+      })
+      expect(await res.json() as { attempted: number; retired: number }).toEqual({ attempted: 0, delivered: 0, retired: 2 })
+      expect(calls).toHaveLength(0)
+    } finally {
+      delete process.env.WEBHOOK_REDELIVERY_TOKEN
+      globalThis.fetch = realFetch
+    }
+  })
+})

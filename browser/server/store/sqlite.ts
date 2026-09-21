@@ -181,6 +181,8 @@ import {
   revokeWebhookSubscription,
   recordWebhookDelivery,
   listWebhookDeliveries,
+  listDeadWebhookDeliveries,
+  stampWebhookRedelivered,
 } from './sqlite/webhook-store'
 import {
   recordKnownDevice,
@@ -866,6 +868,14 @@ export class SqliteServerStore implements ServerStore {
   }
   async listWebhookDeliveries(accountId: string, limit?: number): Promise<import('../store').WebhookDeliveryRecord[]> {
     return listWebhookDeliveries(this.db, accountId, limit)
+  }
+
+  async listDeadWebhookDeliveries(input: { olderThan: string; limit: number }): Promise<import('../store').WebhookDeliveryRecord[]> {
+    return listDeadWebhookDeliveries(this.db, input)
+  }
+
+  async stampWebhookRedelivered(id: string, when: string): Promise<boolean> {
+    return stampWebhookRedelivered(this.db, id, when)
   }
 
   // ── the known-device record (TODO.modern/06's risk signals) ──

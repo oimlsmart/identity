@@ -1,0 +1,51 @@
+name: identity-webhook-redelivery
+
+# The dead-letter redelivery pass (TODO.modern/08's edition 2): the
+# hourly caller of POST /api/op/webhooks/redeliver — the OP's own
+# bearer-gated endpoint. The pass is bounded (letters older than 15
+# minutes, 100 per pass, ONE redelivery attempt per letter ever), so
+# the hourly cadence drains any backlog in waves without storms.
+#
+# Arming (the operator's two acts):
+#   1. `npx wrangler secret put WEBHOOK_REDELIVERY_TOKEN --env identity`
+#      (unset = the endpoint answers 404 and this workflow's probe step
+#      skips loudly — never a red failure on an unarmed deployment);
+#   2. the same value as the `WEBHOOK_REDELIVERY_TOKEN` secret on THIS
+#      workflow's `cloudflare-identity-redelivery` GitHub environment
+#      (no required reviewers — the nightly-jobs precedent).
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: identity-webhook-redelivery
+  cancel-in-progress: false
+
+jobs:
+  redeliver:
+    runs-on: ubuntu-latest
+    environment: cloudflare-identity-redelivery
+    steps:
+      - name: The pass (skip loudly when the deployment is unarmed)
+        env:
+          WEBHOOK_REDELIVERY_TOKEN: ${{ secrets.WEBHOOK_REDELIVERY_TOKEN }}
+        run: |
+          if [ -z "$WEBHOOK_REDELIVERY_TOKEN" ]; then
+            echo "::warning::WEBHOOK_REDELIVERY_TOKEN is not set on the cloudflare-identity-redelivery environment — the dead-letter pass is DISARMED. Declare the secret (and its Worker-side twin) to arm."
+            exit 0
+          fi
+          code=$(curl -s -o /tmp/redeliver.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $WEBHOOK_REDELIVERY_TOKEN" \
+            https://id.oimlsmart.org/api/op/webhooks/redeliver)
+          cat /tmp/redeliver.json
+          case "$code" in
+            200) echo "the pass ran";;
+            404) echo "::error::the endpoint answered 404 — the deployment does not carry the redelivery route (or its token is unset)"; exit 1;;
+            401) echo "::error::401 — the Worker-side token does not match this workflow's secret"; exit 1;;
+            *) echo "::error::unexpected $code"; exit 1;;
+          esac

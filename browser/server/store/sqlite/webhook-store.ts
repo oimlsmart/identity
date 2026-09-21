@@ -31,6 +31,8 @@ interface DeliveryRow {
   delivered: number
   body_digest: string
   recorded_at: string
+  body: string | null
+  redelivered_at: string | null
 }
 
 /** The defensive events-cell parse: a malformed cell reads as the
@@ -68,6 +70,8 @@ function toDelivery(row: DeliveryRow): WebhookDeliveryRecord {
     delivered: row.delivered === 1,
     bodyDigest: row.body_digest,
     recordedAt: row.recorded_at,
+    body: row.body,
+    redeliveredAt: row.redelivered_at,
   }
 }
 
@@ -107,8 +111,8 @@ export function recordWebhookDelivery(
 ): void {
   db.prepare(
     `INSERT INTO webhook_deliveries
-       (id, subscription_id, account_id, event, url, attempts, last_status, delivered, body_digest)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, subscription_id, account_id, event, url, attempts, last_status, delivered, body_digest, recorded_at, body, redelivered_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.id ?? crypto.randomUUID(),
     input.subscriptionId,
@@ -119,7 +123,37 @@ export function recordWebhookDelivery(
     input.lastStatus,
     input.delivered ? 1 : 0,
     input.bodyDigest,
+    input.recordedAt,
+    input.body ?? null,
+    input.redeliveredAt ?? null,
   )
+}
+
+/** The redelivery pass's pool: open dead letters older than the
+ *  cutoff, oldest first (0033's index serves the filter). */
+export function listDeadWebhookDeliveries(
+  db: Database.Database,
+  input: { olderThan: string; limit: number },
+): WebhookDeliveryRecord[] {
+  // julianday() on BOTH sides: the table carries two instant formats
+  // (the delivery path's ISO strings and the column's datetime('now')
+  // default) — a naive string compare makes a fresh SQLite-format
+  // letter sort older than any ISO cutoff (the caught-by-the-gate
+  // bug this comparison exists for).
+  const rows = db.prepare(
+    `SELECT * FROM webhook_deliveries
+      WHERE delivered = 0 AND redelivered_at IS NULL AND julianday(recorded_at) < julianday(?)
+      ORDER BY julianday(recorded_at) ASC LIMIT ?`,
+  ).all(input.olderThan, input.limit) as DeliveryRow[]
+  return rows.map(toDelivery)
+}
+
+/** The one-pass stamp. False = unknown or already stamped. */
+export function stampWebhookRedelivered(db: Database.Database, id: string, when: string): boolean {
+  const res = db.prepare(
+    'UPDATE webhook_deliveries SET redelivered_at = ? WHERE id = ? AND delivered = 0 AND redelivered_at IS NULL',
+  ).run(when, id)
+  return res.changes > 0
 }
 
 export function listWebhookDeliveries(db: Database.Database, accountId: string, limit = 50): WebhookDeliveryRecord[] {

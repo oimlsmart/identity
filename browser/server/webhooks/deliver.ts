@@ -101,6 +101,10 @@ async function recordDelivery(
       delivered,
       bodyDigest: await sha256Hex(body),
       recordedAt: new Date().toISOString(),
+      // The dead letter carries its envelope body (the act's own
+      // no-secrets projection) — the redelivery pass re-signs it
+      // verbatim. The success path stays digest-only.
+      ...(delivered ? {} : { body }),
     })
   } catch (err) {
     // The record is best-effort bookkeeping — its failure never
