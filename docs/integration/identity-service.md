@@ -53,6 +53,13 @@ Issuer: `https://id.oimlsmart.org`
 | Org signing keys (TODO.trust-registry/01 — an org's PUBLIC key set + its standing, for artifact verifiers; anonymous, `Cache-Control: public, max-age=60`, CORS-open) | `{issuer}/op/keys/<org id>.json` |
 | Account console (your users manage their own profile, linked identities, password, avatar there) | `{issuer}/op/account` |
 
+**SOTA additions** (PAR, JARM, `login_hint`, the account chooser, the
+typed SDK — the modern/* wave from an RP's view):
+`identity-modern-features.md` (sibling doc, self-contained). **The
+operator-facing gates** (security.txt, Turnstile, SCIM, OTel,
+webhooks) live in `docs/deployment/identity-operations.md` §SOTA
+config gates.
+
 ## 3. Onboarding your service (the client registry)
 
 Your service needs a client registration on the OP. One entry:

@@ -81,3 +81,10 @@ members, issuing authorities, test laboratories) start from the
 member's connective guide — your own instance + federation with the
 official identity service:
 `docs/deployment/identity-member-deployment.md`.
+
+**The SOTA additions** (PAR, JARM, `login_hint`, the account chooser,
+the typed SDK — the modern/* wave from an RP's view):
+`docs/integration/identity-modern-features.md`. **The operator-facing
+gates** (security.txt, Turnstile, SCIM, OTel, webhooks — the
+config-gated modern/* wave from the operator's runbook):
+`docs/deployment/identity-operations.md` §SOTA config gates.

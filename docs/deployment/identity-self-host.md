@@ -183,6 +183,28 @@ declares it.)
 | `HIBP_RANGE_URL` | optional | The breached-password corpus's k-anonymity range endpoint (default `https://api.pwnedpasswords.com/range/`): new passwords (enrollment, the console change) are refused when the corpus names them. The literal `off` disables the check honestly (no marker, no audit note); an UNREACHABLE corpus accepts the password, notes the audit (`breachCheck: 'unreachable'`), and re-checks at the next password sign-in. Point it at your own mirror for a sovereign deployment. |
 | `PORT` | optional | The API's listen port (default 3190). |
 
+### A5. The modern-wave env surface (optional)
+
+Each row below ships dormant and flips ON the moment the env is
+declared. **Default behavior with no env is byte-identical to the
+pre-feature posture.** Detailed contracts: `docs/integration/identity-
+modern-features.md` (the RP-facing half) and `docs/deployment/
+identity-operations.md` §SOTA config gates (the operator's runbook
+act per gate).
+
+| Variable | Required | What it is |
+|---|---|---|
+| `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET` | optional, paired | The Cloudflare Turnstile bot challenge on `/api/op/login`, `/api/op/register`, `/api/op/join-requests`. **Both must be set** — either alone leaves the feature OFF. With both set, the `<form>` needs the matching script tag in the page shell (one-line add to `IdShell.astro`). |
+| `SCIM_BEARER_TOKEN` | optional | A long random bearer arms `/scim/v2/Users`. Unset = the surface answers 404 (it does not exist). The HR connector side (Okta / Entra / Auth0): the bearer + the base URL `{issuer}/scim/v2`. Rotation: `wrangler secret put` a fresh value, update the connector. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | An OTLP/HTTP JSON collector. When set, every request exports ONE span (fire-and-forget — a collector failure never fails the request). The `traceparent` echo and the inbound parsing work WITHOUT this set — the seam is independent. |
+| `OTEL_SERVICE_NAME` | optional | The `service.name` resource attribute (default `oiml-identity`). |
+| `WEBHOOK_RETRY_DELAYS_MS` | optional | A comma-separated ms ladder for the webhook fan-out (default `0,1000,5000` — bounded, exhaustion records a dead letter). |
+
+The other modern-wave features (PAR, JARM, `login_hint`,
+`prompt=select_account`, the typed SDK) carry no env — they're
+always-on RP-facing additions that flip on by your service's
+request, never by the OP's config.
+
 ## Shape B: Cloudflare Workers + D1 (your own account)
 
 The register operator's tracked `browser/wrangler.toml` names the

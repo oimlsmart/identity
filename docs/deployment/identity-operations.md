@@ -529,6 +529,180 @@ The rules the surface keeps, stated once:
   providers next) is a config act with this runbook's page, never a
   code change.
 
+## SOTA config gates (the modern wave)
+
+Each item below ships in the build but stays **OFF until you arm it** —
+the gate posture: declare the env(s), the feature flips on, every
+answer with the env unset is byte-identical to the pre-feature answer.
+The flip is a redeploy (no data migration). The RP-facing half (PAR,
+JARM, `login_hint`, the account chooser, the typed SDK) is documented
+in `docs/integration/identity-modern-features.md`.
+
+### security.txt (RFC 9116)
+
+`GET /.well-known/security.txt` answers the standard security contact
+record. The current value (the GitHub private security advisories as
+the monitored channel, the yearly expiry, the canonical link, the
+policy pointer):
+
+```
+Contact: https://github.com/oimlsmart/identity/security/advisories/new
+Expires: 2027-09-20T00:00:00Z
+Preferred-Languages: en, fr
+Canonical: https://id.oimlsmart.org/.well-known/security.txt
+Policy: https://github.com/oimlsmart/identity/blob/main/docs/deployment/identity.md
+```
+
+The contact URL and the `Policy` pointer are hard-coded — they name
+this repository and the runbook that documents the disclosure posture.
+**The yearly `Expires` is the only thing the deploy review refreshes:**
+edit the date in `browser/server/app.ts` and ship a tag. The record
+is the honest channel for vulnerability reports; never an invented
+mailbox.
+
+### Turnstile (Cloudflare bot challenge)
+
+Arm the gate on the public sign-up + sign-in + join intake routes:
+
+```
+TURNSTILE_SITE_KEY=<the site's site key>
+TURNSTILE_SECRET=<the site's secret>            # wrangler secret put
+```
+
+**Both must be declared** — either alone leaves the feature OFF (the
+gate checks both halves before flipping on, never one without the
+other). With both set, the gate middleware validates the
+`cf-turnstile-response` token at `/api/op/login`, `/api/op/register`,
+and `/api/op/join-requests`; a missing or failing token refuses with
+the same error shape as a wrong credential — never a custom Turnstile
+page, the human sees the standard form's error. The default flow
+carries no challenge (byte-identical). The site key also rides the
+`<form>` so the widget renders — add the script tag to the page shell
+when you arm it (the `IdShell.astro` template, a one-line add).
+
+The posture: Turnstile is the bot-stopper of last resort for the
+public surfaces. Real abuse control sits at the rate limiter
+(`OP_RATE_LIMIT_CAPACITY`, §Availability) and the per-account
+backoff ladder (`OP_LOGIN_BACKOFF_BASE_MS`, §Deploy). Turnstile is
+the cheapest layer ABOVE those — flip it on when the public intake
+sees measurable automation, leave it off otherwise (the env check
+cost is the only overhead when off).
+
+### SCIM 2.0 provisioning (RFC 7644)
+
+The HR-side enterprise lifecycle (Okta, Microsoft Entra, the typical
+SCIM connectors): an HR system provisions and deprovisions accounts
+through `/scim/v2/Users`. The credential is a dedicated bearer
+(`SCIM_BEARER_TOKEN`, a Worker secret) — the Okta/Auth0 SCIM norm, one
+token per connector, scoped to the SCIM surface only. **The PAT-
+scoped SCIM bearer is deliberately not built** — the PAT grammar is
+client-service-derived and a synthetic `scim` service would contort
+it; a dedicated token IS the scoped credential (only-SCIM by
+construction).
+
+```
+SCIM_BEARER_TOKEN=<a long random bearer>        # wrangler secret put
+```
+
+**Unset = the surface answers 404** (it does not exist — the Turnstile
+pattern). The wire:
+
+```
+POST   /scim/v2/Users       — create (the invited account + emailed setup link)
+GET    /scim/v2/Users       — list (pagination + filter=userName eq "…")
+GET    /scim/v2/Users/:id   — projection
+PATCH  /scim/v2/Users/:id   — update (the active replace; everything else refuses
+                                400 scimType=invalidPath)
+DELETE /scim/v2/Users/:id   — deactivate (NEVER the erase — the row stays auditable)
+```
+
+The supported filter grammar is `userName eq "<email>"` ONLY —
+anything else refuses `400 scimType=invalid_filter` (RFC 7644 §3.4.2.1,
+never a silent mis-answer). The mapping: SCIM rides the existing
+account model (`createOpAccount`, the enrollment invite,
+`setUserActive`, `deleteAllUserSessions`) — never a second account
+store. An erased account never appears in list responses.
+
+The operator's runbook: mint a long random bearer, `wrangler secret
+put SCIM_BEARER_TOKEN`, paste it into the HR connector's SCIM
+configuration, point the connector's base URL at
+`{issuer}/scim/v2`. Rotation: `wrangler secret put` a fresh value,
+update the connector; the old token stops working at the Worker
+secret propagation. The RP-side brief — the typed SCIM operations an
+HR connector's SDK integrates against — is in §5b of
+`identity-modern-features.md` (`scimListUsers`, `scimCreateUser`,
+`scimGetUser`, `scimPatchUser`, `scimDeleteUser`).
+
+### OTel trace export (W3C traceparent + OTLP/HTTP JSON)
+
+The trace-context seam: the OP honors an inbound `traceparent` header
+(W3C), generates a fresh child span per request, echoes the new
+`traceparent` on the answer, and — when armed — exports the span to
+an OTLP/HTTP JSON collector.
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.example.com/v1/traces
+OTEL_SERVICE_NAME=oiml-identity                  # OPTIONAL, default 'oiml-identity'
+```
+
+**Unset = byte-identical** (no header, no fetch). When set, every
+request exports ONE span (fire-and-forget, never in the answer's path
+— a collector failure never fails the request). The span carries the
+method, path, status, duration, request id, and the store phase
+(duration + call count, the Server-Timing mirror). The export
+posture: `application/json` to `/v1/traces`, `service.name` from
+`OTEL_SERVICE_NAME`.
+
+The `traceparent` echo works WITHOUT `OTEL_EXPORTER_OTLP_ENDPOINT`
+set — the seam is independent. If you only want propagation without
+export, leave the endpoint unset.
+
+### Webhooks (account lifecycle events)
+
+Six events ride webhooks today (the whitelist in
+`browser/server/webhooks/events.ts` — the audit journal's action
+names verbatim, never a translation layer):
+
+```
+account.password           — a password change
+account.session_revoked    — any session-ending act (RP, console, admin, deactivation)
+account.pat_minted         — a personal access token was minted
+account.pat_revoked        — a PAT was revoked
+factor.totp_enrolled       — a TOTP factor was added
+factor.passkey_enrolled    — a WebAuthn/passkey factor was added
+```
+
+Adding a deliverable act is a one-string whitelist edit + a one-call
+extension at the act site (the OCP extension).
+
+Subscribers register through the account-console API
+(`POST /api/op/account/webhooks`, account-held) — the URL, the
+event set, the callback secret (the OP generates `oswh_<43
+base64url>`; show once). The OP signs every attempt with the secret
+using the Stripe posture:
+
+```
+Webhook-Signature: t=<unix_ms>,v1=<hex hmac-sha256 of "t.body" with the secret>
+```
+
+The body is JSON, the `Webhook-Signature` rides a FRESH timestamp on
+every attempt (each attempt is its own signed statement — never
+replayable past the timestamp tolerance). The default retry ladder is
+`[0, 1s, 5s]` — bounded; exhaustion records a dead letter. The ladder
+is configurable:
+
+```
+WEBHOOK_RETRY_DELAYS_MS=0,1000,5000,30000       # OPTIONAL, comma-separated ms
+```
+
+The delivery is fire-and-forget (`waitUntil` on the Worker) — the act
+never blocks on the fan-out. Idempotency is on the receiver (the
+envelope carries a stable `id`; the journal also records the
+delivery's `attempts` + `lastStatus` + the body's SHA-256 digest for
+audit). Cron-driven dead-letter redelivery is edition 2 — the
+scheduled entry is the owner's deploy-shape decision; the in-process
+ladder is what runs today.
+
 ## The repo question
 
 The identity service is a deployment profile of the smart monorepo
