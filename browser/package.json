@@ -8,7 +8,7 @@
     "dev:astro": "concurrently -k \"astro dev\" \"tsx watch server/serve.ts\"",
     "dev:server": "tsx watch server/serve.ts",
     "build": "astro build",
-    "build:cloudflare": "ADAPTER=cloudflare astro build",
+    "build:cloudflare": "ADAPTER=cloudflare astro build && tsx scripts/generate-csp-headers.ts",
     "dev:cloudflare": "npm run build:cloudflare && wrangler dev --config dist/server/wrangler.json",
     "build:check": "npm run build && astro check && vue-tsc --noEmit",
     "check:astro": "astro check",

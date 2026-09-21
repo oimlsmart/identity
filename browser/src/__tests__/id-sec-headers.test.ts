@@ -65,6 +65,14 @@ describe('the HTML answers', () => {
   it("the session iframe own frame-ancestors * WINS (the RPs frame it by design)", async () => {
     const res = await app.request(`${ISSUER}/op/session/check?client_id=hub`)
     expect(res.status).toBe(200)
-    expect(res.headers.get('content-security-policy')).toBe('frame-ancestors *')
+    const csp = res.headers.get('content-security-policy') ?? ''
+    expect(csp.startsWith('frame-ancestors *')).toBe(true)
+    // The script-src names the iframe's ONE inline script — recomputed
+    // from the SERVED html (TODO.modern/19: the hash drifts with the
+    // script, and this assertion fails until it does).
+    const { inlineScriptHashes } = await import('../../scripts/generate-csp-headers')
+    const hashes = inlineScriptHashes(await res.text())
+    expect(hashes).toHaveLength(1)
+    expect(csp).toBe(`frame-ancestors *; script-src ${hashes[0]}`)
   })
 })
