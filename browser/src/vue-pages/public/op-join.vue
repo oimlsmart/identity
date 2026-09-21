@@ -28,6 +28,8 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../../components/BrandLogo.vue'
+import TurnstileField from '../../components/TurnstileField.vue'
+import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 import { orgKindLabelKey, orgRoleGlossKey } from '../../org-vocabulary'
@@ -63,6 +65,12 @@ const note = ref('')
 
 const submitting = ref(false)
 const error = ref<string | null>(null)
+// The bot gate's widget half — the field mounts only when armed.
+const turnstileSiteKey = ref<string | null>(null)
+const turnstileField = ref<InstanceType<typeof TurnstileField> | null>(null)
+onMounted(async () => {
+  turnstileSiteKey.value = await fetchTurnstileSiteKey()
+})
 /** The success panel's copy once the request is filed. */
 const filed = ref<{ queue: 'org' | 'biml' | 'manufacturer'; orgName: string; orgCreated?: boolean } | null>(null)
 
@@ -125,6 +133,15 @@ async function submit() {
   submitting.value = true
   error.value = null
   try {
+    let turnstileToken: string | undefined
+    if (turnstileSiteKey.value) {
+      turnstileToken = turnstileField.value?.getToken() ?? ''
+      if (!turnstileToken) {
+        error.value = 'Complete the verification challenge, then file the request again.'
+        submitting.value = false
+        return
+      }
+    }
     const payload = manufacturer.value
       ? {
           name: name.value.trim(),
@@ -151,9 +168,10 @@ async function submit() {
     const res = await fetch('/api/op/join-requests', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, ...(turnstileToken !== undefined ? { 'cf-turnstile-response': turnstileToken } : {}) }),
     })
     if (!res.ok) {
+      turnstileField.value?.reset()
       const body = await res.json().catch(() => ({})) as { error?: string }
       error.value = body.error ?? `The request could not be filed (${res.status}).`
       return
@@ -415,6 +433,8 @@ onMounted(async () => {
               placeholder="Anything that helps your administrator recognize the request (your team, your manager)."
             />
           </div>
+
+          <TurnstileField v-if="turnstileSiteKey" ref="turnstileField" :site-key="turnstileSiteKey" />
 
           <button
             type="submit"

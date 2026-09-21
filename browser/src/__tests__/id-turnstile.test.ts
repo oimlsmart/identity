@@ -111,3 +111,29 @@ describe('the route gate (the three postures)', () => {
     expect(((await res.json()) as { error: string }).error).not.toContain('bot')
   })
 })
+
+describe('the public config projection (the widget carrier)', () => {
+  it('UNSET: /api/config answers NO turnstile key at all (the page never loads the widget script)', async () => {
+    const res = await app.request(`${ISSUER}/api/config`)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { turnstile?: { siteKey?: string | null } }
+    expect(body.turnstile?.siteKey ?? null).toBeNull()
+  })
+
+  it('SET (both halves): /api/config carries the SITE key — the public half the widget renders with; the secret never rides', async () => {
+    process.env.TURNSTILE_SITE_KEY = 'the-public-site-key'
+    process.env.TURNSTILE_SECRET = 'the-stayed-secret'
+    const res = await app.request(`${ISSUER}/api/config`)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { turnstile?: { siteKey?: string | null } }
+    expect(body.turnstile?.siteKey).toBe('the-public-site-key')
+    expect(JSON.stringify(body)).not.toContain('the-stayed-secret')
+  })
+
+  it('HALF-SET (the site key alone): still OFF — the projection stays silent (the gate flips on both halves or never)', async () => {
+    process.env.TURNSTILE_SITE_KEY = 'the-public-site-key'
+    const res = await app.request(`${ISSUER}/api/config`)
+    const body = await res.json() as { turnstile?: { siteKey?: string | null } }
+    expect(body.turnstile?.siteKey ?? null).toBeNull()
+  })
+})

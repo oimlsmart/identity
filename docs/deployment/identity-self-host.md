@@ -194,7 +194,7 @@ act per gate).
 
 | Variable | Required | What it is |
 |---|---|---|
-| `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET` | optional, paired | The Cloudflare Turnstile bot challenge on `/api/op/login`, `/api/op/register`, `/api/op/join-requests`. **Both must be set** — either alone leaves the feature OFF. With both set, the `<form>` needs the matching script tag in the page shell (one-line add to `IdShell.astro`). |
+| `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET` | optional, paired | The Cloudflare Turnstile bot challenge on `/api/op/login`, `/api/op/register`, `/api/op/join-requests`. **Both must be set** — either alone leaves the feature OFF. With both set, `/api/config` carries the public site key and the sign-in / register / join pages render the widget and send the token — no template edit needed. |
 | `SCIM_BEARER_TOKEN` | optional | A long random bearer arms `/scim/v2/Users`. Unset = the surface answers 404 (it does not exist). The HR connector side (Okta / Entra / Auth0): the bearer + the base URL `{issuer}/scim/v2`. Rotation: `wrangler secret put` a fresh value, update the connector. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | An OTLP/HTTP JSON collector. When set, every request exports ONE span (fire-and-forget — a collector failure never fails the request). The `traceparent` echo and the inbound parsing work WITHOUT this set — the seam is independent. |
 | `OTEL_SERVICE_NAME` | optional | The `service.name` resource attribute (default `oiml-identity`). |
