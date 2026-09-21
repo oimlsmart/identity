@@ -88,6 +88,12 @@ export default defineConfig({
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
           },
+          // The SCIM 2.0 provisioning surface (TODO.modern/05): the
+          // whole /scim family rides the API server under node.
+          '/scim': {
+            target: process.env.API_ORIGIN || 'http://localhost:3190',
+            headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
+          },
           '/jwks.json': {
             target: process.env.API_ORIGIN || 'http://localhost:3190',
             headers: { 'X-Forwarded-Host': process.env.DEV_PUBLIC_HOST || 'localhost:5190', 'X-Forwarded-Proto': 'http' },
