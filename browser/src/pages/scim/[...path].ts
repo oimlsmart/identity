@@ -30,6 +30,6 @@ export const ALL: APIRoute = async ({ request }) => {
       headers: { 'content-type': 'application/json' },
     })
   }
-  const { handleWorkerApi } = await import('../../server/cloudflare')
+  const { handleWorkerApi } = await import('../../../server/cloudflare')
   return handleWorkerApi(request, env)
 }
