@@ -9,7 +9,7 @@
 -- the register's number match is case-insensitive (the ASCII fold;
 -- certificate numbers are ASCII by the number grammar).
 --
--- The json_valid GUARD is load-bearing (0023's lesson): an unguarded
+-- The json_valid GUARD is required (0023's lesson): an unguarded
 -- json_extract index expression would raise on the INSERT of a corrupt
 -- entities row; the guard keeps a corrupt row writable.
 --

@@ -8,7 +8,7 @@
 -- (store, action) slice instead of the journal: only the sign-in rows
 -- are ever visited.
 --
--- The json_valid GUARD is load-bearing: an unguarded json_extract index
+-- The json_valid GUARD is required: an unguarded json_extract index
 -- expression RAISES 'malformed JSON' on any corrupt entities row —
 -- the corrupt row would become unwritable, and the unguarded query
 -- would throw where the retired LIKE fold skipped. The CASE guard
