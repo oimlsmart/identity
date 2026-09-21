@@ -2,10 +2,9 @@ name: identity-dr-drill
 
 # The restore drill (docs/deployment/identity-operations.md → "Disaster
 # recovery: the restore drill"), promoted to a dispatchable workflow:
-# the pilot token can no longer read R2 objects locally (the 2026-09-21
-# attempt: bucket list works, object GET answers "key does not exist" —
-# the scope narrowed since the 2026-08-27 local drill), so the drill
-# runs where the credentials with object-read live. The procedure is
+# (the 2026-09-21 first attempt's failure was the missing --remote
+# flag — wrangler read a local r2 state — not the token's scope, a
+# diagnosis corrected by the backup workflow's own verify command). The procedure is
 # the runbook's own, verbatim: fetch the LATEST backup's snapshot from
 # R2, restore into a THROWAWAY scratch D1, compare the table SET + the
 # per-table ROW COUNTS against the live registry, then destroy the
@@ -64,7 +63,11 @@ jobs:
 
       - name: Fetch the snapshot from R2
         run: |
-          npx wrangler@4 r2 object get "$BACKUP_BUCKET/${{ steps.key.outputs.key }}" \
+          # --remote is load-bearing: without it wrangler reads a LOCAL
+          # r2 state and answers 'key does not exist' (the 2026-09-21
+          # false diagnosis — the token was never the problem; the
+          # backup workflow's own verify passes --remote).
+          npx wrangler@4 r2 object get "$BACKUP_BUCKET/${{ steps.key.outputs.key }}" --remote \
             --file /tmp/dr-snapshot.sql
           test -s /tmp/dr-snapshot.sql
 
