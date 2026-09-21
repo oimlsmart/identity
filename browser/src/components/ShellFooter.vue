@@ -31,6 +31,9 @@ onMounted(() => { void resolveBranding() })
   <div class="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400" data-testid="shell-footer">
     <span>{{ t('shell.footer.tagline') }}</span>
     <span class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+      <!-- The product home: the one cross-property link the credential
+           surface carries (the TODO.public/03 registry's platform row). -->
+      <a href="https://platform.oimlsmart.org" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-platform">{{ t('shell.footer.platform') }}</a>
       <!-- The register's legal pages (the ISO-benchmark quick win, item 2):
            plain links to the www site's own pages. -->
       <a href="https://www.oimlsmart.org/privacy/" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-privacy">{{ t('shell.footer.privacy') }}</a>
