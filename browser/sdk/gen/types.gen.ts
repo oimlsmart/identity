@@ -892,6 +892,39 @@ export type ListWebhookDeliveriesResponses = {
     200: unknown;
 };
 
+export type RedeliverDeadWebhooksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/webhooks/redeliver';
+};
+
+export type RedeliverDeadWebhooksErrors = {
+    /**
+     * The wrong bearer.
+     */
+    401: Error;
+    /**
+     * The token is unset — the endpoint does not exist.
+     */
+    404: unknown;
+};
+
+export type RedeliverDeadWebhooksError = RedeliverDeadWebhooksErrors[keyof RedeliverDeadWebhooksErrors];
+
+export type RedeliverDeadWebhooksResponses = {
+    /**
+     * The pass's tally.
+     */
+    200: {
+        attempted: number;
+        delivered: number;
+        retired: number;
+    };
+};
+
+export type RedeliverDeadWebhooksResponse = RedeliverDeadWebhooksResponses[keyof RedeliverDeadWebhooksResponses];
+
 export type RevokeWebhookSubscriptionData = {
     body?: never;
     path: {

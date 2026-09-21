@@ -701,9 +701,31 @@ The delivery is fire-and-forget (`waitUntil` on the Worker) — the act
 never blocks on the fan-out. Idempotency is on the receiver (the
 envelope carries a stable `id`; the journal also records the
 delivery's `attempts` + `lastStatus` + the body's SHA-256 digest for
-audit). Cron-driven dead-letter redelivery is edition 2 — the
-scheduled entry is the owner's deploy-shape decision; the in-process
-ladder is what runs today.
+audit).
+
+**The dead-letter redelivery pass (edition 2, now built).** A dead
+letter additionally stores its envelope body (the act's own no-secrets
+projection), and the hourly scheduled workflow
+(`identity-webhook-redelivery.yml`) calls the bearer-gated
+`POST /api/op/webhooks/redeliver`. The pass is bounded by construction:
+letters older than 15 minutes only, at most 100 per call, and ONE
+redelivery attempt per letter ever — the pass stamps the letter whether
+the attempt landed or not, so a persistently-down endpoint gets 3
+in-band tries + 1 out-of-band, never a storm. The stored body re-signs
+with a fresh timestamp (the subscriber dedupes by the envelope id); a
+revoked subscription's letter and a body-less legacy letter retire
+without a fetch.
+
+Arming the pass (the operator's two acts, same value both sides):
+
+```
+npx wrangler secret put WEBHOOK_REDELIVERY_TOKEN --env identity
+# + the same value as the WEBHOOK_REDELIVERY_TOKEN secret on the
+#   cloudflare-identity-redelivery GitHub environment
+```
+
+Unset on either side: the endpoint answers 404 and the workflow skips
+loudly (a warning, never a red failure on an unarmed deployment).
 
 ## The repo question
 

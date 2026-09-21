@@ -25,9 +25,11 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono } from 'hono'
+import { env as runtimeEnv } from 'hono/adapter'
 import { getStore } from '../store'
 import { sessionUser } from '../session'
 import { WEBHOOK_EVENTS } from '../webhooks/events'
+import { handleRedeliver } from '../webhooks/redeliver'
 
 const WEBHOOK_SECRET_PREFIX = 'oswh_'
 
@@ -72,6 +74,12 @@ function toClientView(sub: { id: string; url: string; events: string[]; active: 
 
 export function createOpWebhooksRouter(): Hono {
   const webhooks = new Hono()
+
+  // The dead-letter redelivery pass (edition 2's cron half): the
+  // scheduled workflow's caller, NOT an account surface — the bearer
+  // is the dedicated WEBHOOK_REDELIVERY_TOKEN (unset = the endpoint
+  // does not exist; a wrong bearer = 401). One bounded pass per call.
+  webhooks.post('/api/op/webhooks/redeliver', (c) => handleRedeliver(c, runtimeEnv<Record<string, string | undefined>>(c)))
 
   webhooks.get('/api/op/account/webhooks', async (c) => {
     const user = await sessionUser(c)
