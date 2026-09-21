@@ -70,4 +70,22 @@ describe('the public OIDC surface answers edge-cacheable', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('public, max-age=300')
   })
+
+  it('the WebFinger JRD carries Cache-Control: public, max-age=300 (the federation front door — the answer is public scheme data keyed per resource URL)', async () => {
+    const res = await app.request(`${ISSUER}/.well-known/webfinger?resource=${encodeURIComponent('acct:anyone@op.test')}`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('public, max-age=300')
+    // The 404 half caches too — a foreign domain's refusal is as
+    // deterministic as the answer (never a proxy, never an open
+    // resolver; the domain decides).
+    const miss = await app.request(`${ISSUER}/.well-known/webfinger?resource=${encodeURIComponent('acct:x@other.example')}`)
+    expect(miss.status).toBe(404)
+    expect(miss.headers.get('cache-control')).toBe('public, max-age=300')
+  })
+
+  it('the security.txt record carries Cache-Control: public, max-age=300 (static text, deploy-stable)', async () => {
+    const res = await app.request(`${ISSUER}/.well-known/security.txt`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('public, max-age=300')
+  })
 })
