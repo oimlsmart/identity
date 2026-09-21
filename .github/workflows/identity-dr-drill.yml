@@ -1,0 +1,116 @@
+name: identity-dr-drill
+
+# The restore drill (docs/deployment/identity-operations.md → "Disaster
+# recovery: the restore drill"), promoted to a dispatchable workflow:
+# the pilot token can no longer read R2 objects locally (the 2026-09-21
+# attempt: bucket list works, object GET answers "key does not exist" —
+# the scope narrowed since the 2026-08-27 local drill), so the drill
+# runs where the credentials with object-read live. The procedure is
+# the runbook's own, verbatim: fetch the LATEST backup's snapshot from
+# R2, restore into a THROWAWAY scratch D1, compare the table SET + the
+# per-table ROW COUNTS against the live registry, then destroy the
+# scratch and leave nothing behind. The live database is NEVER written.
+#
+# Cadence: quarterly + before migration-carrying deploys (the runbook);
+# dispatch manually (optionally with a specific snapshot key — default:
+# the latest identity-backup run's).
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot_key:
+        description: 'The R2 key to restore (identity/YYYYMMDD-HHMMZ.sql); empty = the latest backup run's'
+        required: false
+        default: ''
+  workflow_call: {}
+
+concurrency:
+  group: identity-dr-drill
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    environment: cloudflare-identity-backup
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      LIVE_DB: oiml-smart-platform-identity
+      BACKUP_BUCKET: oiml-identity-backups
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve the snapshot key (the input, else the latest backup run's)
+        id: key
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_KEY: ${{ inputs.snapshot_key }}
+        run: |
+          if [ -n "$INPUT_KEY" ]; then
+            echo "key=$INPUT_KEY" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          RUN_ID=$(gh run list --workflow identity-backup.yml --limit 5 --json databaseId,conclusion \
+            --jq '[.[] | select(.conclusion=="success")][0].databaseId')
+          KEY=$(gh run view "$RUN_ID" --log | grep -oE 'identity/[0-9]{8}-[0-9]{4}Z\.sql' | tail -1)
+          echo "The latest successful backup ($RUN_ID) uploaded $KEY" >&2
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the snapshot from R2
+        run: |
+          npx wrangler@4 r2 object get "$BACKUP_BUCKET/${{ steps.key.outputs.key }}" \
+            --file /tmp/dr-snapshot.sql
+          test -s /tmp/dr-snapshot.sql
+
+      - name: Create the scratch database (a throwaway — never the live one)
+        id: scratch
+        run: |
+          SCRATCH="identity-dr-drill-${{ github.run_id }}"
+          npx wrangler@4 d1 create "$SCRATCH" > /tmp/dr-create.json
+          echo "name=$SCRATCH" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the snapshot into the scratch
+        run: |
+          npx wrangler@4 d1 execute "${{ steps.scratch.outputs.name }}" \
+            --remote --file /tmp/dr-snapshot.sql -y
+
+      - name: Compare — the table set, then the per-table row counts
+        run: |
+          snapshot() { # $1 = db name, $2 = output file
+            local db="$1" out="$2"
+            local args=(--remote --json)
+            [ "$db" = "$LIVE_DB" ] && args+=(--env identity)
+            local tables
+            tables=$(npx wrangler@4 d1 execute "$db" "${args[@]}" \
+              --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite\_%' AND name NOT LIKE '\_cf\_%' ORDER BY name" \
+              | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results.map(r=>r.name).join("\n"))')
+            : > "$out"
+            while IFS= read -r t; do
+              local n
+              n=$(npx wrangler@4 d1 execute "$db" "${args[@]}" \
+                --command "SELECT COUNT(*) AS n FROM \"$t\"" \
+                | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results[0].n)')
+              printf '%s\t%s\n' "$t" "$n" >> "$out"
+            done <<< "$tables"
+          }
+          cd browser
+          snapshot "$LIVE_DB" /tmp/dr-live.txt
+          snapshot "${{ steps.scratch.outputs.name }}" /tmp/dr-restored.txt
+          echo "— live —"; cat /tmp/dr-live.txt
+          diff /tmp/dr-live.txt /tmp/dr-restored.txt \
+            && echo "DRILL GREEN: table set + row counts identical" \
+            || { echo "::error::the drill FAILED — the restore path is broken (see the runbook: the next migration-carrying deploy does NOT proceed)"; exit 1; }
+
+      - name: Destroy the scratch (always — the drill leaves nothing behind)
+        if: always() && steps.scratch.outputs.name != ''
+        run: npx wrangler@4 d1 delete "${{ steps.scratch.outputs.name }}" --skip-confirmation
+
+      - name: Clean the workspace
+        if: always()
+        run: rm -f /tmp/dr-snapshot.sql /tmp/dr-live.txt /tmp/dr-restored.txt /tmp/dr-create.json
