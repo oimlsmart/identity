@@ -173,6 +173,27 @@ function warnDevKeyRegistrationSkipped(path: string, key: OpSigningKey): void {
   )
 }
 
+/** The session iframe's poll script (TODO.modern/03, verbatim): the
+ *  ONE inline script this OP renders — its hash IS the iframe CSP's
+ *  script-src (TODO.modern/19; the constant + the hash derive from
+ *  the same literal, and the sec-headers spec recomputes it from the
+ *  served html). */
+const CHECK_IFRAME_POLL = [
+  'window.addEventListener("message", function (e) {',
+  '  var params = new URLSearchParams(String(e.data || ""))',
+  '  var cid = params.get("client_id")',
+  '  var ss = params.get("session_state")',
+  '  if (!cid) return',
+  '  fetch("/op/session/state?client_id=" + encodeURIComponent(cid) + "&origin=" + encodeURIComponent(e.origin), { credentials: "include" })',
+  '    .then(function (r) { return r.ok ? r.json() : null })',
+  '    .then(function (body) {',
+  '      var state = (body && body.session_state && ss && body.session_state === ss) ? "unchanged" : "changed"',
+  '      e.source.postMessage(state, e.origin)',
+  '    })',
+  '    .catch(function () { e.source.postMessage("changed", e.origin) })',
+  '})',
+].join('\n')
+
 export function createOpRouter(): Hono {
   const op = new Hono()
 
@@ -312,34 +333,34 @@ export function createOpRouter(): Hono {
   // session). client_secret is deliberately unused here: no RP secret
   // belongs in browser JS (the public-client posture; the confidential
   // client authenticates at the token endpoint, never in an iframe).
-  op.get('/op/session/check', (c) => {
+  // The check iframe's own script hash (TODO.modern/19): the CSP's
+  // script-src names the EXACT inline script the iframe carries —
+  // computed once per isolate from the same literal the answer serves
+  // (WebCrypto, worker-safe), so an edit to the poll re-derives the
+  // hash and never rots into a stale allowlist.
+  let checkIframeHashP: Promise<string> | null = null
+  const checkIframeHash = (): Promise<string> => {
+    checkIframeHashP ??= crypto.subtle
+      .digest('SHA-256', new TextEncoder().encode(`\n${CHECK_IFRAME_POLL}\n`))
+      .then(digest => `'sha256-${btoa(String.fromCharCode(...new Uint8Array(digest)))}'`)
+    return checkIframeHashP
+  }
+
+  op.get('/op/session/check', async (c) => {
     const clientId = c.req.query('client_id')?.trim() ?? ''
     if (!clientId) {
       return c.html('<!doctype html><html><body><p>client_id is required</p></body></html>', 400)
     }
-    const poll = [
-      'window.addEventListener("message", function (e) {',
-      '  var params = new URLSearchParams(String(e.data || ""))',
-      '  var cid = params.get("client_id")',
-      '  var ss = params.get("session_state")',
-      '  if (!cid) return',
-      '  fetch("/op/session/state?client_id=" + encodeURIComponent(cid) + "&origin=" + encodeURIComponent(e.origin), { credentials: "include" })',
-      '    .then(function (r) { return r.ok ? r.json() : null })',
-      '    .then(function (body) {',
-      '      var state = (body && body.session_state && ss && body.session_state === ss) ? "unchanged" : "changed"',
-      '      e.source.postMessage(state, e.origin)',
-      '    })',
-      '    .catch(function () { e.source.postMessage("changed", e.origin) })',
-      '})',
-    ].join('\n')
+    const html = `<!doctype html><html><body><script>\n${CHECK_IFRAME_POLL}\n<\/script></body></html>`
     return c.html(
-      '<!doctype html><html><body><script>\n' + poll + '\n<\/script></body></html>',
+      html,
       200,
       {
+        // Frameable by ANY RP (the poll's whole point) — the CSP form;
+        // the X-Frame-Options header has no allow-all value. The
+        // script-src names the iframe's ONE inline script (TODO.modern/19).
+        'content-security-policy': `frame-ancestors *; script-src ${await checkIframeHash()}`,
         'cache-control': 'no-store',
-        // frameable by ANY RP (the poll's whole point) — the CSP form;
-        // the X-Frame-Options header has no allow-all value.
-        'content-security-policy': 'frame-ancestors *',
       },
     )
   })
