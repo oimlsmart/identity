@@ -381,6 +381,11 @@ export function createApiApp(options: ApiAppOptions): Hono {
       // Whether a blob store is bound (the avatar uploads degrade to an
       // honest 503 when it is not). Availability only — public-safe.
       blobs: { available: getBlobStore() !== null },
+      // The bot gate's public half (TODO.modern/01): the widget needs
+      // the SITE key (public by design) to render; the gate is armed
+      // iff BOTH declarations stand, so an unarmed deployment carries
+      // NO key at all — the pages never load the widget script.
+      turnstile: { siteKey: turnstileEnabled(env) ? env.TURNSTILE_SITE_KEY?.trim() ?? null : null },
       identity: {
         ssoEnabled: false,
         providerName: null,

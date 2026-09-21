@@ -575,10 +575,12 @@ other). With both set, the gate middleware validates the
 `cf-turnstile-response` token at `/api/op/login`, `/api/op/register`,
 and `/api/op/join-requests`; a missing or failing token refuses with
 the same error shape as a wrong credential — never a custom Turnstile
-page, the human sees the standard form's error. The default flow
-carries no challenge (byte-identical). The site key also rides the
-`<form>` so the widget renders — add the script tag to the page shell
-when you arm it (the `IdShell.astro` template, a one-line add).
+page, the human sees the standard form's error. The UI half ships
+armed-aware: `/api/config` carries the public site key only when both
+declarations stand, and the sign-in, register, and join pages mount
+the widget and send the token exactly then — an unarmed deployment
+never loads Cloudflare's script. The default flow carries no challenge
+(byte-identical).
 
 The posture: Turnstile is the bot-stopper of last resort for the
 public surfaces. Real abuse control sits at the rate limiter

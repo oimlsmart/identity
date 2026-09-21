@@ -9,8 +9,10 @@
 // until then. The organization binding stays where it was — the join
 // intake and the org admins gate it, never this form.
 // ═══════════════════════════════════════════════════════════════════
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../../components/BrandLogo.vue'
+import TurnstileField from '../../components/TurnstileField.vue'
+import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 
@@ -26,6 +28,13 @@ const error = ref<string | null>(null)
  *  banner's resend carries it). */
 const filed = ref<'mailed' | 'pending' | null>(null)
 
+// The bot gate's widget half — the field mounts only when armed.
+const turnstileSiteKey = ref<string | null>(null)
+const turnstileField = ref<InstanceType<typeof TurnstileField> | null>(null)
+onMounted(async () => {
+  turnstileSiteKey.value = await fetchTurnstileSiteKey()
+})
+
 const canSubmit = computed(() =>
   !submitting.value
   && name.value.trim() !== ''
@@ -38,11 +47,21 @@ async function submit() {
   submitting.value = true
   error.value = null
   try {
+    let turnstileToken: string | undefined
+    if (turnstileSiteKey.value) {
+      turnstileToken = turnstileField.value?.getToken() ?? ''
+      if (!turnstileToken) {
+        error.value = t('register.turnstileRequired')
+        submitting.value = false
+        return
+      }
+    }
     const res = await fetch('/api/op/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: name.value.trim(), email: email.value.trim(), password: password.value }),
+      body: JSON.stringify({ name: name.value.trim(), email: email.value.trim(), password: password.value, ...(turnstileToken !== undefined ? { 'cf-turnstile-response': turnstileToken } : {}) }),
     })
+    if (res.status !== 201) turnstileField.value?.reset()
     if (res.status === 201) {
       const body = await res.json().catch(() => ({})) as { verification?: string }
       filed.value = body.verification === 'mailed' ? 'mailed' : 'pending'
@@ -126,6 +145,7 @@ async function submit() {
               />
               <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ t('register.password.hint') }}</p>
             </div>
+            <TurnstileField v-if="turnstileSiteKey" ref="turnstileField" :site-key="turnstileSiteKey" />
             <button
               type="submit"
               :disabled="!canSubmit"
