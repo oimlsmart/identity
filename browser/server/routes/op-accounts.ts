@@ -231,15 +231,17 @@ export function createOpAccountsRouter(): Hono {
   // The bootstrap rides ONLY the requests that present a session
   // credential (the authenticated /api/op/* surface: the console, the
   // PAT mint's scope grammar, the grants view) or hit the credential
-  // gates (login/register — the seeded admin's own front door).
-  // Anonymous public reads never seed: the '/api/op/*' wildcard put a
-  // failing seed's retry in EVERY window — the wire's 22-call
-  // org-list arithmetic (the 2026-09-18 production lesson; the timing
-  // spec's leg pins it).
+  // gates (login/register — the seeded admin's own front door; enroll
+  // — the setup link's island fetches its context anonymously, the
+  // #111 lesson). Anonymous public reads never seed: the '/api/op/*'
+  // wildcard put a failing seed's retry in EVERY window — the wire's
+  // 22-call org-list arithmetic (the 2026-09-18 production lesson;
+  // the timing spec's leg pins it).
   accounts.use('/api/op/*', async (c, next) => {
     const cookie = c.req.header('cookie') ?? ''
     const presentsSession = cookie.includes(`${SESSION_COOKIE}=`)
-    const isCredentialGate = ['/api/op/login', '/api/op/register'].some((p) => c.req.path.startsWith(p))
+    const isCredentialGate = ['/api/op/login', '/api/op/register', '/api/op/enroll']
+      .some((p) => c.req.path.startsWith(p))
       || c.req.path.startsWith('/api/op/login/reset')
     if (presentsSession || isCredentialGate) await ensureSeeded(c)
     await next()
