@@ -47,11 +47,15 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // The env-declared bootstrap (OP_ACCOUNT_SEED + OP_CLIENT_SEED) runs
-// at BOOT on the node/self-host posture: the operator's log carries
-// the seeded admin's one-time setup link without waiting for a request
-// (id-16's leg 2 greps exactly this). Idempotent upserts; the Worker
-// posture never auto-seeds (server/cloudflare.ts).
-if (process.env.OP_ACCOUNT_SEED?.trim() || process.env.OP_CLIENT_SEED?.trim()) {
+// at BOOT on the PRODUCTION node/self-host posture: the operator's log
+// carries the seeded admin's one-time setup link without waiting for a
+// request. Idempotent upserts; the Worker posture never auto-seeds
+// (server/cloudflare.ts). DEV/e2e keep the lazy request-driven seed:
+// the dev-reset seam wipes enrollment_tokens, so a boot-minted setup
+// link would be orphaned before the first leg reads it (the CI round
+// this repo shipped the scoping in proved it on id-06).
+if (process.env.NODE_ENV === 'production'
+  && (process.env.OP_ACCOUNT_SEED?.trim() || process.env.OP_CLIENT_SEED?.trim())) {
   const { resolveOpConfig } = await import('./auth/op/config')
   const { seedOpAccountsFromEnv } = await import('./auth/op/accounts')
   const { seedOidcClientsFromEnv } = await import('./auth/op/registry')
