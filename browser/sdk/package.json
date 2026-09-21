@@ -1,0 +1,41 @@
+{
+  "name": "@oimlsmart/identity-api",
+  "version": "0.1.0",
+  "description": "The typed client for the OIML SMART identity service — generated from the service's drift-gated OpenAPI surface (id.oimlsmart.org/api/openapi.json), plus the posture helpers (the PAT exchange, the bearer rider).",
+  "license": "MIT",
+  "author": "OIML SMART project contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oimlsmart/identity.git",
+    "directory": "browser/sdk"
+  },
+  "bugs": "https://github.com/oimlsmart/identity/security/advisories/new",
+  "keywords": [
+    "oidc",
+    "identity",
+    "openapi",
+    "typed-client",
+    "oimlsmart"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup index.ts --format esm --dts --sourcemap --clean --outDir dist",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "~5.9.0"
+  },
+  "sideEffects": false
+}
