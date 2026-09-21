@@ -148,7 +148,9 @@ this leg narrows a broken restore path to a week, inside the bucket's
 An untested backup is a hope, not a backup. The drill restores the live
 registry into a scratch D1 and proves the restore clean. Cadence:
 quarterly, plus before any migration-carrying deploy — and it runs as
-the dispatchable `identity-dr-drill` workflow (the local path retired
+the dispatchable `identity-dr-drill` workflow (FIRST GREEN RUN
+2026-09-21: 46-table set identical, 45 tables rowid-bounded identical,
+sessions drift-down 5 rows = lifecycle; the local path retired
 2026-09-21: wrangler's r2 object get needs --remote, and the comparison
 outgrew a hand-run). The comparison is ROWID-BOUNDED (the 2026-09-21
 finding): the journal tables write continuously, so a plain count diff
