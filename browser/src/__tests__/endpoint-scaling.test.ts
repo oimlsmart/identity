@@ -183,9 +183,21 @@ async function seedWebhookSubs(from: number, count: number): Promise<void> {
   }
 }
 
+/** N delivery records on the member account's FIRST subscription (the
+ *  deliveries list leg — the journal of attempts, one indexed read). */
+async function seedWebhookDeliveries(from: number, count: number, subscriptionId: string): Promise<void> {
+  for (let i = from; i < from + count; i++) {
+    await store.recordWebhookDelivery({
+      subscriptionId, accountId: memberId,
+      event: 'account.password', url: `https://gate-${i}.example/hooks`,
+      attempts: 1, lastStatus: 200, delivered: true,
+      bodyDigest: `digest-${i}`, recordedAt: new Date(Date.now() + i).toISOString(),
+    })
+  }
+}
+
 /** N more personal access tokens on the member account (TODO.openapi/03
- *  — the registry's per-user TOKENS list leg). */
-async function seedPatTokens(from: number, count: number): Promise<void> {
+ *  — the registry's per-user TOKENS list leg). */async function seedPatTokens(from: number, count: number): Promise<void> {
   for (let i = from; i < from + count; i++) {
     const plaintext = mintPatSecret()
     await store.createPersonalAccessToken({
@@ -455,6 +467,30 @@ describe('the account consoles — the fixed N+1s', () => {
     expectScalingInvariant({ label: 'GET /api/op/account/webhooks as member', ...leg })
     const body = await (await app.fetch(req('/api/op/account/webhooks', memberCookie))).json() as { subscriptions: Array<{ active: boolean }> }
     expect(body.subscriptions.filter(s => s.active).length).toBe(LARGE)
+  })
+
+  it('GET /api/op/account/webhooks/deliveries (the delivery journal, one indexed read)', async () => {
+    // Each leg starts from a clean registry, so the leg seeds its OWN
+    // subscription first; the deliveries journal keys on the account.
+    let subId = ''
+    const leg = await runLeg({
+      seedSmall: async () => {
+        const created = await store.createWebhookSubscription({
+          id: crypto.randomUUID(), accountId: memberId,
+          url: 'https://gate-d.example/hooks', events: ['account.password'], secret: 'oswh_gate_d',
+        })
+        subId = created.id
+        await seedWebhookDeliveries(0, SMALL, subId)
+        return SMALL
+      },
+      grow: () => seedWebhookDeliveries(SMALL, LARGE - SMALL, subId).then(() => LARGE),
+      request: () => app.fetch(req('/api/op/account/webhooks/deliveries', memberCookie)),
+    })
+    expectScalingInvariant({ label: 'GET /api/op/account/webhooks/deliveries as member', ...leg })
+    // The content pin: the read is the indexed LIMIT-50 slice — the
+    // gate's 30 rows sit under the cap, so the whole journal answers.
+    const body = await (await app.fetch(req('/api/op/account/webhooks/deliveries', memberCookie))).json() as { deliveries: unknown[] }
+    expect(body.deliveries.length).toBe(LARGE)
   })
 
   it('GET /api/op/account/grants (the per-grant client lookup, prefetched)', async () => {
