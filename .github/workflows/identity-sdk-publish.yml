@@ -1,0 +1,85 @@
+name: identity-sdk-publish
+
+# The typed SDK's npm publication (@oimlsmart/identity-api). The
+# artifact is GENERATED (browser/sdk/gen from the drift-gated OpenAPI
+# spec — the sdk:check freshness gate runs in CI on every PR), so the
+# release is a re-derive-and-ship: regenerate, verify byte-identity,
+# bundle (tsup → dist, ESM + d.ts), publish with provenance.
+#
+# Trigger: a tag `sdk-vX.Y.Z` (the version MUST match
+# browser/sdk/package.json — the verify step enforces it), or a manual
+# dispatch (the dry-run posture: build + pack, never publish).
+#
+# Arming (the owner's acts):
+#   - the NPM_TOKEN secret on this workflow's `npm-publish` environment
+#     (an npm automation/granular token scoped to @oimlsmart/identity-api);
+#   - npm trusted publishing (provenance) needs the package registered
+#     on npmjs.com with this repository + workflow name.
+
+on:
+  push:
+    tags:
+      - "sdk-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build + pack only (never publish)"
+        default: "true"
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: identity-sdk-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install (the browser workspace's dev deps)
+        working-directory: browser
+        run: npm ci
+
+      - name: The freshness gate (regenerate → byte-identity)
+        working-directory: browser
+        run: npm run -s sdk:check
+
+      - name: Build (tsup → dist, ESM + d.ts)
+        working-directory: browser/sdk
+        run: npm install --no-save tsup@8 typescript@~5.9.0 && npm run build
+
+      - name: The version agrees with the tag
+        if: startsWith(github.ref, 'refs/tags/sdk-v')
+        working-directory: browser/sdk
+        run: |
+          PKG_VERSION="v$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::the tag ($TAG_VERSION) and browser/sdk/package.json's version ($PKG_VERSION) disagree — re-tag or bump the package"
+            exit 1
+          fi
+
+      - name: Pack (the tarball is the eyeball artifact)
+        working-directory: browser/sdk
+        run: npm pack --dry-run
+
+      - name: Publish (tagged releases only)
+        if: startsWith(github.ref, 'refs/tags/sdk-v')
+        working-directory: browser/sdk
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Dry-run dispatch ends here
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "dry run — built and packed, never published"
