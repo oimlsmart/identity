@@ -55,7 +55,7 @@
 //
 // The anonymous-intake bounds (the 2026-09-07 security cone audit's
 // F10.5, smart#297 — VERIFIED, one bound added): the public submit is
-// bounded by design, and each bound is load-bearing —
+// bounded by design, and each bound is deliberate —
 //   - one PENDING request per email (the duplicate guard; a decided
 //     request never blocks a fresh ask);
 //   - the registry path admits only an ACTIVE join-flow org and a role
