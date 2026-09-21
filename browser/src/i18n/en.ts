@@ -1381,6 +1381,7 @@ export const en = {
   "admin.users.createOrgAdmin": "Create the org admin",
   "admin.users.orgAdminFailed": "Could not create the organization administrator ({status}).",
   "shell.environment.note": "this is not the production service",
+  "shell.footer.platform": "Platform",
   "shell.footer.privacy": "Privacy",
   "shell.footer.status": "Service status",
   "shell.footer.supportPrompt": "Need help?",

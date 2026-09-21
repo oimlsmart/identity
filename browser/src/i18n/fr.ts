@@ -1383,6 +1383,7 @@ export const fr: Record<MessageKey, string> = {
   "admin.users.createOrgAdmin": "Cr\u00e9er l\u2019administrateur d\u2019organisation",
   "admin.users.orgAdminFailed": "Impossible de cr\u00e9er l\u2019administrateur d\u2019organisation ({status}).",
   "shell.environment.note": "ceci n’est pas le service de production",
+  "shell.footer.platform": "Plateforme",
   "shell.footer.privacy": "Confidentialité",
   "shell.footer.status": "État du service",
   "shell.footer.supportPrompt": "Besoin d’aide ?",

@@ -280,6 +280,7 @@ describe('TODO.identity-features/11 — the ISO-benchmark quick wins', () => {
       const footerLinks = await page.evaluate(() => {
         const read = (tid: string) => (document.querySelector(`[data-testid="${tid}"]`) as HTMLAnchorElement | null)?.href ?? null
         return {
+          platform: read('shell-platform'),
           privacy: read('shell-privacy'),
           terms: read('shell-terms'),
           status: read('shell-status-pill'),
@@ -290,6 +291,7 @@ describe('TODO.identity-features/11 — the ISO-benchmark quick wins', () => {
         state: document.querySelector('[data-testid="shell-status-pill"]')?.getAttribute('data-state'),
         text: document.querySelector('[data-testid="shell-status-pill"]')?.textContent?.trim() ?? '',
       }))
+      expect(footerLinks.platform).toBe('https://platform.oimlsmart.org/')
       expect(footerLinks.privacy).toBe('https://www.oimlsmart.org/privacy/')
       expect(footerLinks.terms).toBe('https://www.oimlsmart.org/terms/')
       expect(footerLinks.status).toBe('https://status.oimlsmart.org/')
