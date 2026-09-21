@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       snapshot_key:
-        description: 'The R2 key to restore (identity/YYYYMMDD-HHMMZ.sql); empty = the latest backup run's'
+        description: "The R2 key to restore (identity/YYYYMMDD-HHMMZ.sql); empty = the latest backup run's"
         required: false
         default: ''
   workflow_call: {}
