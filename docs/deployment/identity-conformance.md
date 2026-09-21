@@ -1,6 +1,6 @@
 # The OpenID conformance run — the operator's runbook (TODO.modern/02)
 
-> FOR: the estate owner, when certification is scheduled. Everything
+> FOR: the service owner, when certification is scheduled. Everything
 > in-repo is ready; this page is the exact procedure. The house rule
 > for findings: **every finding is a code fix + a regression leg,
 > never a relaxed assertion** — and a deliberate surface change

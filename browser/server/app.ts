@@ -328,7 +328,7 @@ export function createApiApp(options: ApiAppOptions): Hono {
 
   // RFC 9116 (TODO.modern/14): the vulnerability disclosure pointer.
   // The contact is the repository's private security advisories — the
-  // real, monitored channel for this estate (never an invented
+  // real, monitored channel for this service (never an invented
   // mailbox). Expires yearly; the deploy review refreshes it.
   app.get('/.well-known/security.txt', (c) => {
     return c.text(

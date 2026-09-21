@@ -335,7 +335,7 @@ demo_personas: true
 }, 120_000)
 
 // ═══════════════════════════════════════════════════════════════════
-// The legs. Declaration order is load-bearing where a fixture names
+// The legs. Declaration order matters where a fixture names
 // another leg's rows (named in the leg's comment); every other leg is
 // self-contained (the delta assertion makes the foreign rows cancel).
 // ═══════════════════════════════════════════════════════════════════

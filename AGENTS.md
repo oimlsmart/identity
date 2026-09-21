@@ -52,7 +52,7 @@ before it can reach a relying party.
   bookkeeping on filenames: future files append expand-only HERE, never
   renumber (`src/__tests__/migrations.test.ts` is the drift tripwire
   against `server/store/sqlite/schema.sql`).
-- **The issuer is load-bearing.** `OP_ISSUER=https://id.oimlsmart.org`
+- **The issuer is fixed.** `OP_ISSUER=https://id.oimlsmart.org`
   in production: every RP's `OIDC_ISSUER` and every token's `iss` name
   it. Never repoint it outside the cutover plan.
 - **Deploys are deliberate acts.** Only an `id-v*` tag runs
