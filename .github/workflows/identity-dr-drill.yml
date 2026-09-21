@@ -122,9 +122,17 @@ jobs:
             m_r=$(printf '%s' "$restored" | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].m)')
             n_l=$(q "$LIVE_DB" "SELECT COUNT(*) AS n FROM \"$tbl\" WHERE rowid <= $m_r" \
               | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].n)')
-            if [ "$n_l" != "$n_r" ]; then
-              echo "::error::$tbl: restored $n_r rows at rowid<=$m_r, live has $n_l — a snapshotted row was deleted, or the restore dropped rows"
+            # The direction IS the verdict (the 2026-09-21 fourth
+            # run's lesson): live > restored is impossible for a sound
+            # restore below the snapshot boundary — a dropped-row defect
+            # shows EXACTLY this; live < restored is post-snapshot
+            # deletion (the lifecycle tables: sessions expire + sweep,
+            # challenges consume) — drift-down, a note, never a failure.
+            if [ "$n_l" -gt "$n_r" ]; then
+              echo "::error::$tbl: restored $n_r rows at rowid<=$m_r but live has $n_l — live EXCEEDS the snapshot below its boundary; the restore dropped rows"
               fail=1
+            elif [ "$n_l" -lt "$n_r" ]; then
+              echo "$tbl: $n_r rows (rowid<=$m_r), live $n_l — drift-down ($((n_r - n_l)) row(s) deleted since the snapshot: lifecycle)"
             else
               echo "$tbl: $n_r rows (rowid<=$m_r) — identical"
             fi

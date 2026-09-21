@@ -154,9 +154,12 @@ outgrew a hand-run). The comparison is ROWID-BOUNDED (the 2026-09-21
 finding): the journal tables write continuously, so a plain count diff
 against a snapshot even minutes old is never empty — the sound proof
 bounds the live count at the snapshot's per-table max rowid, which must
-match the restored count exactly (appends above the boundary are
-post-snapshot writes; a live count BELOW means a snapshotted row was
-deleted — re-run with a fresh snapshot before calling it a failure).
+match the restored count for append-only tables; the DIRECTION of any
+gap is the verdict (the fourth run's lesson): live EXCEEDING the bound
+is impossible for a sound restore — a dropped-row defect shows exactly
+that, a red; live BELOW it is post-snapshot deletion (the lifecycle
+tables — sessions expire and sweep continuously), a drift-down note,
+never a failure.
 
 The credentials posture: the Cloudflare pilot token
 (`source ~/.cloudflare-credentials-oimlsmart`), with
