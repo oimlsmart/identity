@@ -146,10 +146,17 @@ this leg narrows a broken restore path to a week, inside the bucket's
 ### Disaster recovery: the restore drill
 
 An untested backup is a hope, not a backup. The drill restores the live
-registry into a scratch D1 and proves the restore byte-clean — last run
-2026-08-27: 35 tables on both sides, zero missing/extra, zero row-count
-mismatches (173 rows each side). Cadence: quarterly, plus before any
-migration-carrying deploy.
+registry into a scratch D1 and proves the restore clean. Cadence:
+quarterly, plus before any migration-carrying deploy — and it runs as
+the dispatchable `identity-dr-drill` workflow (the local path retired
+2026-09-21: wrangler's r2 object get needs --remote, and the comparison
+outgrew a hand-run). The comparison is ROWID-BOUNDED (the 2026-09-21
+finding): the journal tables write continuously, so a plain count diff
+against a snapshot even minutes old is never empty — the sound proof
+bounds the live count at the snapshot's per-table max rowid, which must
+match the restored count exactly (appends above the boundary are
+post-snapshot writes; a live count BELOW means a snapshotted row was
+deleted — re-run with a fresh snapshot before calling it a failure).
 
 The credentials posture: the Cloudflare pilot token
 (`source ~/.cloudflare-credentials-oimlsmart`), with

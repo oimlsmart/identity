@@ -83,32 +83,53 @@ jobs:
           npx wrangler@4.125.0 d1 execute "${{ steps.scratch.outputs.name }}" \
             --remote --file /tmp/dr-snapshot.sql -y
 
-      - name: Compare — the table set, then the per-table row counts
+      - name: Compare — the table set, then the rowid-bounded row counts
+        # The journal tables write continuously (~2 rows/min), so a
+        # plain count diff can never be empty against a snapshot even
+        # minutes old (the 2026-09-21 third run: 122 entities of drift
+        # over 65 minutes — the runbook's "honest drift" made constant).
+        # The sound proof is ROWID-BOUNDED: the snapshot's max rowid per
+        # table is the boundary; live rows at-or-below it must equal the
+        # restored count EXACTLY (appends above the boundary are the
+        # post-snapshot writes, invisible to this comparison; a live
+        # count BELOW means a snapshotted row was deleted since — rare,
+        # and a legitimate re-run-with-fresh-snapshot case).
         run: |
-          snapshot() { # $1 = db name, $2 = output file
-            local db="$1" out="$2"
+          q() { # $1 = db, $2 = sql, extra args after
+            local db="$1" sql="$2"; shift 2
             local args=(--remote --json)
             [ "$db" = "$LIVE_DB" ] && args+=(--env identity)
-            local tables
-            tables=$(npx wrangler@4.125.0 d1 execute "$db" "${args[@]}" \
-              --command "SELECT name FROM sqlite_master WHERE type='table' AND substr(name,1,7) != 'sqlite_' AND substr(name,1,4) != '_cf_' ORDER BY name" \
-              | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results.map(r=>r.name).join("\n"))')
-            : > "$out"
-            while IFS= read -r t; do
-              local n
-              n=$(npx wrangler@4.125.0 d1 execute "$db" "${args[@]}" \
-                --command "SELECT COUNT(*) AS n FROM \"$t\"" \
-                | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results[0].n)')
-              printf '%s\t%s\n' "$t" "$n" >> "$out"
-            done <<< "$tables"
+            npx wrangler@4.125.0 d1 execute "$db" "${args[@]}" --command "$sql" "$@" \
+              | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d[0]) { console.error("EMPTY RESULT"); process.exit(2) } console.log(JSON.stringify(d[0].results))'
+          }
+          # The table SET must match first (substr exclusion — see the
+          # _cf_KV lesson).
+          list_tables() {
+            local db="$1"
+            q "$db" "SELECT name FROM sqlite_master WHERE type='table' AND substr(name,1,7) != 'sqlite_' AND substr(name,1,4) != '_cf_' ORDER BY name" \
+              | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8")).map(r=>r.name).join("\n"))'
           }
           cd browser
-          snapshot "$LIVE_DB" /tmp/dr-live.txt
-          snapshot "${{ steps.scratch.outputs.name }}" /tmp/dr-restored.txt
-          echo "— live —"; cat /tmp/dr-live.txt
-          diff /tmp/dr-live.txt /tmp/dr-restored.txt \
-            && echo "DRILL GREEN: table set + row counts identical" \
-            || { echo "::error::the drill FAILED — the restore path is broken (see the runbook: the next migration-carrying deploy does NOT proceed)"; exit 1; }
+          live_tables=$(list_tables "$LIVE_DB")
+          restored_tables=$(list_tables "${{ steps.scratch.outputs.name }}")
+          diff <(printf '%s\n' "$live_tables") <(printf '%s\n' "$restored_tables") \
+            || { echo "::error::the table SETS differ — schema drift the snapshot does not carry"; exit 1; }
+
+          fail=0
+          while IFS= read -r tbl; do
+            restored=$(q "${{ steps.scratch.outputs.name }}" "SELECT COUNT(*) AS n, COALESCE(MAX(rowid),0) AS m FROM \"$tbl\"")
+            n_r=$(printf '%s' "$restored" | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].n)')
+            m_r=$(printf '%s' "$restored" | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].m)')
+            n_l=$(q "$LIVE_DB" "SELECT COUNT(*) AS n FROM \"$tbl\" WHERE rowid <= $m_r" \
+              | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].n)')
+            if [ "$n_l" != "$n_r" ]; then
+              echo "::error::$tbl: restored $n_r rows at rowid<=$m_r, live has $n_l — a snapshotted row was deleted, or the restore dropped rows"
+              fail=1
+            else
+              echo "$tbl: $n_r rows (rowid<=$m_r) — identical"
+            fi
+          done <<< "$live_tables"
+          [ "$fail" = 0 ] && echo "DRILL GREEN: table set + rowid-bounded row counts identical" || exit 1
 
       - name: Destroy the scratch (always — the drill leaves nothing behind)
         if: always() && steps.scratch.outputs.name != ''
