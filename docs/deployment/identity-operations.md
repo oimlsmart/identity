@@ -190,7 +190,7 @@ npx wrangler d1 execute "$SCRATCH" --remote --file "/tmp/id-dr-$STAMP.sql"
 
 # 3. Compare: the table SET, then the per-table ROW COUNTS — one
 #    "name<TAB>count" line per table per side; the diff must be EMPTY.
-#    (The internal sqlite_%/_cf_% tables are excluded; d1_migrations IS
+#    (The internal sqlite_*/_cf_* tables are excluded (substr, not LIKE — SQLite's LIKE has no default escape, so the old '\_' pattern leaked _cf_KV and its COUNT refused: the 2026-09-21 drill's lesson); d1_migrations IS
 #    compared — schema parity is part of the proof.)
 snapshot() { # $1 = the database name, $2 = the output file
   local db="$1" out="$2"
@@ -198,7 +198,7 @@ snapshot() { # $1 = the database name, $2 = the output file
   [ "$db" = oiml-smart-platform-identity ] && args+=(--env identity)
   local tables
   tables=$(npx wrangler d1 execute "$db" "${args[@]}" \
-    --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite\_%' AND name NOT LIKE '\_cf\_%' ORDER BY name" \
+    --command "SELECT name FROM sqlite_master WHERE type='table' AND substr(name,1,7) != 'sqlite_' AND substr(name,1,4) != '_cf_' ORDER BY name" \
     | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results.map(r=>r.name).join("\n"))')
   : > "$out"
   while IFS= read -r t; do

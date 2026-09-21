@@ -67,7 +67,7 @@ jobs:
           # r2 state and answers 'key does not exist' (the 2026-09-21
           # false diagnosis — the token was never the problem; the
           # backup workflow's own verify passes --remote).
-          npx wrangler@4 r2 object get "$BACKUP_BUCKET/${{ steps.key.outputs.key }}" --remote \
+          npx wrangler@4.125.0 r2 object get "$BACKUP_BUCKET/${{ steps.key.outputs.key }}" --remote \
             --file /tmp/dr-snapshot.sql
           test -s /tmp/dr-snapshot.sql
 
@@ -75,12 +75,12 @@ jobs:
         id: scratch
         run: |
           SCRATCH="identity-dr-drill-${{ github.run_id }}"
-          npx wrangler@4 d1 create "$SCRATCH" > /tmp/dr-create.json
+          npx wrangler@4.125.0 d1 create "$SCRATCH" > /tmp/dr-create.json
           echo "name=$SCRATCH" >> "$GITHUB_OUTPUT"
 
       - name: Restore the snapshot into the scratch
         run: |
-          npx wrangler@4 d1 execute "${{ steps.scratch.outputs.name }}" \
+          npx wrangler@4.125.0 d1 execute "${{ steps.scratch.outputs.name }}" \
             --remote --file /tmp/dr-snapshot.sql -y
 
       - name: Compare — the table set, then the per-table row counts
@@ -90,13 +90,13 @@ jobs:
             local args=(--remote --json)
             [ "$db" = "$LIVE_DB" ] && args+=(--env identity)
             local tables
-            tables=$(npx wrangler@4 d1 execute "$db" "${args[@]}" \
-              --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite\_%' AND name NOT LIKE '\_cf\_%' ORDER BY name" \
+            tables=$(npx wrangler@4.125.0 d1 execute "$db" "${args[@]}" \
+              --command "SELECT name FROM sqlite_master WHERE type='table' AND substr(name,1,7) != 'sqlite_' AND substr(name,1,4) != '_cf_' ORDER BY name" \
               | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results.map(r=>r.name).join("\n"))')
             : > "$out"
             while IFS= read -r t; do
               local n
-              n=$(npx wrangler@4 d1 execute "$db" "${args[@]}" \
+              n=$(npx wrangler@4.125.0 d1 execute "$db" "${args[@]}" \
                 --command "SELECT COUNT(*) AS n FROM \"$t\"" \
                 | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].results[0].n)')
               printf '%s\t%s\n' "$t" "$n" >> "$out"
@@ -112,7 +112,7 @@ jobs:
 
       - name: Destroy the scratch (always — the drill leaves nothing behind)
         if: always() && steps.scratch.outputs.name != ''
-        run: npx wrangler@4 d1 delete "${{ steps.scratch.outputs.name }}" --skip-confirmation
+        run: npx wrangler@4.125.0 d1 delete "${{ steps.scratch.outputs.name }}" --skip-confirmation
 
       - name: Clean the workspace
         if: always()
