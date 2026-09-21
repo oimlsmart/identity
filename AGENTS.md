@@ -90,3 +90,7 @@ before it can reach a relying party.
   `docs/deployment/identity-upstreams.md`.
 - The RP integration guide (consumed by every OIML SMART instance):
   `docs/integration/identity-service.md`.
+- The SOTA integration additions (PAR, JARM, `login_hint`, the account
+  chooser, the typed SDK): `docs/integration/identity-modern-features.md`.
+- The operator's SOTA gates (security.txt, Turnstile, SCIM, OTel,
+  webhooks): `docs/deployment/identity-operations.md` §SOTA config gates.
