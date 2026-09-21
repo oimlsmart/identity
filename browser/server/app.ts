@@ -318,7 +318,12 @@ export function createApiApp(options: ApiAppOptions): Hono {
     const issuer = new URL(config.issuer)
     const match = /^(?:acct:|mailto:)([^@]+)@([^@]+)$/.exec(resource)
     if (!match || match[2]!.toLowerCase() !== issuer.hostname.toLowerCase()) {
-      return c.json({ error: 'this service answers only for its own domain' }, 404)
+      // The 404 caches like the 200: a foreign domain's refusal is as
+      // deterministic as the answer (the domain decides), and the
+      // federation's front door is exactly where the edge should
+      // carry the repeat load.
+      return c.json({ error: 'this service answers only for its own domain' }, 404,
+        { 'cache-control': 'public, max-age=300' })
     }
     return c.json({
       subject: resource,
@@ -338,7 +343,7 @@ export function createApiApp(options: ApiAppOptions): Hono {
         + 'Canonical: https://id.oimlsmart.org/.well-known/security.txt\n'
         + 'Policy: https://github.com/oimlsmart/identity/blob/main/docs/deployment/identity.md\n',
       200,
-      { 'content-type': 'text/plain; charset=utf-8' },
+      { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=300' },
     )
   })
 
