@@ -70,7 +70,13 @@ function healWebhookDeliveryColumns(db: Database.Database): void {
   if (!deliveryCols.some(c => c.name === 'redelivered_at')) {
     db.exec('ALTER TABLE webhook_deliveries ADD COLUMN redelivered_at TEXT')
   }
+  // The retention half (0034): the expiry column + the pre-0034 backfill.
+  if (!deliveryCols.some(c => c.name === 'expires_at')) {
+    db.exec('ALTER TABLE webhook_deliveries ADD COLUMN expires_at TEXT')
+    db.exec("UPDATE webhook_deliveries SET expires_at = datetime(recorded_at, '+90 days') WHERE expires_at IS NULL")
+  }
   db.exec('CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_redelivery ON webhook_deliveries (delivered, redelivered_at, recorded_at)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_expires ON webhook_deliveries (expires_at)')
 }
 
 /** Migration-safe column adds for DBs created before a schema change. */

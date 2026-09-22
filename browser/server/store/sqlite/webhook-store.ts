@@ -8,7 +8,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import type Database from 'better-sqlite3'
-import type { WebhookDeliveryRecord, WebhookSubscription } from '../../store'
+import { WEBHOOK_DELIVERY_RETENTION_DAYS, type WebhookDeliveryRecord, type WebhookSubscription } from '../../store'
 
 interface SubscriptionRow {
   id: string
@@ -33,6 +33,7 @@ interface DeliveryRow {
   recorded_at: string
   body: string | null
   redelivered_at: string | null
+  expires_at: string | null
 }
 
 /** The defensive events-cell parse: a malformed cell reads as the
@@ -72,6 +73,7 @@ function toDelivery(row: DeliveryRow): WebhookDeliveryRecord {
     recordedAt: row.recorded_at,
     body: row.body,
     redeliveredAt: row.redelivered_at,
+    expiresAt: row.expires_at,
   }
 }
 
@@ -111,8 +113,8 @@ export function recordWebhookDelivery(
 ): void {
   db.prepare(
     `INSERT INTO webhook_deliveries
-       (id, subscription_id, account_id, event, url, attempts, last_status, delivered, body_digest, recorded_at, body, redelivered_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, subscription_id, account_id, event, url, attempts, last_status, delivered, body_digest, recorded_at, body, redelivered_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.id ?? crypto.randomUUID(),
     input.subscriptionId,
@@ -126,6 +128,8 @@ export function recordWebhookDelivery(
     input.recordedAt,
     input.body ?? null,
     input.redeliveredAt ?? null,
+    // The journal's retention (0034): recorded_at + the policy's days.
+    new Date(new Date(input.recordedAt).getTime() + WEBHOOK_DELIVERY_RETENTION_DAYS * 86_400_000).toISOString(),
   )
 }
 
