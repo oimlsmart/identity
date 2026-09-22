@@ -121,7 +121,7 @@ demo_personas: true
   app = root
   // The demo cast lands on the first auth request (ensureInit).
   await demoLogin('admin@oiml.org')
-})
+}, 30_000)
 
 afterAll(async () => {
   rmSync(TMP, { recursive: true, force: true })

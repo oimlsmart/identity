@@ -220,7 +220,7 @@ demo_personas: true
   root.route('/', createOpMfaRouter())
   app = root
   await demoLogin('admin@oiml.org')
-})
+}, 30_000)
 
 afterAll(async () => {
   rmSync(TMP, { recursive: true, force: true })

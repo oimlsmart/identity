@@ -650,6 +650,15 @@ The shape (the GitHub fine-grained pattern):
   service with roles at all; `write` needs those roles to hold a
   workflow permission; `admin` needs an administration-class one. A
   disabled or erased account's tokens die with it.
+- **Permissions (TODO.openapi/03) — the hierarchical form.** A pinned
+  id may be an EXACT permission (`portal.models.read`), a RESOURCE
+  STEM (`portal.models` — every action on that resource), or a GROUP
+  STEM (`portal` — the whole service surface). The enforcement honors
+  a stem as its subtree at the segment boundary (a near-miss like
+  `portal.model` grants nothing), and a stem minted before a new
+  permission lands covers that leaf automatically — the subtree, not a
+  frozen list (ADR 0008, oimlsmart/smart). The account console's
+  picker offers all three tiers; the served catalog stays flat.
 - **Permissions (TODO.openapi/03).** Beside the scope set, a PAT may
   pin a set of the TARGET INSTANCE's permissions-catalog ids (the shape
   `<group>.<resource>.<verb>`; groups: portal, ia-console,

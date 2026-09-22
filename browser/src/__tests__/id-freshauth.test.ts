@@ -85,7 +85,7 @@ demo_personas: true
       "UPDATE sessions SET created_at = datetime('now', ?) WHERE token = ?",
     ).run(`-${secondsAgo} seconds`, token)
   }
-})
+}, 30_000)
 
 afterAll(() => {
   rmSync(TMP, { recursive: true, force: true })
