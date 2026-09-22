@@ -192,11 +192,11 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
       // would answer the form's error instead of navigating).
       await page.type('[data-testid="login-email"]', 'ada@oiml.org')
       await page.type('[data-testid="login-password"]', 'demo2026')
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 240_000 }),
-        page.evaluate(() => (document.querySelector('[data-testid="login-submit"]') as HTMLElement).click()),
-      ])
-      flog(page, 'submitted; landed')
+      await page.evaluate(() => (document.querySelector('[data-testid="login-submit"]') as HTMLElement).click())
+      flog(page, 'submitted')
+      // The sign-in is an SPA route change (router.replace) — NO
+      // document navigation ever fires; the landing's own marker is
+      // the wait (the id-15 pattern).
       // The launcher (/op/home) is the default landing — its own
       // testid is the signed-in marker (a refused bot check leaves
       // the page on / with the form's error instead).
