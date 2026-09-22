@@ -272,6 +272,9 @@ export interface WebhookDeliveryRecord {
   /** The ONE bounded redelivery pass's stamp — a stamped letter never
    *  re-enters the pool. */
   redeliveredAt?: string | null
+  /** The journal's retention horizon (recorded_at + the policy's days,
+   *  0034) — the nightly TTL sweep judges it. */
+  expiresAt?: string | null
 }
 
 export interface EntityChange {
@@ -1692,7 +1695,14 @@ export const TTL_TABLES = [
   'oidc_refresh_tokens', 'enrollment_tokens', 'email_change_tokens',
   'sso_states', 'webauthn_challenges', 'mfa_pending',
   'personal_access_tokens',
+  // The retention follow-ups (2026-09-22): the delivery journal's
+  // expiry is stamped at insert (0034 + the backfill); the PAR pool's
+  // 90-second TTLs otherwise linger on a low-traffic OP.
+  'webhook_deliveries', 'pushed_authorization_requests',
 ] as const
+
+/** The delivery journal's retention (0034's policy). */
+export const WEBHOOK_DELIVERY_RETENTION_DAYS = 90
 
 export interface ServerStore {
   // ── users / sessions (schema.sql's auth half) ──

@@ -97,3 +97,33 @@ describe('purgeExpiredTtlRows — the TTL sweep verb', () => {
     expect(db.prepare('SELECT id FROM personal_access_tokens').all()).toEqual([{ id: 'p-live' }])
   })
 })
+
+describe('the retention follow-ups (the webhook journal + the PAR pool)', () => {
+  it('webhook_deliveries sweep: the delivery journal ages out (the dead-letter bodies ride it)', async () => {
+    const FUTURE = new Date(Date.now() + 86_400_000).toISOString()
+    await store.recordWebhookDelivery({
+      subscriptionId: 'sub-ttl', accountId: 'acct-ttl', event: 'account.password',
+      url: 'https://ttl.example/hooks', attempts: 3, lastStatus: 500, delivered: false,
+      bodyDigest: 'ttl-digest', recordedAt: new Date().toISOString(), body: '{"id":"ttl-envelope"}',
+    })
+    // Age the row past the cutoff (the delivery's retention is
+    // store policy — the spec ages it, the sweep judges it).
+    db.prepare(`UPDATE webhook_deliveries SET expires_at = ? WHERE account_id = 'acct-ttl'`)
+      .run(new Date(Date.now() - 3_600_000).toISOString())
+    const counts = await store.purgeExpiredTtlRows(new Date().toISOString(), 500)
+    expect(counts.webhook_deliveries).toBeGreaterThanOrEqual(1)
+    expect(await store.listWebhookDeliveries('acct-ttl')).toHaveLength(0)
+    void FUTURE
+  })
+
+  it('pushed_authorization_requests sweep: the abandoned PAR pool ages out', async () => {
+    await store.createPushedAuthorizationRequest({
+      uri: 'urn:ietf:params:oauth:request_uri:ttl-par', clientId: 'ttl-client',
+      params: 'response_type=code', expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    })
+    db.prepare("UPDATE pushed_authorization_requests SET expires_at = '2000-01-01T00:00:00.000Z' WHERE uri = 'urn:ietf:params:oauth:request_uri:ttl-par'").run()
+    const counts = await store.purgeExpiredTtlRows(new Date().toISOString(), 500)
+    expect(counts.pushed_authorization_requests).toBeGreaterThanOrEqual(1)
+    expect(await store.consumePushedAuthorizationRequest('urn:ietf:params:oauth:request_uri:ttl-par')).toBeNull()
+  })
+})

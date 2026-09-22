@@ -109,6 +109,7 @@ import {
   KnownDeviceRow,
   KnownDeviceSighting,
   PushedAuthorizationRequest,
+  WEBHOOK_DELIVERY_RETENTION_DAYS,
 } from '../store'
 // TODO.federation/01 — the account plan follows the deployment profile
 // (the Worker's seed route installs it from the env binding first; the
