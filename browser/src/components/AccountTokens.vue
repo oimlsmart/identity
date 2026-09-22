@@ -64,6 +64,7 @@ export interface PermissionCatalog {
 // PERSON's credential, never an org's (the machine cone is the
 // registered clients').
 // ═══════════════════════════════════════════════════════════════════
+import { effectiveSelection, resourceStemsOf, seedSelection, stemHeldFor } from './token-permissions'
 import { computed, ref } from 'vue'
 import { t } from '../i18n'
 
@@ -145,9 +146,11 @@ async function togglePermissions(service: TokenServiceOption) {
         const carrying = body.catalog.groups.flatMap(g => g.permissions.map(p => p.id))
         if (editId.value) {
           const pinned = props.tokens?.tokens.find(tk => tk.id === editId.value)?.permissions ?? []
+          // The seeding keeps pinned STEMS (a flat-only filter would
+          // silently drop them — the picker's own latent bug).
           permSelection.value = {
             ...permSelection.value,
-            [service.id]: [...new Set(pinned.filter(id => carrying.includes(id)))],
+            [service.id]: seedSelection(pinned, carrying),
           }
         }
       } else {
@@ -159,12 +162,6 @@ async function togglePermissions(service: TokenServiceOption) {
   }
 }
 
-function permVisible(group: PermissionCatalogGroup): PermissionCatalogGroup['permissions'] {
-  const q = permSearch.value.trim().toLowerCase()
-  if (!q) return group.permissions
-  return group.permissions.filter(p => p.id.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
-}
-
 function permToggle(serviceId: string, id: string) {
   const held = new Set(permSelection.value[serviceId] ?? [])
   if (held.has(id)) held.delete(id)
@@ -172,15 +169,54 @@ function permToggle(serviceId: string, id: string) {
   permSelection.value = { ...permSelection.value, [serviceId]: [...held] }
 }
 
+// ── the stem tier (TODO.openapi/19 — ADR 0008's human half) ──────────
+/** A held id's cover over this leaf (the implied state's source). */
+function coverFor(serviceId: string, leaf: string): string | null {
+  return stemHeldFor(permSelection.value[serviceId] ?? [], leaf)
+}
+
+/** The stem toggle: selecting drops the leaves it covers (the stem
+ *  suffices); deselecting leaves the set as it stands. */
+function permToggleStem(serviceId: string, stem: string) {
+  const held = new Set(permSelection.value[serviceId] ?? [])
+  if (held.has(stem)) {
+    held.delete(stem)
+  } else {
+    held.add(stem)
+    for (const id of [...held]) {
+      if (id !== stem && id.startsWith(`${stem}.`)) held.delete(id)
+    }
+  }
+  permSelection.value = { ...permSelection.value, [serviceId]: [...held] }
+}
+
+/** The stem's leaves for the picker's nesting (search-filtered with
+ *  the stem row itself). */
+function leavesForStem(serviceId: string, group: PermissionCatalogGroup, stem: string): PermissionCatalogGroup['permissions'] {
+  const q = permSearch.value.trim().toLowerCase()
+  const prefix = `${stem}.`
+  return group.permissions.filter(p => {
+    if (!p.id.startsWith(prefix)) return false
+    if (!q) return true
+    return p.id.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+  })
+}
+
+/** A stem row hides when the search names nothing under it. */
+function stemVisible(serviceId: string, group: PermissionCatalogGroup, stem: string): boolean {
+  return leavesForStem(serviceId, group, stem).length > 0
+}
+
 const mintable = computed(() =>
   mintName.value.trim().length > 0
   && Object.values(mintScopes.value).some(v => v !== ''),
 )
 
-/** The chosen permissions across the open pickers (the flat payload
- *  form; the server validates + normalizes). */
+/** The chosen permissions across the open pickers — the EFFECTIVE form
+ *  (leaves a held stem covers drop out; the server validates the stems
+ *  against the served catalog and normalizes). */
 const chosenPermissions = computed(() =>
-  [...new Set(Object.values(permSelection.value).flat())].sort((a, b) => a.localeCompare(b)),
+  effectiveSelection(Object.values(permSelection.value).flat()),
 )
 
 /** The edit-mode submit's guard: the same shape as the mint's. */
@@ -451,21 +487,45 @@ function stateLabel(state: TokenRow['state']): string {
                   class="mb-2 w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
                 />
                 <div v-for="group in catalogGroups(permCatalogs[service.id])" :key="group.id" class="mb-2" :data-testid="`token-perms-group-${service.id}-${group.id}`">
-                  <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-300" :title="group.description">{{ group.id }}</p>
-                  <label
-                    v-for="permission in permVisible(group)"
-                    :key="permission.id"
-                    class="flex items-start gap-2 py-0.5 text-[11px] text-slate-600 dark:text-slate-300"
-                    :data-testid="`token-perm-${service.id}-${permission.id}`"
-                  >
+                  <label class="flex items-start gap-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300" :data-testid="`token-perm-stem-${service.id}-${group.id}`">
                     <input
                       type="checkbox"
                       class="mt-0.5"
-                      :checked="(permSelection[service.id] ?? []).includes(permission.id)"
-                      @change="permToggle(service.id, permission.id)"
+                      :checked="(permSelection[service.id] ?? []).includes(group.id)"
+                      @change="permToggleStem(service.id, group.id)"
                     />
-                    <span class="min-w-0"><span class="font-mono">{{ permission.id }}</span> — {{ permission.description }}</span>
+                    <span class="min-w-0" :title="group.description"><span class="font-mono">{{ group.id }}</span> — {{ t('account.tokens.permStemGroup') }}</span>
                   </label>
+                  <div v-for="stem in resourceStemsOf(group)" :key="stem" class="ml-3">
+                    <label
+                      v-if="stemVisible(service.id, group, stem)"
+                      class="flex items-start gap-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300"
+                      :data-testid="`token-perm-stem-${service.id}-${stem}`"
+                    >
+                      <input
+                        type="checkbox"
+                        class="mt-0.5"
+                        :checked="(permSelection[service.id] ?? []).includes(stem)"
+                        @change="permToggleStem(service.id, stem)"
+                      />
+                      <span class="min-w-0"><span class="font-mono">{{ stem }}</span> — {{ t('account.tokens.permStemResource') }}</span>
+                    </label>
+                    <label
+                      v-for="permission in leavesForStem(service.id, group, stem)"
+                      :key="permission.id"
+                      class="flex items-start gap-2 py-0.5 text-[11px] ml-3 text-slate-600 dark:text-slate-300"
+                      :data-testid="`token-perm-${service.id}-${permission.id}`"
+                    >
+                      <input
+                        type="checkbox"
+                        class="mt-0.5"
+                        :disabled="coverFor(service.id, permission.id) !== null"
+                        :checked="(permSelection[service.id] ?? []).includes(permission.id) || coverFor(service.id, permission.id) !== null"
+                        @change="permToggle(service.id, permission.id)"
+                      />
+                      <span class="min-w-0"><span class="font-mono">{{ permission.id }}</span><span v-if="coverFor(service.id, permission.id) !== null" class="text-slate-400 dark:text-slate-500" :data-testid="`token-perm-implied-${permission.id}`"> · {{ t('account.tokens.permImplied') }}</span><template v-else> — {{ permission.description }}</template></span>
+                    </label>
+                  </div>
                 </div>
               </template>
             </div>

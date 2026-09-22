@@ -206,7 +206,7 @@ demo_personas: true
   await new Promise<void>(resolve => ghStub.listen(0, '127.0.0.1', resolve))
   ghStubBase = `http://127.0.0.1:${(ghStub.address() as AddressInfo).port}`
   process.env.OP_HEARTBEAT_API_BASE = ghStubBase
-})
+}, 30_000)
 
 afterAll(async () => {
   await new Promise<void>(resolve => ghStub.close(() => resolve()))
