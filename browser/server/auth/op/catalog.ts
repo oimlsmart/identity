@@ -39,12 +39,26 @@ export interface PermissionsCatalogGroup {
 /** The light id grammar (the catalog does the real judging): dot-
  *  separated kebab-case segments, at least `<resource>.<verb>` long —
  *  the full ids are `<group>.<resource>.<verb>`. */
-const PERMISSION_ID_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/
+const PERMISSION_ID_RE = /^[a-z0-9-]+(\.[a-z0-9-]+){0,2}$/
 
 /** A requested permission id's plausibility (before any fetch — the
- *  malformed names the 400 without an instance round trip). */
+ *  malformed names the 400 without an instance round trip). 1–3
+ *  kebab segments: the exact id (`group.resource.verb`), the resource
+ *  stem (`group.resource`), or the group stem (`group`) — the stem
+ *  grants' three shapes (TODO.openapi/19's hierarchy). */
 export function permissionIdPlausible(raw: unknown): raw is string {
   return typeof raw === 'string' && raw.length <= 200 && PERMISSION_ID_RE.test(raw)
+}
+
+/** The grant-honoring half of the hierarchy (the PLATFORM runs the
+ *  same rule over the introspected set — server/auth/access-token.ts's
+ *  own copy): a granted id covers a required id when it EQUALS it or
+ *  is its SEGMENT-BOUNDARY prefix (`portal.models` covers
+ *  portal.models.read and everything the catalog later adds under it;
+ *  `portal.model` covers nothing — the dot is the boundary, never a
+ *  string prefix). */
+export function grantsCover(granted: readonly string[], required: string): boolean {
+  return granted.some(g => required === g || required.startsWith(`${g}.`))
 }
 
 /** The instance base URL from the client registry's own record: the
@@ -142,7 +156,14 @@ export function permissionsOutsideCatalogs(
       for (const permission of group.permissions) known.add(permission.id)
     }
   }
-  return [...new Set(requested)].filter(id => !known.has(id)).sort((a, b) => a.localeCompare(b))
+  // The hierarchy: a requested id is INSIDE when it exactly names a
+  // served permission OR stems one (a segment-boundary prefix of at
+  // least one served full id — `portal.models` and `portal` both
+  // stem; `portal.model` stems nothing).
+  return [...new Set(requested)].filter(id => {
+    if (known.has(id)) return false
+    return ![...known].some(knownId => knownId.startsWith(`${id}.`))
+  }).sort((a, b) => a.localeCompare(b))
 }
 
 /** The canonical stored form: dedupe + sort (the stable wire/claim
