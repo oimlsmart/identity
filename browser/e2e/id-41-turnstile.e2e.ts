@@ -174,9 +174,11 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
       flog(page, 'widget container mounted')
 
       // The Cloudflare iframe renders inside it (the script loaded).
+      // polling: interval — a quiet headless page never fires the raf
+      // the default polling rides (the first CI run's lesson).
       await page.waitForFunction(() => {
         return document.querySelector('[data-testid="turnstile-widget"] iframe') !== null
-      }, { timeout: 120_000 })
+      }, { timeout: 120_000, polling: 500 })
       flog(page, 'cloudflare iframe rendered')
 
       // The always-pass key AUTO-SOLVES: the response input carries a
