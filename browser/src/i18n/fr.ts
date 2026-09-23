@@ -312,6 +312,8 @@ export const fr: Record<MessageKey, string> = {
   "account.tokens.permStemGroup": "service entier (subvention tige)",
   "account.tokens.permStemResource": "toutes les actions (subvention tige)",
   "account.tokens.permImplied": "couverte par la tige",
+  "account.tokens.permColumnPermission": "Permission",
+  "account.tokens.permColumnAll": "Tout",
   "account.tokens.permissionsSearch": "Rechercher des permissions…",
   "account.tokens.lastUsed": "dernière utilisation le {date}",
   "account.tokens.edit": "Modifier",
