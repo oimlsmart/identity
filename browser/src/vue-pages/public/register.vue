@@ -13,6 +13,19 @@ import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../../components/BrandLogo.vue'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
+
+// The profile's posture: false = this page is not offered on this
+// service — the honest panel points at the join intake.
+const selfRegistration = ref(true)
+onMounted(async () => {
+  try {
+    const res = await fetch('/api/config')
+    if (res.ok) {
+      const cfg = await res.json() as { registration?: { selfService?: boolean } }
+      selfRegistration.value = cfg.registration?.selfService !== false
+    }
+  } catch { /* the server's own gate is the arbiter regardless */ }
+})
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 
@@ -81,7 +94,16 @@ async function submit() {
   <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-cream dark:bg-slate-900">
     <div class="w-full max-w-md" data-testid="register">
 
-      <div v-if="filed">
+      <!-- The profile's honest refusal: this service's only public
+           account path is the join request. -->
+      <div v-if="!selfRegistration" class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 text-center" data-testid="register-disabled">
+        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
+        <h1 class="text-lg font-serif font-bold text-slate-900 dark:text-white mb-3">Request an account</h1>
+        <p class="text-sm text-slate-600 dark:text-slate-300 mb-6">Self-registration is not offered on this service. Request an account naming your organization — approval comes from your organization.</p>
+        <router-link to="/op/join" data-testid="register-disabled-join" class="inline-block px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700">Request an account</router-link>
+      </div>
+
+      <div v-else-if="filed">
         <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 text-center">
           <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
           <h1 class="text-lg font-serif font-bold text-slate-900 dark:text-white" data-testid="register-done-title">

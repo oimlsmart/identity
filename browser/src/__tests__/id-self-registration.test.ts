@@ -176,3 +176,61 @@ describe('TODO.restructure/05 — the public self-registration', () => {
     expect(((await res.json()) as { error: string }).error).toContain('already exists')
   })
 })
+
+describe('the profile gate (the official service offers only the join intake)', () => {
+  it('self_registration: false refuses the register POST with the honest error naming the join path', async () => {
+    const { Hono } = await import('hono')
+    const profileMod = await import('../../server/profile')
+    const installed = profileMod.getInstanceProfile()
+    profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
+identity:
+  org_id: oimlsmart-id
+  org_name: OIML SMART Identity
+  role_codes: [identity]
+roles: [identity]
+branding: { name: OIML SMART Identity }
+demo_personas: true
+self_registration: false
+`))
+    try {
+      const { createOpAccountsRouter } = await import('../../server/routes/op-accounts')
+      const gated = new Hono()
+      gated.route('/', createOpAccountsRouter())
+      const res = await gated.request('/api/op/register', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Gate Probe', email: 'gate@example.org', password: 'a long enough passphrase' }),
+      })
+      expect(res.status).toBe(403)
+      const body = await res.json() as { error?: string; code?: string }
+      expect(body.code).toBe('self_registration_disabled')
+      expect(body.error).toContain('request an account')
+    } finally {
+      profileMod.installInstanceProfile(installed)
+    }
+  })
+
+  it('the config projection carries the posture (the pages hide the entry, the server is the arbiter)', { timeout: 30_000 }, async () => {
+    const profileMod = await import('../../server/profile')
+    const installed = profileMod.getInstanceProfile()
+    profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
+identity:
+  org_id: oimlsmart-id
+  org_name: OIML SMART Identity
+  role_codes: [identity]
+roles: [identity]
+branding: { name: OIML SMART Identity }
+self_registration: false
+`))
+    try {
+      const { createApiApp } = await import('../../server/app')
+      const app2 = createApiApp({ autoSeedDemo: false, instanceProfile: profileMod.getInstanceProfile() })
+      const cfg = await app2.request('/api/config')
+      expect(cfg.status).toBe(200)
+      const body = await cfg.json() as { registration?: { selfService?: boolean } }
+      expect(body.registration?.selfService).toBe(false)
+    } finally {
+      profileMod.installInstanceProfile(installed)
+    }
+  })
+})

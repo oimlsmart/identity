@@ -94,6 +94,11 @@ export interface InstanceProfile {
    *  defaulting to the org's) plus the OPTIONAL asset paths and copy —
    *  every field the client's IdentityBranding carries, each overridable
    *  per deployment, all projected by /api/config. */
+  /** The public self-registration (TODO.restructure/05): true by
+   *  default (the self-host posture's feature); the OFFICIAL identity
+   *  service's profile declares false — its only public intake is the
+   *  join request (approval comes from the organization). */
+  selfRegistration: boolean
   branding: {
     name: string
     logoLight?: string
@@ -156,6 +161,7 @@ export function defaultInstanceProfile(): InstanceProfile {
     branding: { name: 'OIML SMART Identity' },
     console: null,
     demoPersonas: true,
+    selfRegistration: true,
     demo: false,
   }
 }
@@ -341,6 +347,14 @@ export function parseInstanceProfile(yamlText: string | undefined, env?: ParseEn
   const fileFlag = typeof doc.demo_personas === 'boolean' ? doc.demo_personas : undefined
   const demoPersonas = env?.demoPersonas ?? fileFlag ?? roles.includes('hub')
 
+  // the public self-registration: an explicit boolean, default ON (the
+  // feature ships with the service); the official service's profile
+  // turns it off (the join intake is its only public account path).
+  if (typeof doc.self_registration !== 'undefined' && typeof doc.self_registration !== 'boolean') {
+    fail('self_registration must be a boolean (false = the join request is this instance\'s only public account path)')
+  }
+  const selfRegistration = doc.self_registration !== false
+
   // the demo signage (TODO.demo-ops/04): an explicit boolean, default
   // off — the banner is a deliberate declaration, never inherited.
   if (typeof doc.demo !== 'undefined' && typeof doc.demo !== 'boolean') {
@@ -363,6 +377,7 @@ export function parseInstanceProfile(yamlText: string | undefined, env?: ParseEn
     branding,
     console: consoleSections,
     demoPersonas,
+    selfRegistration,
     demo,
   }
 }
@@ -418,6 +433,8 @@ export interface InstanceProfileView {
   console: { sections: string[] } | null
   branding: { name: string }
   demoPersonas: boolean
+  /** The public self-registration posture (the register route's gate). */
+  selfRegistration: boolean
   /** The demonstration-environment signage flag (TODO.demo-ops/04). */
   demo: boolean
 }
@@ -431,6 +448,7 @@ export function publicProfileView(profile: InstanceProfile): InstanceProfileView
     branding: profile.branding,
     console: profile.console,
     demoPersonas: profile.demoPersonas,
+    selfRegistration: profile.selfRegistration,
     demo: profile.demo,
   }
 }

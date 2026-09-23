@@ -173,5 +173,9 @@ roles: [identity]
 branding:
   name: OIML SMART Identity
 demo_personas: false
+# The official service's only public account path is the join request
+# (approval comes from the organization) — self-registration is the
+# self-host posture's feature.
+self_registration: false
 '''
 
