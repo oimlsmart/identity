@@ -1970,12 +1970,18 @@ export interface ServerStore {
   // ── the OP's account model (TODO.identity/02) ──
   /** Create an OP password account (provider 'password', email
    *  normalized lowercase). Answers null when the email is taken (the
-   *  invite route's 409; the UNIQUE constraint is the backstop). */
+   *  invite route's 409; the UNIQUE constraint is the backstop). The
+   *  declared-persona fields (orgId/roles/emailVerified — the account
+   *  seed's declared entries) ride the INSERT when present; an org
+   *  binding syncs the primary membership mirror (TODO.identity/11). */
   createOpAccount(input: {
     email: string
     name: string
     role: string
     createdBy?: string | null
+    orgId?: string
+    roles?: string[]
+    emailVerified?: boolean
   }): Promise<UserAdminRow | null>
   /** The password sign-in's lookup: the credential + the account's
    *  active flag by email (normalized). Null = no such credential — the
@@ -1991,6 +1997,10 @@ export interface ServerStore {
   /** Set/replace the account's password credential (enrollment
    *  completion, the account page's change). */
   setPasswordHash(userId: string, hash: string, setBy?: string | null): Promise<void>
+  /** Stamp the primary address verified (the account seed's declared
+   *  personas — the operator's declaration IS the proof; the ceremony
+   *  paths carry their own inline stamps). */
+  markPrimaryEmailVerified(userId: string): Promise<void>
   /** The sign-in methods the account holds (the account page's
    *  password-set state + the admin list's posture). TODO.identity-sso/02:
    *  `passkeys` counts the registered passkeys — a passkey is a PRIMARY

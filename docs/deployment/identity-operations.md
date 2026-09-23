@@ -105,6 +105,37 @@ has passed, never automatically mid-flight.
   and exportable — the scheme's peer-assessment habit makes the OP's
   own admin log audit evidence.
 
+### The demonstration cast (the declared personas)
+
+The demonstration personas at `@oimlsmart.org` (the smart demo
+instance's cast — applicant/ia/tl/utilizer/cs) are REAL password
+accounts on THIS OP, provisioned by declaration: their entries ride the
+`OP_ACCOUNT_SEED` Worker secret with the declared fields
+(`orgId`, `roles`, `emailVerified`, `password`, `clientRoles` — the
+format in `identity.md` §Invite-only enrollment), and the seed
+converges exactly those fields at every boot. The containment is the
+declaration's shape: each persona's OP-side role set stays outside
+every RP's claim mapping, and the only roles a persona carries are its
+`clientRoles` for the one client (`oiml-smart-demo`). The roster
+itself is the secret's content — the repo keeps no copy.
+
+Updating the roster (the secret's value is write-only; the new value
+is the WHOLE roster):
+
+1. Read the live accounts for reference (read-only):
+   `npx wrangler d1 execute oiml-smart-platform-identity --env identity --remote --command "SELECT email, name, role, org_id, provider, active FROM users ORDER BY created_at"`.
+2. Compose the new JSON array: every standing entry (the
+   administrators, the real people — their rows are never dropped by
+   an update; the seed only upserts) plus the persona entries with
+   their declared fields. Keep it out of the repo: a temp file outside
+   any checkout, `chmod 600`, removed after the put.
+3. `npx wrangler secret put OP_ACCOUNT_SEED --env identity < <the temp file>`
+   (stdin, never argv), then delete the temp file.
+4. The seed runs lazily per isolate on the next credential-surface
+   request; verify with the same read-only SELECT (the personas' rows
+   show their org bindings) and one password sign-in per the published
+   credential.
+
 ### The automated restore dry-run
 
 The drill's continuous half (identity#73 — TODO.identity-ops/03's

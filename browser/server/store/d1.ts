@@ -1873,6 +1873,9 @@ export class D1ServerStore implements ServerStore {
     name: string
     role: string
     createdBy?: string | null
+    orgId?: string
+    roles?: string[]
+    emailVerified?: boolean
   }): Promise<UserAdminRow | null> {
     const id = crypto.randomUUID()
     // TODO.identity-features/01: the address must be free across BOTH
@@ -1882,15 +1885,18 @@ export class D1ServerStore implements ServerStore {
     await this.ensureAccountEmailSupport()
     const additional = await this.stmt('SELECT user_id FROM account_emails WHERE email = ?', input.email.trim().toLowerCase()).first<{ user_id: string }>()
     if (additional) return null
+    const rolesJson = input.roles?.length ? JSON.stringify(input.roles) : null
     try {
       await this.stmt(
-        "INSERT INTO users (id, email, name, provider, role) VALUES (?, ?, ?, 'password', ?)",
-        id, input.email.trim().toLowerCase(), input.name.trim(), input.role,
+        `INSERT INTO users (id, email, name, provider, role, org_id, roles, email_verified_at)
+         VALUES (?, ?, ?, 'password', ?, ?, ?, CASE WHEN ? THEN datetime('now') ELSE NULL END)`,
+        id, input.email.trim().toLowerCase(), input.name.trim(), input.role, input.orgId ?? null, rolesJson, input.emailVerified ? 1 : 0,
       ).run()
     } catch (e) {
       if (String((e as Error).message).includes('UNIQUE')) return null
       throw e
     }
+    if (input.orgId) await this.syncPrimaryMembership(id) // TODO.identity/11 — the mirror
     const row = await this.stmt('SELECT * FROM users WHERE id = ?', id).first<UserRecord & { last_login?: string | null; provider?: string }>()
     return toAdminRow(row!)
   }
@@ -1928,6 +1934,13 @@ export class D1ServerStore implements ServerStore {
        ON CONFLICT (user_id) DO UPDATE SET hash = excluded.hash, set_at = datetime('now'), set_by = excluded.set_by`,
       userId, hash, setBy ?? null,
     ).run()
+  }
+
+  /** The primary address's verification stamp (the seed's declared
+   *  personas — the operator's declaration IS the proof; the ceremony
+   *  paths carry their own inline stamps). */
+  async markPrimaryEmailVerified(userId: string): Promise<void> {
+    await this.stmt("UPDATE users SET email_verified_at = datetime('now') WHERE id = ?", userId).run()
   }
 
   /** The sign-in methods the account holds (the account page's

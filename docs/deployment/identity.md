@@ -636,7 +636,12 @@ the setup page advises honestly and refuses nothing beyond the policy.
 Passwords are never logged; the sign-in is timing-shaped (an unknown
 email pays one full-cost verify too, so the response time cannot
 enumerate accounts). The demo cast's shared-plaintext pattern stays with
-the demo instances — the OP never carries it.
+the demo instances — the OP never carries it. (The demonstration
+PERSONAS are the one deliberate exception, and they are not the
+demo-cast pattern: they are REAL password accounts — the "the demo has
+to be real" directive, 2026-09-23 — whose published demonstration
+credential is provisioned through the account seed's declared entries,
+below.)
 
 **Invite-only enrollment.** An admin creates the account (email + name)
 through `POST /api/op/accounts` and receives a ONE-TIME setup link
@@ -651,10 +656,28 @@ never redeemed later. `POST /api/op/accounts/:id/enrollment` mints a
 fresh link (an expired invite, or a password reset; the link sets the
 password either way, and the reset email carries it when the mailer is
 configured). The first administrator on a fresh OP arrives by
-declaration: `OP_ACCOUNT_SEED` (a JSON array of `{ email, name, role? }`,
-a Worker secret in production) upserts the account at boot and — while
-it has no password — logs a fresh one-time setup link at every boot (the
-operator's way in; once the password is set the seed goes quiet).
+declaration: `OP_ACCOUNT_SEED` (a JSON array of
+`{ email, name, role?, orgId?, roles?, emailVerified?, password?,
+clientRoles? }`, a Worker secret in production) upserts the account at
+boot and — while it has no password and declares none — logs a fresh
+one-time setup link at every boot (the operator's way in; once the
+password is set the seed goes quiet).
+
+A PLAIN entry (`{ email, name, role? }` only) keeps the hands-off
+doctrine: created when absent, then the account belongs to its
+administrators. A DECLARED entry — one that names any of `orgId` (the
+org binding), `roles` (the full OP-side role set), `emailVerified`
+(the primary address ships verified), `password` (the sign-in
+credential, hashed on the seed; set only while the account has none —
+a rotated or admin-set credential is never clobbered), or
+`clientRoles` (the per-client role assignments, client id → role
+array) — is authoritative for EXACTLY the fields it names, converged
+on every boot: the demonstration cast's roster is the declaration, so
+a hand edit to a declared field does not survive a boot (drop the
+field from the declaration to hand-manage it). The cast's containment
+is the declaration's shape: the OP-side role set stays outside every
+relying party's claim mapping, and the only roles a persona carries
+are the ones its declaration assigns to the named client.
 
 **The self-service password reset.** `POST /api/op/login/reset` (the
 login page's "Forgot your password?") is the account holder's own path,
