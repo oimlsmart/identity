@@ -1372,7 +1372,7 @@ export class D1ServerStore implements ServerStore {
          (id, client_id, redirect_uri, scope, state, nonce, code_challenge, user_id, response_mode, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       input.id, input.clientId, input.redirectUri, input.scope, input.state,
-      input.nonce, input.codeChallenge, input.userId, expiresAt,
+      input.nonce, input.codeChallenge, input.userId, input.responseMode ?? null, expiresAt,
     ).run()
     return (await this.getOidcAuthorization(input.id))!
   }
