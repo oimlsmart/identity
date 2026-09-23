@@ -43,9 +43,35 @@ const PERSONAS = [
     clientRoles: { 'oiml-smart-demo': ['applicant'] },
   },
   {
+    email: 'persona-ia@oimlsmart.org', name: 'IA Officer', role: 'user', orgId: 'EX1',
+    emailVerified: true, password: 'personas-never-publish-passwords-3',
+    clientRoles: { 'oiml-smart-demo': ['ia_officer'] },
+  },
+  {
+    email: 'persona-tl@oimlsmart.org', name: 'TL Operator', role: 'user', orgId: '21',
+    emailVerified: true, password: 'personas-never-publish-passwords-4',
+    clientRoles: { 'oiml-smart-demo': ['tl_operator'] },
+  },
+  {
+    email: 'persona-utilizer@oimlsmart.org', name: 'Utilizer Officer (NL)', role: 'user', orgId: 'ut-nmi-nl',
+    emailVerified: true, password: 'personas-never-publish-passwords-5',
+    clientRoles: { 'oiml-smart-demo': ['scheme_participant'] },
+  },
+  {
     email: 'persona-cs@oimlsmart.org', name: 'CS Administrator', role: 'user', orgId: 'oiml-cs-demo',
     emailVerified: true, password: 'personas-never-publish-passwords-2',
     clientRoles: { 'oiml-smart-demo': ['cs_admin'] },
+  },
+  {
+    // The System Administration persona (the owner keeps it; the
+    // viewer persona was DROPPED — certificates are public, utilizer@
+    // covers authenticated non-public reads): the per-client role key
+    // mirrors the smart demo mapping EXACTLY (`admin` = full access)
+    // while the OP-side account stays `role: 'user'` (no OP
+    // administration reach).
+    email: 'persona-admin@oimlsmart.org', name: 'System Administrator', role: 'user',
+    emailVerified: true, password: 'personas-never-publish-passwords-6',
+    clientRoles: { 'oiml-smart-demo': ['admin'] },
   },
 ]
 process.env.OP_ACCOUNT_SEED = JSON.stringify(PERSONAS)
@@ -150,7 +176,17 @@ describe('the grant gate (the chooser context)', () => {
     expect(res.ok).toBe(true)
     const body = await res.json() as { accounts: Array<{ email: string; assumable: boolean; hinted: boolean }> }
     const personas = body.accounts.filter(a => a.assumable)
-    expect(personas.map(p => p.email).sort()).toEqual(['persona-applicant@oimlsmart.org', 'persona-cs@oimlsmart.org'])
+    // The full demonstration cast (SIX): applicant, ia, tl, utilizer,
+    // cs, and the kept System Administration persona (admin = full
+    // access) — every entry the declaration scopes to the client.
+    expect(personas.map(p => p.email).sort()).toEqual([
+      'persona-admin@oimlsmart.org',
+      'persona-applicant@oimlsmart.org',
+      'persona-cs@oimlsmart.org',
+      'persona-ia@oimlsmart.org',
+      'persona-tl@oimlsmart.org',
+      'persona-utilizer@oimlsmart.org',
+    ])
   })
 
   it('the login_hint pre-selects the persona row (the Google shape reaches the personas)', async () => {
