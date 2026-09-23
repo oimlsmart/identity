@@ -19,11 +19,12 @@
 //          session, the remembered grant — the RP gets its code with no
 //          chooser and no consent page;
 //   leg 5  the GRANT-BASED ASSUMPTION: the presenting account holds the
-//          declared grant, so the chooser lists the DECLARED demo
-//          personas (badged, the login_hint pre-selects) — clicking a
-//          persona mints the session AS the persona with NO persona
-//          credential presented and the flow completes with the RP's
-//          validated token naming the PERSONA;
+//          declared grant, so the chooser lists the FULL declared demo
+//          cast (seven personas — applicant, ia, tl, utilizer, cs, and
+//          the kept System Administration pair, badged, the login_hint
+//          pre-selects) — clicking a persona mints the session AS the
+//          persona with NO persona credential presented and the flow
+//          completes with the RP's validated token naming the PERSONA;
 //   leg 6  an account without the grant sees no persona rows at all —
 //          the chooser stays exactly the remembered accounts.
 //
@@ -149,9 +150,13 @@ async function bootIdentityStack(): Promise<Stack> {
         claims_policy: { claims: ['roles', 'groups', 'org'] },
       }]),
       // The demonstration personas + the assumption grants (the
-      // grant-based posture's browser-level proof). The fixture
-      // credentials are THIS STACK's throwaways — production personas
-      // carry minted random credentials that exist in no repository.
+      // grant-based posture's browser-level proof): the FULL
+      // six-persona cast — applicant, ia, tl, utilizer, cs, and the
+      // kept System Administration pair (admin = full access, viewer =
+      // read-only; the role keys mirror the smart demo mapping). The
+      // fixture credentials are THIS STACK's throwaways — production
+      // personas carry minted random credentials that exist in no
+      // repository.
       OP_ACCOUNT_SEED: JSON.stringify([
         {
           email: 'persona-applicant@oimlsmart.org', name: 'ACME Applicant (Demonstration)', role: 'user',
@@ -159,9 +164,29 @@ async function bootIdentityStack(): Promise<Stack> {
           clientRoles: { [RP_CLIENT_ID]: ['applicant'] },
         },
         {
+          email: 'persona-ia@oimlsmart.org', name: 'IA Officer (Demonstration)', role: 'user',
+          orgId: 'EX1', emailVerified: true, password: 'e2e-persona-credential-3',
+          clientRoles: { [RP_CLIENT_ID]: ['ia_officer'] },
+        },
+        {
+          email: 'persona-tl@oimlsmart.org', name: 'TL Operator (Demonstration)', role: 'user',
+          orgId: '21', emailVerified: true, password: 'e2e-persona-credential-4',
+          clientRoles: { [RP_CLIENT_ID]: ['tl_operator'] },
+        },
+        {
+          email: 'persona-utilizer@oimlsmart.org', name: 'Utilizer Officer (NL) (Demonstration)', role: 'user',
+          orgId: 'ut-nmi-nl', emailVerified: true, password: 'e2e-persona-credential-5',
+          clientRoles: { [RP_CLIENT_ID]: ['scheme_participant'] },
+        },
+        {
           email: 'persona-cs@oimlsmart.org', name: 'CS Administrator (Demonstration)', role: 'user',
           orgId: 'oiml-cs-demo', emailVerified: true, password: 'e2e-persona-credential-2',
           clientRoles: { [RP_CLIENT_ID]: ['cs_admin'] },
+        },
+        {
+          email: 'persona-admin@oimlsmart.org', name: 'System Administrator (Demonstration)', role: 'user',
+          emailVerified: true, password: 'e2e-persona-credential-6',
+          clientRoles: { [RP_CLIENT_ID]: ['admin'] },
         },
       ]),
       OP_DEMO_ASSUME_GRANTS: JSON.stringify({ clientId: RP_CLIENT_ID, grantees: ['ia@oimlsmart.org'] }),
@@ -311,15 +336,21 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
 
   // ── the grant-based assumption (the demo personas' own posture) ─────
 
-  it('leg 5 — the grant-holder\'s chooser lists the declared personas; the click assumes the persona WITHOUT its credential and completes the flow as the PERSONA', { timeout: 900_000 }, async () => {
+  it('leg 5 — the grant-holder\'s chooser lists the FULL six-persona cast; the click assumes the persona WITHOUT its credential and completes the flow as the PERSONA', { timeout: 900_000 }, async () => {
     // The presenting session is ia — the grant names her. The flow asks
     // for the chooser with the persona hinted.
     await page.goto(`${rp.baseUrl}/signin?prompt=select_account&login_hint=persona-applicant%40oimlsmart.org`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-choose-account"]', { timeout: SETTLE, polling: 500 })
 
-    // The persona row lists with its badge; the hint pre-selects it.
+    // The whole cast lists (applicant, ia, tl, utilizer, cs, admin —
+    // every entry the declaration scopes to the client), each badged;
+    // the hint pre-selects the applicant.
     const personaRow = '[data-testid="chooser-account-persona-applicant@oimlsmart.org"]'
     await page.waitForSelector(personaRow, { timeout: SETTLE, polling: 500 })
+    expect(await page.$$('[data-testid="chooser-persona-badge"]')).toHaveLength(6)
+    for (const seg of ['persona-admin', 'persona-tl', 'persona-ia', 'persona-utilizer', 'persona-cs']) {
+      expect(await page.$(`[data-testid="chooser-account-${seg}@oimlsmart.org"] [data-testid="chooser-persona-badge"]`), `${seg} carries the persona badge`).toBeTruthy()
+    }
     expect(await page.$(`${personaRow} [data-testid="chooser-persona-badge"]`), 'the persona badge marks the assumable row').toBeTruthy()
     const hintedRow = await page.$eval('[data-testid="chooser-hinted-badge"]', el => el.closest('[data-testid^="chooser-account-"]')?.getAttribute('data-testid'))
     expect(hintedRow).toBe('chooser-account-persona-applicant@oimlsmart.org')
@@ -361,6 +392,6 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
     expect(await page.$$('[data-testid="chooser-persona-badge"]')).toHaveLength(0)
     expect(await page.$('[data-testid="chooser-account-persona-applicant@oimlsmart.org"] [data-testid="chooser-persona-badge"]')).toBeNull()
     await page.screenshot({ path: join(DB_DIR, 'chooser-persona-denied.png') })
-)
   })
 })
+

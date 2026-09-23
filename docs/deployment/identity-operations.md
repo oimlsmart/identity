@@ -108,7 +108,12 @@ has passed, never automatically mid-flight.
 ### The demonstration cast (the declared personas)
 
 The demonstration personas at `@oimlsmart.org` (the smart demo
-instance's cast — applicant/ia/tl/utilizer/cs) are REAL password
+instance's cast — applicant, ia, tl, utilizer, cs, and the kept
+System Administration persona: admin (full access), the per-client
+role key mirroring the smart instance's claim mapping; a viewer
+persona was DELIBERATELY DROPPED — certificates are public and
+utilizer@ covers authenticated non-public reads)
+are REAL password
 accounts on THIS OP, provisioned by declaration: their entries ride the
 `OP_ACCOUNT_SEED` Worker secret with the declared fields
 (`orgId`, `roles`, `emailVerified`, `password`, `passwordRotate`,
