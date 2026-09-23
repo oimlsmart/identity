@@ -160,25 +160,25 @@ async function loginInto(browser: ReturnType<typeof cookieJar>, email: string): 
 describe('login_hint on the chooser (the pre-selection)', () => {
   it('the select_account redirect carries the hint to the chooser page', async () => {
     const cookie = await login()
-    const res = await app.request(`${ISSUER}/op/authorize?${authorizeQuery({ prompt: 'select_account', login_hint: 'tl@oiml.org' })}`, { headers: { cookie } })
+    const res = await app.request(`${ISSUER}/op/authorize?${authorizeQuery({ prompt: 'select_account', login_hint: 'tl@oimlsmart.org' })}`, { headers: { cookie } })
     expect(res.status).toBe(302)
     const chooser = new URL(res.headers.get('location')!, ISSUER)
     expect(chooser.pathname).toBe('/op/choose-account')
-    expect(chooser.searchParams.get('login_hint')).toBe('tl@oiml.org')
+    expect(chooser.searchParams.get('login_hint')).toBe('tl@oimlsmart.org')
   })
 
   it('the context marks the matching entry as the pre-selection (case-insensitive)', async () => {
     const browser = cookieJar()
-    await loginInto(browser, 'ia@oiml.org')
-    await loginInto(browser, 'tl@oiml.org') // the presenting account; the jar holds both
-    const res = await app.request(`/api/op/choose-account?login_hint=${encodeURIComponent('  IA@OIML.ORG ')}`, { headers: { cookie: browser.header() } })
+    await loginInto(browser, 'ia@oimlsmart.org')
+    await loginInto(browser, 'tl@oimlsmart.org') // the presenting account; the jar holds both
+    const res = await app.request(`/api/op/choose-account?login_hint=${encodeURIComponent('  IA@OIMLSMART.ORG ')}`, { headers: { cookie: browser.header() } })
     expect(res.ok).toBe(true)
     const body = await res.json() as { loginHint: string | null; accounts: Array<{ email: string; hinted: boolean; current: boolean }> }
-    expect(body.loginHint).toBe('ia@oiml.org')
+    expect(body.loginHint).toBe('ia@oimlsmart.org')
     const byEmail = new Map(body.accounts.map(a => [a.email, a]))
-    expect(byEmail.get('ia@oiml.org')?.hinted).toBe(true)
-    expect(byEmail.get('tl@oiml.org')?.hinted).toBe(false)
-    expect(byEmail.get('tl@oiml.org')?.current).toBe(true)
+    expect(byEmail.get('ia@oimlsmart.org')?.hinted).toBe(true)
+    expect(byEmail.get('tl@oimlsmart.org')?.hinted).toBe(false)
+    expect(byEmail.get('tl@oimlsmart.org')?.current).toBe(true)
   })
 
   it('a hint nothing matches still echoes (the page carries it to the fresh sign-in prefill)', async () => {
@@ -202,14 +202,14 @@ describe('login_hint on the chooser (the pre-selection)', () => {
 describe('the multi-account chooser surface', () => {
   it('two signed-in accounts list with the presenting one badged (both live)', async () => {
     const browser = cookieJar()
-    await loginInto(browser, 'ia@oiml.org')
-    await loginInto(browser, 'tl@oiml.org')
+    await loginInto(browser, 'ia@oimlsmart.org')
+    await loginInto(browser, 'tl@oimlsmart.org')
     const res = await app.request('/api/op/choose-account', { headers: { cookie: browser.header() } })
     const body = await res.json() as { accounts: Array<{ email: string; live: boolean; current: boolean }> }
-    expect(body.accounts.map(a => a.email).sort()).toEqual(['ia@oiml.org', 'tl@oiml.org'])
+    expect(body.accounts.map(a => a.email).sort()).toEqual(['ia@oimlsmart.org', 'tl@oimlsmart.org'])
     expect(body.accounts.every(a => a.live)).toBe(true)
-    expect(body.accounts.find(a => a.email === 'tl@oiml.org')?.current).toBe(true)
-    expect(body.accounts.find(a => a.email === 'ia@oiml.org')?.current).toBe(false)
+    expect(body.accounts.find(a => a.email === 'tl@oimlsmart.org')?.current).toBe(true)
+    expect(body.accounts.find(a => a.email === 'ia@oimlsmart.org')?.current).toBe(false)
   })
 })
 
@@ -221,7 +221,7 @@ describe('the switch preserves the relying-party flow to code issuance', () => {
   it('the chooser swap hands the flow to the CHOSEN account — its code, its ID token', async () => {
     // ia consents once: the remembered grant belongs to ia.
     const iaBrowser = cookieJar()
-    await loginInto(iaBrowser, 'ia@oiml.org')
+    await loginInto(iaBrowser, 'ia@oimlsmart.org')
     const first = await app.request(`${ISSUER}/op/authorize?${authorizeQuery({ scope: 'openid email' })}`, { headers: { cookie: iaBrowser.header() } })
     const authId = new URL(first.headers.get('location')!, ISSUER).searchParams.get('auth')!
     const decided = await app.request(`${ISSUER}/api/op/consent/${authId}/decide`, {
@@ -234,7 +234,7 @@ describe('the switch preserves the relying-party flow to code issuance', () => {
     // tl signs in on the SAME browser afterwards: the presenting
     // session is tl's, the jar remembers both.
     const tlBrowser = iaBrowser
-    await loginInto(tlBrowser, 'tl@oiml.org')
+    await loginInto(tlBrowser, 'tl@oimlsmart.org')
 
     // The RP asks for the chooser (prompt=select_account).
     const pkce = await generatePkce()
@@ -250,7 +250,7 @@ describe('the switch preserves the relying-party flow to code issuance', () => {
     const pick = await app.request('/api/op/choose-account', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: tlBrowser.header() },
-      body: JSON.stringify({ userId: (await store.findUserByEmail('ia@oiml.org'))!.id, continue: continueTarget }),
+      body: JSON.stringify({ userId: (await store.findUserByEmail('ia@oimlsmart.org'))!.id, continue: continueTarget }),
     })
     expect(pick.status).toBe(200)
     const answer = await pick.json() as { ok: boolean; redirect?: string }
@@ -280,14 +280,14 @@ describe('the switch preserves the relying-party flow to code issuance', () => {
     expect(token.status).toBe(200)
     const grants = await token.json() as { id_token: string }
     const claims = decodeJwt(grants.id_token)
-    expect(claims.email).toBe('ia@oiml.org')
-    const iaUser = await store.findUserByEmail('ia@oiml.org')
+    expect(claims.email).toBe('ia@oimlsmart.org')
+    const iaUser = await store.findUserByEmail('ia@oimlsmart.org')
     expect(claims.sub).toBe(iaUser!.id)
   })
 
   it('the same flow WITHOUT the chooser shows the consent page (the chooser is the explicit ask)', async () => {
     const browser = cookieJar()
-    await loginInto(browser, 'tl@oiml.org')
+    await loginInto(browser, 'tl@oimlsmart.org')
     const res = await app.request(`${ISSUER}/op/authorize?${authorizeQuery({ scope: 'openid email', code_challenge: 'f'.repeat(43) })}`, { headers: { cookie: browser.header() } })
     expect(res.status).toBe(302)
     const back = new URL(res.headers.get('location')!, ISSUER)

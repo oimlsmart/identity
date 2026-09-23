@@ -216,24 +216,24 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
     await stopStack(stack)
   })
 
-  it('leg 1 — the first sign-in completes through the OP (ia@oiml.org)', { timeout: 900_000 }, async () => {
+  it('leg 1 — the first sign-in completes through the OP (ia@oimlsmart.org)', { timeout: 900_000 }, async () => {
     await page.goto(`${rp.baseUrl}/signin`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForFunction(() => window.location.pathname === '/', { timeout: SETTLE, polling: 500 })
-    await opSignIn(page, 'ia@oiml.org')
+    await opSignIn(page, 'ia@oimlsmart.org')
     await page.waitForSelector('[data-testid="op-consent-allow"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="op-consent-allow"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="rp-signed-in"]', { timeout: SETTLE, polling: 500 })
-    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('ia@oiml.org')
+    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('ia@oimlsmart.org')
   })
 
-  it('leg 2 — the second account on the SAME browser rides prompt=login, the login_hint prefills the form (tl@oiml.org)', { timeout: 900_000 }, async () => {
-    await page.goto(`${rp.baseUrl}/signin?prompt=login&login_hint=tl%40oiml.org`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+  it('leg 2 — the second account on the SAME browser rides prompt=login, the login_hint prefills the form (tl@oimlsmart.org)', { timeout: 900_000 }, async () => {
+    await page.goto(`${rp.baseUrl}/signin?prompt=login&login_hint=tl%40oimlsmart.org`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="login-email"]', { timeout: SETTLE, polling: 500 })
-    expect(new URL(page.url()).searchParams.get('login_hint')).toBe('tl@oiml.org')
+    expect(new URL(page.url()).searchParams.get('login_hint')).toBe('tl@oimlsmart.org')
     // The hint IS the prefill: the address field arrives already naming
     // the account the RP suggested.
     await page.waitForFunction(
-      () => (document.querySelector('[data-testid="login-email"]') as HTMLInputElement | null)?.value === 'tl@oiml.org',
+      () => (document.querySelector('[data-testid="login-email"]') as HTMLInputElement | null)?.value === 'tl@oimlsmart.org',
       { timeout: SETTLE, polling: 500 },
     )
     await page.type('[data-testid="login-password"]', 'demo2026')
@@ -241,19 +241,19 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
     await page.waitForSelector('[data-testid="op-consent-allow"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="op-consent-allow"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="rp-signed-in"]', { timeout: SETTLE, polling: 500 })
-    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('tl@oiml.org')
+    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('tl@oimlsmart.org')
   })
 
   it('leg 3 — prompt=select_account renders the chooser with both accounts; the hinted entry is pre-selected; the switch completes to code issuance as the CHOSEN account', { timeout: 900_000 }, async () => {
-    await page.goto(`${rp.baseUrl}/signin?prompt=select_account&login_hint=ia%40oiml.org`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${rp.baseUrl}/signin?prompt=select_account&login_hint=ia%40oimlsmart.org`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-choose-account"]', { timeout: SETTLE, polling: 500 })
 
     // Both remembered accounts list — the presenting one badged, the
     // hinted one pre-selected.
-    await page.waitForSelector('[data-testid="chooser-account-ia@oiml.org"]', { timeout: SETTLE, polling: 500 })
-    await page.waitForSelector('[data-testid="chooser-account-tl@oiml.org"]', { timeout: SETTLE, polling: 500 })
+    await page.waitForSelector('[data-testid="chooser-account-ia@oimlsmart.org"]', { timeout: SETTLE, polling: 500 })
+    await page.waitForSelector('[data-testid="chooser-account-tl@oimlsmart.org"]', { timeout: SETTLE, polling: 500 })
     expect(await page.$$('[data-testid="chooser-use-another"]')).toHaveLength(1) // the Google shape's escape hatch
-    const current = await page.$('[data-testid="chooser-account-tl@oiml.org"] [data-testid="chooser-current-badge"]')
+    const current = await page.$('[data-testid="chooser-account-tl@oimlsmart.org"] [data-testid="chooser-current-badge"]')
     expect(current, 'the presenting account (tl) carries the current badge').toBeTruthy()
     const hinted = await page.$('[data-testid="chooser-hinted-badge"]')
     expect(hinted, 'the login_hint\'s account (ia) carries the pre-selection badge').toBeTruthy()
@@ -261,7 +261,7 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
       const row = el.closest('[data-testid^="chooser-account-"]')
       return row?.getAttribute('data-testid')
     })
-    expect(hintedRow).toBe('chooser-account-ia@oiml.org')
+    expect(hintedRow).toBe('chooser-account-ia@oimlsmart.org')
 
     mkdirSync(DB_DIR, { recursive: true })
     await page.screenshot({ path: join(DB_DIR, 'chooser-two-accounts.png') })
@@ -270,9 +270,9 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
     // chooses. The flow continues as the CHOSEN account — the authorize
     // re-entry mints its code (the remembered grant skips the consent
     // page) and the RP validates ITS token.
-    await page.evaluate(() => (document.querySelector('[data-testid="chooser-account-ia@oiml.org"]') as HTMLElement).click())
+    await page.evaluate(() => (document.querySelector('[data-testid="chooser-account-ia@oimlsmart.org"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="rp-signed-in"]', { timeout: SETTLE, polling: 500 })
-    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('ia@oiml.org')
+    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('ia@oimlsmart.org')
   })
 
   it('leg 4 — the default flow stays byte-identical: no chooser, the live session mints straight through', { timeout: 900_000 }, async () => {
@@ -281,6 +281,6 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
     // The chooser never appeared; the presenting session (ia, chosen in
     // leg 3) signed the RP in directly.
     expect(await page.$('[data-testid="op-choose-account"]')).toBeNull()
-    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('ia@oiml.org')
+    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('ia@oimlsmart.org')
   })
 })
