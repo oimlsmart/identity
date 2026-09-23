@@ -131,6 +131,18 @@ let workerApp: Hono | null = null
  *  src/pages/op/[...path].ts, the jwks/discovery shims): one Hono app
  *  per isolate, the env per request. */
 export async function handleWorkerApi(request: Request, env: CloudflareApiEnv): Promise<Response> {
+  // The insecure-origin redirect (2026-09-23: http://id.oimlsmart.org
+  // served the app with NO zone-level https redirect — WebAuthn never
+  // renders on insecure origins, the session cookie posture diverges).
+  // The zone's "Always Use HTTPS" is the complete fix (the owner's
+  // dashboard act); this guard covers EVERY request that reaches the
+  // Worker — all API and SSR paths — until and regardless of it. The
+  // static shells served assets-first still need the zone setting.
+  const url = new URL(request.url)
+  if (url.protocol === 'http:' && url.hostname !== 'localhost' && !url.hostname.endsWith('.localhost')) {
+    url.protocol = 'https:'
+    return Response.redirect(url.toString(), 308)
+  }
   workerApp ??= buildWorkerApp()
   return workerApp.fetch(request, env)
 }
