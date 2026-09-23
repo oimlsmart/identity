@@ -47,11 +47,13 @@ import type { MailEnv } from '../mailer'
 import { roleHome } from '../vocab'
 import {
   isAppleProvider,
+  parseUpstreamSeed,
   providerScopes,
   resolveProviderSecret,
   seedIdentityProvidersFromEnv,
   validateProviderInput,
 } from '../auth/upstream/registry'
+import { seedWithReadBack } from './op-seed-guard'
 import { safeLocalRedirect, signUpstreamState, verifyUpstreamState, type UpstreamStatePayload } from '../auth/upstream/state'
 import {
   buildUpstreamAuthorizationUrl,
@@ -97,12 +99,27 @@ export function createOpUpstreamRouter(): Hono {
   router.use('/api/op/account/*', profileGate)
 
   /** The registry's bootstrap seed (OP_UPSTREAM_SEED) runs once per
-   *  process/isolate (idempotent upserts; a failure retries next request). */
+   *  process/isolate (idempotent upserts; a failure retries next
+   *  request). The read-back arbiter (op-seed-guard.ts) applies here
+   *  too: a timed-out write-confirm never fails a seed whose declared
+   *  providers already read back complete. */
   let seeded: Promise<void> | null = null
   function ensureSeeded(c: Context): Promise<void> {
     if (!seeded) {
       seeded = (async () => {
-        const ids = await seedIdentityProvidersFromEnv(runtimeEnv<EnvLike>(c), getStore())
+        const env = runtimeEnv<EnvLike>(c)
+        const store = getStore()
+        const ids = await seedWithReadBack(
+          'upstream registry bootstrap',
+          () => seedIdentityProvidersFromEnv(env, store),
+          async () => {
+            if (!env.OP_UPSTREAM_SEED?.trim()) return true // nothing declared = trivially complete
+            for (const entry of parseUpstreamSeed(env.OP_UPSTREAM_SEED.trim())) {
+              if (!(await store.getIdentityProvider(entry.id))) return false
+            }
+            return true
+          },
+        )
         if (ids.length) console.log(`[op] upstream registry bootstrap seeded: ${ids.join(', ')}`)
       })()
       seeded.catch(() => { seeded = null })

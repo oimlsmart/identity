@@ -149,6 +149,7 @@ import {
   mintEnrollmentToken,
   OP_ACCOUNT_PROVIDER,
   OP_ENROLLMENT_TTL_MS,
+  parseOpAccountSeed,
   seedOpAccountsFromEnv,
 } from '../auth/op/accounts'
 import { opRandomToken } from '../auth/op/keys'
@@ -160,7 +161,8 @@ import { issueAccountInvite } from '../auth/op/enrollment'
 import { sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '../mailer'
 import { isActiveRegistryOrg, listRegistryOrganizations, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
-import { seedOidcClientsFromEnv } from '../auth/op/registry'
+import { parseOpClientSeed, seedOidcClientsFromEnv } from '../auth/op/registry'
+import { seedWithReadBack } from './op-seed-guard'
 import { hashPassword, passwordPolicy, verifyPasswordLogin } from '../auth/passwords'
 import { isStatusProbe } from '../auth/op/probe'
 import { avatarKey, avatarKeys, avatarMaxBytes, AVATAR_TYPES, sniffAvatar } from '../auth/op/avatars'
@@ -210,15 +212,39 @@ export function createOpAccountsRouter(): Hono {
   // CLIENT registry's bootstrap (op/registry.ts) rides the same seam:
   // the registry acts below read the client registry (the per-client
   // role policy) and must see a fresh isolate's declared clients.
+  // Each step carries the read-back arbiter (op-seed-guard.ts): a
+  // timed-out write-confirm never fails the seed whose content already
+  // reads back complete — the 2026-09-23 login-503 lesson.
   let seeded: Promise<void> | null = null
   function ensureSeeded(c: Context): Promise<void> {
     if (!seeded) {
       seeded = (async () => {
         const env = runtimeEnv<EnvLike>(c)
         const issuer = resolveOpConfig(env, opRequestOrigin(c.req.raw)).issuer
-        const ids = await seedOpAccountsFromEnv(env, getStore(), issuer)
+        const store = getStore()
+        const ids = await seedWithReadBack(
+          'account bootstrap',
+          () => seedOpAccountsFromEnv(env, store, issuer),
+          async () => {
+            if (!env.OP_ACCOUNT_SEED?.trim()) return true // nothing declared = trivially complete
+            for (const entry of parseOpAccountSeed(env.OP_ACCOUNT_SEED.trim())) {
+              if (!(await store.findUserByEmail(entry.email.trim().toLowerCase()))) return false
+            }
+            return true
+          },
+        )
         if (ids.length) console.log(`[op] account bootstrap seeded: ${ids.join(', ')}`)
-        const clientIds = await seedOidcClientsFromEnv(env, getStore())
+        const clientIds = await seedWithReadBack(
+          'client registry bootstrap',
+          () => seedOidcClientsFromEnv(env, store),
+          async () => {
+            if (!env.OP_CLIENT_SEED?.trim()) return true // nothing declared = trivially complete
+            for (const entry of parseOpClientSeed(env.OP_CLIENT_SEED.trim())) {
+              if (!(await store.getOidcClient(entry.client_id))) return false
+            }
+            return true
+          },
+        )
         if (clientIds.length) console.log(`[op] client registry bootstrap seeded: ${clientIds.join(', ')}`)
       })()
       seeded.catch((err) => {
