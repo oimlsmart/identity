@@ -386,6 +386,10 @@ export function createApiApp(options: ApiAppOptions): Hono {
       // iff BOTH declarations stand, so an unarmed deployment carries
       // NO key at all — the pages never load the widget script.
       turnstile: { siteKey: turnstileEnabled(env) ? env.TURNSTILE_SITE_KEY?.trim() ?? null : null },
+      // The public self-registration posture: false = the join request is
+      // this instance's only public account path (the pages hide the
+      // entry; the register route is the arbiter).
+      registration: { selfService: options.instanceProfile?.selfRegistration ?? getInstanceProfile().selfRegistration },
       identity: {
         ssoEnabled: false,
         providerName: null,

@@ -95,6 +95,9 @@ function isStoreUnavailable(res: Response, body: { code?: string } | null): bool
   return res.status === 503 && body?.code === 'store_unavailable'
 }
 
+// The public self-registration posture (the config projection): false =
+// the join request is this service's only public account path.
+const selfRegistration = ref(true)
 // The deployment's demo posture (from /api/config's public projection):
 // the demo-cast fallback for the password form exists only while the
 // deployment keeps the cast (DEMO_ACCOUNTS_ENABLED / the profile's
@@ -195,8 +198,9 @@ onMounted(async () => {
       try {
         const res = await fetchBounded('/api/config')
         if (res.ok) {
-          const cfg = await res.json() as { identity?: { demoAccountsEnabled?: boolean }, turnstile?: { siteKey?: string | null } }
+          const cfg = await res.json() as { identity?: { demoAccountsEnabled?: boolean }, turnstile?: { siteKey?: string | null }, registration?: { selfService?: boolean } }
           turnstileSiteKey.value = cfg.turnstile?.siteKey ?? null
+          selfRegistration.value = cfg.registration?.selfService !== false
           return cfg.identity?.demoAccountsEnabled !== false
         }
       } catch { /* the offline posture keeps the demo path */ }
@@ -832,7 +836,7 @@ async function submitReset() {
 
       <!-- The public self-registration (TODO.restructure/05): the
            applicant's own account, no organization needed. -->
-      <p class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-register">
+      <p v-if="selfRegistration" class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-register">
         {{ t('login.registerPrompt') }}
         <router-link to="/register" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-register-link">{{ t('login.registerLink') }}</router-link>
       </p>

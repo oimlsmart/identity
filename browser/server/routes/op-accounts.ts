@@ -1133,6 +1133,17 @@ export function createOpAccountsRouter(): Hono {
   // state with no way out. NEVER a session in the answer, never the
   // link on screen (the mailbox is its only channel).
   accounts.post('/api/op/register', async (c) => {
+    // The profile gate: the OFFICIAL identity service's only public
+    // account path is the join request (the approval comes from the
+    // organization); self-registration is the self-host posture's
+    // feature. The server is the arbiter — the pages hide the entry,
+    // this refuses the direct POST.
+    if (!getInstanceProfile().selfRegistration) {
+      return c.json({
+        code: 'self_registration_disabled',
+        error: 'Self-registration is not offered on this service — request an account instead (approval comes from your organization).',
+      }, 403)
+    }
     const body = await c.req.json<{ name?: string; email?: string; password?: string }>().catch(() => null)
     const name = typeof body?.name === 'string' ? body.name.trim() : ''
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
