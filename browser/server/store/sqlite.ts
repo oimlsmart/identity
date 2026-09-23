@@ -132,6 +132,8 @@ import {
   markAccountEmailVerified,
   markPrimaryEmailVerified,
   removeAccountEmail,
+  listOpAssumptions,
+  recordOpAssumption,
   revokeOpUserCredentials,
   setOpClientRoles,
   setPasswordHash,
@@ -140,7 +142,7 @@ import {
   updateOpAccount,
   updateUserName,
 } from './sqlite/op-accounts-store'
-import { TTL_TABLES, installStore, type AccountEmail, type AddAccountEmailResult, type AuthUserPayload, type CertificateHolderClaim, type CertificateHolderOrg, type CompleteEmailChangeResult, type CompleteEnrollmentResult, type ConsumeOidcRefreshTokenResult, type EmailChangeToken, type EnrollmentToken, type EntityChange, type EntityListOptions, type EntityRow, type EntityWriteInput, type EventEntityKey, type EventKeyFilter, type EventWriteInput, type FederationPeer, type IdentityApproval, type IdentityLink, type IdentityProvider, type InstrumentRegistration, type InstrumentRegistrationLifecycle, type InstrumentRegistrationScopeStatus, type InstrumentRegistrationWriteInput, type JournalAppend, type NotifyDelivery, type NotifyDeliveryStatus, type NotifyEntityMute, type NotifyInboxState, type NotifyPreferences, type NotifyRule, type OAuthInitialAssignment, type OidcAccessToken, type OidcAuthorization, type OidcClient, type OidcClientLaunch, type OidcCode, type OidcConsentGrant, type OidcKeyRow, type OidcRefreshToken, type OpAccountErasure, type OpClientRoleAssignment, type OpLiveSession, type OrgJoinRequest, type OrgMembership, type OrgMembershipState, type OrgRegistryContact, type OrgRegistryOrg, type OrgRegistryState, type PersonalAccessToken, type PlatformEvent, type ServerStore, type SessionView, type SsoSignInState, type UserAdminRow, type AdvanceCounterResult, type MfaPending, type RecoveryCodeState, type TotpSecret, type WebauthnChallenge, type WebauthnCredential } from '../store'
+import { TTL_TABLES, installStore, type AccountEmail, type AddAccountEmailResult, type AuthUserPayload, type CertificateHolderClaim, type CertificateHolderOrg, type CompleteEmailChangeResult, type CompleteEnrollmentResult, type ConsumeOidcRefreshTokenResult, type EmailChangeToken, type EnrollmentToken, type EntityChange, type EntityListOptions, type EntityRow, type EntityWriteInput, type EventEntityKey, type EventKeyFilter, type EventWriteInput, type FederationPeer, type IdentityApproval, type IdentityLink, type IdentityProvider, type InstrumentRegistration, type InstrumentRegistrationLifecycle, type InstrumentRegistrationScopeStatus, type InstrumentRegistrationWriteInput, type JournalAppend, type NotifyDelivery, type NotifyDeliveryStatus, type NotifyEntityMute, type NotifyInboxState, type NotifyPreferences, type NotifyRule, type OAuthInitialAssignment, type OidcAccessToken, type OidcAuthorization, type OidcClient, type OidcClientLaunch, type OidcCode, type OidcConsentGrant, type OidcKeyRow, type OidcRefreshToken, type OpAccountErasure, type OpAssumptionEvent, type OpClientRoleAssignment, type OpLiveSession, type OrgJoinRequest, type OrgMembership, type OrgMembershipState, type OrgRegistryContact, type OrgRegistryOrg, type OrgRegistryState, type PersonalAccessToken, type PlatformEvent, type ServerStore, type SessionView, type SsoSignInState, type UserAdminRow, type AdvanceCounterResult, type MfaPending, type RecoveryCodeState, type TotpSecret, type WebauthnChallenge, type WebauthnCredential } from '../store'
 import {
   advanceWebauthnCounter,
   consumeMfaPending,
@@ -925,6 +927,12 @@ export class SqliteServerStore implements ServerStore {
   }
   async deleteOpClientRoles(userId: string, clientId: string): Promise<boolean> {
     return deleteOpClientRoles(this.db, userId, clientId)
+  }
+  async recordOpAssumption(entry: OpAssumptionEvent): Promise<void> {
+    recordOpAssumption(this.db, entry)
+  }
+  async listOpAssumptions(opts?: { personaUserId?: string; actorUserId?: string; limit?: number }): Promise<OpAssumptionEvent[]> {
+    return listOpAssumptions(this.db, opts)
   }
   async revokeOpUserCredentials(userId: string): Promise<{ sessions: number; accessTokens: number; refreshTokens: number; codes: number; authorizations: number }> {
     return revokeOpUserCredentials(this.db, userId)

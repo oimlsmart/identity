@@ -111,13 +111,21 @@ The demonstration personas at `@oimlsmart.org` (the smart demo
 instance's cast — applicant/ia/tl/utilizer/cs) are REAL password
 accounts on THIS OP, provisioned by declaration: their entries ride the
 `OP_ACCOUNT_SEED` Worker secret with the declared fields
-(`orgId`, `roles`, `emailVerified`, `password`, `clientRoles` — the
-format in `identity.md` §Invite-only enrollment), and the seed
-converges exactly those fields at every boot. The containment is the
-declaration's shape: each persona's OP-side role set stays outside
-every RP's claim mapping, and the only roles a persona carries are its
-`clientRoles` for the one client (`oiml-smart-demo`). The roster
-itself is the secret's content — the repo keeps no copy.
+(`orgId`, `roles`, `emailVerified`, `password`, `passwordRotate`,
+`clientRoles` — the format in `identity.md` §Invite-only enrollment),
+and the seed converges exactly those fields at every boot. The
+containment is the declaration's shape: each persona's OP-side role set
+stays outside every RP's claim mapping, and the only roles a persona
+carries are its `clientRoles` for the one client (`oiml-smart-demo`).
+The roster itself is the secret's content — the repo keeps no copy.
+
+**No persona credential is ever published or shared.** The owner's
+directive (2026-09-23, "WE DO NOT ALLOW PUBLIC LOGINS") revoked the
+early shared-demonstration-password posture: each persona's `password`
+is a minted random value that exists only inside the secret — never
+printed, never committed, never handed out. The ONLY way to act as a
+persona is the grant-based assumption through the account chooser
+(below), not a password.
 
 Updating the roster (the secret's value is write-only; the new value
 is the WHOLE roster):
@@ -127,14 +135,62 @@ is the WHOLE roster):
 2. Compose the new JSON array: every standing entry (the
    administrators, the real people — their rows are never dropped by
    an update; the seed only upserts) plus the persona entries with
-   their declared fields. Keep it out of the repo: a temp file outside
-   any checkout, `chmod 600`, removed after the put.
+   their declared fields. Mint each persona credential fresh
+   (`openssl rand -base64 24` per persona, straight into the temp
+   file). Keep it out of the repo: a temp file outside any checkout,
+   `chmod 600`, removed after the put.
 3. `npx wrangler secret put OP_ACCOUNT_SEED --env identity < <the temp file>`
    (stdin, never argv), then delete the temp file.
 4. The seed runs lazily per isolate on the next credential-surface
    request; verify with the same read-only SELECT (the personas' rows
-   show their org bindings) and one password sign-in per the published
-   credential.
+   show their org bindings) and the passwords table read
+   (`... (SELECT COUNT(*) FROM passwords p WHERE p.user_id = users.id)
+   AS has_password ...` — every persona answers 1).
+
+**Rotating a persona credential** (a suspected leak, a personnel
+change, or the one-time migration off the revoked shared posture): the
+seed never clobbers a standing credential, so the rotation is DECLARED
+— the persona entry carries `passwordRotate: true` alongside the fresh
+`password`, and the next boot replaces the credential and ends the
+persona's standing sessions (a rotated credential leaves nothing
+standing). Drop the marker afterwards; the plain `password` field
+stays set-if-absent again.
+
+### The persona assumption grants (OP_DEMO_ASSUME_GRANTS)
+
+The chooser's persona rows ride a second declared secret,
+`OP_DEMO_ASSUME_GRANTS`:
+
+```json
+{ "clientId": "oiml-smart-demo", "grantees": ["tse@ribose.com", "..."] }
+```
+
+A grantee who presents a LIVE session sees the declared personas in the
+account chooser (badged, the `login_hint` pre-selects) and may assume
+one — Google Workspace's "sign in as user" shape: the persona's
+session mints WITHOUT the persona's credential, the event journals to
+the `op_assumptions` table (who, whom, when, which client), and the
+session's `amr` carries the OP-private `assumed` marker so every token
+issued under it says so honestly. An account without a grant — and the
+signed-out posture — never sees the personas; a malformed declaration
+closes the posture (never widens it).
+
+Runbook:
+
+1. Compose the declaration (the grantees are REAL team accounts —
+   never a persona's own address; the persona set derives from the
+   `OP_ACCOUNT_SEED` entries whose `clientRoles` name the `clientId`).
+2. `npx wrangler secret put OP_DEMO_ASSUME_GRANTS --env identity < <the temp file>`,
+   then delete the temp file.
+3. Verify the arc: sign in as a grantee, open the chooser
+   (`prompt=select_account`), assume a persona, and read the journal:
+   `npx wrangler d1 execute oiml-smart-platform-identity --env identity --remote --command "SELECT actor_email, persona_email, client_id, created_at FROM op_assumptions ORDER BY created_at DESC LIMIT 10"`.
+4. Revoking a grant: re-put the declaration without the address. The
+   chooser stops offering the personas to that account at once; a
+   standing persona session from an earlier assumption is the
+   browser's own live session — end it deliberately
+   (`deleteAllUserSessions` through the admin surface) when the
+   revocation must bite immediately.
 
 ### The automated restore dry-run
 

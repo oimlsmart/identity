@@ -639,9 +639,13 @@ enumerate accounts). The demo cast's shared-plaintext pattern stays with
 the demo instances — the OP never carries it. (The demonstration
 PERSONAS are the one deliberate exception, and they are not the
 demo-cast pattern: they are REAL password accounts — the "the demo has
-to be real" directive, 2026-09-23 — whose published demonstration
-credential is provisioned through the account seed's declared entries,
-below.)
+to be real" directive, 2026-09-23 — whose MINTED RANDOM, never-published
+credentials are provisioned through the account seed's declared entries,
+below. No persona credential is shared or published — the owner's
+"no public logins" directive (2026-09-23) revoked the early shared
+posture — and the only way to act as a persona is the chooser's
+grant-based assumption, `docs/deployment/identity-operations.md`
+§The persona assumption grants.)
 
 **Invite-only enrollment.** An admin creates the account (email + name)
 through `POST /api/op/accounts` and receives a ONE-TIME setup link
@@ -658,7 +662,8 @@ password either way, and the reset email carries it when the mailer is
 configured). The first administrator on a fresh OP arrives by
 declaration: `OP_ACCOUNT_SEED` (a JSON array of
 `{ email, name, role?, orgId?, roles?, emailVerified?, password?,
-clientRoles? }`, a Worker secret in production) upserts the account at
+passwordRotate?, clientRoles? }`, a Worker secret in production)
+upserts the account at
 boot and — while it has no password and declares none — logs a fresh
 one-time setup link at every boot (the operator's way in; once the
 password is set the seed goes quiet).
@@ -669,7 +674,11 @@ administrators. A DECLARED entry — one that names any of `orgId` (the
 org binding), `roles` (the full OP-side role set), `emailVerified`
 (the primary address ships verified), `password` (the sign-in
 credential, hashed on the seed; set only while the account has none —
-a rotated or admin-set credential is never clobbered), or
+a rotated or admin-set credential is never clobbered),
+`passwordRotate` (with `password`: the DECLARED rotation — the
+standing credential is REPLACED and the account's standing sessions
+end; the explicit exception to the never-clobber doctrine, the
+operator's declaration IS the deliberate act), or
 `clientRoles` (the per-client role assignments, client id → role
 array) — is authoritative for EXACTLY the fields it names, converged
 on every boot: the demonstration cast's roster is the declaration, so

@@ -173,6 +173,24 @@ Without `prompt=select_account` and with a live remembered grant, the
 OP skips the chooser and the consent page alike — your service gets
 the code directly. The chooser is the explicit ask, never the default.
 
+### The demonstration personas (the grant-based assumption)
+
+On OPs that declare the persona-assumption posture, the chooser ALSO
+lists the deployment's demonstration personas to a grant-holder: a
+live session whose account the `OP_DEMO_ASSUME_GRANTS` declaration
+names sees the persona rows (badged "Demo persona", the `login_hint`
+pre-selects them like any entry), and clicking one continues the flow
+AS the persona — Google Workspace's "sign in as user": the persona's
+session mints WITHOUT the persona's credential ever being presented,
+the assumption event journals to the OP's `op_assumptions` table
+(who, whom, when, which client), and the tokens your service receives
+name the persona (its `sub`, its `roles`/`org` claims for your client)
+with `amr: ["assumed"]` marking the delegated sign-in. An account
+without a grant — and the signed-out posture — never sees the persona
+rows. Persona credentials do not exist as shared knowledge: no
+password is published for any persona, so the chooser assumption is
+the only way in.
+
 ## 5. The typed SDK (`@oimlsmart/identity-api`)
 
 The SDK is generated from the drift-gated OpenAPI spec

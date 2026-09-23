@@ -831,6 +831,20 @@ export interface OpClientRoleAssignment {
   updatedAt: string | null
 }
 
+/** One persona-assumption event (the chooser's grant-based assumption):
+ *  the actor became the persona for the client's flow. The journal row
+ *  IS the audit trail — the assumption mints a real session for the
+ *  persona, so this is the only place the acting identity survives. */
+export interface OpAssumptionEvent {
+  id: string
+  actorUserId: string
+  actorEmail: string
+  personaUserId: string
+  personaEmail: string
+  clientId: string
+  createdAt: string
+}
+
 /** The erasure act's removal counts (the audit event's metadata):
  *  revokeOpUserCredentials' five plus the links, the per-client
  *  assignments, the org memberships (TODO.identity/11), and the
@@ -2064,6 +2078,16 @@ export interface ServerStore {
   setOpClientRoles(userId: string, clientId: string, roles: string[], assignedBy: string | null): Promise<void>
   /** Clear the per-client assignment (the account default is restored). */
   deleteOpClientRoles(userId: string, clientId: string): Promise<boolean>
+  // ── the persona-assumption journal (the chooser's grant-based
+  //    assumption) ──
+  /** Write the assumption event (who assumed which persona, when, for
+   *  which client). Never blocks the path's answer — the caller's
+   *  try/catch posture. */
+  recordOpAssumption(entry: OpAssumptionEvent): Promise<void>
+  /** The journal read: the persona's trail, the actor's trail, or the
+   *  recent tail — newest first, bounded (the default limit keeps the
+   *  read constant-shaped). */
+  listOpAssumptions(opts?: { personaUserId?: string; actorUserId?: string; limit?: number }): Promise<OpAssumptionEvent[]>
   /** The deactivation's revocation half: delete EVERY live session, every
    *  issued OIDC access token, every refresh token (consumed or not — the
    *  reuse detector has no more verdicts to give), every unconsumed

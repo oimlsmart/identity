@@ -19,6 +19,12 @@
 // view — the pre-selection is an affordance, never a decision (the
 // holder still clicks). A hint nothing matches rides "use another
 // account" as the sign-in form's prefill.
+//
+// The GRANTED PERSONA ROWS (the demo cast's assumption): when the
+// context marks a row `assumable`, it is a declared demonstration
+// persona the presenting account may assume — the click assumes it
+// WITHOUT any persona password (the grant-based posture; the server
+// re-verdicts the grant and journals the assumption).
 // ═══════════════════════════════════════════════════════════════════
 import { ref, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
@@ -26,7 +32,7 @@ import BrandLogo from '../../components/BrandLogo.vue'
 import { t } from '../../i18n'
 
 interface ChooserAccount {
-  userId: string
+  userId: string | null
   name: string
   email: string
   avatarUrl: string | null
@@ -34,6 +40,10 @@ interface ChooserAccount {
   live: boolean
   current: boolean
   hinted: boolean
+  /** A DECLARED demo persona the presenting account is granted to
+   *  assume: the click assumes the persona — no persona password is
+   *  ever presented (the grant-based posture; the server re-verdicts). */
+  assumable: boolean
 }
 
 interface ChooserContext {
@@ -47,10 +57,12 @@ interface ChooserContext {
 const route = useRoute()
 
 const loading = ref(true)
-const busyUserId = ref<string | null>(null)
+const busyKey = ref<string | null>(null)
 const anotherBusy = ref(false)
 const error = ref<string | null>(null)
 const context = ref<ChooserContext | null>(null)
+
+const rowKeyOf = (account: ChooserAccount): string => account.userId ?? `email:${account.email}`
 
 const initialOf = (account: ChooserAccount): string => (account.name || account.email || '?').charAt(0).toUpperCase()
 
@@ -90,24 +102,35 @@ onMounted(async () => {
   loading.value = false
 })
 
-/** Continue as a remembered account. The server re-verifies the entry's
- *  session row (the render-to-click gap is the server's verdict, never
- *  the page's): ok swaps the cookie and answers the navigation target;
- *  not-ok answers the login fallback (dead row — sign in again). */
+/** Continue as a remembered account — or assume a granted demo
+ *  persona. The server re-verifies every choice (the render-to-click
+ *  gap is the server's verdict, never the page's): ok swaps the cookie
+ *  and answers the navigation target; not-ok answers the login fallback
+ *  (dead row — sign in again); a refused assumption (403) says so. */
 async function choose(account: ChooserAccount) {
-  if (busyUserId.value) return
-  busyUserId.value = account.userId
+  const rowKey = rowKeyOf(account)
+  if (busyKey.value) return
+  busyKey.value = rowKey
   error.value = null
   try {
     const res = await fetch('/api/op/choose-account', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ userId: account.userId, continue: context.value?.continue ?? undefined }),
+      body: JSON.stringify(
+        account.assumable
+          ? { email: account.email, continue: context.value?.continue ?? undefined }
+          : { userId: account.userId, continue: context.value?.continue ?? undefined },
+      ),
     })
+    if (res.status === 403) {
+      error.value = t('chooser.assumptionDenied')
+      busyKey.value = null
+      return
+    }
     if (!res.ok) {
       error.value = t('chooser.failed')
-      busyUserId.value = null
+      busyKey.value = null
       return
     }
     const body = await res.json() as { ok: boolean; redirect?: string; login?: string }
@@ -116,7 +139,7 @@ async function choose(account: ChooserAccount) {
     else window.location.assign(loginUrl())
   } catch {
     error.value = t('error.network')
-    busyUserId.value = null
+    busyKey.value = null
   }
 }
 
@@ -153,12 +176,13 @@ function useAnother() {
       </div>
 
       <ul class="space-y-2">
-        <li v-for="account in context?.accounts ?? []" :key="account.userId">
+        <li v-for="account in context?.accounts ?? []" :key="rowKeyOf(account)">
           <button
             type="button"
-            :disabled="!!busyUserId"
+            :disabled="!!busyKey"
             :data-testid="`chooser-account-${account.email}`"
             :data-hinted="account.hinted ? 'true' : undefined"
+            :data-assumable="account.assumable ? 'true' : undefined"
             :aria-label="t('chooser.continueAs', { name: account.name || account.email })"
             :class="account.hinted
               ? 'w-full text-left px-4 py-3 rounded-xl border-2 border-brand-500 dark:border-brand-400 bg-brand-50/60 dark:bg-brand-900/20 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors disabled:opacity-50 flex items-center gap-3'
@@ -190,12 +214,18 @@ function useAnother() {
                   class="ml-2 inline-block rounded-full bg-brand-100 dark:bg-brand-800/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-200"
                   data-testid="chooser-hinted-badge"
                 >{{ t('chooser.preselected') }}</span>
+                <span
+                  v-if="account.assumable"
+                  class="ml-2 inline-block rounded-full bg-amber-50 dark:bg-amber-900/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
+                  data-testid="chooser-persona-badge"
+                >{{ t('chooser.personaBadge') }}</span>
               </span>
               <span class="block text-sm text-slate-600 dark:text-slate-400 truncate" data-testid="chooser-account-email">{{ account.email }}</span>
               <span v-if="account.org" class="block text-xs text-slate-400 dark:text-slate-500 truncate" data-testid="chooser-account-org">{{ account.org }}</span>
+              <span v-if="account.assumable" class="block text-xs text-slate-400 dark:text-slate-500" data-testid="chooser-persona-note">{{ t('chooser.personaNote') }}</span>
               <span v-if="!account.live" class="block text-xs text-amber-600 dark:text-amber-400" data-testid="chooser-account-dead">{{ t('chooser.deadSession') }}</span>
             </span>
-            <span v-if="busyUserId === account.userId" class="w-4 h-4 shrink-0 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" aria-hidden="true" />
+            <span v-if="busyKey === rowKeyOf(account)" class="w-4 h-4 shrink-0 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" aria-hidden="true" />
           </button>
         </li>
 
