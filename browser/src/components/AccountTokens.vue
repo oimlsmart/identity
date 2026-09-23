@@ -64,7 +64,7 @@ export interface PermissionCatalog {
 // PERSON's credential, never an org's (the machine cone is the
 // registered clients').
 // ═══════════════════════════════════════════════════════════════════
-import { effectiveSelection, resourceStemsOf, seedSelection, stemHeldFor } from './token-permissions'
+import { effectiveSelection, groupTable, seedSelection, stemHeldFor, type CatalogGroup, type GroupTable } from './token-permissions'
 import { computed, ref } from 'vue'
 import { t } from '../i18n'
 
@@ -190,21 +190,21 @@ function permToggleStem(serviceId: string, stem: string) {
   permSelection.value = { ...permSelection.value, [serviceId]: [...held] }
 }
 
-/** The stem's leaves for the picker's nesting (search-filtered with
- *  the stem row itself). */
-function leavesForStem(serviceId: string, group: PermissionCatalogGroup, stem: string): PermissionCatalogGroup['permissions'] {
+/** The search-aware table projection: the group's rows filtered by
+ *  the query (resource, description, or any cell's full id matching). */
+function rowVisibleTable(serviceId: string, group: CatalogGroup): GroupTable {
+  void serviceId
+  const table = groupTable(group)
   const q = permSearch.value.trim().toLowerCase()
-  const prefix = `${stem}.`
-  return group.permissions.filter(p => {
-    if (!p.id.startsWith(prefix)) return false
-    if (!q) return true
-    return p.id.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
-  })
-}
-
-/** A stem row hides when the search names nothing under it. */
-function stemVisible(serviceId: string, group: PermissionCatalogGroup, stem: string): boolean {
-  return leavesForStem(serviceId, group, stem).length > 0
+  if (!q) return table
+  return {
+    columns: table.columns,
+    rows: table.rows.filter(row =>
+      row.resource.toLowerCase().includes(q)
+      || row.description.toLowerCase().includes(q)
+      || Object.values(row.cells).some(id => id.toLowerCase().includes(q)),
+    ),
+  }
 }
 
 const mintable = computed(() =>
@@ -486,7 +486,7 @@ function stateLabel(state: TokenRow['state']): string {
                   data-testid="token-perms-search"
                   class="mb-2 w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
                 />
-                <div v-for="group in catalogGroups(permCatalogs[service.id])" :key="group.id" class="mb-2" :data-testid="`token-perms-group-${service.id}-${group.id}`">
+                <div v-for="group in catalogGroups(permCatalogs[service.id])" :key="group.id" class="mb-3" :data-testid="`token-perms-group-${service.id}-${group.id}`">
                   <label class="flex items-start gap-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300" :data-testid="`token-perm-stem-${service.id}-${group.id}`">
                     <input
                       type="checkbox"
@@ -496,36 +496,50 @@ function stateLabel(state: TokenRow['state']): string {
                     />
                     <span class="min-w-0" :title="group.description"><span class="font-mono">{{ group.id }}</span> — {{ t('account.tokens.permStemGroup') }}</span>
                   </label>
-                  <div v-for="stem in resourceStemsOf(group)" :key="stem" class="ml-3">
-                    <label
-                      v-if="stemVisible(service.id, group, stem)"
-                      class="flex items-start gap-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300"
-                      :data-testid="`token-perm-stem-${service.id}-${stem}`"
-                    >
-                      <input
-                        type="checkbox"
-                        class="mt-0.5"
-                        :checked="(permSelection[service.id] ?? []).includes(stem)"
-                        @change="permToggleStem(service.id, stem)"
-                      />
-                      <span class="min-w-0"><span class="font-mono">{{ stem }}</span> — {{ t('account.tokens.permStemResource') }}</span>
-                    </label>
-                    <label
-                      v-for="permission in leavesForStem(service.id, group, stem)"
-                      :key="permission.id"
-                      class="flex items-start gap-2 py-0.5 text-[11px] ml-3 text-slate-600 dark:text-slate-300"
-                      :data-testid="`token-perm-${service.id}-${permission.id}`"
-                    >
-                      <input
-                        type="checkbox"
-                        class="mt-0.5"
-                        :disabled="coverFor(service.id, permission.id) !== null"
-                        :checked="(permSelection[service.id] ?? []).includes(permission.id) || coverFor(service.id, permission.id) !== null"
-                        @change="permToggle(service.id, permission.id)"
-                      />
-                      <span class="min-w-0"><span class="font-mono">{{ permission.id }}</span><span v-if="coverFor(service.id, permission.id) !== null" class="text-slate-400 dark:text-slate-500" :data-testid="`token-perm-implied-${permission.id}`"> · {{ t('account.tokens.permImplied') }}</span><template v-else> — {{ permission.description }}</template></span>
-                    </label>
-                  </div>
+                  <!-- The Cloudflare-editor table (dash-cloudflare.html's Permission
+                       Editor shape): rows the resources, columns the verbs the group
+                       declares, the row's leading cell its "all verbs" stem. -->
+                  <table v-if="rowVisibleTable(service.id, group).rows.length" class="w-full text-[11px] border-collapse" :data-testid="`token-perms-table-${service.id}-${group.id}`">
+                    <thead>
+                      <tr class="text-left text-slate-500 dark:text-slate-400">
+                        <th class="py-1 pr-2 font-medium">{{ t('account.tokens.permColumnPermission') }}</th>
+                        <th class="w-10 py-1 px-1 font-medium text-center" :title="t('account.tokens.permStemResource')">{{ t('account.tokens.permColumnAll') }}</th>
+                        <th v-for="col in groupTable(group).columns" :key="col" class="w-10 py-1 px-1 font-medium text-center capitalize">{{ col }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="row in rowVisibleTable(service.id, group).rows"
+                        :key="row.resource"
+                        class="border-t border-slate-100 dark:border-slate-700/60"
+                        :data-testid="`token-perm-row-${service.id}-${row.resource}`"
+                      >
+                        <td class="py-1 pr-2">
+                          <span class="font-mono">{{ row.resource }}</span>
+                          <span class="block text-slate-400 dark:text-slate-500">{{ row.description }}</span>
+                        </td>
+                        <td class="py-1 px-1 text-center">
+                          <input
+                            type="checkbox"
+                            :checked="(permSelection[service.id] ?? []).includes(row.resource)"
+                            :data-testid="`token-perm-stem-${service.id}-${row.resource}`"
+                            @change="permToggleStem(service.id, row.resource)"
+                          />
+                        </td>
+                        <td v-for="col in groupTable(group).columns" :key="col" class="py-1 px-1 text-center">
+                          <input
+                            v-if="row.cells[col]"
+                            type="checkbox"
+                            :disabled="coverFor(service.id, row.cells[col]) !== null"
+                            :checked="(permSelection[service.id] ?? []).includes(row.cells[col]) || coverFor(service.id, row.cells[col]) !== null"
+                            :data-testid="`token-perm-${service.id}-${row.cells[col]}`"
+                            @change="permToggle(service.id, row.cells[col])"
+                          />
+                          <span v-if="row.cells[col] && coverFor(service.id, row.cells[col]) !== null" class="text-slate-300 dark:text-slate-600" :title="t('account.tokens.permImplied')">·</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </template>
             </div>

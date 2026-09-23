@@ -310,6 +310,8 @@ export const en = {
   "account.tokens.permStemGroup": "whole service (stem grant)",
   "account.tokens.permStemResource": "all actions (stem grant)",
   "account.tokens.permImplied": "implied by the stem",
+  "account.tokens.permColumnPermission": "Permission",
+  "account.tokens.permColumnAll": "All",
   "account.tokens.permissionsSearch": "Search permissions…",
   "account.tokens.lastUsed": "last used {date}",
   "account.tokens.edit": "Edit",

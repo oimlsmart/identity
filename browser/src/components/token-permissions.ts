@@ -55,3 +55,48 @@ export function seedSelection(pinned: readonly string[], exactIds: readonly stri
     exact.has(id) || [...exact].some(exactId => exactId.startsWith(`${id}.`)),
   ).sort((a, b) => a.localeCompare(b))
 }
+
+// ── the Cloudflare-editor projection (dash-cloudflare.html's Permission
+//    Editor shape): per group a table — rows the RESOURCES (name +
+// description), columns the VERBS the group declares (read/edit first,
+// then alphabetical), each cell the full permission id. ──────────────
+
+export interface GroupTableRow {
+  /** The resource stem (`<group>.<resource>`) — the row's identity and
+   *  its "All verbs" stem grant. */
+  resource: string
+  description: string
+  /** The verbs this resource declares → the full permission id. */
+  cells: Record<string, string>
+}
+
+export interface GroupTable {
+  columns: string[]
+  rows: GroupTableRow[]
+}
+
+export function groupTable(group: CatalogGroup): GroupTable {
+  const rows = new Map<string, GroupTableRow>()
+  for (const permission of group.permissions) {
+    const segments = permission.id.split('.')
+    if (segments.length < 3) continue
+    const resource = `${segments[0]}.${segments[1]}`
+    const verb = segments.slice(2).join('.')
+    const row = rows.get(resource) ?? { resource, description: '', cells: {} }
+    row.cells[verb] = permission.id
+    // The row's description: the read verb's blurb when present, else
+    // the first one encountered (the Cloudflare row's single line).
+    if (!row.description || verb === 'read') row.description = permission.description
+    rows.set(resource, row)
+  }
+  const verbs = new Set<string>()
+  for (const row of rows.values()) for (const verb of Object.keys(row.cells)) verbs.add(verb)
+  const columns = [...verbs].sort((a, b) => {
+    const rank = (v: string) => (v === 'read' ? 0 : v === 'edit' ? 1 : 2)
+    return rank(a) - rank(b) || a.localeCompare(b)
+  })
+  return {
+    columns,
+    rows: [...rows.values()].sort((a, b) => a.resource.localeCompare(b.resource)),
+  }
+}
