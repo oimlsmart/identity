@@ -77,6 +77,7 @@ import {
   consentGrantCovers,
   normalizeOidcScopeSet,
   type OpAccountErasure,
+  type OpAssumptionEvent,
   type OpClientRoleAssignment,
   type OpLiveSession,
   type OrgJoinRequest,
@@ -2137,6 +2138,48 @@ export class D1ServerStore implements ServerStore {
   async deleteOpClientRoles(userId: string, clientId: string): Promise<boolean> {
     const res = await this.stmt('DELETE FROM op_client_roles WHERE user_id = ? AND client_id = ?', userId, clientId).run()
     return (res.meta.changes ?? 0) > 0
+  }
+
+  // ── the persona-assumption journal (the chooser's grant-based
+  //    assumption) ──
+
+  private static toAssumptionEvent(row: Record<string, unknown>): OpAssumptionEvent {
+    return {
+      id: row.id as string,
+      actorUserId: row.actor_user_id as string,
+      actorEmail: row.actor_email as string,
+      personaUserId: row.persona_user_id as string,
+      personaEmail: row.persona_email as string,
+      clientId: row.client_id as string,
+      createdAt: row.created_at as string,
+    }
+  }
+
+  async recordOpAssumption(entry: OpAssumptionEvent): Promise<void> {
+    await this.stmt(
+      'INSERT INTO op_assumptions (id, actor_user_id, actor_email, persona_user_id, persona_email, client_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      entry.id, entry.actorUserId, entry.actorEmail, entry.personaUserId, entry.personaEmail, entry.clientId, entry.createdAt,
+    ).run()
+  }
+
+  async listOpAssumptions(opts?: { personaUserId?: string; actorUserId?: string; limit?: number }): Promise<OpAssumptionEvent[]> {
+    const limit = Math.max(1, Math.min(opts?.limit ?? 50, 500))
+    if (opts?.personaUserId) {
+      const res = await this.stmt(
+        'SELECT * FROM op_assumptions WHERE persona_user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?', opts.personaUserId, limit,
+      ).all<Record<string, unknown>>()
+      return res.results.map(D1ServerStore.toAssumptionEvent)
+    }
+    if (opts?.actorUserId) {
+      const res = await this.stmt(
+        'SELECT * FROM op_assumptions WHERE actor_user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?', opts.actorUserId, limit,
+      ).all<Record<string, unknown>>()
+      return res.results.map(D1ServerStore.toAssumptionEvent)
+    }
+    const res = await this.stmt(
+      'SELECT * FROM op_assumptions ORDER BY created_at DESC, id DESC LIMIT ?', limit,
+    ).all<Record<string, unknown>>()
+    return res.results.map(D1ServerStore.toAssumptionEvent)
   }
 
   /** The deactivation's revocation half: every live session, every issued

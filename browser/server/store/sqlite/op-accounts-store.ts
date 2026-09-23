@@ -22,6 +22,7 @@ import type {
   CompleteEnrollmentResult,
   EmailChangeToken,
   EnrollmentToken,
+  OpAssumptionEvent,
   OpClientRoleAssignment,
   OpLiveSession,
   SessionView,
@@ -724,4 +725,59 @@ export function removeAccountEmail(db: Database.Database, userId: string, email:
   if (current?.email === normalized) return 'primary'
   const res = db.prepare('DELETE FROM account_emails WHERE user_id = ? AND email = ?').run(userId, normalized)
   return res.changes > 0 ? 'ok' : 'unknown'
+}
+
+// ── the persona-assumption journal (the chooser's grant-based
+//    assumption) ──────────────────────────────────────────────────────
+
+interface OpAssumptionRow {
+  id: string
+  actor_user_id: string
+  actor_email: string
+  persona_user_id: string
+  persona_email: string
+  client_id: string
+  created_at: string
+}
+
+function toAssumptionEvent(row: OpAssumptionRow): OpAssumptionEvent {
+  return {
+    id: row.id,
+    actorUserId: row.actor_user_id,
+    actorEmail: row.actor_email,
+    personaUserId: row.persona_user_id,
+    personaEmail: row.persona_email,
+    clientId: row.client_id,
+    createdAt: row.created_at,
+  }
+}
+
+export function recordOpAssumption(db: Database.Database, entry: OpAssumptionEvent): void {
+  db.prepare(`
+    INSERT INTO op_assumptions (id, actor_user_id, actor_email, persona_user_id, persona_email, client_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(entry.id, entry.actorUserId, entry.actorEmail, entry.personaUserId, entry.personaEmail, entry.clientId, entry.createdAt)
+}
+
+export function listOpAssumptions(
+  db: Database.Database,
+  opts?: { personaUserId?: string; actorUserId?: string; limit?: number },
+): OpAssumptionEvent[] {
+  const limit = Math.max(1, Math.min(opts?.limit ?? 50, 500))
+  if (opts?.personaUserId) {
+    const rows = db.prepare(
+      'SELECT * FROM op_assumptions WHERE persona_user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?',
+    ).all(opts.personaUserId, limit) as unknown as OpAssumptionRow[]
+    return rows.map(toAssumptionEvent)
+  }
+  if (opts?.actorUserId) {
+    const rows = db.prepare(
+      'SELECT * FROM op_assumptions WHERE actor_user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?',
+    ).all(opts.actorUserId, limit) as unknown as OpAssumptionRow[]
+    return rows.map(toAssumptionEvent)
+  }
+  const rows = db.prepare(
+    'SELECT * FROM op_assumptions ORDER BY created_at DESC, id DESC LIMIT ?',
+  ).all(limit) as unknown as OpAssumptionRow[]
+  return rows.map(toAssumptionEvent)
 }

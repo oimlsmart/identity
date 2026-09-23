@@ -18,8 +18,9 @@
 //     warning). Once the account sets its password the seed goes quiet.
 //
 //     A DECLARED entry — one that carries any of the persona fields
-//     (orgId, roles, emailVerified, password, clientRoles) — is more
-//     than an invite: the declaration is AUTHORITATIVE for exactly the
+//     (orgId, roles, emailVerified, password, passwordRotate,
+//     clientRoles) — is more than an invite: the declaration is
+//     AUTHORITATIVE for exactly the
 //     fields it names, converged on every boot (the demo cast's align
 //     posture — the declaration is the roster's source of truth, so a
 //     hand edit to a declared field does not survive a boot; drop the
@@ -75,6 +76,12 @@ export interface OpAccountSeedEntry {
    *  account holds no password — a rotated or admin-set credential is
    *  never clobbered by a re-deploy. */
   password?: string
+  /** The DECLARED rotation: with this marker the entry's `password`
+   *  REPLACES any existing credential (and the account's standing
+   *  sessions go — a rotated credential leaves nothing standing). The
+   *  explicit exception to the never-clobber doctrine: the operator
+   *  declaring the rotation is the deliberate act. */
+  passwordRotate?: boolean
   /** The per-client role assignments (op_client_roles), keyed by the
    *  client id. Upserted on every boot — the declaration's narrow reach
    *  is exactly these rows. */
@@ -85,6 +92,7 @@ export interface OpAccountSeedEntry {
 export function isDeclaredSeedEntry(entry: OpAccountSeedEntry): boolean {
   return entry.orgId !== undefined || entry.roles !== undefined
     || entry.emailVerified !== undefined || entry.password !== undefined
+    || entry.passwordRotate !== undefined
     || entry.clientRoles !== undefined
 }
 
@@ -102,6 +110,8 @@ export function parseOpAccountSeed(raw: string): OpAccountSeedEntry[] {
     if (rec.roles !== undefined && (!Array.isArray(rec.roles) || !rec.roles.every(r => typeof r === 'string' && r))) throw new Error(`OP_ACCOUNT_SEED[${i}]: roles must be an array of non-empty strings`)
     if (rec.emailVerified !== undefined && typeof rec.emailVerified !== 'boolean') throw new Error(`OP_ACCOUNT_SEED[${i}]: emailVerified must be a boolean`)
     if (rec.password !== undefined && (typeof rec.password !== 'string' || !rec.password)) throw new Error(`OP_ACCOUNT_SEED[${i}]: password must be a non-empty string`)
+    if (rec.passwordRotate !== undefined && typeof rec.passwordRotate !== 'boolean') throw new Error(`OP_ACCOUNT_SEED[${i}]: passwordRotate must be a boolean`)
+    if (rec.passwordRotate === true && rec.password === undefined) throw new Error(`OP_ACCOUNT_SEED[${i}]: passwordRotate requires the password field`)
     if (rec.clientRoles !== undefined) {
       if (!rec.clientRoles || typeof rec.clientRoles !== 'object' || Array.isArray(rec.clientRoles)) throw new Error(`OP_ACCOUNT_SEED[${i}]: clientRoles must be an object of client id → role array`)
       for (const [clientId, roles] of Object.entries(rec.clientRoles as Record<string, unknown>)) {
@@ -115,7 +125,8 @@ export function parseOpAccountSeed(raw: string): OpAccountSeedEntry[] {
 /** Upsert the declared accounts (idempotent). A PLAIN entry is created
  *  when absent and left ENTIRELY alone afterwards (the registry seed's
  *  posture — the rows are admin-managed). A DECLARED entry (one carrying
- *  orgId/roles/emailVerified/password/clientRoles) converges EXACTLY its
+ *  orgId/roles/emailVerified/password/passwordRotate/clientRoles)
+ *  converges EXACTLY its
  *  declared fields on every boot: the demonstration cast's roster is the
  *  declaration, so the cast cannot drift out from under the demo. Every
  *  seeded account WITHOUT a password (and without a declared one) gets a
@@ -198,9 +209,16 @@ async function convergeDeclaredAccount(store: ServerStore, userId: string, entry
   if (entry.password !== undefined) {
     const methods = await store.countSignInMethods(userId)
     if (!methods.password) {
-      // The demonstration credential — the published posture the
-      // declaration carries. Hashed here; never logged, never returned.
+      // The demonstration credential — hashed here; never logged, never
+      // returned.
       await store.setPasswordHash(userId, await hashPassword(entry.password), 'op-account-seed')
+    } else if (entry.passwordRotate === true) {
+      // The DECLARED rotation: the marker is the operator's deliberate
+      // act, so the never-clobber doctrine yields — the credential is
+      // replaced and the account's standing sessions go with it (a
+      // rotated credential leaves nothing standing).
+      await store.setPasswordHash(userId, await hashPassword(entry.password), 'op-account-seed')
+      await store.deleteAllUserSessions(userId)
     }
   }
   for (const [clientId, roles] of Object.entries(entry.clientRoles ?? {})) {

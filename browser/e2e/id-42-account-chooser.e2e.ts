@@ -17,7 +17,15 @@
 //          validated claims name the CHOSEN account;
 //   leg 4  the default flow stays byte-identical: no prompt, the live
 //          session, the remembered grant — the RP gets its code with no
-//          chooser and no consent page.
+//          chooser and no consent page;
+//   leg 5  the GRANT-BASED ASSUMPTION: the presenting account holds the
+//          declared grant, so the chooser lists the DECLARED demo
+//          personas (badged, the login_hint pre-selects) — clicking a
+//          persona mints the session AS the persona with NO persona
+//          credential presented and the flow completes with the RP's
+//          validated token naming the PERSONA;
+//   leg 6  an account without the grant sees no persona rows at all —
+//          the chooser stays exactly the remembered accounts.
 //
 // SELF-CONTAINED: its own identity stack + its own stub RP (the id-01
 // harness, port-isolated).
@@ -140,6 +148,23 @@ async function bootIdentityStack(): Promise<Stack> {
         redirect_uris: [`http://127.0.0.1:${RP_PORT}/callback`],
         claims_policy: { claims: ['roles', 'groups', 'org'] },
       }]),
+      // The demonstration personas + the assumption grants (the
+      // grant-based posture's browser-level proof). The fixture
+      // credentials are THIS STACK's throwaways — production personas
+      // carry minted random credentials that exist in no repository.
+      OP_ACCOUNT_SEED: JSON.stringify([
+        {
+          email: 'persona-applicant@oimlsmart.org', name: 'ACME Applicant (Demonstration)', role: 'user',
+          orgId: 'mfr-acme', emailVerified: true, password: 'e2e-persona-credential-1',
+          clientRoles: { [RP_CLIENT_ID]: ['applicant'] },
+        },
+        {
+          email: 'persona-cs@oimlsmart.org', name: 'CS Administrator (Demonstration)', role: 'user',
+          orgId: 'oiml-cs-demo', emailVerified: true, password: 'e2e-persona-credential-2',
+          clientRoles: { [RP_CLIENT_ID]: ['cs_admin'] },
+        },
+      ]),
+      OP_DEMO_ASSUME_GRANTS: JSON.stringify({ clientId: RP_CLIENT_ID, grantees: ['ia@oimlsmart.org'] }),
     }, logs)
     const apiBase = `http://localhost:${ID_API}`
     await waitForHttp(`${apiBase}/api/health`, 120_000, logs)
@@ -282,5 +307,60 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
     // leg 3) signed the RP in directly.
     expect(await page.$('[data-testid="op-choose-account"]')).toBeNull()
     expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('ia@oimlsmart.org')
+  })
+
+  // ── the grant-based assumption (the demo personas' own posture) ─────
+
+  it('leg 5 — the grant-holder\'s chooser lists the declared personas; the click assumes the persona WITHOUT its credential and completes the flow as the PERSONA', { timeout: 900_000 }, async () => {
+    // The presenting session is ia — the grant names her. The flow asks
+    // for the chooser with the persona hinted.
+    await page.goto(`${rp.baseUrl}/signin?prompt=select_account&login_hint=persona-applicant%40oimlsmart.org`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="op-choose-account"]', { timeout: SETTLE, polling: 500 })
+
+    // The persona row lists with its badge; the hint pre-selects it.
+    const personaRow = '[data-testid="chooser-account-persona-applicant@oimlsmart.org"]'
+    await page.waitForSelector(personaRow, { timeout: SETTLE, polling: 500 })
+    expect(await page.$(`${personaRow} [data-testid="chooser-persona-badge"]`), 'the persona badge marks the assumable row').toBeTruthy()
+    const hintedRow = await page.$eval('[data-testid="chooser-hinted-badge"]', el => el.closest('[data-testid^="chooser-account-"]')?.getAttribute('data-testid'))
+    expect(hintedRow).toBe('chooser-account-persona-applicant@oimlsmart.org')
+    mkdirSync(DB_DIR, { recursive: true })
+    await page.screenshot({ path: join(DB_DIR, 'chooser-persona-granted.png') })
+
+    // The click assumes: no password field ever renders for the persona
+    // — the session mints server-side and the flow rides on.
+    await page.evaluate((sel) => (document.querySelector(sel) as HTMLElement).click(), personaRow)
+    await page.waitForSelector('[data-testid="op-consent-allow"]', { timeout: SETTLE, polling: 500 })
+    await page.evaluate(() => (document.querySelector('[data-testid="op-consent-allow"]') as HTMLElement).click())
+    await page.waitForSelector('[data-testid="rp-signed-in"]', { timeout: SETTLE, polling: 500 })
+    // The RP's validated token names the PERSONA — the assumption rode
+    // the whole flow (the grantee's own identity appears nowhere).
+    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('persona-applicant@oimlsmart.org')
+  })
+
+  it('leg 6 — an account without the grant sees no persona rows (the chooser stays exactly the remembered accounts)', { timeout: 900_000 }, async () => {
+    // tl signs in fresh (the forced re-authentication; the hint's
+    // prefill must land before the submit — the leg-2 posture).
+    await page.goto(`${rp.baseUrl}/signin?prompt=login&login_hint=tl%40oimlsmart.org`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="login-email"]', { timeout: SETTLE, polling: 500 })
+    await page.waitForFunction(
+      () => (document.querySelector('[data-testid="login-email"]') as HTMLInputElement | null)?.value === 'tl@oimlsmart.org',
+      { timeout: SETTLE, polling: 500 },
+    )
+    await page.type('[data-testid="login-password"]', 'demo2026')
+    await page.evaluate(() => (document.querySelector('[data-testid="login-submit"]') as HTMLElement).click())
+    // tl's consent grant from leg 2 is REMEMBERED (prompt=login forces
+    // re-authentication, never re-consent): the flow rides the grant
+    // straight to the code and the signed-in landing.
+    await page.waitForSelector('[data-testid="rp-signed-in"]', { timeout: SETTLE, polling: 500 })
+    expect(await page.$eval('[data-testid="rp-email"]', el => el.textContent?.trim())).toBe('tl@oimlsmart.org')
+
+    // The chooser under tl: remembered accounts only — no persona rows,
+    // no persona badge (the grant gate held).
+    await page.goto(`${rp.baseUrl}/signin?prompt=select_account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="op-choose-account"]', { timeout: SETTLE, polling: 500 })
+    expect(await page.$$('[data-testid="chooser-persona-badge"]')).toHaveLength(0)
+    expect(await page.$('[data-testid="chooser-account-persona-applicant@oimlsmart.org"] [data-testid="chooser-persona-badge"]')).toBeNull()
+    await page.screenshot({ path: join(DB_DIR, 'chooser-persona-denied.png') })
+)
   })
 })

@@ -503,6 +503,41 @@ describe('the D1 half — the /op/authorize incident regression (2026-09-23)', (
     expect(await store.listOpClientRoles(account!.id)).toHaveLength(1)
   })
 
+  it('the assumption journal lands on the D1 half: the event writes and reads back through both filters', async () => {
+    await store.recordOpAssumption({
+      id: 'assume-1',
+      actorUserId: 'actor-1', actorEmail: 'tse@ribose.com',
+      personaUserId: 'persona-1', personaEmail: 'applicant@oimlsmart.org',
+      clientId: 'oiml-smart-demo', createdAt: '2026-09-23T08:00:00.000Z',
+    })
+    await store.recordOpAssumption({
+      id: 'assume-2',
+      actorUserId: 'actor-2', actorEmail: 'kw.kwan@ribose.com',
+      personaUserId: 'persona-1', personaEmail: 'applicant@oimlsmart.org',
+      clientId: 'oiml-smart-demo', createdAt: '2026-09-23T09:00:00.000Z',
+    })
+    await store.recordOpAssumption({
+      id: 'assume-3',
+      actorUserId: 'actor-1', actorEmail: 'tse@ribose.com',
+      personaUserId: 'persona-2', personaEmail: 'cs@oimlsmart.org',
+      clientId: 'oiml-smart-demo', createdAt: '2026-09-23T10:00:00.000Z',
+    })
+    // The persona's trail: newest first.
+    const personaTrail = await store.listOpAssumptions({ personaUserId: 'persona-1' })
+    expect(personaTrail.map(j => j.id)).toEqual(['assume-2', 'assume-1'])
+    // The actor's trail.
+    const actorTrail = await store.listOpAssumptions({ actorUserId: 'actor-1' })
+    expect(actorTrail.map(j => j.id)).toEqual(['assume-3', 'assume-1'])
+    // The recent tail (bounded).
+    const tail = await store.listOpAssumptions({ limit: 2 })
+    expect(tail.map(j => j.id)).toEqual(['assume-3', 'assume-2'])
+    expect(tail[0]).toMatchObject({
+      actorEmail: 'tse@ribose.com',
+      personaEmail: 'cs@oimlsmart.org',
+      clientId: 'oiml-smart-demo',
+    })
+  })
+
   it('the entity batch (the module-const SQL): the upsert and its journal entry ride ONE batch', async () => {
     await store.putEntity('incident', 'ent-1', null, JSON.stringify({ hello: 'd1' }))
     const row = await store.getEntity('incident', 'ent-1')

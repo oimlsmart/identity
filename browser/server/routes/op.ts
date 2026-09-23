@@ -140,6 +140,12 @@ import {
   activeJarContext, dropAccountJarSession, loginUrlForContinue,
   liveJarEntryForUser, resolveAccountJar, sanitizeContinueTarget, touchAccountJar,
 } from '../auth/op/account-jar'
+import {
+  declaredPersonaByEmail, declaredPersonasForClient, grantsAllowEmail,
+  personaGrantsFromEnv, type DeclaredPersona, type OpPersonaGrants,
+} from '../auth/op/persona-assume'
+import { parseOpAccountSeed, type OpAccountSeedEntry } from '../auth/op/accounts'
+import { clientInfo } from '../client-info'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 
 type EnvLike = Record<string, string | undefined>
@@ -916,6 +922,26 @@ export function createOpRouter(): Hono {
 
   // ── the account chooser (the multi-account wave) ───────────────────
 
+  /** The request's persona-assumption posture: the declared grants and
+   *  the persona set they serve — or null (the feature stands closed:
+   *  no declaration, no personas, ever). A malformed declaration closes
+   *  the posture honestly (logged) — it never widens it. */
+  function personaGrantsFor(c: Context): { grants: OpPersonaGrants; personas: DeclaredPersona[] } | null {
+    const env = runtimeEnv<EnvLike>(c)
+    const grants = personaGrantsFromEnv(env)
+    if (!grants) return null
+    const rawSeed = env.OP_ACCOUNT_SEED?.trim()
+    if (!rawSeed) return null
+    let seed: OpAccountSeedEntry[]
+    try {
+      seed = parseOpAccountSeed(rawSeed)
+    } catch (err) {
+      console.error(`[op] the persona-assumption posture stays closed — the account seed does not parse: ${(err as Error).message}`)
+      return null
+    }
+    return { grants, personas: declaredPersonasForClient(seed, grants.clientId) }
+  }
+
   // GET /api/op/choose-account — the chooser page's context: the jar's
   // accounts, each re-judged against its live session row (the trust
   // posture — auth/op/account-jar.ts), the presenting account badged,
@@ -927,6 +953,12 @@ export function createOpRouter(): Hono {
   // out (the jar may hold accounts while no session is active); an
   // invalid or absent `continue` reads as the standalone posture (the
   // chooser that ends at the account console).
+  //
+  // THE PERSONA ROWS (the grant-based assumption): when the presenting
+  // session's account holds the declared grant, the chooser ALSO lists
+  // the declared demo personas (`assumable` — the row's click assumes
+  // the persona, no persona password ever presented). An account
+  // without a grant — and the signed-out posture — never sees them.
   op.get('/api/op/choose-account', async (c) => {
     await ensureSeeded(c)
     const continueTarget = sanitizeContinueTarget(c.req.query('continue'))
@@ -938,8 +970,16 @@ export function createOpRouter(): Hono {
       const clientId = new URL(continueTarget, 'http://op.local').searchParams.get('client_id')
       if (clientId) clientName = (await getStore().getOidcClient(clientId))?.name ?? null
     }
-    // The org display names, one read per distinct org.
-    const orgIds = [...new Set(resolved.map(r => r.entry.orgId).filter((id): id is string => !!id))]
+    // The org display names, one read per distinct org (the jar's and
+    // the declared personas').
+    const posture = personaGrantsFor(c)
+    const personaEmails = new Set(posture?.personas.map(p => p.email) ?? [])
+    const granted = !!posture && !!active && grantsAllowEmail(posture.grants, active.user.email, personaEmails)
+    const personas = granted ? posture!.personas : []
+    const orgIds = [...new Set([
+      ...resolved.map(r => r.entry.orgId),
+      ...personas.map(p => p.orgId),
+    ].filter((id): id is string => !!id))]
     const orgNames = new Map<string, string | null>()
     for (const id of orgIds) {
       orgNames.set(id, (await getStore().getOrgRegistryOrg(id))?.name ?? null)
@@ -949,16 +989,30 @@ export function createOpRouter(): Hono {
       loginHint,
       client: clientName ? { name: clientName } : null,
       currentUserId: active?.user.id ?? null,
-      accounts: resolved.map(({ entry, live, user }) => ({
-        userId: entry.userId,
-        name: live && user ? user.name : entry.displayName,
-        email: live && user ? user.email : entry.email,
-        avatarUrl: live && user ? (user.avatarUrl ?? null) : null,
-        org: entry.orgId ? (orgNames.get(entry.orgId) ?? entry.orgId) : null,
-        live,
-        current: !!active && active.user.id === entry.userId,
-        hinted: loginHint !== null && (live && user ? user.email : entry.email).trim().toLowerCase() === loginHint,
-      })),
+      accounts: [
+        ...resolved.map(({ entry, live, user }) => ({
+          userId: entry.userId,
+          name: live && user ? user.name : entry.displayName,
+          email: live && user ? user.email : entry.email,
+          avatarUrl: live && user ? (user.avatarUrl ?? null) : null,
+          org: entry.orgId ? (orgNames.get(entry.orgId) ?? entry.orgId) : null,
+          live,
+          current: !!active && active.user.id === entry.userId,
+          hinted: loginHint !== null && (live && user ? user.email : entry.email).trim().toLowerCase() === loginHint,
+          assumable: false,
+        })),
+        ...personas.map(p => ({
+          userId: null as string | null,
+          name: p.name,
+          email: p.email,
+          avatarUrl: null,
+          org: p.orgId ? (orgNames.get(p.orgId) ?? p.orgId) : null,
+          live: true,
+          current: false,
+          hinted: loginHint !== null && p.email === loginHint,
+          assumable: true,
+        })),
+      ],
     })
   })
 
@@ -969,20 +1023,83 @@ export function createOpRouter(): Hono {
   // carries the navigation target (the authorize re-entry, or the
   // account console for the standalone chooser). No live session behind
   // the choice: the honest fallback — the login page with the flow's
-  // re-entry target and the remembered email prefilled.
+  // re-entry target and the remembered email prefilled — UNLESS the
+  // choice names a DECLARED persona the presenting account is GRANTED
+  // to assume: then the assumption mints (the grant-based posture, the
+  // route's verdict — never the page's claim).
   op.post('/api/op/choose-account', async (c) => {
     await ensureSeeded(c)
-    const body = await c.req.json<{ userId?: string; continue?: string }>().catch(() => null)
-    if (!body || typeof body.userId !== 'string' || !body.userId) {
-      return c.json({ error: 'userId is required' }, 400)
+    const body = await c.req.json<{ userId?: string; email?: string; continue?: string }>().catch(() => null)
+    if (!body || (typeof body.userId !== 'string' || !body.userId) && (typeof body.email !== 'string' || !body.email)) {
+      return c.json({ error: 'userId or email is required' }, 400)
     }
     const continueTarget = sanitizeContinueTarget(body.continue)
-    const target = await liveJarEntryForUser(c, body.userId)
+    const target = body.userId ? await liveJarEntryForUser(c, body.userId) : null
     if (!target) {
+      // ── the persona-assumption attempt (the grant-based posture) ──
+      // Only a DECLARED persona address can take this branch, and only
+      // a LIVE presenting session holding the GRANT may mint — every
+      // verdict re-reads the declaration and the store, never the page.
+      const posture = personaGrantsFor(c)
+      const requestedEmail = (typeof body.email === 'string' && body.email ? body.email.trim().toLowerCase() : null)
+        ?? (await getStore().getUserById(body.userId ?? ''))?.email.trim().toLowerCase()
+        ?? null
+      const persona = posture && requestedEmail ? declaredPersonaByEmail(posture.personas, requestedEmail) : null
+      if (persona) {
+        const active = await activeJarContext(c)
+        if (!active) {
+          // Signed out: the honest fallback — nothing about the grants
+          // leaks (the posture reads exactly like a dead jar entry).
+          return c.json({ ok: false, login: loginUrlForContinue(continueTarget, persona.email) })
+        }
+        const personaEmails = new Set(posture!.personas.map(p => p.email))
+        if (!grantsAllowEmail(posture!.grants, active.user.email, personaEmails)) {
+          return c.json({ error: 'the presenting account is not granted the persona assumption' }, 403)
+        }
+        const account = await getStore().findUserByEmail(persona.email)
+        if (!account) {
+          // The declaration runs ahead of the roster (the seed has not
+          // landed yet): the honest fallback, never a guess.
+          return c.json({ ok: false, login: loginUrlForContinue(continueTarget, persona.email) })
+        }
+        // The session mints AS the persona — same shape as a completed
+        // sign-in, minus the credential: writes SERIAL (the store seam's
+        // own discipline), amr carries the OP-private 'assumed' marker.
+        await getStore().touchLastLogin(account.id)
+        const token = await getStore().createSession(account.id, { ...clientInfo(c), amr: ['assumed'] })
+        // The journal (the audit trail): who assumed which persona, for
+        // which client. Never blocks the answer.
+        try {
+          await getStore().recordOpAssumption({
+            id: crypto.randomUUID(),
+            actorUserId: active.user.id,
+            actorEmail: active.user.email,
+            personaUserId: account.id,
+            personaEmail: account.email,
+            clientId: posture!.grants.clientId,
+            createdAt: new Date().toISOString(),
+          })
+        } catch (err) {
+          console.error(`[op] the assumption journal write failed:`, (err as Error).message)
+        }
+        await audit('account.assumed', account.id, { userId: active.user.id, userName: active.user.name }, {
+          actorEmail: active.user.email,
+          personaEmail: account.email,
+          clientId: posture!.grants.clientId,
+          method: 'assumed',
+        })
+        setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+        // The persona joins the jar (one entry per account): the next
+        // switch to it rides the ordinary live-session swap.
+        touchAccountJar(c, token, account)
+        return c.json({ ok: true, redirect: continueTarget ?? '/op/account' })
+      }
       // The honest fallback: the remembered entry (if the jar still
       // knows the account) lends its email to the login prefill.
-      const entry = (await resolveAccountJar(c)).find(r => r.entry.userId === body.userId)
-      return c.json({ ok: false, login: loginUrlForContinue(continueTarget, entry?.entry.email ?? null) })
+      const entry = body.userId
+        ? (await resolveAccountJar(c)).find(r => r.entry.userId === body.userId)
+        : undefined
+      return c.json({ ok: false, login: loginUrlForContinue(continueTarget, entry?.entry.email ?? requestedEmail) })
     }
     setCookie(c, SESSION_COOKIE, target.entry.sessionId, sessionCookieOpts(c))
     // The chosen account moves to the jar's front (the LRU refresh) —

@@ -586,6 +586,24 @@ CREATE TABLE IF NOT EXISTS op_client_roles (
   PRIMARY KEY (user_id, client_id)
 );
 
+-- ═══════════════════════════════════════════════════════════════════
+-- The persona-assumption journal (the account chooser's grant-based
+-- assumption): one row per assumption — who assumed which persona,
+-- when, for which client. The grant gate decides who MAY assume; this
+-- journal is the proof of who DID.
+-- ═══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS op_assumptions (
+  id TEXT PRIMARY KEY,
+  actor_user_id TEXT NOT NULL,
+  actor_email TEXT NOT NULL,
+  persona_user_id TEXT NOT NULL,
+  persona_email TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_op_assumptions_persona ON op_assumptions (persona_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_op_assumptions_actor ON op_assumptions (actor_user_id, created_at);
+
 -- TODO.identity/04 — the relying party's OIDC sign-in state jar (the
 -- /signin/oidc → /callback/oidc round trip's one-time state: the nonce +
 -- the PKCE verifier). STORE-BACKED so the Worker's isolates share it —

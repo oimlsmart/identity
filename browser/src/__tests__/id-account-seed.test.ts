@@ -2,10 +2,12 @@
 // The OP_ACCOUNT_SEED's declared entries — the demonstration cast's
 // provisioning. A plain entry creates-if-absent and hands off (the
 // registry seed's posture); a declared entry (orgId / roles /
-// emailVerified / password / clientRoles) converges EXACTLY its
-// declared fields on every boot, so the cast cannot drift out from
-// under the demo — and never reaches further than its declared
-// per-client assignments.
+// emailVerified / password / passwordRotate / clientRoles) converges
+// EXACTLY its declared fields on every boot, so the cast cannot drift
+// out from under the demo — and never reaches further than its
+// declared per-client assignments. The credential is set only while
+// absent; the passwordRotate marker is the operator's DECLARED
+// rotation (the credential is replaced, the standing sessions go).
 // ─────────────────────────────────────────────────────────────────────
 
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -139,6 +141,48 @@ describe('the declared entry (the demonstration persona)', () => {
     const account = (await store.findUserByEmail('ia@oimlsmart.org'))!
     expect(await store.listOpClientRoles(account.id)).toHaveLength(1)
     expect(await store.getOrgMembership(account.id, 'EX1')).toBeTruthy()
+  })
+})
+
+describe('the declared rotation (passwordRotate — the explicit exception)', () => {
+  it('replaces the standing credential and ends its sessions', async () => {
+    // A persona with a credential, plus a LIVE session standing on it.
+    const entry = {
+      email: 'tl@oimlsmart.org', name: 'TL Operator (Demonstration)', role: 'user', orgId: '21',
+      emailVerified: true, password: 'the-old-credential',
+      clientRoles: { 'oiml-smart-demo': ['tl_operator'] },
+    }
+    await seedOpAccountsFromEnv({ OP_ACCOUNT_SEED: JSON.stringify([entry]) }, store, 'http://op.test')
+    const account = (await store.findUserByEmail('tl@oimlsmart.org'))!
+    const standing = await store.createSession(account.id, { amr: ['pwd'] })
+    expect(await store.getSessionUser(standing)).toBeTruthy()
+
+    // The rotation: the same declaration, the credential replaced, the
+    // marker set.
+    await seedOpAccountsFromEnv(
+      { OP_ACCOUNT_SEED: JSON.stringify([{ ...entry, password: 'the-new-credential', passwordRotate: true }]) },
+      store, 'http://op.test',
+    )
+
+    const cred = await store.getPasswordLogin('tl@oimlsmart.org')
+    expect(cred).toBeTruthy()
+    expect(await verifyPassword('the-new-credential', cred!.hash)).toBe(true)
+    expect(await verifyPassword('the-old-credential', cred!.hash)).toBe(false)
+    // The standing session went with the credential (nothing stands).
+    expect(await store.getSessionUser(standing)).toBeNull()
+  })
+
+  it('a rotation marker without a credential refuses to parse', () => {
+    expect(() => parseOpAccountSeed('[{"email":"a@b.c","name":"A","passwordRotate":true}]')).toThrow()
+  })
+
+  it('the marker alone does not mint a credential (no password declared, nothing rotates)', async () => {
+    await seedOpAccountsFromEnv(
+      { OP_ACCOUNT_SEED: JSON.stringify([{ email: 'pwless@oimlsmart.org', name: 'No Credential', passwordRotate: false }]) },
+      store, 'http://op.test',
+    )
+    const account = (await store.findUserByEmail('pwless@oimlsmart.org'))!
+    expect((await store.countSignInMethods(account.id)).password).toBe(false)
   })
 })
 
