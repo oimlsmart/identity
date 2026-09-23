@@ -584,11 +584,20 @@ export function createOpRouter(): Hono {
         ['scope', scope], ['state', state], ['nonce', nonce], ['code_challenge', challenge],
         ['code_challenge_method', challengeMethod], ['max_age', maxAgeParam],
         ['response_mode', responseModeParam],
+        // The hint stays in the carried request (the re-entry IS the
+        // original authorize)…
+        ['login_hint', loginHintParam],
       ]
       for (const [name, value] of params) if (value !== undefined) carried.set(name, value)
       const rest = prompts.filter(p => p !== 'select_account')
       if (rest.length) carried.set('prompt', rest.join(' '))
-      return c.redirect(`/op/choose-account?continue=${encodeURIComponent(`/op/authorize?${carried}`)}`)
+      // …and rides the chooser URL itself: a jar entry whose address
+      // matches is PRE-SELECTED on the chooser page (the Google shape);
+      // a hint nothing matches lands on the fresh sign-in form as the
+      // prefill. The re-entry sheds nothing else — the carried request
+      // is the RP's, verbatim.
+      const hintParam = loginHintParam ? `&login_hint=${encodeURIComponent(loginHintParam)}` : ''
+      return c.redirect(`/op/choose-account?continue=${encodeURIComponent(`/op/authorize?${carried}`)}${hintParam}`)
     }
     // The freshness gate (TODO.modern/06): a max_age ask judges the
     // session's authentication instant — stale (or unprovable) sends
@@ -911,13 +920,17 @@ export function createOpRouter(): Hono {
   // accounts, each re-judged against its live session row (the trust
   // posture — auth/op/account-jar.ts), the presenting account badged,
   // and the RP's display name resolved from the continue target's
-  // client_id when the chooser rides an authorize flow. Works signed
+  // client_id when the chooser rides an authorize flow. The request's
+  // login_hint rides along: the matching entry answers `hinted` (the
+  // page pre-selects it — a hint is never a decision, the click is) and
+  // the raw value echoes back for the no-match prefill. Works signed
   // out (the jar may hold accounts while no session is active); an
   // invalid or absent `continue` reads as the standalone posture (the
   // chooser that ends at the account console).
   op.get('/api/op/choose-account', async (c) => {
     await ensureSeeded(c)
     const continueTarget = sanitizeContinueTarget(c.req.query('continue'))
+    const loginHint = c.req.query('login_hint')?.trim().toLowerCase() || null
     const [active, resolved] = await Promise.all([activeJarContext(c), resolveAccountJar(c)])
     // The RP's name (display only): the continue target's client_id.
     let clientName: string | null = null
@@ -933,6 +946,7 @@ export function createOpRouter(): Hono {
     }
     return c.json({
       continue: continueTarget,
+      loginHint,
       client: clientName ? { name: clientName } : null,
       currentUserId: active?.user.id ?? null,
       accounts: resolved.map(({ entry, live, user }) => ({
@@ -943,6 +957,7 @@ export function createOpRouter(): Hono {
         org: entry.orgId ? (orgNames.get(entry.orgId) ?? entry.orgId) : null,
         live,
         current: !!active && active.user.id === entry.userId,
+        hinted: loginHint !== null && (live && user ? user.email : entry.email).trim().toLowerCase() === loginHint,
       })),
     })
   })

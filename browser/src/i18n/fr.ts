@@ -1071,6 +1071,7 @@ export const fr: Record<MessageKey, string> = {
   "chooser.continueAs": "Continuer en tant que {name}",
   "chooser.busy": "Changement…",
   "chooser.failed": "Le changement de compte n'a pas pu être effectué. Réessayez.",
+  "chooser.preselected": "Présélectionné pour cette connexion",
   "emailChange.noToken": "Cette page exige un lien de vérification (paramètre ?token= absent). Lancez le changement d'adresse depuis la page de votre compte.",
   "emailChange.linkInvalid": "Ce lien de vérification n'est pas valide. Relancez le changement d'adresse depuis la page de votre compte.",
   "emailChange.readFailed": "Le lien n'a pas pu être lu. Le serveur est-il lancé ?",

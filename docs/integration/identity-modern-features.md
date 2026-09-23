@@ -162,6 +162,13 @@ short-circuited. The user confirms by clicking; the OP continues with
 the chosen account. A `prompt=select_account` value is consumed by
 the redirect — the OP does not forward it to your callback.
 
+Send `login_hint` **together with** `prompt=select_account` and the
+hint pre-selects on the chooser itself: the entry whose address
+matches carries the visible pre-selection badge, and the page scrolls
+it into view. The pre-selection is an affordance, never a decision —
+the holder still clicks. A hint nothing remembers rides "use another
+account" as the sign-in form's prefill.
+
 Without `prompt=select_account` and with a live remembered grant, the
 OP skips the chooser and the consent page alike — your service gets
 the code directly. The chooser is the explicit ask, never the default.

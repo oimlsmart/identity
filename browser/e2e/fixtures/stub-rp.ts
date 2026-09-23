@@ -146,6 +146,10 @@ export async function startStubRp(opts: {
         // param — the fixture sets it, the OP's authorize consumes it).
         const prompt = url.searchParams.get('prompt')
         if (prompt) built.searchParams.set('prompt', prompt)
+        // The chooser wave: /signin?login_hint= names the account the OP
+        // pre-fills (the sign-in form) or pre-selects (the chooser).
+        const loginHint = url.searchParams.get('login_hint')
+        if (loginHint) built.searchParams.set('login_hint', loginHint)
         res.writeHead(302, { location: built.toString() })
         return res.end()
       }

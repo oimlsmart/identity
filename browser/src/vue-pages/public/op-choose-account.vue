@@ -13,8 +13,14 @@
 // account: the same POST answers the login URL with the remembered
 // email prefilled — the session row is gone, so the account must
 // re-prove itself.
+//
+// The flow's login_hint pre-selects: the context endpoint marks the
+// entry whose address matches, the page outlines it and scrolls it into
+// view — the pre-selection is an affordance, never a decision (the
+// holder still clicks). A hint nothing matches rides "use another
+// account" as the sign-in form's prefill.
 // ═══════════════════════════════════════════════════════════════════
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
 import { t } from '../../i18n'
@@ -27,10 +33,12 @@ interface ChooserAccount {
   org: string | null
   live: boolean
   current: boolean
+  hinted: boolean
 }
 
 interface ChooserContext {
   continue: string | null
+  loginHint: string | null
   client: { name: string } | null
   currentUserId: string | null
   accounts: ChooserAccount[]
@@ -48,17 +56,33 @@ const initialOf = (account: ChooserAccount): string => (account.name || account.
 
 /** The "use another account" landing: the normal login form, which
  *  returns to the same continue target (or the account console when
- *  the chooser stands alone). */
+ *  the chooser stands alone). The flow's login_hint rides along when
+ *  the context carried one — the form prefills it. */
 function loginUrl(): string {
   const target = context.value?.continue ?? '/op/account'
-  return `/?redirect=${encodeURIComponent(target)}`
+  const hint = context.value?.loginHint
+  const suffix = hint ? `&login_hint=${encodeURIComponent(hint)}` : ''
+  return `/?redirect=${encodeURIComponent(target)}${suffix}`
 }
 
 onMounted(async () => {
-  const continueParam = typeof route.query.continue === 'string' ? route.query.continue : ''
+  // The context read carries the flow's own parameters: the continue
+  // target (the authorize re-entry) and the login_hint (the
+  // pre-selection marker).
+  const params = new URLSearchParams()
+  if (typeof route.query.continue === 'string' && route.query.continue) params.set('continue', route.query.continue)
+  if (typeof route.query.login_hint === 'string' && route.query.login_hint) params.set('login_hint', route.query.login_hint)
+  const query = params.toString()
   try {
-    const res = await fetch(`/api/op/choose-account${continueParam ? `?continue=${encodeURIComponent(continueParam)}` : ''}`, { credentials: 'include' })
-    if (res.ok) context.value = await res.json() as ChooserContext
+    const res = await fetch(`/api/op/choose-account${query ? `?${query}` : ''}`, { credentials: 'include' })
+    if (res.ok) {
+      context.value = await res.json() as ChooserContext
+      // The hinted entry earns the first glance: scrolled into view
+      // after the list renders (a long remembered list must not hide
+      // the pre-selection below the fold).
+      await nextTick()
+      document.querySelector('[data-testid="chooser-hinted-badge"]')?.scrollIntoView({ block: 'center' })
+    }
     else error.value = t('chooser.failed')
   } catch {
     error.value = t('error.network')
@@ -134,9 +158,12 @@ function useAnother() {
             type="button"
             :disabled="!!busyUserId"
             :data-testid="`chooser-account-${account.email}`"
+            :data-hinted="account.hinted ? 'true' : undefined"
             :aria-label="t('chooser.continueAs', { name: account.name || account.email })"
+            :class="account.hinted
+              ? 'w-full text-left px-4 py-3 rounded-xl border-2 border-brand-500 dark:border-brand-400 bg-brand-50/60 dark:bg-brand-900/20 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors disabled:opacity-50 flex items-center gap-3'
+              : 'w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center gap-3'"
             @click="choose(account)"
-            class="w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center gap-3"
           >
             <img
               v-if="account.avatarUrl"
@@ -158,6 +185,11 @@ function useAnother() {
                   class="ml-2 inline-block rounded-full bg-brand-50 dark:bg-brand-900/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-300"
                   data-testid="chooser-current-badge"
                 >{{ t('chooser.currentAccount') }}</span>
+                <span
+                  v-if="account.hinted"
+                  class="ml-2 inline-block rounded-full bg-brand-100 dark:bg-brand-800/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-200"
+                  data-testid="chooser-hinted-badge"
+                >{{ t('chooser.preselected') }}</span>
               </span>
               <span class="block text-sm text-slate-600 dark:text-slate-400 truncate" data-testid="chooser-account-email">{{ account.email }}</span>
               <span v-if="account.org" class="block text-xs text-slate-400 dark:text-slate-500 truncate" data-testid="chooser-account-org">{{ account.org }}</span>

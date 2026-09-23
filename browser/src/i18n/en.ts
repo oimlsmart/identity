@@ -1069,6 +1069,7 @@ export const en = {
   "chooser.continueAs": "Continue as {name}",
   "chooser.busy": "Switching…",
   "chooser.failed": "The switch could not be completed. Try again.",
+  "chooser.preselected": "Pre-selected for this sign-in",
   "emailChange.noToken": "This page needs a verification link (no ?token= parameter). Start the email change from your account page.",
   "emailChange.linkInvalid": "This verification link is not valid. Start the email change again from your account page.",
   "emailChange.readFailed": "The link could not be read. Is the server running?",
