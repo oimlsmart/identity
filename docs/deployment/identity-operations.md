@@ -133,6 +133,17 @@ is the WHOLE roster):
    (stdin, never argv), then delete the temp file.
 4. The seed runs lazily per isolate on the next credential-surface
    request; verify with the same read-only SELECT (the personas' rows
+
+**PRODUCTION POSTURE (2026-09-23): both seeds are DISARMED on the
+official service** — `OP_CLIENT_SEED` is `[]` and `OP_ACCOUNT_SEED` is
+empty. The registry rows are the SSOT (persistent in D1; the nightly
+exports carry them for DR), so the bootstrap seed served its one-time
+purpose and its per-fresh-isolate cost (≈20 upserts + the write-confirm
+wait on the sign-in path — the 2026-09-23 sign-in-latency degradation's
+root cause) bought nothing. Re-putting a seed value re-arms it (the
+per-isolate cost returns with it) — for a genuinely FRESH registry
+bootstrap only. A scratch/DR restore needs no seed: the export already
+carries the rows.
    show their org bindings) and one password sign-in per the published
    credential.
 
