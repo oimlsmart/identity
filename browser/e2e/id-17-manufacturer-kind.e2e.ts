@@ -21,7 +21,7 @@
 //          same org (the member's applicant role); the founder's own
 //          org queue carries it (the kind honest) and the founder
 //          decides it;
-//   leg 5  the IA endorses (fetch-level, the demo cast's ia@oiml.org
+//   leg 5  the IA endorses (fetch-level, the demo cast's ia@oimlsmart.org
 //          acting as EX1): the standing upgrades declared → ia-endorsed;
 //   leg 6  the admin surfaces render the upgrade honestly (the per-org
 //          page's Standing + the endorsement row naming the IA, the
@@ -58,14 +58,14 @@ const ID_WEB = 10494
 
 // The cast: the NEW manufacturer org (the ACME cast — never a real
 // organization), its founder + colleague, the register-operator admin, and the
-// demo IA officer (ia@oiml.org acts as EX1, the seeded active IA).
+// demo IA officer (ia@oimlsmart.org acts as EX1, the seeded active IA).
 const MFR_ID = 'mfr-acme-instruments'
 const MFR_NAME = 'ACME Instruments'
 const FOUNDER_EMAIL = 'sofia.mercer@acme-instruments.example.org'
 const FOUNDER_PASSWORD = 'sofia mercer founder passphrase'
 const COLLEAGUE_EMAIL = 'theo.bench@acme-instruments.example.org'
-const ADMIN_EMAIL = 'admin@oiml.org'
-const IA_EMAIL = 'ia@oiml.org'
+const ADMIN_EMAIL = 'admin@oimlsmart.org'
+const IA_EMAIL = 'ia@oimlsmart.org'
 
 interface Stack {
   api: ChildProcess

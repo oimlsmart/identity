@@ -65,7 +65,7 @@ function membership(over: Partial<OrgMembership> = {}): OrgMembership {
 /** The IA officer acting as the Utilizer (the secondary-membership
  *  shape the memberships suite drives end to end): the account's
  *  primary binding stays its IA, the explained context is the org's. */
-const OFFICER = { id: 'u-1', name: 'IA Officer', email: 'ia@oiml.org', role: 'ia_officer', roles: ['ia_officer'], orgId: 'EX1', active: true }
+const OFFICER = { id: 'u-1', name: 'IA Officer', email: 'ia@oimlsmart.org', role: 'ia_officer', roles: ['ia_officer'], orgId: 'EX1', active: true }
 
 function explain(over: { account?: ExplainAccount; membership?: Partial<OrgMembership>; org?: typeof ORG } = {}): MemberExplanation {
   return explainOrgMember({
@@ -177,7 +177,7 @@ describe('the effective-permission explainer (the composition)', () => {
     // union), the read gate never narrows it, and the cone never hides a
     // row — but the read-only modifier refuses the writes (the write
     // gate checks it BEFORE the org-bound posture).
-    const admin = { id: 'u-2', name: 'OIML Admin', email: 'admin@oiml.org', role: 'admin', roles: ['admin'], orgId: null, active: true }
+    const admin = { id: 'u-2', name: 'OIML Admin', email: 'admin@oimlsmart.org', role: 'admin', roles: ['admin'], orgId: null, active: true }
     const x = explain({
       account: admin,
       membership: { userId: 'u-2', roles: ['viewer'], cone: { scope: 'assigned', readOnly: true } },

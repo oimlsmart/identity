@@ -52,7 +52,7 @@ async function demoLogin(email: string): Promise<string> {
 
 /** Invite + enroll an account; answers { id, cookie }. */
 async function enrollAccount(email: string, name: string, password = 'a perfectly good passphrase'): Promise<{ id: string; cookie: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const invite = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -101,7 +101,7 @@ demo_personas: true
   root.route('/', createOpAccountsRouter())
   root.route('/', createOpUpstreamRouter())
   app = root
-  await demoLogin('admin@oiml.org')
+  await demoLogin('admin@oimlsmart.org')
 })
 
 afterAll(async () => {
@@ -153,7 +153,7 @@ describe('the verify-new-email ceremony', () => {
     })
     expect((await ask('not-an-address')).status).toBe(400)
     expect((await ask('quinn@example.org')).status).toBe(400)
-    expect((await ask('admin@oiml.org')).status).toBe(409)
+    expect((await ask('admin@oimlsmart.org')).status).toBe(409)
   })
 
   it('without a mailer the link is SHOWN honestly; the pending change rides the context', async () => {
@@ -253,7 +253,7 @@ describe('the verify-new-email ceremony', () => {
     const { id } = await enrollAccount('otto2@example.org', 'Otto Two')
     // Enrolled through the invite ceremony: verified.
     expect((await store.getUserById(id))?.emailVerifiedAt).not.toBeNull()
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const edit = await app.request(`/api/op/accounts/${id}`, {
       method: 'PUT', headers: { 'content-type': 'application/json', cookie: admin },
       body: JSON.stringify({ email: 'otto2.edited@example.org' }),

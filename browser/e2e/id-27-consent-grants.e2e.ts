@@ -236,7 +236,7 @@ describe('TODO.identity-features/12 — the remembered consent grants (the ident
 
     // The OP's sign-in surface (the authorize bounce), then the consent page.
     await page.waitForFunction(() => window.location.pathname === '/', { timeout: SETTLE, polling: 500 })
-    await opSignIn(page, 'ia@oiml.org')
+    await opSignIn(page, 'ia@oimlsmart.org')
     await page.waitForSelector('[data-testid="op-consent-allow"]', { timeout: SETTLE, polling: 500 })
     expect(new URL(page.url()).pathname, 'the FIRST sign-in stops at the consent page').toBe('/op/consent')
     expect(await page.$eval('[data-testid="op-consent-client"]', el => el.textContent?.trim())).toBe('The e2e fixture RP')
@@ -251,7 +251,7 @@ describe('TODO.identity-features/12 — the remembered consent grants (the ident
     const login = await fetch(`${stack.base}/api/auth/demo`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'ia@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'ia@oimlsmart.org', password: 'demo2026' }),
     })
     const cookie = login.headers.get('set-cookie')!.split(';')[0]!
     const grantsRes = await fetch(`${stack.base}/api/op/account/grants`, { headers: { cookie } })
@@ -284,7 +284,7 @@ describe('TODO.identity-features/12 — the remembered consent grants (the ident
     // The RP's REAL validator accepted the skip-minted code's token.
     const who = await (await fetch(`${rp.baseUrl}/whoami`)).json() as { claims: { email: string; nonce: string } | null; lastError: unknown }
     expect(who.lastError).toBeNull()
-    expect(who.claims?.email).toBe('ia@oiml.org')
+    expect(who.claims?.email).toBe('ia@oimlsmart.org')
   })
 
   it('leg 3 — prompt=consent FORCES the page even with the live grant', { timeout: 900_000 }, async () => {
@@ -302,7 +302,7 @@ describe('TODO.identity-features/12 — the remembered consent grants (the ident
     await page.evaluate(() => (document.querySelector('[data-testid="op-consent-allow"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="rp-signed-in"]', { timeout: SETTLE, polling: 500 })
     const who = await (await fetch(`${rp.baseUrl}/whoami`)).json() as { claims: { email: string } | null }
-    expect(who.claims?.email).toBe('ia@oiml.org')
+    expect(who.claims?.email).toBe('ia@oimlsmart.org')
   })
 
   it('leg 4 — the console’s APPS section revokes the access; the next sign-in RE-PROMPTS', { timeout: 900_000 }, async () => {

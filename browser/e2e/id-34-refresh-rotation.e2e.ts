@@ -51,7 +51,7 @@ const RP_PORT = 10640
 const ISSUER = `http://localhost:${ID_WEB}` // the astro origin (the browser's OP)
 const RP_CLIENT_ID = 'fixture-rp'
 const RP_CLIENT_SECRET = 'fixture-rp-secret'
-const ACCOUNT = 'tl@oiml.org' // the demo cast (dev-reset seeds it; the form takes demo2026)
+const ACCOUNT = 'tl@oimlsmart.org' // the demo cast (dev-reset seeds it; the form takes demo2026)
 
 interface Stack {
   api: ChildProcess

@@ -3,7 +3,7 @@
     "consent": {
       "account": {
         "avatarUrl": null,
-        "email": "ia@oiml.org",
+        "email": "ia@oimlsmart.org",
         "name": "IA Officer"
       },
       "client": {
@@ -33,7 +33,7 @@
       ],
       "aud": "fixture-rp",
       "auth_time": "{ts}",
-      "email": "ia@oiml.org",
+      "email": "ia@oimlsmart.org",
       "email_verified": false,
       "exp": "{ts}",
       "groups": [
@@ -57,7 +57,7 @@
       "amr": [
         "pwd"
       ],
-      "email": "ia@oiml.org",
+      "email": "ia@oimlsmart.org",
       "email_verified": false,
       "groups": [
         "ia_officer"

@@ -298,10 +298,10 @@ describe('the registry admin API + the public projection', () => {
   it('gates to admin/cs_admin, CRUDs the rows, and projects enabled-only publicly', async () => {
     // No session → 401; a non-admin → 403.
     expect((await app.request(`${ISSUER}/api/op/providers`)).status).toBe(401)
-    const viewerCookie = await demoLogin('viewer@oiml.org')
+    const viewerCookie = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request(`${ISSUER}/api/op/providers`, { headers: { cookie: viewerCookie } })).status).toBe(403)
 
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const list = await app.request(`${ISSUER}/api/op/providers`, { headers: { cookie: admin } })
     expect(list.status).toBe(200)
     const ids = (await list.json() as Array<{ id: string }>).map(p => p.id)
@@ -364,16 +364,16 @@ describe('the registry admin API + the public projection', () => {
 
 describe('the upstream OIDC flow against the stub IdP', () => {
   it('links an enabled provider to the signed-in account (the flow bound to the session)', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const res = await runFlow('/op/upstream/fixture-idp/link', 'ada', cookie)
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(`${ISSUER}/op/account?linked=fixture-idp`)
 
     const link = await store.findIdentityLink('fixture-idp', 'stub-ada')
     expect(link).toBeTruthy()
-    const ia = await store.findUserByEmail('ia@oiml.org')
+    const ia = await store.findUserByEmail('ia@oimlsmart.org')
     expect(link!.userId).toBe(ia!.id)
-    expect(link!.linkedBy).toBe('ia@oiml.org')
+    expect(link!.linkedBy).toBe('ia@oimlsmart.org')
 
     // The account surface lists it.
     const links = await app.request(`${ISSUER}/api/op/account/links`, { headers: { cookie } })
@@ -381,7 +381,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
   })
 
   it('re-links the SAME pair idempotently but refuses a second provider link per account', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     // The flow start refuses fast: the account already holds the link.
     const start = await app.request(`${ISSUER}/op/upstream/fixture-idp/link`, { headers: { cookie }, redirect: 'manual' })
     expect(start.status).toBe(302)
@@ -397,11 +397,11 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     const cookie = res.headers.get('set-cookie')
     expect(cookie, 'the session cookie').toContain('oiml-session=')
     const session = await app.request(`${ISSUER}/api/auth/session`, { headers: { cookie: cookie!.split(';')[0]! } })
-    expect(await session.json()).toMatchObject({ email: 'ia@oiml.org', name: 'IA Officer' })
+    expect(await session.json()).toMatchObject({ email: 'ia@oimlsmart.org', name: 'IA Officer' })
   })
 
   it('REFUSES an unlinked identity whose verified email matches an account (no email-only match, ever)', async () => {
-    // vic's stub email is viewer@oiml.org — the demo VIEWER account's
+    // vic's stub email is viewer@oimlsmart.org — the demo VIEWER account's
     // email. Without a link the sign-in must refuse honestly: no
     // session, no account mutation, no identity row.
     const res = await runFlow('/op/upstream/fixture-idp/signin', 'vic')
@@ -411,7 +411,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     expect(location).toContain('provider=Fixture')
     expect(res.headers.get('set-cookie')).toBeNull()
 
-    const viewer = await store.findUserByEmail('viewer@oiml.org')
+    const viewer = await store.findUserByEmail('viewer@oimlsmart.org')
     expect(viewer).toBeTruthy()
     expect(await store.findIdentityLink('fixture-idp', 'stub-vic')).toBeNull()
     // …and the users row is untouched (the legacy provider columns never
@@ -420,7 +420,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
   })
 
   it('refuses to link an upstream account already linked to a DIFFERENT account', async () => {
-    const viewerCookie = await demoLogin('viewer@oiml.org')
+    const viewerCookie = await demoLogin('viewer@oimlsmart.org')
     // ada is linked to ia (the first leg) — viewer's attempt loses.
     const res = await runFlow('/op/upstream/fixture-idp/link', 'ada', viewerCookie)
     expect(res.status).toBe(302)
@@ -429,19 +429,19 @@ describe('the upstream OIDC flow against the stub IdP', () => {
 
   it('the POST (form_post) callback shape works — Apple rides this path', async () => {
     // Link bob to the viewer account via the POST form callback.
-    const cookie = await demoLogin('viewer@oiml.org')
+    const cookie = await demoLogin('viewer@oimlsmart.org')
     const res = await runFlow('/op/upstream/fixture-idp/link', 'bob', cookie, 'POST')
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(`${ISSUER}/op/account?linked=fixture-idp`)
-    expect((await store.findIdentityLink('fixture-idp', 'stub-bob'))?.userId).toBe((await store.findUserByEmail('viewer@oiml.org'))!.id)
+    expect((await store.findIdentityLink('fixture-idp', 'stub-bob'))?.userId).toBe((await store.findUserByEmail('viewer@oimlsmart.org'))!.id)
   })
 
   it('unlinks — and the sign-in is then refused honestly', async () => {
     // TODO.identity/06's guard: the unlink must leave at least one way
     // in, so the (passwordless demo) account gets a credential first.
-    const viewer = (await store.findUserByEmail('viewer@oiml.org'))!
+    const viewer = (await store.findUserByEmail('viewer@oimlsmart.org'))!
     await store.setPasswordHash(viewer.id, await hashPassword('the viewer test passphrase'), 'test')
-    const cookie = await demoLogin('viewer@oiml.org')
+    const cookie = await demoLogin('viewer@oimlsmart.org')
     const unlink = await app.request(`${ISSUER}/api/op/account/links/fixture-idp`, { method: 'DELETE', headers: { cookie } })
     expect(unlink.status).toBe(200)
     expect(await store.findIdentityLink('fixture-idp', 'stub-bob')).toBeNull()
@@ -487,17 +487,17 @@ describe('the upstream GitHub flow against the stub GitHub', () => {
   }
 
   it('links and signs in by the GitHub profile id', async () => {
-    const cookie = await demoLogin('tl@oiml.org')
+    const cookie = await demoLogin('tl@oimlsmart.org')
     const linked = await runGitHubFlow('/op/upstream/github/link', 'octocat-staff', cookie)
     expect(linked.headers.get('location')).toBe(`${ISSUER}/op/account?linked=github`)
-    const tl = await store.findUserByEmail('tl@oiml.org')
+    const tl = await store.findUserByEmail('tl@oimlsmart.org')
     expect((await store.findIdentityLink('github', '102'))?.userId).toBe(tl!.id)
 
     const res = await runGitHubFlow('/op/upstream/github/signin', 'octocat-staff')
     const sessionCookie = res.headers.get('set-cookie')
     expect(sessionCookie).toContain('oiml-session=')
     const session = await app.request(`${ISSUER}/api/auth/session`, { headers: { cookie: sessionCookie!.split(';')[0]! } })
-    expect(await session.json()).toMatchObject({ email: 'tl@oiml.org' })
+    expect(await session.json()).toMatchObject({ email: 'tl@oimlsmart.org' })
   })
 
   it('refuses an unlinked GitHub login whose email matches an account (never by email)', async () => {

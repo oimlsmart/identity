@@ -73,7 +73,7 @@ async function demoLogin(email: string): Promise<string> {
 }
 
 async function invite(email: string, name: string): Promise<{ id: string; token: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const res = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -170,7 +170,7 @@ demo_personas: true
   root.route('/api/auth', createAuthLeanRouter({ autoSeedDemo: true }))
   root.route('/', createOpAccountsRouter())
   app = root
-  await demoLogin('admin@oiml.org') // the bootstrap seed lands on the first OP request
+  await demoLogin('admin@oimlsmart.org') // the bootstrap seed lands on the first OP request
 }, 120_000)
 
 afterAll(async () => {

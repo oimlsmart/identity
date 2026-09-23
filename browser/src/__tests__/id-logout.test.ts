@@ -243,7 +243,7 @@ demo_personas: true
 
   // The bootstrap seed lands on the first REGISTRY request (the discovery
   // document never seeds); drive it once, honestly.
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   expect((await app.request(`${ISSUER}/api/op/clients`, { headers: { cookie: admin } })).status).toBe(200)
 })
 
@@ -340,7 +340,7 @@ describe('the logout block’s pure halves', () => {
 
 describe('the client registry carries the logout block', () => {
   it('the seeded block round-trips the admin view; the plain client reads null', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const list = await app.request(`${ISSUER}/api/op/clients`, { headers: { cookie: admin } })
     expect(list.status).toBe(200)
     const clients = await list.json() as Array<{ clientId: string; logout: unknown }>
@@ -353,7 +353,7 @@ describe('the client registry carries the logout block', () => {
   })
 
   it('the admin write validates + stores the block, and the wholesale rewrite drops an omitted one (the policy doctrine)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const created = await app.request(`${ISSUER}/api/op/clients`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -388,7 +388,7 @@ describe('the client registry carries the logout block', () => {
   })
 
   it('the refusals: a machine class never carries a logout surface; a malformed URI answers 400', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // The device binding's org must resolve first (the id-device-clients
     // shape — the org check precedes the logout refusal).
     await store.createOrgRegistryOrg({
@@ -434,7 +434,7 @@ describe('the client registry carries the logout block', () => {
 
 describe('the end-session endpoint (RP-Initiated Logout)', () => {
   it('a valid hint + a registered post_logout_redirect_uri + state → the 302, and the OP session is dead', async () => {
-    const { cookie, idToken } = await signInAndIdToken('ia@oiml.org')
+    const { cookie, idToken } = await signInAndIdToken('ia@oimlsmart.org')
     const query = new URLSearchParams({
       id_token_hint: idToken,
       post_logout_redirect_uri: HUB_POST_LOGOUT,
@@ -453,7 +453,7 @@ describe('the end-session endpoint (RP-Initiated Logout)', () => {
   })
 
   it('the POST form variant takes the same parameters', async () => {
-    const { cookie, idToken } = await signInAndIdToken('ia@oiml.org')
+    const { cookie, idToken } = await signInAndIdToken('ia@oimlsmart.org')
     const res = await app.request(`${ISSUER}/op/endsession`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
@@ -464,7 +464,7 @@ describe('the end-session endpoint (RP-Initiated Logout)', () => {
   })
 
   it('an UNREGISTERED post_logout_redirect_uri never redirects — the honest signed-out page, and the act still lands', async () => {
-    const { cookie, idToken } = await signInAndIdToken('ia@oiml.org')
+    const { cookie, idToken } = await signInAndIdToken('ia@oimlsmart.org')
     const query = new URLSearchParams({
       id_token_hint: idToken,
       post_logout_redirect_uri: 'https://evil.example/steal',
@@ -479,7 +479,7 @@ describe('the end-session endpoint (RP-Initiated Logout)', () => {
   })
 
   it('no parameters at all → the signed-out page; the session ends anyway', async () => {
-    const cookie = await demoLogin('tl@oiml.org')
+    const cookie = await demoLogin('tl@oimlsmart.org')
     const res = await app.request(`${ISSUER}/op/endsession`, { headers: { cookie } })
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('data-testid="op-signed-out"')
@@ -487,7 +487,7 @@ describe('the end-session endpoint (RP-Initiated Logout)', () => {
   })
 
   it('a garbage hint never blocks the act — it only narrows the client resolution (no client_id, no redirect)', async () => {
-    const cookie = await demoLogin('tl@oiml.org')
+    const cookie = await demoLogin('tl@oimlsmart.org')
     const query = new URLSearchParams({
       id_token_hint: 'not.a.jwt',
       post_logout_redirect_uri: HUB_POST_LOGOUT, // registered, but no client resolves
@@ -499,7 +499,7 @@ describe('the end-session endpoint (RP-Initiated Logout)', () => {
   })
 
   it('the hint’s aud wins over the client_id param (the OP’s own mint resolves the client)', async () => {
-    const { cookie, idToken } = await signInAndIdToken('ia@oiml.org')
+    const { cookie, idToken } = await signInAndIdToken('ia@oimlsmart.org')
     const query = new URLSearchParams({
       id_token_hint: idToken, // minted for hub-instance
       client_id: PLAIN.client_id, // a client with NO logout surface
@@ -511,7 +511,7 @@ describe('the end-session endpoint (RP-Initiated Logout)', () => {
   })
 
   it('no live session: the redirect courtesy still fires (the RP’s user IS signed out); a dead cookie clears honestly', async () => {
-    const { idToken } = await signInAndIdToken('ia@oiml.org')
+    const { idToken } = await signInAndIdToken('ia@oimlsmart.org')
     // NO cookie at all.
     const query = new URLSearchParams({ id_token_hint: idToken, post_logout_redirect_uri: HUB_POST_LOGOUT })
     const anon = await app.request(`${ISSUER}/op/endsession?${query}`)
@@ -535,7 +535,7 @@ describe('prompt=login (the OIDC forced re-authentication)', () => {
   }
 
   it('a live session + prompt=login takes the login redirect WITH the prompt flag; the re-entry URL sheds the login value (the stateless loop guard)', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const query = new URLSearchParams({ ...AUTHORIZE_PARAMS, code_challenge: pkce.challenge, prompt: 'login' })
     const res = await app.request(`${ISSUER}/op/authorize?${query}`, { headers: { cookie } })
@@ -553,7 +553,7 @@ describe('prompt=login (the OIDC forced re-authentication)', () => {
   })
 
   it('prompt=login consent: the remaining values ride on (the re-entry keeps prompt=consent)', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const query = new URLSearchParams({ ...AUTHORIZE_PARAMS, code_challenge: pkce.challenge, prompt: 'login consent' })
     const res = await app.request(`${ISSUER}/op/authorize?${query}`, { headers: { cookie } })
@@ -577,7 +577,7 @@ describe('prompt=login (the OIDC forced re-authentication)', () => {
 
 describe('auth_time (the authentication instant)', () => {
   it('the consent-minted ID token carries auth_time = the session’s created_at epoch (the space-format fix, end to end)', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const session = await (await app.request(`${ISSUER}/api/auth/session`, { headers: { cookie } })).json() as { sessionCreatedAt: string }
     expect(session.sessionCreatedAt, 'the session payload projects the authentication instant').toBeTruthy()
 
@@ -594,7 +594,7 @@ describe('auth_time (the authentication instant)', () => {
   })
 
   it('the remembered-grant skip mints auth_time through the SAME path (both call sites carry the instant)', async () => {
-    const cookie = await demoLogin('tl@oiml.org')
+    const cookie = await demoLogin('tl@oimlsmart.org')
     const session = await (await app.request(`${ISSUER}/api/auth/session`, { headers: { cookie } })).json() as { sessionCreatedAt: string }
 
     // The first allow records the grant…
@@ -629,7 +629,7 @@ describe('the backchannel fan-out (OP-initiated logout)', () => {
     const before = received.length
     // The account signs in + grants BOTH clients (hub-instance has the
     // receiver; plain-site has NO logout surface).
-    const cookie = await demoLogin('viewer@oiml.org')
+    const cookie = await demoLogin('viewer@oimlsmart.org')
     const me = await (await app.request(`${ISSUER}/api/auth/session`, { headers: { cookie } })).json() as { id: string }
     let pkce = await generatePkce()
     await driveCode(cookie, { clientId: HUB_ID, redirectUri: HUB_REDIRECT, challenge: pkce.challenge })
@@ -676,7 +676,7 @@ describe('the backchannel fan-out (OP-initiated logout)', () => {
 
   it('the end-session fires the fan-out too (the RP-initiated act is a session-ending act)', async () => {
     const before = received.length
-    const { cookie, idToken, userId } = await signInAndIdToken('ia@oiml.org')
+    const { cookie, idToken, userId } = await signInAndIdToken('ia@oimlsmart.org')
     const res = await app.request(`${ISSUER}/op/endsession?id_token_hint=${encodeURIComponent(idToken)}`, { headers: { cookie } })
     expect(res.status).toBe(200) // no post_logout param → the honest page
     await awaitReceived(before + 1)

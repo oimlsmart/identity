@@ -42,8 +42,8 @@ const ID_API = 10597
 const ID_WEB = 10598
 
 const ORG = 'mfr-acme'
-const ORG_ADMIN = 'applicant@oiml.org' // the demo cast's mfr-acme org_admin
-const MEMBER = 'tl@oiml.org'
+const ORG_ADMIN = 'applicant@oimlsmart.org' // the demo cast's mfr-acme org_admin
+const MEMBER = 'tl@oimlsmart.org'
 
 // The plain client (the golden's posture — never the cone claim) and the
 // cone-gated one (the register's RP shape: the policy names it).
@@ -358,7 +358,7 @@ describe('TODO.identity-features/09 — the org-member cone (wave A, the identit
     const refused = await fetch(`${apiBase}/api/op/org-memberships/activity`, { headers: { cookie: memberCookie } })
     expect(refused.status).toBe(403)
     // …and the identity admin's per-org view shows the cone honestly.
-    const wideCookie = await apiSignIn(apiBase, 'admin@oiml.org')
+    const wideCookie = await apiSignIn(apiBase, 'admin@oimlsmart.org')
     const view = await (await fetch(`${apiBase}/api/op/registry/orgs/${ORG}`, { headers: { cookie: wideCookie } })).json() as {
       members: Array<{ userId: string; cone: { scope: string; readOnly: boolean } }>
     }

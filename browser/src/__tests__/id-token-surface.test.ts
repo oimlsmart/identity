@@ -265,7 +265,7 @@ demo_personas: true
   app = root
 
   // The bootstrap seed lands on the first REGISTRY request.
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   expect((await app.request(`${ISSUER}/api/op/clients`, { headers: { cookie: admin } })).status).toBe(200)
 })
 
@@ -291,18 +291,18 @@ describe('the discovery document (the wave-C growth)', () => {
 
 describe('the code exchange’s offline half', () => {
   it('a granted offline_access mints the first refresh token of a family; without it, none', async () => {
-    const offline = await signInAndExchange('ia@oiml.org', 'openid profile email offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const offline = await signInAndExchange('ia@oimlsmart.org', 'openid profile email offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     expect(offline.refreshToken, 'the offline grant carries the refresh token').toBeTruthy()
     expect(typeof offline.idClaims.auth_time, 'the authentication instant rides the ID token').toBe('number')
 
-    const online = await signInAndExchange('ia@oiml.org', 'openid profile email', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const online = await signInAndExchange('ia@oimlsmart.org', 'openid profile email', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     expect(online.refreshToken, 'no offline ask, no refresh token').toBeNull()
   })
 })
 
 describe('the refresh grant', () => {
   it('rotates: the presented token consumes, the successor mints in the family, the ID token proves the ORIGINAL auth_time', async () => {
-    const first = await signInAndExchange('tl@oiml.org', 'openid profile email offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const first = await signInAndExchange('tl@oimlsmart.org', 'openid profile email offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     const original = first.idClaims.auth_time as number
     await new Promise(r => setTimeout(r, 1_100)) // cross a second boundary (auth_time is seconds-precision)
 
@@ -317,7 +317,7 @@ describe('the refresh grant', () => {
     expect(claims.auth_time, 'the ORIGINAL authentication instant — never the refresh’s moment').toBe(original)
     expect((claims.iat as number) > original, 'the issuance is the refresh’s own moment').toBe(true)
     expect(claims.aud).toBe(HUB_ID)
-    expect(claims.email).toBe('tl@oiml.org')
+    expect(claims.email).toBe('tl@oimlsmart.org')
 
     // The presented token is spent (the one-time doctrine).
     const replay = await refresh({ token: first.refreshToken!, clientId: HUB_ID, secret: HUB_SECRET })
@@ -339,7 +339,7 @@ describe('the refresh grant', () => {
   })
 
   it('the PUBLIC client refreshes on PKCE standing alone (the spec’s driver)', async () => {
-    const first = await signInAndExchange('viewer@oiml.org', 'openid offline_access', { id: PLAIN_ID, redirect: PLAIN_REDIRECT })
+    const first = await signInAndExchange('viewer@oimlsmart.org', 'openid offline_access', { id: PLAIN_ID, redirect: PLAIN_REDIRECT })
     expect(first.refreshToken).toBeTruthy()
     const rotated = await refresh({ token: first.refreshToken!, clientId: PLAIN_ID })
     expect(rotated.status, 'no secret — the client_id binds, the token is the possession proof').toBe(200)
@@ -348,7 +348,7 @@ describe('the refresh grant', () => {
   })
 
   it('the cross-client present burns the token (fail toward invalidation) and the holder’s retry dies of the reuse verdict', async () => {
-    const first = await signInAndExchange('cs@oiml.org', 'openid offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const first = await signInAndExchange('cs@oimlsmart.org', 'openid offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     // PLAIN presents HUB's token: the consume already burned it — the
     // answer refuses, and the legitimate holder's retry reads the reuse
     // verdict (the family dies).
@@ -366,7 +366,7 @@ describe('the refresh grant', () => {
   })
 
   it('a deactivated account’s grant refuses honestly', async () => {
-    const first = await signInAndExchange('mc@oiml.org', 'openid offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const first = await signInAndExchange('mc@oimlsmart.org', 'openid offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     await store.setUserActive(first.userId, false)
     try {
       const res = await refresh({ token: first.refreshToken!, clientId: HUB_ID, secret: HUB_SECRET })
@@ -378,7 +378,7 @@ describe('the refresh grant', () => {
   })
 
   it('RFC 6749 §6’s narrowing: a subset narrows BOTH halves and never widens back; a superset refuses', async () => {
-    const first = await signInAndExchange('biml@oiml.org', 'openid profile email offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const first = await signInAndExchange('biml@oimlsmart.org', 'openid profile email offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
 
     // The superset ask refuses (never a silent mint past the grant). The
     // consume runs BEFORE the narrowing math (the kernel's one-read-path
@@ -393,7 +393,7 @@ describe('the refresh grant', () => {
 
     // The clean narrowing arc on a fresh grant: subset → both halves
     // narrow → the rotated row never widens back.
-    const second = await signInAndExchange('rc@oiml.org', 'openid profile email offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const second = await signInAndExchange('rc@oimlsmart.org', 'openid profile email offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     const narrowed = await refresh({ token: second.refreshToken!, clientId: HUB_ID, secret: HUB_SECRET, scope: 'openid profile' })
     expect(narrowed.status).toBe(200)
     const narrowedBody = await narrowed.json() as { access_token: string; refresh_token: string; scope: string }
@@ -408,7 +408,7 @@ describe('the refresh grant', () => {
 
 describe('the revocation endpoint (RFC 7009)', () => {
   it('revokes client-bound with the 200-indistinguishable answer; the wrong hint still revokes; a foreign client kills nothing', async () => {
-    const grant = await signInAndExchange('ia@oiml.org', 'openid profile offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const grant = await signInAndExchange('ia@oimlsmart.org', 'openid profile offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
 
     // The ACCESS half: revoked → userinfo 401s, introspection inactive.
     const accessRevoke = await revoke({ token: grant.accessToken, clientId: HUB_ID, secret: HUB_SECRET, hint: 'access_token' })
@@ -425,7 +425,7 @@ describe('the revocation endpoint (RFC 7009)', () => {
 
     // The FOREIGN client's revoke: 200 (the indistinguishability) — and
     // the family STANDS.
-    const standing = await signInAndExchange('tl@oiml.org', 'openid offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const standing = await signInAndExchange('tl@oimlsmart.org', 'openid offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     const foreign = await revoke({ token: standing.refreshToken!, clientId: PLAIN_ID })
     expect(foreign.status).toBe(200)
     const alive = await refresh({ token: standing.refreshToken!, clientId: HUB_ID, secret: HUB_SECRET })
@@ -456,7 +456,7 @@ describe('the revocation endpoint (RFC 7009)', () => {
   })
 
   it('the consent console’s "Revoke access" carries the offline half out with it', async () => {
-    const grant = await signInAndExchange('cs@oiml.org', 'openid offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const grant = await signInAndExchange('cs@oimlsmart.org', 'openid offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     const grants = await (await app.request(`${ISSUER}/api/op/account/grants`, { headers: { cookie: grant.cookie } })).json() as { grants: Array<{ id: string; clientId: string }> }
     const row = grantGrant(grants, HUB_ID)
     expect(row, 'the grant lists').toBeTruthy()
@@ -479,7 +479,7 @@ function grantGrant(list: { grants: Array<{ id: string; clientId: string }> }, c
 
 describe('the introspection endpoint (RFC 7662)', () => {
   it('the opaque half: a live access token answers active + the claim set; revoked and unknown answer inactive', async () => {
-    const grant = await signInAndExchange('ia@oiml.org', 'openid profile offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
+    const grant = await signInAndExchange('ia@oimlsmart.org', 'openid profile offline_access', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     const live = await introspect({ token: grant.accessToken, clientId: HUB_ID, secret: HUB_SECRET })
     expect(live.status).toBe(200)
     const body = await live.json() as Record<string, unknown>

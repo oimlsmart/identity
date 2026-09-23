@@ -267,7 +267,7 @@ describe('TODO.identity/01 — the OIDC Provider (the identity profile)', () => 
       () => window.location.pathname === '/',
       { timeout: SETTLE, polling: 500 },
     )
-    await opSignIn(page, stack.base, 'ia@oiml.org')
+    await opSignIn(page, stack.base, 'ia@oimlsmart.org')
 
     // The consent page: the client's name, the scopes, the account.
     await page.waitForSelector('[data-testid="op-consent-allow"]', { timeout: SETTLE, polling: 500 })
@@ -276,7 +276,7 @@ describe('TODO.identity/01 — the OIDC Provider (the identity profile)', () => 
     expect(clientName).toBe('The e2e fixture RP')
     const account = await page.$eval('[data-testid="op-consent-account"]', el => el.textContent ?? '')
     expect(account).toContain('IA Officer')
-    expect(account).toContain('ia@oiml.org')
+    expect(account).toContain('ia@oimlsmart.org')
     const scopes = await page.$eval('[data-testid="op-consent-scopes"]', el => el.textContent ?? '')
     expect(scopes).toContain('Your name')
     expect(scopes).toContain('Your email address')
@@ -296,14 +296,14 @@ describe('TODO.identity/01 — the OIDC Provider (the identity profile)', () => 
     }
     expect(who.claims.iss).toBe(ISSUER)
     expect(who.claims.aud).toBe(RP_CLIENT_ID)
-    expect(who.claims.email).toBe('ia@oiml.org')
+    expect(who.claims.email).toBe('ia@oimlsmart.org')
     expect(who.claims.name).toBe('IA Officer')
     expect(who.claims.roles).toEqual(['ia_officer'])
     expect(who.claims.groups).toEqual(['ia_officer'])
     expect(who.claims.org).toBe('EX1')
     expect(who.claims.nonce).toBeTruthy()
     expect(who.lastError).toBeNull()
-    expect(who.userinfo).toMatchObject({ email: 'ia@oiml.org', roles: ['ia_officer'], org: 'EX1' })
+    expect(who.userinfo).toMatchObject({ email: 'ia@oimlsmart.org', roles: ['ia_officer'], org: 'EX1' })
   })
 
   it('leg 3 — Deny answers the RP with access_denied and no code', { timeout: 600_000 }, async () => {
@@ -347,7 +347,7 @@ describe('TODO.identity/01 — the OIDC Provider (the identity profile)', () => 
     const login = await fetch(`${stack.base}/api/auth/demo`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'tl@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'tl@oimlsmart.org', password: 'demo2026' }),
     })
     expect(login.ok).toBe(true)
     const cookie = login.headers.get('set-cookie')!.split(';')[0]!

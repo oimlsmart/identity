@@ -108,7 +108,7 @@ demo_personas: true
   root.route('/', createOpRouter())
   root.route('/', createOpAccountsRouter())
   app = root
-  await app.request('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }) })
+  await app.request('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }) })
 })
 
 afterAll(async () => {

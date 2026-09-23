@@ -1614,26 +1614,26 @@ export function orgIdOf(store: string, data: unknown): string | null {
 //                TODO.roadmap/44 (approval pipeline + participant registry)
 //   cs_admin/admin/viewer → null (no org)
 export const DEMO_ACCOUNTS = [
-  { email: 'admin@oiml.org', name: 'OIML Admin', role: 'admin', orgId: null as string | null },
+  { email: 'admin@oimlsmart.org', name: 'OIML Admin', role: 'admin', orgId: null as string | null },
   // TODO.register/02 — the ACME applicant also holds its org's org_admin
   // (the OP-side manufacturer-org role, simulated on the demo cast until
   // the identity wave lands it): the register's legacy-row claim act is
   // the org administrator's. `roles` is the optional full role set (the
   // users.roles column; absent = the primary role only).
-  { email: 'applicant@oiml.org', name: 'ACME Applicant', role: 'applicant', orgId: 'mfr-acme' as string | null, roles: ['applicant', 'org_admin'] },
-  { email: 'ia@oiml.org', name: 'IA Officer', role: 'ia_officer', orgId: 'EX1' as string | null },
-  { email: 'ia2@oiml.org', name: 'IA Officer (XX1)', role: 'ia_officer', orgId: 'XX1' as string | null },
-  { email: 'tl@oiml.org', name: 'TL Operator', role: 'tl_operator', orgId: '21' as string | null },
+  { email: 'applicant@oimlsmart.org', name: 'ACME Applicant', role: 'applicant', orgId: 'mfr-acme' as string | null, roles: ['applicant', 'org_admin'] },
+  { email: 'ia@oimlsmart.org', name: 'IA Officer', role: 'ia_officer', orgId: 'EX1' as string | null },
+  { email: 'ia2@oimlsmart.org', name: 'IA Officer (XX1)', role: 'ia_officer', orgId: 'XX1' as string | null },
+  { email: 'tl@oimlsmart.org', name: 'TL Operator', role: 'tl_operator', orgId: '21' as string | null },
   // The test operators hold their OWN accounts (the demonstration cast,
   // docs/demo-personas.md): every run, evidence sign-off and report
   // attributes to a person, never to a shared laboratory login.
   { email: 'petra.horvat@etl.example.org', name: 'Ms. Petra Horvat', role: 'tl_operator', orgId: '21' as string | null },
   { email: 'martin.berger@etl.example.org', name: 'Mr. Martin Berger', role: 'tl_operator', orgId: '21' as string | null },
-  { email: 'biml@oiml.org', name: 'BIML Officer', role: 'biml_officer', orgId: null as string | null },
-  { email: 'cs@oiml.org', name: 'CS Administrator', role: 'cs_admin', orgId: null as string | null },
-  { email: 'mc@oiml.org', name: 'MC Member', role: 'mc_member', orgId: null as string | null },
-  { email: 'rc@oiml.org', name: 'RC Member', role: 'rc_member', orgId: null as string | null },
-  { email: 'secretariat@oiml.org', name: 'Executive Secretary', role: 'executive_secretary', orgId: null as string | null },
+  { email: 'biml@oimlsmart.org', name: 'BIML Officer', role: 'biml_officer', orgId: null as string | null },
+  { email: 'cs@oimlsmart.org', name: 'CS Administrator', role: 'cs_admin', orgId: null as string | null },
+  { email: 'mc@oimlsmart.org', name: 'MC Member', role: 'mc_member', orgId: null as string | null },
+  { email: 'rc@oimlsmart.org', name: 'RC Member', role: 'rc_member', orgId: null as string | null },
+  { email: 'secretariat@oimlsmart.org', name: 'Executive Secretary', role: 'executive_secretary', orgId: null as string | null },
   // TODO.adoption/11 — the Utilizer's staff member (scheme_participant):
   // declares Additional National Requirements for their country on the ANR
   // registry console; the declaration records the participant it acts for
@@ -1642,8 +1642,8 @@ export const DEMO_ACCOUNTS = [
   // is the account's link into the participants register: the register's
   // participant depth resolves from it (the role alone never upgrades a
   // viewer — the org-registry's bounds keep the link assignable).
-  { email: 'utilizer@oiml.org', name: 'Utilizer Officer (NL)', role: 'scheme_participant', orgId: 'ut-nmi-nl' as string | null },
-  { email: 'viewer@oiml.org', name: 'Viewer', role: 'viewer', orgId: null as string | null },
+  { email: 'utilizer@oimlsmart.org', name: 'Utilizer Officer (NL)', role: 'scheme_participant', orgId: 'ut-nmi-nl' as string | null },
+  { email: 'viewer@oimlsmart.org', name: 'Viewer', role: 'viewer', orgId: null as string | null },
   { email: 'developer@ribose.com', name: 'Ribose Developer', role: 'admin', orgId: null as string | null },
 ]
 

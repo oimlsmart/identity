@@ -122,7 +122,7 @@ describe('the state digest endpoint', () => {
 
   it('answers the live digest: deterministic, bound to client + origin', async () => {
     const { computeSessionState } = await import('../../server/auth/op/session-state')
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const token = cookie.split('=')[1]!
 
     const res = await app.request(url, { headers: { cookie } })
@@ -146,7 +146,7 @@ describe('the state digest endpoint', () => {
   })
 
   it('goes 401 the moment the session is gone (the honest changed)', async () => {
-    const cookie = await demoLogin('tl@oiml.org')
+    const cookie = await demoLogin('tl@oimlsmart.org')
     const signout = await app.request('/api/auth/signout', { method: 'POST', headers: { cookie } })
     expect(signout.ok).toBe(true)
     const res = await app.request(url, { headers: { cookie } })
@@ -154,7 +154,7 @@ describe('the state digest endpoint', () => {
   })
 
   it('refuses an incomplete binding', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const noOrigin = await app.request(`${ISSUER}/op/session/state?client_id=hub-instance`, { headers: { cookie } })
     expect(noOrigin.status).toBe(400)
   })
@@ -163,7 +163,7 @@ describe('the state digest endpoint', () => {
 describe('the authorize answer carries session_state', () => {
   it('the minted redirect binds the digest for the RP', async () => {
     const { computeSessionState } = await import('../../server/auth/op/session-state')
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const token = cookie.split('=')[1]!
     const pkce = await generatePkce()
 

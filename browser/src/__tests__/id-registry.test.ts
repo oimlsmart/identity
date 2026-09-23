@@ -259,7 +259,7 @@ demo_personas: true
   // The bootstrap seeds land on the first requests.
   const probe = await app.request(`${ISSUER}/.well-known/openid-configuration`)
   expect(probe.status).toBe(200)
-  await demoLogin('admin@oiml.org')
+  await demoLogin('admin@oimlsmart.org')
 })
 
 afterAll(async () => {
@@ -334,7 +334,7 @@ describe('the claim-shaping rule (auth/op/claims.ts)', () => {
 
 describe('the claims-policy role allowlist (the client registry)', () => {
   it('the API accepts + stores the allowlist, and refuses an unknown role loudly', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const created = await app.request(`${ISSUER}/api/op/clients`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -384,7 +384,7 @@ describe('the registry acts', () => {
   const WILLA_PASSWORD = 'willa wharton registry passphrase'
 
   beforeAll(async () => {
-    admin = await demoLogin('admin@oiml.org')
+    admin = await demoLogin('admin@oimlsmart.org')
   })
 
   it('the invite binds the org + the per-client roles (the 02 seam, 10’s binding)', async () => {
@@ -459,7 +459,7 @@ describe('the registry acts', () => {
     expect((await json(conflict, 409)).error).toContain('already exists')
 
     // The registry never edits the demo cast (the OP's list only).
-    const demo = (await store.listUsers()).find(u => u.email === 'admin@oiml.org')!
+    const demo = (await store.listUsers()).find(u => u.email === 'admin@oimlsmart.org')!
     const demoEdit = await app.request(`${ISSUER}/api/op/accounts/${demo.id}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -525,7 +525,7 @@ describe('the issued ID token carries the per-client roles (the round trip)', ()
   const WILLA = { email: 'willa.roundtrip@example.org', password: 'willa round trip passphrase' }
 
   beforeAll(async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await invite(admin, { email: WILLA.email, name: 'Ms. Willa Roundtrip', role: 'viewer', roles: ['viewer'] })
     willaId = res.account.id
     willaCookie = await enroll(res.setupUrl, WILLA.password)
@@ -540,7 +540,7 @@ describe('the issued ID token carries the per-client roles (the round trip)', ()
   })
 
   it('the assignment decides what the client receives — and the allowlist bounds it', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // Willa is ia_officer on the HUB (inside the allowlist) and tl_operator
     // on the TL (no allowlist). Her account default stays viewer.
     await app.request(`${ISSUER}/api/op/accounts/${willaId}/client-roles/hub-instance`, {
@@ -568,7 +568,7 @@ describe('the issued ID token carries the per-client roles (the round trip)', ()
   })
 
   it('the explicit empty assignment emits NO role claim (the instance’s no-claim posture)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const put = await app.request(`${ISSUER}/api/op/accounts/${willaId}/client-roles/tl-instance`, {
       method: 'PUT', headers: { 'content-type': 'application/json', cookie: admin },
       body: JSON.stringify({ roles: [] }),
@@ -593,7 +593,7 @@ describe('the issued ID token carries the per-client roles (the round trip)', ()
   })
 
   it('the email-only client never receives role claims, assignment or not', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     await app.request(`${ISSUER}/api/op/accounts/${willaId}/client-roles/plain-public`, {
       method: 'PUT', headers: { 'content-type': 'application/json', cookie: admin },
       body: JSON.stringify({ roles: ['viewer'] }),
@@ -615,7 +615,7 @@ describe('deactivate / reactivate (honest: history kept, sign-ins refused, sessi
   const SUBJECT = { email: 'sally.subject@example.org', password: 'sally subject passphrase' }
 
   beforeAll(async () => {
-    admin = await demoLogin('admin@oiml.org')
+    admin = await demoLogin('admin@oimlsmart.org')
     const res = await invite(admin, { email: SUBJECT.email, name: 'Ms. Sally Subject', role: 'viewer', roles: ['viewer'] })
     subject = { id: res.account.id, email: SUBJECT.email, setupUrl: res.setupUrl }
   })
@@ -669,7 +669,7 @@ describe('deactivate / reactivate (honest: history kept, sign-ins refused, sessi
   })
 
   it('you cannot deactivate your own account (the lockout guard)', async () => {
-    const selfId = (await store.listUsers()).find(u => u.email === 'admin@oiml.org')!.id
+    const selfId = (await store.listUsers()).find(u => u.email === 'admin@oimlsmart.org')!.id
     // …but the demo admin is not an OP account — the guard's proof uses
     // an OP-account administrator instead.
     const boss = await invite(admin, { email: 'boss@example.org', name: 'The Boss', role: 'admin', roles: ['admin'] })
@@ -687,7 +687,7 @@ describe('deactivate / reactivate (honest: history kept, sign-ins refused, sessi
 
 describe('the audit chain (every admin act + every OP-side sign-in)', () => {
   it('a password sign-in lands account.sign_in and the registry list reads the last sign-in back from the chain', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await invite(admin, { email: 'lena.signin@example.org', name: 'Ms. Lena Signin', role: 'viewer' })
     await enroll(res.setupUrl, 'lena sign in passphrase')
     const login = await passwordLogin('lena.signin@example.org', 'lena sign in passphrase')
@@ -714,7 +714,7 @@ describe('the audit chain (every admin act + every OP-side sign-in)', () => {
 
 describe('the org scope never reaches the registry (10’s reuse, honestly bounded)', () => {
   it('the org admin gets 403 on the registry acts and keeps its own org slice', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // The Utilizer's org admin (10's delegated administrator).
     await invite(admin, {
       email: 'sanne.scope@nmi.example.org', name: 'Ms. Sanne Scope', role: 'org_admin', roles: ['org_admin'], org_id: 'ut-nmi-nl',
@@ -767,12 +767,12 @@ describe('the instance side honors the OP’s claims (never inventing, never sil
 
 describe('the registry list answers every sign-in account (TODO.identity-features/06)', () => {
   it('the demo cast AND the OP-native accounts answer, each row carrying its provider — the same rows /api/users sees', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const invited = await invite(admin, { email: 'vera.visible@example.org', name: 'Ms. Vera Visible', role: 'viewer' })
 
     const rows = await json(await app.request(`${ISSUER}/api/op/accounts`, { headers: { cookie: admin } }), 200) as any[]
     // The demo cast — invisible before the repair (the [] of the bug).
-    const demoAdmin = rows.find(r => r.email === 'admin@oiml.org')!
+    const demoAdmin = rows.find(r => r.email === 'admin@oimlsmart.org')!
     expect(demoAdmin.provider).toBe('demo')
     expect(demoAdmin.passwordSet).toBe(false) // no OP credential — the demo sign-in is its way in
     expect(demoAdmin.active).toBe(true)
@@ -792,7 +792,7 @@ describe('the registry list answers every sign-in account (TODO.identity-feature
   })
 
   it('an erased account never resurfaces (the tombstone stays out of the list)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const invited = await invite(admin, { email: 'goner@example.org', name: 'Mr. Gary Goner' })
     const del = await app.request(`${ISSUER}/api/op/accounts/${invited.account.id}`, { method: 'DELETE', headers: { cookie: admin } })
     expect(del.status).toBe(200)
@@ -804,9 +804,9 @@ describe('the registry list answers every sign-in account (TODO.identity-feature
   })
 
   it('the demo cast’s last sign-in falls back to the row stamp (the demo sign-in never journals the audit chain)', async () => {
-    const admin = await demoLogin('admin@oiml.org') // the demo sign-in stamps last_login
+    const admin = await demoLogin('admin@oimlsmart.org') // the demo sign-in stamps last_login
     const rows = await json(await app.request(`${ISSUER}/api/op/accounts`, { headers: { cookie: admin } }), 200) as any[]
-    const demoAdmin = rows.find(r => r.email === 'admin@oiml.org')!
+    const demoAdmin = rows.find(r => r.email === 'admin@oimlsmart.org')!
     expect(demoAdmin.lastSignIn).toBeTruthy()
   })
 })

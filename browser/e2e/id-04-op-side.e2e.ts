@@ -219,7 +219,7 @@ async function opAdminCookie(op: Stack): Promise<string> {
   const res = await fetch(`${op.apiBase}/api/auth/demo`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+    body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
   })
   if (!res.ok) throw new Error(`the OP admin demo login → ${res.status}`)
   return res.headers.get('set-cookie')!.split(';')[0]!

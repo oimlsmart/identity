@@ -180,8 +180,8 @@ afterAll(async () => {
 
 describe('the remembered consent grants (TODO.identity-features/12)', () => {
   it('the allow records the grant; the second authorize SKIPS the consent page, and its code exchanges + validates', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
-    const me = await store.findUserByEmail('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
+    const me = await store.findUserByEmail('ia@oimlsmart.org')
 
     // The first authorize stops at the consent page; the allow mints.
     const first = await authorize(cookie, {
@@ -220,7 +220,7 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
       nonce: 'nn-2',
       jwksUri: `${ISSUER}/jwks.json`,
     }, appFetch)
-    expect(claims.email).toBe('ia@oiml.org')
+    expect(claims.email).toBe('ia@oimlsmart.org')
     expect(claims.roles).toEqual(['ia_officer'])
     expect(claims.org).toBe('EX1')
 
@@ -230,7 +230,7 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
   })
 
   it('the coverage math: a narrower ask rides the wider grant; a wider ask than granted re-prompts', async () => {
-    const cookie = await demoLogin('tl@oiml.org')
+    const cookie = await demoLogin('tl@oimlsmart.org')
     // Grant 'openid profile email' on the public client via the flow.
     const first = await authorize(cookie, {
       clientId: PUBLIC.client_id, redirectUri: PUBLIC.redirect_uris[0]!, challenge: CHALLENGE,
@@ -251,14 +251,14 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
     // …and allowing the wider set re-keys the grant to the wider triple
     // (the narrow grant stands too — the per-triple doctrine).
     await driveConsent(cookie, wider.location, 'allow')
-    const me = await store.findUserByEmail('tl@oiml.org')
+    const me = await store.findUserByEmail('tl@oimlsmart.org')
     expect((await store.listConsentGrants(me!.id)).map(g => g.scope).sort())
       .toEqual(['email offline_access openid profile', 'email openid profile'])
   })
 
   it('prompt=consent ALWAYS shows the page, and the re-allow refreshes the same live row', async () => {
-    const cookie = await demoLogin('viewer@oiml.org')
-    const me = await store.findUserByEmail('viewer@oiml.org')
+    const cookie = await demoLogin('viewer@oimlsmart.org')
+    const me = await store.findUserByEmail('viewer@oimlsmart.org')
     const first = await authorize(cookie, {
       clientId: PUBLIC.client_id, redirectUri: PUBLIC.redirect_uris[0]!, challenge: CHALLENGE,
     })
@@ -277,8 +277,8 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
   })
 
   it('deny records NO grant', async () => {
-    const cookie = await demoLogin('admin@oiml.org')
-    const me = await store.findUserByEmail('admin@oiml.org')
+    const cookie = await demoLogin('admin@oimlsmart.org')
+    const me = await store.findUserByEmail('admin@oimlsmart.org')
     const first = await authorize(cookie, {
       clientId: PUBLIC.client_id, redirectUri: PUBLIC.redirect_uris[0]!, challenge: CHALLENGE,
     })
@@ -293,8 +293,8 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
   })
 
   it('the console API: the list names the client; the revoke re-prompts; another account never sees the row', async () => {
-    const cookie = await demoLogin('cs@oiml.org')
-    const me = await store.findUserByEmail('cs@oiml.org')
+    const cookie = await demoLogin('cs@oimlsmart.org')
+    const me = await store.findUserByEmail('cs@oimlsmart.org')
     const first = await authorize(cookie, {
       clientId: CONFIDENTIAL.client_id, redirectUri: CONFIDENTIAL.redirect_uris[0]!, challenge: CHALLENGE,
     })
@@ -310,7 +310,7 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
 
     // Another account's read is its own (never a leak), and the guarded
     // revoke refuses a foreign row by name (404, not a flip).
-    const other = await demoLogin('viewer@oiml.org')
+    const other = await demoLogin('viewer@oimlsmart.org')
     const otherList = await app.request(`${ISSUER}/api/op/account/grants`, { headers: { cookie: other } })
     const otherGrants = (await otherList.json() as { grants: Array<{ id: string }> }).grants
     expect(otherGrants.some(g => g.id === grants[0]!.id), 'another account never sees this grant').toBe(false)
@@ -341,7 +341,7 @@ describe('the remembered consent grants (TODO.identity-features/12)', () => {
   })
 
   it('the audit chain carries the grant + the revoke on the account’s own feed', async () => {
-    const me = await store.findUserByEmail('cs@oiml.org')
+    const me = await store.findUserByEmail('cs@oimlsmart.org')
     const rows = await store.listEntities('auditEvents')
     const actions = rows
       .map(r => JSON.parse(r.data) as { entity_id: string; action: string })

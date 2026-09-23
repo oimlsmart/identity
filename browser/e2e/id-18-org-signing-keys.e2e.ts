@@ -58,9 +58,9 @@ const ID_WEB = 10594
 // The cast: EX1 the seeded active IA (the demonstration key's org), its
 // officer delegated to org_admin in leg 2, the register-operator admin, and the
 // ACME applicant (the negative — never a key administrator).
-const IA_EMAIL = 'ia@oiml.org'
-const ADMIN_EMAIL = 'admin@oiml.org'
-const APPLICANT_EMAIL = 'applicant@oiml.org'
+const IA_EMAIL = 'ia@oimlsmart.org'
+const ADMIN_EMAIL = 'admin@oimlsmart.org'
+const APPLICANT_EMAIL = 'applicant@oimlsmart.org'
 const DEMO_KID = DEMO_EX1_SIGNING_KEY.kid
 
 interface Stack {
@@ -310,7 +310,7 @@ describe('TODO.trust-registry/01 — the org signing keys (the identity profile)
     // The delegation (fetch-level): the wide grant's org_admin assignment
     // on the officer's EX1 membership.
     const admin = await apiSignIn(stack.apiBase, ADMIN_EMAIL)
-    const users = await (await fetch(`${stack.apiBase}/api/op/registry/users?q=ia@oiml.org`, { headers: { cookie: admin } })).json() as Array<{ id: string; email: string | null }>
+    const users = await (await fetch(`${stack.apiBase}/api/op/registry/users?q=ia@oimlsmart.org`, { headers: { cookie: admin } })).json() as Array<{ id: string; email: string | null }>
     const officer = users.find(u => u.email === IA_EMAIL)!
     expect(officer).toBeTruthy()
     const roles = await fetch(`${stack.apiBase}/api/op/org-memberships/${officer.id}/EX1/roles`, {

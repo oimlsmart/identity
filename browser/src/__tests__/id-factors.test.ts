@@ -97,7 +97,7 @@ async function demoLogin(email: string): Promise<string> {
 }
 
 async function invite(email: string, name: string, role = 'viewer'): Promise<{ account: { id: string; email: string }; setupUrl: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const res = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -219,7 +219,7 @@ demo_personas: true
   root.route('/', createOpFactorsRouter())
   root.route('/', createOpMfaRouter())
   app = root
-  await demoLogin('admin@oiml.org')
+  await demoLogin('admin@oimlsmart.org')
 }, 30_000)
 
 afterAll(async () => {
@@ -675,7 +675,7 @@ demo_personas: true
 branding: { name: OIML SMART }
 `))
     try {
-      const res = await app.request('/api/op/account/factors', { headers: { cookie: await demoLogin('admin@oiml.org') } })
+      const res = await app.request('/api/op/account/factors', { headers: { cookie: await demoLogin('admin@oimlsmart.org') } })
       expect(res.status).toBe(404)
       const mfa = await app.request('/api/op/login/mfa/totp', {
         method: 'POST', headers: { 'content-type': 'application/json' },

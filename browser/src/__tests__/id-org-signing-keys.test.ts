@@ -110,7 +110,7 @@ demo_personas: true
   // mfr-dormant a DISABLED org (the register act's refusal).
   await store.createOrgRegistryOrg({ id: 'EX1', name: 'Example Issuing Authority', shortName: 'EIA', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia.example.org' }], participantRef: 'EX1' })
   await store.createOrgRegistryOrg({ id: 'EX9', name: 'Second Example Issuing Authority', shortName: 'EIA-2', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia2.example.org' }], participantRef: 'EX9' })
-  await store.createOrgRegistryOrg({ id: 'mfr-acme', name: 'ACME (the demonstration manufacturer)', shortName: 'ACME', kind: 'manufacturer', country: 'Example Member State', contacts: [{ name: 'ACME Applicant', email: 'applicant@oiml.org' }], participantRef: null })
+  await store.createOrgRegistryOrg({ id: 'mfr-acme', name: 'ACME (the demonstration manufacturer)', shortName: 'ACME', kind: 'manufacturer', country: 'Example Member State', contacts: [{ name: 'ACME Applicant', email: 'applicant@oimlsmart.org' }], participantRef: null })
   await store.createOrgRegistryOrg({ id: 'mfr-dormant', name: 'Dormant Instruments', shortName: null, kind: 'manufacturer', country: null, contacts: [], participantRef: null })
   await store.setOrgRegistryOrgState('mfr-dormant', 'disabled', 'the test seed')
 
@@ -214,7 +214,7 @@ describe('the management acts (the gates + the audit chain)', () => {
     expect(anonList.status).toBe(401)
 
     // The demo cast's IA officer acts as EX1 but holds no org_admin.
-    const officer = await demoLogin('ia@oiml.org')
+    const officer = await demoLogin('ia@oimlsmart.org')
     const refused = await app.request(`${ORIGIN}/api/op/org-keys`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: officer },
       body: JSON.stringify({ org_id: 'EX1', label: 'officer key', public_jwk: jwk }),
@@ -265,7 +265,7 @@ describe('the management acts (the gates + the audit chain)', () => {
   })
 
   it('the register-operator admin registers for any org; the org preconditions refuse honestly', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const ok = await app.request(`${ORIGIN}/api/op/org-keys`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
       body: JSON.stringify({ org_id: 'mfr-acme', label: 'ACME demo key', public_jwk: await publicJwk() }),
@@ -440,7 +440,7 @@ describe('the public endpoint (GET /op/keys/<org-id>.json)', () => {
 
 describe('the registry aggregate', () => {
   it('the per-org view carries the signing keys WITH the custody actors (the gated read)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const view = await json(await app.request(`${ORIGIN}/api/op/registry/orgs/EX1`, { headers: { cookie: admin } }), 200)
     expect(view.signingKeys.length).toBeGreaterThanOrEqual(3)
     const registered = view.signingKeys.find((k: any) => k.label === 'EX1 production key')

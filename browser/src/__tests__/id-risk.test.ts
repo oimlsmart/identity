@@ -88,10 +88,10 @@ describe('the known-device record (the store seam)', () => {
     // Real accounts (the FK) — the demo cast seeds on the warm-up login.
     const warm = await app.request('/api/auth/demo', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'ia@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'ia@oimlsmart.org', password: 'demo2026' }),
     })
     expect(warm.ok).toBe(true)
-    const oneId = (await store.findUserByEmail('biml@oiml.org'))!.id
+    const oneId = (await store.findUserByEmail('biml@oimlsmart.org'))!.id
     const first = await store.recordKnownDevice({
       id: crypto.randomUUID(), accountId: oneId, deviceHash: 'dev-hash-1',
       userAgent: 'TestAgent/1.0', ip: '203.0.113.9', country: 'FR',
@@ -112,13 +112,13 @@ describe('the known-device record (the store seam)', () => {
   })
 
   it('the account sees only its own devices', async () => {
-    const twoId = (await store.findUserByEmail('cs@oiml.org'))!.id
+    const twoId = (await store.findUserByEmail('cs@oimlsmart.org'))!.id
     await store.recordKnownDevice({
       id: crypto.randomUUID(), accountId: twoId, deviceHash: 'dev-hash-2',
       userAgent: 'Other/2.0', ip: '198.51.100.4', country: null,
     })
     expect(await store.listKnownDevices(twoId)).toHaveLength(1)
-    expect(await store.listKnownDevices((await store.findUserByEmail('mc@oiml.org'))!.id)).toHaveLength(0)
+    expect(await store.listKnownDevices((await store.findUserByEmail('mc@oimlsmart.org'))!.id)).toHaveLength(0)
   })
 })
 

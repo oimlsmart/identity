@@ -333,7 +333,7 @@ describe('TODO.identity/10 — delegated organization administration (the identi
 
   it('leg 2 — BIML creates the org admin for the registered Utilizer (the enrollment link sets her password)', { timeout: 900_000 }, async () => {
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
 
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
@@ -470,7 +470,7 @@ describe('TODO.identity/10 — delegated organization administration (the identi
     // BIML's new-organizations queue carries it — never the org's queue.
     await signOut(page)
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="biml-orgs-queue"]', { timeout: SETTLE, polling: 500 })

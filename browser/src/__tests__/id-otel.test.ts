@@ -170,7 +170,7 @@ describe('the store-phase correlation + the outbound traceparent', () => {
     const { verifyWebhookSignature } = await import('../../server/webhooks/signature')
     const cookie = await (await app.request('/api/auth/demo', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'biml@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'biml@oimlsmart.org', password: 'demo2026' }),
     })).headers.get('set-cookie')!.split(';')[0]
 
     const subRes = await app.request(`${ISSUER}/api/op/account/webhooks`, {

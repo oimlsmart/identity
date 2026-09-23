@@ -50,7 +50,7 @@ async function adminCookie(): Promise<string> {
   const res = await app.request('/api/auth/demo', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+    body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
   })
   expect(res.ok, 'the admin demo login').toBe(true)
   return res.headers.get('set-cookie')!.split(';')[0]!
@@ -124,7 +124,7 @@ describe('the per-org analytics (the tenant view)', () => {
     expect(anon.status).toBe(401)
     const member = await app.request('/api/auth/demo', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'tl@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'tl@oimlsmart.org', password: 'demo2026' }),
     })
     const cookie = member.headers.get('set-cookie')!.split(';')[0]!
     const refused = await app.request(`${ISSUER}/api/op/dashboard/org-activity?org=${ORG}`, { headers: { cookie } })

@@ -27,7 +27,7 @@ let app: import('hono').Hono
 let generatePkce: typeof import('../../server/oidc').generatePkce
 let store: ReturnType<typeof import('../../server/store').getStore>
 
-async function login(email = 'ia@oiml.org'): Promise<string> {
+async function login(email = 'ia@oimlsmart.org'): Promise<string> {
   const res = await app.request('/api/auth/demo', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password: 'demo2026' }),
@@ -90,7 +90,7 @@ describe('prompt=select_account (the chooser confirmation)', () => {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ decision: 'allow' }),
     })
-    const grant = await store.getConsentGrant((await store.findUserByEmail('ia@oiml.org'))!.id, RP.client_id, 'openid')
+    const grant = await store.getConsentGrant((await store.findUserByEmail('ia@oimlsmart.org'))!.id, RP.client_id, 'openid')
     expect(grant, 'the remembered grant exists').toBeTruthy()
 
     // The plain repeat: the grant skips the page (the code redirect).
@@ -109,11 +109,11 @@ describe('prompt=select_account (the chooser confirmation)', () => {
 
 describe('login_hint (the sign-in prefill)', () => {
   it('rides the sign-in redirect for the unsigned-in session', async () => {
-    const res = await app.request(`${ISSUER}/op/authorize?${authorizeQuery({ login_hint: 'ia@oiml.org' })}`)
+    const res = await app.request(`${ISSUER}/op/authorize?${authorizeQuery({ login_hint: 'ia@oimlsmart.org' })}`)
     expect(res.status).toBe(302)
     const back = new URL(res.headers.get('location')!, ISSUER)
     expect(back.pathname).toBe('/')
-    expect(back.searchParams.get('login_hint')).toBe('ia@oiml.org')
+    expect(back.searchParams.get('login_hint')).toBe('ia@oimlsmart.org')
   })
 
   it('the default flow carries no login_hint (byte-identical posture)', async () => {

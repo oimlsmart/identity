@@ -74,7 +74,7 @@ async function demoLogin(email: string): Promise<string> {
 
 /** Invite through the REAL route; answers the account id + setup token. */
 async function invite(email: string, name: string): Promise<{ id: string; setupToken: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const res = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -185,7 +185,7 @@ demo_personas: true
   root.route('/', createOpDashboardRouter())
   app = root
 
-  await demoLogin('admin@oiml.org')
+  await demoLogin('admin@oimlsmart.org')
 
   // The stubbed GitHub Actions API the heartbeat route reads.
   ghStub = createServer((req, res) => {
@@ -225,7 +225,7 @@ afterAll(async () => {
 
 describe('the dashboard overview', () => {
   it('answers the lifecycle split, the series, the anomaly counters, and the live count', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const before = await (await app.request('/api/op/dashboard/overview', { headers: { cookie: admin } })).json() as {
       accounts: { invited: number }
     }
@@ -262,7 +262,7 @@ describe('the dashboard overview', () => {
 
   it('is refused for anonymous and non-admin sessions', async () => {
     expect((await app.request('/api/op/dashboard/overview')).status).toBe(401)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request('/api/op/dashboard/overview', { headers: { cookie: viewer } })).status).toBe(403)
   })
 })
@@ -271,7 +271,7 @@ describe('the dashboard overview', () => {
 
 describe('the aggregate live sessions', () => {
   it('lists every live session with its account, marks the administrator’s own, never a token', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const bohr = await invite('bohr.dashboard@example.org', 'Bohr Dashboard')
     await enroll(bohr.setupToken)
     const bohrCookie = (await passwordLogin('bohr.dashboard@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
@@ -287,17 +287,17 @@ describe('the aggregate live sessions', () => {
     expect(bohrRow!.account.email).toBe('bohr.dashboard@example.org')
     const mine = body.sessions.find(s => s.current)
     expect(mine, 'the administrator’s own row is marked').toBeTruthy()
-    expect(mine!.account.email).toBe('admin@oiml.org')
+    expect(mine!.account.email).toBe('admin@oimlsmart.org')
     expect(JSON.stringify(body), 'no token value leaves the store').not.toContain(bohrCookie.split('=')[1]!)
     expect(JSON.stringify(body)).not.toContain(admin.split('=')[1]!)
 
     // The gate.
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request('/api/op/dashboard/sessions', { headers: { cookie: viewer } })).status).toBe(403)
   })
 
   it('the revoke-all light act ends every session of the account, audits, and leaves the others', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const target = await invite('light.dashboard@example.org', 'Light Dashboard')
     await enroll(target.setupToken)
     const c1 = (await passwordLogin('light.dashboard@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
@@ -327,7 +327,7 @@ describe('the aggregate live sessions', () => {
 
     // The unknown account 404s; the gate stands.
     expect((await app.request('/api/op/dashboard/accounts/no-such/sessions/revoke-all', { method: 'POST', headers: { cookie: admin } })).status).toBe(404)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request(`/api/op/dashboard/accounts/${target.id}/sessions/revoke-all`, { method: 'POST', headers: { cookie: viewer } })).status).toBe(403)
   })
 })
@@ -343,7 +343,7 @@ describe('the sign-in failure audits', () => {
     expect((await passwordLogin('nobody-here@example.org', 'wrong')).status).toBe(401)
 
     // Deactivate, then the RIGHT password: the honest 403 + the audit.
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const off = await app.request(`/api/users/${curie.id}/active`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -453,7 +453,7 @@ describe('the status probe recognition', () => {
     expect(feed.map(e => e.action)).toContain('account.sign_in')
 
     // The admin activity feed never shows it (the account's own rows do).
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const activity = await (await app.request('/api/op/registry/activity?q=fermat.probe', { headers: { cookie: admin } })).json() as Array<{ action: string; metadata?: { email?: string } }>
     expect(activity.length).toBeGreaterThan(0)
     expect(activity.map(e => e.action)).not.toContain('account.sign_in_probe')
@@ -465,7 +465,7 @@ describe('the status probe recognition', () => {
 
   it('the burst signal + the overview anomaly counter never count the probe cadence', async () => {
     process.env.STATUS_PROBE_TOKEN = PROBE_TOKEN
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const securityBefore = await (await app.request('/api/op/dashboard/security', { headers: { cookie: admin } })).json() as {
       signals: { failedSignIns: { day: number; week: number; bursts: Array<{ key: string }> } }
     }
@@ -496,7 +496,7 @@ describe('the status probe recognition', () => {
 
 describe('the token endpoint audits and the per-client activity', () => {
   it('issuance and refusals land on the journal; the clients read answers the series', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const registered = await app.request('/api/op/clients', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -576,7 +576,7 @@ describe('the security signals', () => {
       metadata: { path: '/op/token' },
     }))
 
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await app.request('/api/op/dashboard/security', { headers: { cookie: admin } })
     expect(res.status).toBe(200)
     const body = await res.json() as {
@@ -598,7 +598,7 @@ describe('the security signals', () => {
     expect(body.signals.rateLimited.byCaller['203.0.113.9']).toBe(1)
     expect(body.signals.newClients.events.map(e => e.clientId)).toContain('dash-rp')
 
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request('/api/op/dashboard/security', { headers: { cookie: viewer } })).status).toBe(403)
   })
 })
@@ -607,7 +607,7 @@ describe('the security signals', () => {
 
 describe('the queryable audit log', () => {
   it('filters by text, action prefix, entity type and window; the CSV export carries the same view', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
 
     const all = await (await app.request('/api/op/dashboard/audit', { headers: { cookie: admin } })).json() as {
       total: number; returned: number; events: Array<{ action: string }>
@@ -655,7 +655,7 @@ describe('the queryable audit log', () => {
 
 describe('the live access review', () => {
   it('answers the privileged holders, the per-client grants, the findings, the posture', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // A per-client privileged grant: cs_admin on the fixture client.
     // TODO.identity-sso/04 (the lifecycle tail): the grant route refuses
     // an unverified account — the grantee completes the setup link first.
@@ -677,7 +677,7 @@ describe('the live access review', () => {
       findings: string[]
       posture: { accounts: { total: number }; signingKeys: { history: number } }
     }
-    const holder = body.privilegedHolders.find(h => h.email === 'admin@oiml.org')
+    const holder = body.privilegedHolders.find(h => h.email === 'admin@oimlsmart.org')
     expect(holder, 'the demo admin is a privileged holder').toBeTruthy()
     expect(holder!.roles).toContain('admin')
     expect(holder!.lastLogin, 'the admin signed in').toBeTruthy()
@@ -696,7 +696,7 @@ describe('the heartbeat read', () => {
   it('the green window computes from the workflow history at its source', async () => {
     process.env.OP_HEARTBEAT_REPO = 'acme/id-green'
     process.env.OP_HEARTBEAT_WORKFLOW = 'identity-heartbeat.yml'
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
     expect(res.status).toBe(200)
     const body = await res.json() as {
@@ -717,7 +717,7 @@ describe('the heartbeat read', () => {
   it('a red source degrades to the honest link, never a fabricated number', async () => {
     process.env.OP_HEARTBEAT_REPO = 'acme/id-red'
     process.env.OP_HEARTBEAT_WORKFLOW = 'broken.yml'
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
     expect(res.status).toBe(200)
     const body = await res.json() as { available: boolean; reason?: string; source: { runsUrl: string }; totals?: unknown }

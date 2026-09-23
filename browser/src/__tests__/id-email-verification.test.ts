@@ -105,7 +105,7 @@ async function passwordLogin(email: string, password: string): Promise<string> {
 /** Invite + enroll an account; answers { id } (the id-account-emails
  *  helper's shape). */
 async function enrollAccount(email: string, name: string, password: string): Promise<{ id: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const invite = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -228,7 +228,7 @@ demo_personas: true
   root.route('/', createOpRouter())
   root.route('/', createOpAccountsRouter())
   app = root
-  await demoLogin('admin@oiml.org') // the bootstrap seed lands on the first OP request
+  await demoLogin('admin@oimlsmart.org') // the bootstrap seed lands on the first OP request
 })
 
 afterAll(async () => {
@@ -256,7 +256,7 @@ describe('TODO.identity-sso/04 — the email_verified claim answers the CURRENT 
   })
 
   it('UNVERIFIED: the admin-set address resets the stamp — both surfaces answer false', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const account = await store.findUserByEmail(UNA.email)
     expect(account).toBeTruthy()
     const edit = await app.request(`/api/op/accounts/${account!.id}`, {
@@ -307,7 +307,7 @@ describe('TODO.identity-sso/04 — the email_verified claim answers the CURRENT 
   it('THE RESEND (wave A): the unverified primary asks for its own link — the mailed verify completion stamps the SAME address', async () => {
     // The administrator re-addresses the account again (the unverified
     // posture the resend exists for).
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const account = await store.findUserByEmail(UNA_NEXT)
     expect(account).toBeTruthy()
     const edit = await app.request(`/api/op/accounts/${account!.id}`, {

@@ -84,7 +84,7 @@ afterAll(() => {
   delete process.env.DATABASE_PATH
 })
 
-async function login(email = 'ia@oiml.org'): Promise<string> {
+async function login(email = 'ia@oimlsmart.org'): Promise<string> {
   const res = await app.request('/api/auth/demo', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password: 'demo2026' }),

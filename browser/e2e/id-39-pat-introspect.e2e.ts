@@ -47,8 +47,8 @@ const ISSUER = `http://127.0.0.1:${ID_API}` // loopback is the test posture (id-
 const API_BASE = ISSUER
 const CATALOG_BASE = `http://127.0.0.1:${CATALOG_PORT}`
 
-const IA_EMAIL = 'ia@oiml.org'
-const ADMIN_EMAIL = 'admin@oiml.org'
+const IA_EMAIL = 'ia@oimlsmart.org'
+const ADMIN_EMAIL = 'admin@oimlsmart.org'
 
 // The register's service: the hub, whose redirect URI's ORIGIN is the
 // fixture instance (the registry's one true source for the instance

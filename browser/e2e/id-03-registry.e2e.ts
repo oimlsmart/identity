@@ -358,7 +358,7 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
 
   it('leg 1 — the registry console lists the OP’s accounts; the admin invites one (the setup link shows once)', { timeout: 900_000 }, async () => {
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
 
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
@@ -396,7 +396,7 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
     // The admin assigns the per-client role through the console editor.
     await signOut(page, stack.base)
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector(`[data-testid="registry-roles-open-${erinId}"]`, { timeout: SETTLE, polling: 500 })
@@ -484,7 +484,7 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
   it('leg 4 — the registry’s last-sign-in column reads the audit chain', { timeout: 600_000 }, async () => {
     await signOut(page, stack.base)
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector(`[data-testid="registry-lastsignin-${erinId}"]`, { timeout: SETTLE, polling: 500 })
@@ -549,7 +549,7 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
   it('leg 6 — reactivate: she signs in again, and the round trip still carries her assignment (the history was kept)', { timeout: 900_000 }, async () => {
     // The admin reactivates her from the console.
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector(`[data-testid="registry-toggle-${erinId}"]`, { timeout: SETTLE, polling: 500 })

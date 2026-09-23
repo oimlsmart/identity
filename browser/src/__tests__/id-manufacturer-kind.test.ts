@@ -107,7 +107,7 @@ demo_personas: true
   // join gate's negative leg), and the register operator a kind-NULL non-participant.
   await store.createOrgRegistryOrg({ id: 'EX1', name: 'Example Issuing Authority', shortName: 'EIA', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia.example.org' }], participantRef: 'EX1' })
   await store.createOrgRegistryOrg({ id: 'EX9', name: 'Second Example Issuing Authority', shortName: 'EIA-2', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia2.example.org' }], participantRef: 'EX9' })
-  await store.createOrgRegistryOrg({ id: 'mfr-acme', name: 'ACME (the demonstration manufacturer)', shortName: 'ACME', kind: 'manufacturer', country: 'Example Member State', contacts: [{ name: 'ACME Applicant', email: 'applicant@oiml.org' }], participantRef: null })
+  await store.createOrgRegistryOrg({ id: 'mfr-acme', name: 'ACME (the demonstration manufacturer)', shortName: 'ACME', kind: 'manufacturer', country: 'Example Member State', contacts: [{ name: 'ACME Applicant', email: 'applicant@oimlsmart.org' }], participantRef: null })
   await store.createOrgRegistryOrg({ id: 'mfr-dormant', name: 'Dormant Instruments', shortName: null, kind: 'manufacturer', country: null, contacts: [{ name: null, email: 'office@dormant.example.org' }], participantRef: null })
   await store.setOrgRegistryOrgState('mfr-dormant', 'disabled', 'the test seed')
   await store.createOrgRegistryOrg({ id: 'register-operator', name: 'The Register Operator', shortName: null, kind: null, country: null, contacts: [], participantRef: null })
@@ -139,7 +139,7 @@ describe('the manufacturer kind (the resolver)', () => {
     expect(mfr.registered).toBe(false) // the participant posture is the scheme’s
     expect(mfr.standing).toBe('declared')
     expect(mfr.roles).toEqual(['applicant', 'viewer'])
-    expect(mfr.emailDomain).toBe('oiml.org') // the demo contact declares the hint
+    expect(mfr.emailDomain).toBe('oimlsmart.org') // the demo contact declares the hint
     expect(admitsJoinFlow(mfr)).toBe(true)
 
     const ia = (await resolveRegistryOrg(store, 'EX1'))!
@@ -291,7 +291,7 @@ describe('the join flow’s manufacturer branch', () => {
     expect(await store.getOrgRegistryOrg('mfr-acme-sensors-2')).toBeNull()
 
     // The deciding admin sees the kind + the domain hint honestly.
-    const biml = await demoLogin('admin@oiml.org')
+    const biml = await demoLogin('admin@oimlsmart.org')
     const queue = await json(await app.request(`${ORIGIN}/api/op/join-requests`, { headers: { cookie: biml } }), 200)
     const row = queue.requests.find((r: any) => r.email === 'chen@acme-sensors.example.org')
     expect(row.orgKind).toBe('manufacturer')
@@ -333,7 +333,7 @@ describe('the join flow’s manufacturer branch', () => {
   })
 
   it('BIML approves the founder (the extended gate admits the active manufacturer org); the enrolled founder decides the colleague’s ask', async () => {
-    const biml = await demoLogin('admin@oiml.org')
+    const biml = await demoLogin('admin@oimlsmart.org')
     const queue = await json(await app.request(`${ORIGIN}/api/op/join-requests?scope=pending`, { headers: { cookie: biml } }), 200)
     const founderRow = queue.requests.find((r: any) => r.email === 'sofia@acme-sensors.example.org')
     expect(founderRow.requestedRole).toBe('org_admin')
@@ -391,7 +391,7 @@ describe('the join flow’s manufacturer branch', () => {
       body: JSON.stringify({ name: 'Late Founder', email: 'late@acme-instruments.example.org', org_kind: 'manufacturer', org_name_text: 'ACME Instruments' }),
     })
     await store.setOrgRegistryOrgState('mfr-acme-instruments', 'disabled', 'the test seed')
-    const biml = await demoLogin('admin@oiml.org')
+    const biml = await demoLogin('admin@oimlsmart.org')
     const queue = await json(await app.request(`${ORIGIN}/api/op/join-requests?scope=pending`, { headers: { cookie: biml } }), 200)
     const row = queue.requests.find((r: any) => r.email === 'late@acme-instruments.example.org')
     const res = await app.request(`${ORIGIN}/api/op/join-requests/${row.id}/approve`, {
@@ -413,7 +413,7 @@ describe('the join flow’s manufacturer branch', () => {
 
 describe('the IA endorsement acts', () => {
   it('the IA’s own officer confirms the relationship — the standing upgrades to ia-endorsed', async () => {
-    const cookie = await demoLogin('ia@oiml.org') // the demo cast's IA officer (EX1)
+    const cookie = await demoLogin('ia@oimlsmart.org') // the demo cast's IA officer (EX1)
     const res = await app.request(`${ORIGIN}/api/op/org-endorsements`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ org_id: 'mfr-acme-sensors', ia_org_id: 'EX1', note: 'R 60 application 2026-001 on file' }),
@@ -429,7 +429,7 @@ describe('the IA endorsement acts', () => {
     expect(org.endorsedBy).toEqual(['EX1'])
     expect(org.registered).toBe(false) // NEVER the participant standing
 
-    const biml = await demoLogin('admin@oiml.org')
+    const biml = await demoLogin('admin@oimlsmart.org')
     const view = await json(await app.request(`${ORIGIN}/api/op/registry/orgs/mfr-acme-sensors`, { headers: { cookie: biml } }), 200)
     expect(view.org.standing).toBe('ia-endorsed')
     expect(view.endorsements).toHaveLength(1)
@@ -445,7 +445,7 @@ describe('the IA endorsement acts', () => {
   })
 
   it('the refusals are honest: the duplicate, the wrong-kind target, the not-an-IA endorser, the anonymous, the outsider', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const dup = await app.request(`${ORIGIN}/api/op/org-endorsements`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ org_id: 'mfr-acme-sensors', ia_org_id: 'EX1' }),
@@ -472,7 +472,7 @@ describe('the IA endorsement acts', () => {
     })
     expect(anon.status).toBe(401)
     // …and the manufacturer's own people hold no endorsement grant.
-    const outsider = await demoLogin('applicant@oiml.org') // the ACME applicant (mfr-acme)
+    const outsider = await demoLogin('applicant@oimlsmart.org') // the ACME applicant (mfr-acme)
     const refused = await app.request(`${ORIGIN}/api/op/org-endorsements`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: outsider },
       body: JSON.stringify({ org_id: 'mfr-acme-sensors', ia_org_id: 'EX1' }),
@@ -481,7 +481,7 @@ describe('the IA endorsement acts', () => {
   })
 
   it('the registry operator records an endorsement naming another active IA (the curating act)', async () => {
-    const biml = await demoLogin('admin@oiml.org')
+    const biml = await demoLogin('admin@oimlsmart.org')
     const res = await app.request(`${ORIGIN}/api/op/org-endorsements`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: biml },
       body: JSON.stringify({ org_id: 'mfr-acme-sensors', ia_org_id: 'EX9', note: 'recorded from the signed letter' }),
@@ -493,7 +493,7 @@ describe('the IA endorsement acts', () => {
   })
 
   it('the withdrawal keeps the row + the audit; the cross-IA withdrawal is refused; the standing falls back honestly', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     // The IA's officer never withdraws ANOTHER IA's confirmation.
     const cross = await app.request(`${ORIGIN}/api/op/org-endorsements/mfr-acme-sensors/EX9`, {
       method: 'DELETE', headers: { cookie },
@@ -506,7 +506,7 @@ describe('the IA endorsement acts', () => {
     })
     const revoked = await json(res, 200)
     expect(revoked.standing).toBe('ia-endorsed')
-    expect(revoked.endorsement.revokedBy).toBe('ia@oiml.org')
+    expect(revoked.endorsement.revokedBy).toBe('ia@oimlsmart.org')
     // A second withdrawal finds nothing.
     const gone = await app.request(`${ORIGIN}/api/op/org-endorsements/mfr-acme-sensors/EX1`, {
       method: 'DELETE', headers: { cookie },
@@ -514,7 +514,7 @@ describe('the IA endorsement acts', () => {
     expect(gone.status).toBe(404)
 
     // The operator withdraws EX9's — the standing falls back to declared.
-    const biml = await demoLogin('admin@oiml.org')
+    const biml = await demoLogin('admin@oimlsmart.org')
     const last = await app.request(`${ORIGIN}/api/op/org-endorsements/mfr-acme-sensors/EX9`, {
       method: 'DELETE', headers: { cookie: biml },
     })

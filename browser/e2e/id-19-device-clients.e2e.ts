@@ -56,7 +56,7 @@ const DB_DIR = join(BROWSER_DIR, '.cache', 'id-19')
 const ID_API = 10595
 const ID_WEB = 10596
 
-const ADMIN_EMAIL = 'admin@oiml.org'
+const ADMIN_EMAIL = 'admin@oimlsmart.org'
 
 // The demo cast's instrument: ACME's LC-500 (the model supply chain's
 // product-reference spelling) on the demonstration manufacturer's org —

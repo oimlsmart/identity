@@ -42,8 +42,8 @@ const ID_API = 10601
 const ID_WEB = 10602
 
 const ORG = 'mfr-acme'
-const ORG_ADMIN = 'applicant@oiml.org' // the demo cast's mfr-acme org_admin
-const MEMBER = 'tl@oiml.org'
+const ORG_ADMIN = 'applicant@oimlsmart.org' // the demo cast's mfr-acme org_admin
+const MEMBER = 'tl@oimlsmart.org'
 
 const PLAIN_RP = {
   client_id: 'hub-instance',

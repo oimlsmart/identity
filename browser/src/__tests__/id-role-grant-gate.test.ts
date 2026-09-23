@@ -79,7 +79,7 @@ async function demoLogin(email: string): Promise<string> {
 /** The bare invite (NO enrollment — the account stays unverified);
  *  answers the account id + the setup URL. */
 async function inviteAccount(email: string, name: string, body: Record<string, unknown> = {}): Promise<{ id: string; setupUrl: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const res = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -138,7 +138,7 @@ demo_personas: true
   root.route('/api/users', createUsersRouter())
   app = root
 
-  await demoLogin('admin@oiml.org') // the bootstrap seed lands on the first OP request
+  await demoLogin('admin@oimlsmart.org') // the bootstrap seed lands on the first OP request
 })
 
 afterAll(async () => {
@@ -153,7 +153,7 @@ afterAll(async () => {
 
 describe('TODO.identity-sso/04 (the lifecycle tail) — the role grants refuse the unverified account', () => {
   it('REFUSED: a non-empty per-client grant to the never-verified account is the honest 409 + the audit event', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const { id } = await inviteAccount('greta@example.org', 'Greta Grant')
     expect((await store.getUserById(id))?.emailVerifiedAt ?? null, 'the invited account is unverified').toBeNull()
 
@@ -180,7 +180,7 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role grants refuse t
   })
 
   it('EMPTY SET: the explicit-none assignment stays allowed on the unverified account (it grants nothing)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = (await store.findUserByEmail('greta@example.org'))!.id
     const emptied = await app.request(`/api/op/accounts/${id}/client-roles/hub-instance`, {
       method: 'PUT',
@@ -191,7 +191,7 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role grants refuse t
   })
 
   it('VERIFIED: the enrollment lifts the gate — the same grant lands, audits, and mails the holder', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const account = (await store.findUserByEmail('greta@example.org'))!
     // A fresh setup link (the invite's is still valid, but the re-issue is
     // the admin's standing act — either proves the mailbox at completion).
@@ -219,7 +219,7 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role grants refuse t
   })
 
   it('USERS: the roles reassignment refuses the privileged set on the unverified OP account (409 + audit)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const { id } = await inviteAccount('ursula@example.org', 'Ursula Users')
 
     const grant = await app.request(`/api/users/${id}/roles`, {
@@ -237,7 +237,7 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role grants refuse t
   })
 
   it('USERS: the demotion to the viewer baseline stays allowed on the unverified account', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // The invite's own roles land unprivileged-or-not (the carve-out) —
     // this one carries ia_officer; the corrective act removes it while
     // the account is STILL unverified.
@@ -264,8 +264,8 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role grants refuse t
   })
 
   it('CARVE-OUT: the demo cast (fictional mailboxes, unverified by design) keeps its standing behavior', async () => {
-    const admin = await demoLogin('admin@oiml.org')
-    const biml = (await store.listUsers()).find(u => u.email === 'biml@oiml.org')!
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const biml = (await store.listUsers()).find(u => u.email === 'biml@oimlsmart.org')!
     expect(biml.provider, 'the demo cast is the demo provider').toBe('demo')
     expect(biml.emailVerifiedAt ?? null, 'the fictional mailbox never verifies').toBeNull()
     const before = biml.roles

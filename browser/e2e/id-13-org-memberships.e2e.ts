@@ -52,13 +52,13 @@ const ID_WEB = 9994
 
 // The cast: the Utilizer's org admin (created in leg 2 — a real OP
 // password account, the 02 enrollment seam) and the IA officer (the demo
-// cast's ia@oiml.org — primary EX1, the account that joins the Utilizer).
+// cast's ia@oimlsmart.org — primary EX1, the account that joins the Utilizer).
 const UTILIZER_ID = 'ut-nmi-nl'
 const UTILIZER_NAME = 'Example Metrology Authority (Netherlands)'
 const IA_ID = 'EX1'
 const ORG_ADMIN_EMAIL = 'sanne.devries@nmi.example.org'
 const ORG_ADMIN_PASSWORD = 'sanne de vries admin passphrase'
-const OFFICER_EMAIL = 'ia@oiml.org'
+const OFFICER_EMAIL = 'ia@oimlsmart.org'
 
 // The fixture RP for the claims proof (the contract gate's shape: a
 // confidential client carrying the role-claim policy).
@@ -418,7 +418,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     // The org admin's creation (the scheme operator's console).
     await signOut(page)
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="biml-org-admins"]', { timeout: SETTLE, polling: 500 })
@@ -529,7 +529,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
   it('leg 5 — the identity admin’s per-org registry view + the officer’s registry page memberships section', { timeout: 900_000 }, async () => {
     await signOut(page)
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
 
     // The per-org view: the members (the org_admin mark), the queue.
@@ -550,7 +550,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     // The officer's registry page: the memberships section lists both
     // orgs with their per-org roles + the primary mark.
     const accountsRes = await page.evaluate(async () => {
-      const res = await fetch('/api/op/registry/users?q=ia@oiml.org', { credentials: 'include' })
+      const res = await fetch('/api/op/registry/users?q=ia@oimlsmart.org', { credentials: 'include' })
       return res.json() as Promise<Array<{ id: string }>>
     })
     const officerId = accountsRes[0]!.id
@@ -604,7 +604,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
 
     // The per-org view shows the disabled state honestly (the identity
     // admin's read).
-    const wideCookie = await apiSignIn(stack.apiBase, 'admin@oiml.org')
+    const wideCookie = await apiSignIn(stack.apiBase, 'admin@oimlsmart.org')
     const viewRes = await fetch(`${stack.apiBase}/api/op/registry/orgs/${UTILIZER_ID}`, { headers: { cookie: wideCookie } })
     const view = await viewRes.json() as { members: Array<{ userId: string; state: string; disabledBy: string | null }> }
     const row = view.members.find(m => m.userId === uid)
@@ -619,7 +619,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     // admins list are EXACT (the boot's backfill only ever writes ACTIVE
     // primaries, and never an org_admin); the active count is ≥ 1
     // honestly (a backfilled demo primary may ride it).
-    const adminCookie = await apiSignIn(stack.apiBase, 'admin@oiml.org')
+    const adminCookie = await apiSignIn(stack.apiBase, 'admin@oimlsmart.org')
     const res = await fetch(`${stack.apiBase}/api/op/registry/orgs`, { headers: { cookie: adminCookie } })
     expect(res.status).toBe(200)
     const rows = await res.json() as Array<{
@@ -641,7 +641,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     // the page over the wire) renders the same counts.
     await signOut(page)
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await page.goto(`${stack.base}/op/admin/organizations`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector(`[data-testid="op-orgs-row-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })

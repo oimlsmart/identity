@@ -215,7 +215,7 @@ describe('TODO.identity-extract/02a — the identity-native frontend surface', (
       const res = await fetch(`${stack.apiBase}/api/auth/demo`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+        body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
       })
       if (!res.ok) throw new Error(`the demo sign-in → ${res.status}`)
       return res.headers.get('set-cookie')!.split(';')[0]!.split('=')[1]!

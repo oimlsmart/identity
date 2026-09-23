@@ -261,7 +261,7 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
     const login = await fetch(`${stack.apiBase}/api/auth/demo`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
     })
     expect(login.ok).toBe(true)
     const cookie = login.headers.get('set-cookie')!.split(';')[0]!
@@ -292,10 +292,10 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
 
   it('leg 2 — a signed-in account links the provider from the account page (the browser round trip)', { timeout: 900_000 }, async () => {
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'ia@oiml.org')
+    await opSignIn(page, 'ia@oimlsmart.org')
     // Signed in (the demo login lands on the role home).
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
-    expect(await sessionEmail(page)).toBe('ia@oiml.org')
+    expect(await sessionEmail(page)).toBe('ia@oimlsmart.org')
 
     await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-account"]', { timeout: APP_COLD, polling: 500 })
@@ -324,11 +324,11 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
     await page.evaluate(() => (document.querySelector('[data-testid="upstream-login-fixture-idp"]') as HTMLElement).click())
     await stubConsent(page, 'ada')
 
-    // The session started as the linked account (ia@oiml.org) — the
+    // The session started as the linked account (ia@oimlsmart.org) — the
     // redirect landed on a signed-in page (not the login page).
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
     await delay(1_000)
-    expect(await sessionEmail(page)).toBe('ia@oiml.org')
+    expect(await sessionEmail(page)).toBe('ia@oimlsmart.org')
   })
 
   it('leg 4 — an unlinked upstream identity is refused honestly (never matched by email)', { timeout: 900_000 }, async () => {
@@ -353,7 +353,7 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
 
   it('leg 5 — unlink from /op/account; the sign-in is then refused', { timeout: 900_000 }, async () => {
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'ia@oiml.org')
+    await opSignIn(page, 'ia@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
 
     await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })

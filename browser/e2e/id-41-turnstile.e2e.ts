@@ -190,7 +190,7 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
       // The sign-in THROUGH THE FORM: the token rides the POST, the
       // gate opens, the demo cast lands signed in (a refused bot check
       // would answer the form's error instead of navigating).
-      await page.type('[data-testid="login-email"]', 'ia@oiml.org')
+      await page.type('[data-testid="login-email"]', 'ia@oimlsmart.org')
       await page.type('[data-testid="login-password"]', 'demo2026')
       await page.evaluate(() => (document.querySelector('[data-testid="login-submit"]') as HTMLElement).click())
       flog(page, 'submitted')
@@ -212,7 +212,7 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
     const res = await fetch(`${stack!.base}/api/op/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'ia@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'ia@oimlsmart.org', password: 'demo2026' }),
     })
     expect(res.status).toBe(403)
     expect(((await res.json()) as { error: string }).error).toContain('bot')

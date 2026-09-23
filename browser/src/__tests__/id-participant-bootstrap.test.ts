@@ -86,7 +86,7 @@ demo_personas: true
 
   const { parseBootstrapDataset } = await import('../../server/import-org-registry')
   dataset = parseBootstrapDataset(readFileSync(DATASET_PATH, 'utf-8'))
-  admin = await demoLogin('admin@oiml.org')
+  admin = await demoLogin('admin@oimlsmart.org')
 })
 
 afterAll(async () => {

@@ -74,7 +74,7 @@ describe('SERVER_TIMING set — the store phase rides the header', () => {
     const res = await app.request(`${ISSUER}/api/auth/demo`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
     })
     expect(res.status).toBe(200)
     const m = res.headers.get('server-timing')?.match(BOTH_PHASES)
@@ -106,7 +106,7 @@ describe('SERVER_TIMING unset — the default, zero-overhead posture', () => {
     const login = await app.request(`${ISSUER}/api/auth/demo`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
     })
     expect(login.status).toBe(200)
     expect(login.headers.get('server-timing')).toMatch(APP_ONLY)

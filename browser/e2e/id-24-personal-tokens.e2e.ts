@@ -55,8 +55,8 @@ const DB_DIR = join(BROWSER_DIR, '.cache', 'id-24')
 const ID_API = 10605
 const ID_WEB = 10606
 
-const IA_EMAIL = 'ia@oiml.org'
-const ADMIN_EMAIL = 'admin@oiml.org'
+const IA_EMAIL = 'ia@oimlsmart.org'
+const ADMIN_EMAIL = 'admin@oimlsmart.org'
 
 // The register's services for the arc (the OP's client registry IS the
 // service registry): the hub + the register, both the application class.

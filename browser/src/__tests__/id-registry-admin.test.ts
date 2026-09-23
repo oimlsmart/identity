@@ -55,7 +55,7 @@ async function demoLogin(email: string): Promise<string> {
 /** Invite + enroll an account through the REAL routes; answers the
  *  account id. */
 async function inviteAndEnroll(email: string, name: string, password = 'a proper long passphrase'): Promise<string> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const invite = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -129,7 +129,7 @@ demo_personas: true
 
   // The demo cast lands on the first auth request; the GitHub provider row
   // (the link-on-behalf target) rides the registry directly.
-  await demoLogin('admin@oiml.org')
+  await demoLogin('admin@oimlsmart.org')
   await store.upsertIdentityProvider({
     id: 'github',
     kind: 'github',
@@ -152,7 +152,7 @@ afterAll(async () => {
 
 describe('the registry account list', () => {
   it('lists every account with its sign-in posture (never credentials); search + filters behave', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('ada.registry@example.org', 'Ada Registry')
     // A linked handle (the search's third leg) — linked on behalf below,
     // ahead of the list assertion.
@@ -203,7 +203,7 @@ describe('the registry account list', () => {
 
   it('is refused for anonymous and non-admin sessions', async () => {
     expect((await app.request('/api/op/registry/users')).status).toBe(401)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request('/api/op/registry/users', { headers: { cookie: viewer } })).status).toBe(403)
   })
 })
@@ -212,7 +212,7 @@ describe('the registry account list', () => {
 
 describe('the registry account detail', () => {
   it('answers the profile, the links, the live sessions, and the account’s own trail', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('bohr.registry@example.org', 'Bohr Registry')
     // A second live session.
     expect((await passwordLogin('bohr.registry@example.org', 'a proper long passphrase')).status).toBe(200)
@@ -241,7 +241,7 @@ describe('the registry account detail', () => {
 
 describe('the administrator’s link on behalf', () => {
   it('requires the justification note; the note lands in the audit metadata', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('curie.registry@example.org', 'Curie Registry')
 
     const bare = await app.request(`/api/op/registry/users/${id}/links`, {
@@ -259,7 +259,7 @@ describe('the administrator’s link on behalf', () => {
     })
     expect(ok.status).toBe(201)
     const link = await ok.json() as { provider: string; providerAccountId: string; linkedBy: string }
-    expect(link).toMatchObject({ provider: 'github', providerAccountId: 'curie-gh', linkedBy: 'admin@oiml.org' })
+    expect(link).toMatchObject({ provider: 'github', providerAccountId: 'curie-gh', linkedBy: 'admin@oimlsmart.org' })
 
     const rows = (await journal()).filter(e => e.action === 'account.link_on_behalf' && e.entity_id === id)
     expect(rows).toHaveLength(1)
@@ -268,7 +268,7 @@ describe('the administrator’s link on behalf', () => {
   })
 
   it('refuses the unknown provider and the conflict honestly', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('dirac.registry@example.org', 'Dirac Registry')
 
     const unknown = await app.request(`/api/op/registry/users/${id}/links`, {
@@ -296,7 +296,7 @@ describe('the administrator’s link on behalf', () => {
   })
 
   it('the admin unlink removes the link and journals the reason', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('galileo.registry@example.org', 'Galileo Registry')
     await app.request(`/api/op/registry/users/${id}/links`, {
       method: 'POST',
@@ -322,7 +322,7 @@ describe('the administrator’s link on behalf', () => {
 
 describe('the administrator’s session revocation', () => {
   it('ends the named session (it stops resolving at once); the others stand', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('herschel.registry@example.org', 'Herschel Registry')
     const login = await passwordLogin('herschel.registry@example.org', 'a proper long passphrase')
     const victim = login.headers.get('set-cookie')!.split(';')[0]!
@@ -351,7 +351,7 @@ describe('the administrator’s session revocation', () => {
 
 describe('the client registry console’s API', () => {
   it('a generated secret rides the registration response ONCE and authenticates at the token endpoint', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await app.request('/api/op/clients', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -453,7 +453,7 @@ describe('the client registry console’s API', () => {
   })
 
   it('generate_secret and a posted secret never mix; every client mutation is audited', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const mixed = await app.request('/api/op/clients', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -487,7 +487,7 @@ describe('the client registry console’s API', () => {
 
 describe('the registry activity feed', () => {
   it('answers the identity slice, newest first, capped and filterable', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await app.request('/api/op/registry/activity', { headers: { cookie: admin } })
     expect(res.status).toBe(200)
     const events = await res.json() as Array<{ action: string; timestamp: string; user_name?: string }>
@@ -511,12 +511,12 @@ describe('the registry activity feed', () => {
     expect(capped).toHaveLength(3)
 
     // The gate stands.
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request('/api/op/registry/activity', { headers: { cookie: viewer } })).status).toBe(403)
   })
 
   it('the global feed surfaces the join-request decisions (the org_join_request.* spelling, never the bare org_join. prefix)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // A decision row in the writer's own shape (routes/op-join.ts's audit:
     // entity_type org_join_requests, the action family org_join_request.*).
     const id = crypto.randomUUID()
@@ -548,7 +548,7 @@ describe('the registry activity feed', () => {
 
 describe('the detail aggregate’s admin view', () => {
   it('carries the lifecycle state, the verification + record stamps, and the honest trail total', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
 
     // The invited state: created, never enrolled (no password, never
     // signed in), the invite stamp is the record's beginning.
@@ -606,7 +606,7 @@ describe('the detail aggregate’s admin view', () => {
   })
 
   it('the app-access view names the reason per client (the claims rule, admin-side)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // The fixture clients: the plain role carrier, the allowlist-bound
     // one, the no-claims one, the disabled one.
     for (const [client_id, policy] of [
@@ -673,7 +673,7 @@ describe('the detail aggregate’s admin view', () => {
   })
 
   it('the account trail pages honestly (offset + limit, the total in every answer)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('pager.registry@example.org', 'Pager Registry')
     // More rows: a few audited acts (links on behalf land one apiece).
     for (const handle of ['pager-gh-1', 'pager-gh-2']) {
@@ -714,7 +714,7 @@ describe('the detail aggregate’s admin view', () => {
 
 describe('the administrator’s end-all-sessions', () => {
   it('ends EVERY live session at once and journals the count', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('spray.registry@example.org', 'Spray Registry')
     const cookieA = (await passwordLogin('spray.registry@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
     const cookieB = (await passwordLogin('spray.registry@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
@@ -743,9 +743,9 @@ describe('the administrator’s end-all-sessions', () => {
 
   it('holds the gates: anonymous 401, non-admin 403, unknown account 404', async () => {
     expect((await app.request('/api/op/registry/users/whatever/sessions/revoke-all', { method: 'POST' })).status).toBe(401)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request('/api/op/registry/users/whatever/sessions/revoke-all', { method: 'POST', headers: { cookie: viewer } })).status).toBe(403)
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     expect((await app.request('/api/op/registry/users/no-such-id/sessions/revoke-all', { method: 'POST', headers: { cookie: admin } })).status).toBe(404)
   })
 })
@@ -758,7 +758,7 @@ describe('the factors slot on the detail aggregate', () => {
     const { mintAuthenticator, attest } = await import('./factor-testkit')
     const { base64urlEncode } = await import('../../server/auth/op/webauthn')
     const { totpAtStep } = await import('../../server/auth/op/totp')
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const id = await inviteAndEnroll('factor-slot.registry@example.org', 'Slot Registry')
     const cookie = (await passwordLogin('factor-slot.registry@example.org', 'a proper long passphrase')).headers.get('set-cookie')!.split(';')[0]!
 
@@ -815,7 +815,7 @@ describe('the factors slot on the detail aggregate', () => {
 
     // The gates stand: anonymous 401, non-admin 403, unknown rows 404.
     expect((await app.request(`/api/op/registry/users/${id}/factors/totp/nope`, { method: 'DELETE' })).status).toBe(401)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     expect((await app.request(`/api/op/registry/users/${id}/factors/totp/nope`, { method: 'DELETE', headers: { cookie: viewer } })).status).toBe(403)
     expect((await app.request(`/api/op/registry/users/${id}/factors/totp/nope`, { method: 'DELETE', headers: { cookie: admin } })).status).toBe(404)
     expect((await app.request(`/api/op/registry/users/no-such-id/factors/totp/nope`, { method: 'DELETE', headers: { cookie: admin } })).status).toBe(404)

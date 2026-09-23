@@ -30,7 +30,7 @@
 //   npx tsx scripts/op-surface-contract.ts record http://localhost:9693 \
 //     --client-id fixture-rp --client-secret fixture-rp-secret \
 //     --redirect-uri http://127.0.0.1:9694/callback \
-//     --email ia@oiml.org --password demo2026
+//     --email ia@oimlsmart.org --password demo2026
 //   npx tsx scripts/op-surface-contract.ts check  <baseUrl> [creds…]
 //   npx tsx scripts/op-surface-contract.ts probe  https://id.oimlsmart.org
 //

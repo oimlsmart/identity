@@ -853,7 +853,7 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       const res = await fetch(`${stack.base}/api/auth/demo`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+        body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
       })
       expect(res.ok).toBe(true)
       return res.headers.get('set-cookie')!.split(';')[0]!.split('=')[1]!
