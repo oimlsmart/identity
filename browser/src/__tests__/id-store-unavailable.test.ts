@@ -39,7 +39,7 @@ const FAKE_WRITE = /^\s*(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP)/i
 
 class HangableStatement {
   constructor(
-    readonly facade: { hangWrites: boolean },
+    readonly facade: { hangWrites: boolean; hangSql: RegExp | null },
     readonly db: Database.Database,
     readonly sql: string,
     readonly params: unknown[],
@@ -52,6 +52,9 @@ class HangableStatement {
   private terminal<T>(kind: 'run' | 'all' | 'first'): Promise<T> {
     if (this.facade.hangWrites && FAKE_WRITE.test(this.sql)) {
       return new Promise<T>(() => {}) // the path flap: no answer, ever
+    }
+    if (this.facade.hangSql?.test(this.sql)) {
+      return new Promise<T>(() => {}) // the selective flap (the seed arbiter's shape: ONE statement hangs, the rest run)
     }
     if (kind === 'run') {
       const res = this.db.prepare(this.sql).run(...(this.params as never[]))
@@ -68,7 +71,7 @@ class HangableStatement {
   first<T>(): Promise<T | null> { return this.terminal<T | null>('first') }
 }
 
-const facade = { hangWrites: false }
+const facade = { hangWrites: false, hangSql: null as RegExp | null }
 let app: import('hono').Hono
 
 beforeAll(async () => {
@@ -182,5 +185,101 @@ describe('the bounded-write outage posture (the 2026-09-01 lesson)', () => {
     const body = await res.json() as { error?: string }
     expect(body.error).toBe('Invalid email or password')
     expect(elapsed).toBeLessThan(5_000)
+  }, 30_000)
+})
+
+describe("the bootstrap seed's read-back arbiter (the 2026-09-23 lesson)", () => {
+  // The production trace: the bootstrap seed's `INSERT INTO oidc_clients`
+  // rode a hung write-confirm; the seed wrapper re-ran the whole seed on
+  // the next credential request and the login answered 503 — even though
+  // the timed-out write may well have LANDED. The arbiter (routes/
+  // op-seed-guard.ts): on a timed-out confirm, read the declared content
+  // back and PROCEED when it is complete; rethrow only a genuinely
+  // incomplete seed.
+  const SEED_ACCOUNT = { email: 'seeded-admin@example.org', name: 'The Seeded Admin', role: 'admin' }
+  const SEED_CLIENT = {
+    client_id: 'seeded-rp',
+    name: 'The Seeded RP',
+    secret: 'seeded-secret',
+    redirect_uris: ['https://rp.example.org/callback'],
+    claims_policy: { claims: ['email'] },
+  }
+  let seedApp: import('hono').Hono
+
+  beforeAll(async () => {
+    process.env.OP_ACCOUNT_SEED = JSON.stringify([SEED_ACCOUNT])
+    process.env.OP_CLIENT_SEED = JSON.stringify([SEED_CLIENT])
+    // The content ALREADY LANDED (the timed-out confirm's premise): the
+    // declared rows planted directly, the account with its password set
+    // (so the seed's account step is reads only — no enrollment mint).
+    const { installedStore } = await import('../../server/store')
+    const store = installedStore()!
+    const account = await store.createOpAccount({ email: SEED_ACCOUNT.email, name: SEED_ACCOUNT.name, role: SEED_ACCOUNT.role })
+    await store.setPasswordHash(account!.id, await hashPassword('a correct horse battery staple'))
+    await store.upsertOidcClient({
+      clientId: SEED_CLIENT.client_id,
+      name: SEED_CLIENT.name,
+      secretHash: 'seeded',
+      redirectUris: SEED_CLIENT.redirect_uris,
+      claimsPolicy: null,
+      createdBy: 'test',
+    })
+    // A FRESH app: the seed memo is per-app (the per-isolate posture) —
+    // the shared app above already ran its seed on the earlier logins.
+    const { createApiApp } = await import('../../server/app')
+    seedApp = createApiApp({ autoSeedDemo: false })
+  })
+
+  afterAll(() => {
+    delete process.env.OP_ACCOUNT_SEED
+    delete process.env.OP_CLIENT_SEED
+    facade.hangSql = null
+  })
+
+  function seedLogin() {
+    return seedApp.request('/api/op/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: SEED_ACCOUNT.email, password: 'a correct horse battery staple' }),
+    })
+  }
+
+  it("the seed's write confirm times out, the read-back proves the content landed — the login PROCEEDS, never the 503", async () => {
+    // ONLY the client-registry upsert hangs; every other statement runs.
+    facade.hangSql = /INSERT INTO oidc_clients/
+    const started = Date.now()
+    const res = await seedLogin()
+    const elapsed = Date.now() - started
+    facade.hangSql = null
+    expect(res.status).toBe(200)
+    expect(res.headers.get('set-cookie')).toContain('oiml-session=')
+    // The answer carried the budget stall (the arbiter ran after it) —
+    // bounded, never the spin.
+    expect(elapsed).toBeGreaterThanOrEqual(BUDGET_MS)
+    expect(elapsed).toBeLessThan(5_000)
+  }, 30_000)
+
+  it('a genuinely incomplete seed keeps the honest 503 + the retry posture', async () => {
+    // The declared account does NOT exist and its write hangs: the
+    // read-back answers incomplete, the StoreUnavailable rethrows, the
+    // route surface's 503 mapping stands (the wrapper clears its memo —
+    // the next credential request retries).
+    process.env.OP_ACCOUNT_SEED = JSON.stringify([{ email: 'missing@example.org', name: 'The Missing', role: 'admin' }])
+    const { createApiApp } = await import('../../server/app')
+    const freshApp = createApiApp({ autoSeedDemo: false })
+    facade.hangSql = /INSERT INTO users/
+    const started = Date.now()
+    const res = await freshApp.request('/api/op/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'missing@example.org', password: 'whatever' }),
+    })
+    const elapsed = Date.now() - started
+    facade.hangSql = null
+    expect(res.status).toBe(503)
+    const body = await res.json() as Record<string, unknown>
+    expect(body.code).toBe('store_unavailable')
+    expect(body.retryable).toBe(true)
+    expect(elapsed).toBeGreaterThanOrEqual(BUDGET_MS)
   }, 30_000)
 })
