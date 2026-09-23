@@ -176,7 +176,7 @@ demo_personas: true
     createdBy: 'the test seed',
   })
 
-  await demoLogin('admin@oiml.org') // the demo cast lands
+  await demoLogin('admin@oimlsmart.org') // the demo cast lands
 })
 
 afterAll(() => {
@@ -190,7 +190,7 @@ afterAll(() => {
 
 describe('the registry validation (the device class’s shape)', () => {
   it('registers a device client — the view carries the class + the device block, never the human-cone fields', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await registerClient(admin, {
       client_id: DEVICE_CLIENT_ID,
       name: 'ACME LC-500 sn 0001 (the twin)',
@@ -220,7 +220,7 @@ describe('the registry validation (the device class’s shape)', () => {
   })
 
   it('refuses the human-cone shape on a device: redirect_uris, a launch card, user claims, the public posture', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const base = { name: 'A misdeclared device', class: 'device', device: DEVICE, generate_secret: true }
     const cases: Array<[string, Record<string, unknown>, string]> = [
       ['redirect_uris', { ...base, client_id: 'dev-bad-uris', redirect_uris: ['https://device.example/callback'] }, 'no redirect_uris'],
@@ -246,7 +246,7 @@ describe('the registry validation (the device class’s shape)', () => {
   })
 
   it('the class is FIXED at registration: an application never re-declares as device; a device edit keeps the class + the stored binding', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // An application client…
     const appRes = await registerClient(admin, {
       client_id: 'app-fixed', name: 'The application fixture', generate_secret: true,
@@ -293,7 +293,7 @@ describe('the token endpoint (the device grant)', () => {
   beforeAll(async () => {
     // The grant legs' own device client (a fresh registration with a
     // known secret — the rotate/revoke legs ride it).
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await registerClient(admin, {
       client_id: 'device-grant', name: 'The grant fixture (an LC-500 twin)',
       class: 'device', device: { ...DEVICE, id: 'acme-lc500-sn-0002' }, generate_secret: true,
@@ -397,7 +397,7 @@ describe('the token endpoint (the device grant)', () => {
   })
 
   it('the audit chain carries the device’s arc: register, rotate-secret, the issuance, the revocation (the disable)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
 
     // The secret rotation (the re-key): the old secret stops working at
     // once, the new one mints.

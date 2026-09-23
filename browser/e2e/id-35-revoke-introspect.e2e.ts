@@ -60,7 +60,7 @@ const RP_CLIENT_SECRET = 'fixture-rp-secret'
 const DEVICE_ID = 'device-grant'
 const DEVICE_SECRET = 'device-secret-e2e'
 const DEVICE_MACHINE_ID = 'acme-lc500-sn-0001'
-const ACCOUNT = 'ia@oiml.org' // the demo cast (dev-reset seeds it; the form takes demo2026)
+const ACCOUNT = 'ia@oimlsmart.org' // the demo cast (dev-reset seeds it; the form takes demo2026)
 
 interface Stack {
   api: ChildProcess
@@ -449,7 +449,7 @@ describe('TODO.identity-sso (the wave-C token surface) — revocation + introspe
     const adminLogin = await fetch(`${stack.apiBase}/api/auth/demo`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
     })
     expect(adminLogin.ok, 'the admin demo sign-in').toBe(true)
     const adminCookie = adminLogin.headers.get('set-cookie')!.split(';')[0]!

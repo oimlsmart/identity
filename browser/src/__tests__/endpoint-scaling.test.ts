@@ -322,7 +322,7 @@ demo_personas: true
   const login = await app.request(`${ISSUER}/api/auth/demo`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+    body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
   })
   expect(login.ok, 'the admin demo login stands').toBe(true)
   adminCookie = login.headers.get('set-cookie')!.split(';')[0]!

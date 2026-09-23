@@ -225,7 +225,7 @@ describe('the discovery document', () => {
 
 describe('the full round trip (the RP validator consumes the OP token)', () => {
   it('authorize → consent → code → token → userinfo', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
 
     const result = await driveAuthorize(cookie, {
@@ -240,7 +240,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
     expect(result.consent.client.name).toBe('OIML SMART platform hub')
     expect(result.consent.scopes).toEqual(['openid', 'profile', 'email'])
     expect(result.consent.policyClaims).toEqual(['roles', 'groups', 'org'])
-    expect(result.consent.account.email).toBe('ia@oiml.org')
+    expect(result.consent.account.email).toBe('ia@oimlsmart.org')
     expect(result.state).toBe('state-abc')
     expect(new URL(result.redirect).origin + new URL(result.redirect).pathname).toBe(CONFIDENTIAL.redirect_uris[0])
 
@@ -266,7 +266,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
     }, appFetch)
     expect(claims.iss).toBe(ISSUER)
     expect(claims.aud).toBe(CONFIDENTIAL.client_id)
-    expect(claims.email).toBe('ia@oiml.org')
+    expect(claims.email).toBe('ia@oimlsmart.org')
     expect(claims.name).toBe('IA Officer')
     // The client's claims policy drives the role claims.
     expect(claims.roles).toEqual(['ia_officer'])
@@ -280,7 +280,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
     expect(userinfo.status).toBe(200)
     expect(await userinfo.json()).toMatchObject({
       sub: claims.sub,
-      email: 'ia@oiml.org',
+      email: 'ia@oimlsmart.org',
       name: 'IA Officer',
       roles: ['ia_officer'],
       org: 'EX1',
@@ -288,7 +288,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
   })
 
   it('a public client (no secret) exchanges with PKCE alone, and carries NO role claims', async () => {
-    const cookie = await demoLogin('tl@oiml.org')
+    const cookie = await demoLogin('tl@oimlsmart.org')
     const pkce = await generatePkce()
     const result = await driveAuthorize(cookie, {
       clientId: PUBLIC.client_id,
@@ -312,7 +312,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
       nonce: 'pub-nonce',
       jwksUri: `${ISSUER}/jwks.json`,
     }, appFetch)
-    expect(claims.email).toBe('tl@oiml.org')
+    expect(claims.email).toBe('tl@oimlsmart.org')
     // The claims policy is a per-client privilege: no policy, no roles.
     expect(claims.roles).toBeUndefined()
     expect(claims.groups).toBeUndefined()
@@ -323,7 +323,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
 
 describe('PKCE + the one-time code', () => {
   it('a wrong verifier loses, and the code is spent either way', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const result = await driveAuthorize(cookie, {
       clientId: CONFIDENTIAL.client_id,
@@ -355,7 +355,7 @@ describe('PKCE + the one-time code', () => {
   })
 
   it('a replayed code is refused', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const result = await driveAuthorize(cookie, {
       clientId: CONFIDENTIAL.client_id,
@@ -376,7 +376,7 @@ describe('PKCE + the one-time code', () => {
   })
 
   it('a wrong client secret is refused before the code is touched', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const result = await driveAuthorize(cookie, {
       clientId: CONFIDENTIAL.client_id,
@@ -463,7 +463,7 @@ describe('the sign-in surface + the consent decision', () => {
   })
 
   it('deny returns error=access_denied to the RP, and no code', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const result = await driveAuthorize(cookie, {
       clientId: CONFIDENTIAL.client_id,
@@ -479,8 +479,8 @@ describe('the sign-in surface + the consent decision', () => {
   })
 
   it('a different account cannot decide another account’s consent', async () => {
-    const ia = await demoLogin('ia@oiml.org')
-    const viewer = await demoLogin('viewer@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     const pkce = await generatePkce()
 
     const query = new URLSearchParams({
@@ -509,13 +509,13 @@ describe('the registry admin surface', () => {
   it('anonymous and non-admin sessions are refused', async () => {
     const anon = await app.request(`${ISSUER}/api/op/clients`)
     expect(anon.status).toBe(401)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     const notAdmin = await app.request(`${ISSUER}/api/op/clients`, { headers: { cookie: viewer } })
     expect(notAdmin.status).toBe(403)
   })
 
   it('the admin lists and registers clients (the secret never reads back)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const list = await app.request(`${ISSUER}/api/op/clients`, { headers: { cookie: admin } })
     expect(list.status).toBe(200)
     const clients = await list.json() as Array<{ clientId: string; confidential: boolean }>
@@ -537,7 +537,7 @@ describe('the registry admin surface', () => {
     expect(await created.json()).toMatchObject({ clientId: 'nmi-instance', confidential: true, status: 'active' })
 
     // The registered client round-trips: authorize → token with its secret.
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const result = await driveAuthorize(cookie, {
       clientId: 'nmi-instance',
@@ -578,7 +578,7 @@ describe('the public avatar route (GET /op/avatar/:id)', () => {
     const mem = memoryBlobs()
     installBlobStore(mem)
     try {
-      const ia = (await store.findUserByEmail('ia@oiml.org'))!
+      const ia = (await store.findUserByEmail('ia@oimlsmart.org'))!
       await mem.put(avatarKey(ia.id, 'image/png'), PNG, 'image/png')
       // NO session cookie — the GitHub-avatars posture.
       const res = await app.request(`${ISSUER}/op/avatar/${ia.id}`)
@@ -596,7 +596,7 @@ describe('the public avatar route (GET /op/avatar/:id)', () => {
     // NO blob store bound at all: the initials still serve.
     const { uninstallBlobStoreForTest } = await import('../../server/blobs')
     uninstallBlobStoreForTest()
-    const ia = (await store.findUserByEmail('ia@oiml.org'))!
+    const ia = (await store.findUserByEmail('ia@oimlsmart.org'))!
     const res = await app.request(`${ISSUER}/op/avatar/${ia.id}`)
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('image/svg+xml')
@@ -644,8 +644,8 @@ describe('the picture claim (the per-client family)', () => {
   }
 
   it('carries the public avatar URL only with the policy AND an uploaded avatar; userinfo matches', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
-    const ia = (await store.findUserByEmail('ia@oiml.org'))!
+    const cookie = await demoLogin('ia@oimlsmart.org')
+    const ia = (await store.findUserByEmail('ia@oimlsmart.org'))!
     await store.upsertOidcClient({
       clientId: PICTURE_RP.client_id,
       name: PICTURE_RP.name,

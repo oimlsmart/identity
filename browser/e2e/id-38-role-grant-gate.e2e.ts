@@ -344,7 +344,7 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role-grant verificat
     // The demo cast: fictional mailboxes, unverified by design — the gate
     // is the OP password accounts', never theirs.
     const users = await (await fetch(`${stack.base}/api/users`, { headers: { cookie: `oiml-session=${rootCookie}` } })).json() as Array<{ id: string; email: string; role: string; roles: string[]; provider: string }>
-    const biml = users.find(u => u.email === 'biml@oiml.org')!
+    const biml = users.find(u => u.email === 'biml@oimlsmart.org')!
     expect(biml.provider).toBe('demo')
     const demoGrant = await fetch(`${stack.base}/api/users/${biml.id}/roles`, {
       method: 'PUT',

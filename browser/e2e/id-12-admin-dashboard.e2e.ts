@@ -297,7 +297,7 @@ describe('TODO.identity-sso/01 — the admin dashboard', () => {
 
   it('leg 1 — /op/admin lands on the overview: the tiles, the series, the stubbed SLO window', { timeout: 900_000 }, async () => {
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await opSignIn(page, 'admin@oiml.org')
+    await opSignIn(page, 'admin@oimlsmart.org')
     await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
 
     // The invite + the two sign-in outcomes give the tiles their numbers.
@@ -487,7 +487,7 @@ describe('TODO.identity-sso/01 — the admin dashboard', () => {
     // The live access review names the demo admin among the privileged.
     await page.waitForSelector('[data-testid="op-sec-review-holders"]', { timeout: SETTLE, polling: 500 })
     const holders = await page.$eval('[data-testid="op-sec-review-holders"]', el => el.textContent ?? '')
-    expect(holders).toContain('admin@oiml.org')
+    expect(holders).toContain('admin@oimlsmart.org')
 
     // The status probe's cadence (the recognized X-OIML-Probe token):
     // six exercised invalid-credentials checks on one address — past the

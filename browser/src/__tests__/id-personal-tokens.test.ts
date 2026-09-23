@@ -200,7 +200,7 @@ demo_personas: true
     createdBy: 'the test seed',
   })
 
-  await demoLogin('admin@oiml.org') // the demo cast lands
+  await demoLogin('admin@oimlsmart.org') // the demo cast lands
 })
 
 afterAll(() => {
@@ -214,7 +214,7 @@ afterAll(() => {
 
 describe('the mint (the console act)', () => {
   it('mints for the officer: the plaintext answers ONCE, the store holds only the hash, the audit + the email land', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     const res = await mintPat(ia, { name: 'the lab CLI', scopes: [`${HUB.clientId}:read`, `${HUB.clientId}:write`, `${REGISTER.clientId}:read`] })
     expect(res.status).toBe(201)
     const body = await res.json() as { token: { id: string; plaintext: string; prefix: string; scopes: string[]; expiresAt: string; state: string } }
@@ -256,7 +256,7 @@ describe('the mint (the console act)', () => {
   })
 
   it('refuses the malformed + the over-broad, honestly', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     // The grammar refuses: a malformed cell, the empty set, a bare string.
     expect((await mintPat(ia, { name: 'x', scopes: ['hub'] })).status).toBe(400)
     expect((await mintPat(ia, { name: 'x', scopes: [] })).status).toBe(400)
@@ -282,7 +282,7 @@ describe('the mint (the console act)', () => {
   })
 
   it('the viewer mints read only — the write class refuses (the narrowing bound)', async () => {
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     // The viewer enters the hub with the viewer role (no permissions):
     // read stands, write refuses.
     const read = await mintPat(viewer, { name: 'the reader', scopes: [`${HUB.clientId}:read`] })
@@ -304,7 +304,7 @@ describe('the mint (the console act)', () => {
 
 describe('the exchange (the RFC 8693 grant)', () => {
   it('the valid exchange mints the scoped OP JWT — the claims verified against the JWKS', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     const minted = await (await mintPat(ia, { name: 'the exchange leg', scopes: [`${HUB.clientId}:write`, `${REGISTER.clientId}:read`] })).json() as { token: { id: string; plaintext: string } }
 
     const res = await exchange(minted.token.plaintext)
@@ -318,7 +318,7 @@ describe('the exchange (the RFC 8693 grant)', () => {
     expect(claims.iss).toBe(ISSUER)
     expect(claims.scope).toBe(`${HUB.clientId}:write ${REGISTER.clientId}:read`)
     expect(claims.aud).toEqual([HUB.clientId, REGISTER.clientId])
-    expect(claims.email).toBe('ia@oiml.org')
+    expect(claims.email).toBe('ia@oimlsmart.org')
     expect(claims.org, 'the active-org context (the demo IA’s EX1)').toBe('EX1')
     expect(claims.pat).toBe(minted.token.id)
     expect(claims.service_roles).toMatchObject({ [HUB.clientId]: ['ia_officer'], [REGISTER.clientId]: ['ia_officer'] })
@@ -339,7 +339,7 @@ describe('the exchange (the RFC 8693 grant)', () => {
   })
 
   it('the refusal lattice: unknown / expired / revoked / wrong-standing answer the ONE invalid_grant', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     const minted = await (await mintPat(ia, { name: 'the lattice', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string; plaintext: string } }
 
     // Unknown (a well-shaped token no row knows).
@@ -375,7 +375,7 @@ describe('the exchange (the RFC 8693 grant)', () => {
     // The expired row refuses (the store row written directly with a
     // past expiry — the route never mints one).
     const { mintPatSecret, hashPat, patDisplayPrefix } = await import('../../server/auth/op/tokens')
-    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oimlsmart.org')!
     const expiredSecret = mintPatSecret()
     await store.createPersonalAccessToken({
       id: 'pat-expired', userId: iaRow.id, name: 'the expired one',
@@ -395,7 +395,7 @@ describe('the exchange (the RFC 8693 grant)', () => {
   })
 
   it('the per-exchange scope parameter narrows, never widens', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     const minted = await (await mintPat(ia, { name: 'the narrowing', scopes: [`${HUB.clientId}:write`, `${REGISTER.clientId}:read`] })).json() as { token: { plaintext: string } }
     // The subset exchange.
     const narrowed = await exchange(minted.token.plaintext, { scope: `${HUB.clientId}:read` })
@@ -409,8 +409,8 @@ describe('the exchange (the RFC 8693 grant)', () => {
   })
 
   it('the standing re-judgment: a role lost since the mint narrows the exchange honestly', async () => {
-    const ia = await demoLogin('ia@oiml.org')
-    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
+    const ia = await demoLogin('ia@oimlsmart.org')
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oimlsmart.org')!
     const minted = await (await mintPat(ia, { name: 'the re-judgment', scopes: [`${HUB.clientId}:read`, `${REGISTER.clientId}:read`] })).json() as { token: { id: string; plaintext: string } }
     // The account loses the register between the mint and the exchange
     // (the explicit per-client none).
@@ -443,8 +443,8 @@ describe('the exchange (the RFC 8693 grant)', () => {
 
 describe('the org inventory + the erasure', () => {
   it('the org detail carries the members’ tokens (the metadata only, the holder resolved)', async () => {
-    const ia = await demoLogin('ia@oiml.org')
-    const admin = await demoLogin('admin@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const minted = await (await mintPat(ia, { name: 'the inventory row', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string; plaintext: string } }
 
     const res = await app.request(`${ISSUER}/api/op/registry/orgs/EX1`, { headers: { cookie: admin } })
@@ -452,7 +452,7 @@ describe('the org inventory + the erasure', () => {
     const view = await res.json() as { tokens: Array<{ id: string; name: string; holder: { name: string; email: string }; state: string; prefix: string }> }
     const row = view.tokens.find(t => t.id === minted.token.id)!
     expect(row, 'the member’s token is on the org’s inventory').toBeTruthy()
-    expect(row.holder).toMatchObject({ name: 'IA Officer', email: 'ia@oiml.org' })
+    expect(row.holder).toMatchObject({ name: 'IA Officer', email: 'ia@oimlsmart.org' })
     expect(row.state).toBe('active')
     // The FULL plaintext is the leak vector — a fixed prefix would
     // flake against the row's own random display prefix (the 1/64).
@@ -464,8 +464,8 @@ describe('the org inventory + the erasure', () => {
   })
 
   it('the erasure carries the tokens out — the exchange never resolves a tombstone', async () => {
-    const ia2 = await demoLogin('ia2@oiml.org')
-    const ia2Row = (await store.listUsers()).find(u => u.email === 'ia2@oiml.org')!
+    const ia2 = await demoLogin('ia2@oimlsmart.org')
+    const ia2Row = (await store.listUsers()).find(u => u.email === 'ia2@oimlsmart.org')!
     const minted = await (await mintPat(ia2, { name: 'the erased account’s token', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string; plaintext: string } }
     expect((await exchange(minted.token.plaintext)).status).toBe(200)
     const erased = await store.eraseOpAccount(ia2Row.id)
@@ -477,7 +477,7 @@ describe('the org inventory + the erasure', () => {
 
 describe('the management acts (issue #115 — rename + scope editing after creation)', () => {
   it('renames: the row + the list answer the new name, the audit carries from→to, the mail rides', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     const minted = await (await mintPat(ia, { name: 'the lab CLI', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string } }
     const res = await app.request(`${ISSUER}/api/op/account/tokens/${minted.token.id}`, {
       method: 'PATCH',
@@ -497,7 +497,7 @@ describe('the management acts (issue #115 — rename + scope editing after creat
   })
 
   it('edits the scopes both ways — the live narrowing bounds, the direction audits distinctly', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     const minted = await (await mintPat(ia, { name: 'the mutable one', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string } }
     const id = minted.token.id
 
@@ -534,8 +534,8 @@ describe('the management acts (issue #115 — rename + scope editing after creat
   })
 
   it('the refusal lattice: not-mine 404, revoked 409, malformed 400, anonymous 401', async () => {
-    const ia = await demoLogin('ia@oiml.org')
-    const other = await demoLogin('biml@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
+    const other = await demoLogin('biml@oimlsmart.org')
     const minted = await (await mintPat(ia, { name: 'the guarded one', scopes: [`${HUB.clientId}:read`] })).json() as { token: { id: string } }
     const id = minted.token.id
     const patch = (cookie: string, body: Record<string, unknown>) => app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
@@ -624,7 +624,7 @@ async function introspect(pat: string, clientId = HUB.clientId): Promise<Respons
 
 describe('the introspection + the permissions (TODO.openapi/03)', () => {
   it('the catalog proxy serves the instance\'s own projection (never a local copy)', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
     const res = await app.request(`${ISSUER}/api/op/account/tokens/catalog?service=${HUB.clientId}`, { headers: { cookie: ia } })
     expect(res.status).toBe(200)
@@ -642,7 +642,7 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
   })
 
   it('the mint validates the permissions against the instance\'s served catalog, persists, echoes', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
     // The unknown id refuses, NAMING it.
     const refused = await mintPat(ia, { name: 'the over-reach', scopes: [`${HUB.clientId}:read`], permissions: ['tl-workbench.runs.purge'] })
@@ -687,7 +687,7 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
       pat: mintBody.token.id,
       token_type: 'access_token',
     })
-    expect(answer.sub, 'the account id').toBe((await store.listUsers()).find(u => u.email === 'ia@oiml.org')!.id)
+    expect(answer.sub, 'the account id').toBe((await store.listUsers()).find(u => u.email === 'ia@oimlsmart.org')!.id)
     expect(answer.service_roles).toMatchObject({ [HUB.clientId]: ['ia_officer'] })
     expect(answer.org, 'the active-org context (the demo IA’s EX1)').toBe('EX1')
     expect(typeof answer.cone, 'the live membership cone').toBe('string')
@@ -701,7 +701,7 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
   })
 
   it('the introspection lattice: revoked, expired, unknown answer the ONE inactive', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
     const minted = await mintPat(ia, { name: 'the lattice', scopes: [`${HUB.clientId}:read`] })
     const { id, plaintext } = ((await minted.json()) as { token: { id: string; plaintext: string } }).token
@@ -713,7 +713,7 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
 
     // Expired → inactive (the row written directly with a past expiry).
     const { mintPatSecret, hashPat, patDisplayPrefix } = await import('../../server/auth/op/tokens')
-    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oimlsmart.org')!
     const expiredSecret = mintPatSecret()
     await store.createPersonalAccessToken({
       id: 'pat-introspect-expired', userId: iaRow.id, name: 'the expired probe',
@@ -736,11 +736,11 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
   })
 
   it('the introspection is the LIVE judgment: a service lost since the mint falls away', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
     const minted = await mintPat(ia, { name: 'the re-judged probe', scopes: [`${HUB.clientId}:read`, `${REGISTER.clientId}:read`] })
     const { plaintext } = ((await minted.json()) as { token: { plaintext: string } }).token
-    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oimlsmart.org')!
     // The account loses the hub explicitly (the register stays on the
     // account-wide roles).
     await store.setOpClientRoles(iaRow.id, HUB.clientId, [], 'the test')
@@ -753,7 +753,7 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
   })
 
   it('the permissions edit: adding gates on fresh auth, removing never gates', async () => {
-    const ia = await demoLogin('ia@oiml.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
     stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
     const minted = await mintPat(ia, {
       name: 'the edited one', scopes: [`${HUB.clientId}:read`], permissions: ['tl-workbench.runs.read'],
@@ -782,7 +782,7 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
     expect((narrowedEvent!.metadata as { removed?: string[] }).removed).toContain('tl-workbench.runs.read')
 
     // A fresh session widens; the widened act is audited distinctly.
-    const fresh = await demoLogin('ia@oiml.org')
+    const fresh = await demoLogin('ia@oimlsmart.org')
     const widenFresh = await app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
       method: 'PATCH', headers: { 'content-type': 'application/json', cookie: fresh },
       body: JSON.stringify({ permissions: ['tl-workbench.runs.read'] }),
@@ -794,9 +794,9 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
 
   it('the admin mint for another user: the target\'s standing bounds, the admin is the audit actor', async () => {
     stubInstanceFetch({ [HUB_CATALOG_URL]: { status: 200, body: FIXTURE_CATALOG } })
-    const admin = await demoLogin('admin@oiml.org')
-    const ia = await demoLogin('ia@oiml.org')
-    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const ia = await demoLogin('ia@oimlsmart.org')
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oimlsmart.org')!
 
     // The non-admin caller never reaches the family.
     const forbidden = await app.request(`${ISSUER}/api/op/registry/users/${iaRow.id}/tokens`, { headers: { cookie: ia } })
@@ -837,13 +837,13 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
     const mintedEvent = events.find(e => e.action === 'account.pat_minted' && e.metadata?.pat === mintBody.token.id)
     expect(mintedEvent, 'the mint is on the chain').toBeTruthy()
     expect(mintedEvent!.entity_id).toBe(iaRow.id)
-    expect(mintedEvent!.user_id, 'the admin is the actor').toBe((await store.listUsers()).find(u => u.email === 'admin@oiml.org')!.id)
+    expect(mintedEvent!.user_id, 'the admin is the actor').toBe((await store.listUsers()).find(u => u.email === 'admin@oimlsmart.org')!.id)
     expect(mintedEvent!.metadata?.by).toBe('administrator')
     expect(events.find(e => e.entity_type === 'email' && (e.metadata as { template?: string })?.template === 'pat_minted'), 'the holder learned').toBeTruthy()
 
     // The target's standing bounds: the viewer never takes a write class
     // from an admin's hand either.
-    const viewerRow = (await store.listUsers()).find(u => u.email === 'viewer@oiml.org')!
+    const viewerRow = (await store.listUsers()).find(u => u.email === 'viewer@oimlsmart.org')!
     const overBroad = await app.request(`${ISSUER}/api/op/registry/users/${viewerRow.id}/tokens`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },

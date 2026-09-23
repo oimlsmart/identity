@@ -160,7 +160,7 @@ describe('the step-up module (the pure seam)', () => {
 
 describe('the authorize freshness gate (max_age)', () => {
   it('a fresh session passes its max_age and reaches consent', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const query = new URLSearchParams({
       response_type: 'code',
@@ -177,7 +177,7 @@ describe('the authorize freshness gate (max_age)', () => {
   })
 
   it('max_age=0 demands a fresh authentication even with a live session', async () => {
-    const cookie = await demoLogin('tl@oiml.org')
+    const cookie = await demoLogin('tl@oimlsmart.org')
     const pkce = await generatePkce()
     const query = new URLSearchParams({
       response_type: 'code',
@@ -198,7 +198,7 @@ describe('the authorize freshness gate (max_age)', () => {
   })
 
   it('a malformed max_age refuses the redirect-shaped way', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const pkce = await generatePkce()
     const query = new URLSearchParams({
       response_type: 'code',
@@ -218,7 +218,7 @@ describe('the authorize freshness gate (max_age)', () => {
 
 describe('the achieved acr rides the ID token', () => {
   it('a password session answers the single-factor acr with its auth_time', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const claims = await driveToIdToken(cookie)
     expect(claims.acr).toBe('urn:oimlsmart:acr:single-factor')
     expect(claims.amr).toEqual(['pwd'])

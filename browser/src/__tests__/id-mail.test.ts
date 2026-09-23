@@ -470,7 +470,7 @@ describe('the OP routes with the mailer bound', () => {
   }
 
   async function invite(email: string, name: string): Promise<InviteResponse> {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await app.request('/api/op/accounts', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -500,7 +500,7 @@ demo_personas: true
     root.route('/', createOpAccountsRouter())
     app = root
     stub = await startStubMailer({ expectedKey: 'stub-mail-key' })
-    await demoLogin('admin@oiml.org') // the demo cast lands on the first auth request
+    await demoLogin('admin@oimlsmart.org') // the demo cast lands on the first auth request
   })
 
   afterAll(async () => {
@@ -567,7 +567,7 @@ demo_personas: true
     bindStubProvider()
     stub.reset()
     const accountId = (await store.findUserByEmail('willa@example.org'))!.id
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const res = await app.request(`/api/op/accounts/${accountId}/enrollment`, {
       method: 'POST',
       headers: { cookie: admin },
@@ -588,7 +588,7 @@ demo_personas: true
     stub.reset()
     try {
       const accountId = (await store.findUserByEmail('willa@example.org'))!.id
-      const admin = await demoLogin('admin@oiml.org')
+      const admin = await demoLogin('admin@oimlsmart.org')
       const first = await app.request(`/api/op/accounts/${accountId}/enrollment`, { method: 'POST', headers: { cookie: admin } })
       expect((await first.json() as { mail: { sent: boolean } }).mail.sent).toBe(true)
       const second = await app.request(`/api/op/accounts/${accountId}/enrollment`, { method: 'POST', headers: { cookie: admin } })
@@ -702,7 +702,7 @@ demo_personas: true
     // The oracle legs: an unknown address, a DEACTIVATED account, and a
     // non-OP (demo cast) address all answer the SAME 200 — and send
     // NOTHING.
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const invited = await invite('dormant@example.org', 'Dormant Account')
     await app.request(`/api/op/accounts/${invited.account.id}/status`, {
       method: 'POST',
@@ -710,7 +710,7 @@ demo_personas: true
       body: JSON.stringify({ active: false }),
     })
     stub.reset()
-    for (const target of ['ghost@example.org', 'dormant@example.org', 'admin@oiml.org']) {
+    for (const target of ['ghost@example.org', 'dormant@example.org', 'admin@oimlsmart.org']) {
       const r = await app.request('/api/op/login/reset', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

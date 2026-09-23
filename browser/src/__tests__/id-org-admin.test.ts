@@ -173,10 +173,10 @@ describe('the org-scoped users API (org.users.manage)', () => {
   it('lists ONLY the org’s own users — the demo cast and every other org stay invisible', async () => {
     const cookie = await demoLogin('admin@nmi.example.org')
     const rows = await json(await app.request(`${ORIGIN}/api/users`, { headers: { cookie } }), 200)
-    // The demo Utilizer officer (utilizer@oiml.org) is BOUND to the NL
+    // The demo Utilizer officer (utilizer@oimlsmart.org) is BOUND to the NL
     // Utilizer org (TODO.adoption/10 — the register link), so the org
     // admin's slice carries it.
-    expect(rows.map((u: any) => u.email).sort()).toEqual(['admin@nmi.example.org', 'reviewer@nmi.example.org', 'utilizer@oiml.org'])
+    expect(rows.map((u: any) => u.email).sort()).toEqual(['admin@nmi.example.org', 'reviewer@nmi.example.org', 'utilizer@oimlsmart.org'])
   })
 
   it('answers ONLY the roles the org’s kind bounds (a Utilizer’s staff: viewer + scheme_participant)', async () => {
@@ -283,7 +283,7 @@ describe('the org-scoped users API (org.users.manage)', () => {
 
 describe('the eligibility rule (users.manage assigning org_admin)', () => {
   it('creates the org admin for a REGISTERED org…', async () => {
-    const cookie = await demoLogin('admin@oiml.org')
+    const cookie = await demoLogin('admin@oimlsmart.org')
     const res = await app.request(`${ORIGIN}/api/users`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ email: 'admin@etl.example.org', name: 'TL Admin', role: 'org_admin', orgId: '21' }),
@@ -294,7 +294,7 @@ describe('the eligibility rule (users.manage assigning org_admin)', () => {
   })
 
   it('…and refuses the unregistered, the mid-pipeline, and the org-less binding', async () => {
-    const cookie = await demoLogin('admin@oiml.org')
+    const cookie = await demoLogin('admin@oimlsmart.org')
     // XX1 is mid-pipeline (draft Declaration) — not registered.
     const mid = await app.request(`${ORIGIN}/api/users`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
@@ -318,7 +318,7 @@ describe('the eligibility rule (users.manage assigning org_admin)', () => {
   })
 
   it('the roles reassignment applies the rule too (org_admin onto an unregistered org’s account is refused)', async () => {
-    const cookie = await demoLogin('admin@oiml.org')
+    const cookie = await demoLogin('admin@oimlsmart.org')
     // officer@eia.example.org sits in EX1 (registered) — fine…
     const iaTarget = (await store.listUsers()).find(u => u.email === 'officer@eia.example.org')!
     const ok = await app.request(`${ORIGIN}/api/users/${iaTarget.id}/roles`, {
@@ -326,8 +326,8 @@ describe('the eligibility rule (users.manage assigning org_admin)', () => {
       body: JSON.stringify({ role: 'ia_officer', roles: ['ia_officer', 'org_admin'] }),
     })
     expect(ok.status).toBe(200)
-    // …but the demo cast's biml@oiml.org has NO org — org_admin there is refused.
-    const noOrg = (await store.listUsers()).find(u => u.email === 'biml@oiml.org')!
+    // …but the demo cast's biml@oimlsmart.org has NO org — org_admin there is refused.
+    const noOrg = (await store.listUsers()).find(u => u.email === 'biml@oimlsmart.org')!
     const refused = await app.request(`${ORIGIN}/api/users/${noOrg.id}/roles`, {
       method: 'PUT', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ role: 'biml_officer', roles: ['biml_officer', 'org_admin'] }),
@@ -409,7 +409,7 @@ describe('the join flow (the org selector + the queues)', () => {
     const orgQueue = await json(await app.request(`${ORIGIN}/api/op/join-requests?scope=unregistered`, { headers: { cookie: orgCookie } }), 200)
     expect(orgQueue.requests.every((r: any) => r.orgId === 'ut-nmi-nl')).toBe(true)
     // …and BIML's unregistered queue does.
-    const bimlCookie = await demoLogin('admin@oiml.org')
+    const bimlCookie = await demoLogin('admin@oimlsmart.org')
     const bimlQueue = await json(await app.request(`${ORIGIN}/api/op/join-requests?scope=unregistered`, { headers: { cookie: bimlCookie } }), 200)
     expect(bimlQueue.grant).toBe('wide')
     expect(bimlQueue.requests.map((r: any) => r.id)).toContain(created.id)
@@ -487,7 +487,7 @@ describe('the join flow (the org selector + the queues)', () => {
   })
 
   it('BIML approves the not-listed request onto the NOW-REGISTERED org — the org admin is created; an unregistered target is refused', async () => {
-    const cookie = await demoLogin('admin@oiml.org')
+    const cookie = await demoLogin('admin@oimlsmart.org')
     const queue = await json(await app.request(`${ORIGIN}/api/op/join-requests?scope=unregistered`, { headers: { cookie } }), 200)
     const row = queue.requests.find((r: any) => r.email === 'contact@new-nmi.example.org')
 
@@ -560,7 +560,7 @@ describe('the org invites (POST /api/op/org-invites)', () => {
   })
 
   it('BIML creates the org admin for a REGISTERED org through the same seam (the eligibility rule holds)', async () => {
-    const cookie = await demoLogin('admin@oiml.org')
+    const cookie = await demoLogin('admin@oimlsmart.org')
     // The unregistered target is refused…
     const refused = await app.request(`${ORIGIN}/api/op/org-invites`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },

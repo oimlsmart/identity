@@ -55,7 +55,7 @@ const DB_DIR = join(BROWSER_DIR, '.cache', 'id-23')
 const ID_API = 10603
 const ID_WEB = 10604
 
-const ADMIN_EMAIL = 'admin@oiml.org'
+const ADMIN_EMAIL = 'admin@oimlsmart.org'
 
 // The service binding's org: the demonstration manufacturer on the
 // profile's org registry seed (the same org id-19's device binds).

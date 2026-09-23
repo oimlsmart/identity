@@ -105,7 +105,7 @@ async function passwordLogin(email: string, password: string): Promise<{ status:
 /** Invite + enroll an account; answers { id } + the session cookie the
  *  completion sets. */
 async function enrollAccount(email: string, name: string, password: string): Promise<{ id: string; cookie: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const invite = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -224,7 +224,7 @@ demo_personas: true
     issuer: idp.issuer, clientId: IDP_CLIENT_ID, clientSecretRef: 'env:FIXTURE_IDP_SECRET', enabled: true,
   })
 
-  await demoLogin('admin@oiml.org') // the bootstrap seed lands on the first OP request
+  await demoLogin('admin@oimlsmart.org') // the bootstrap seed lands on the first OP request
 })
 
 afterAll(async () => {
@@ -370,7 +370,7 @@ describe('TODO.identity-sso/04 slice D — the security notices fire on their tr
 
   it('ROLES: a non-empty grant mails client_roles_granted; the empty set + the clear never mail', async () => {
     const { id } = await enrollAccount('rex@example.org', 'Rex Roles', 'rex has a proper passphrase')
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     stub.reset()
     const grant = await app.request(`/api/op/accounts/${id}/client-roles/hub-instance`, {
       method: 'PUT',

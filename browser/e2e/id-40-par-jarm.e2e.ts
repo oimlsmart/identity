@@ -126,7 +126,7 @@ describe('the PAR + JARM leg (TODO.modern/15 — the FAPI posture over the boote
   })
 
   it('the push → the signed response → the decoded code exchanges; the request_uri is single-use', async () => {
-    const cookie = await apiSignIn('ia@oiml.org')
+    const cookie = await apiSignIn('ia@oimlsmart.org')
     const pkce = await generatePkce()
 
     // Leg 1 — the PUSH (RFC 9126): the whole request on the back channel.

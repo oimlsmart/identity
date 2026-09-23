@@ -217,7 +217,7 @@ demo_personas: true
   app = root
 
   // The bootstrap seed lands on the first REGISTRY request.
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   expect((await app.request(`${ISSUER}/api/op/clients`, { headers: { cookie: admin } })).status).toBe(200)
 })
 
@@ -232,9 +232,9 @@ afterAll(() => {
 
 describe('the gate (the registry surface’s own rule)', () => {
   it('admits the platform admin and the scheme operator only; the unknown client 404s', async () => {
-    const admin = await demoLogin('admin@oiml.org')
-    const csAdmin = await demoLogin('cs@oiml.org')
-    const viewer = await demoLogin('viewer@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const csAdmin = await demoLogin('cs@oimlsmart.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
 
     expect((await governance(PLAIN_ID, '')).status, 'the unauthenticated ask').toBe(401)
     expect((await governance(PLAIN_ID, viewer)).status, 'the plain account').toBe(403)
@@ -246,7 +246,7 @@ describe('the gate (the registry surface’s own rule)', () => {
 
 describe('the governance answer (the console’s expansion)', () => {
   it('carries the whole consent history, the population counts, and the audit slice — never a token value', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const OFFLINE = 'openid profile offline_access'
 
     // Two accounts grant the SAME public client (each its own triple).
@@ -333,7 +333,7 @@ describe('the governance answer (the console’s expansion)', () => {
   })
 
   it('the per-client isolation: another client’s answer carries none of this client’s rows', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // Petra grants the HUB too (the confidential client, its own triple).
     const petra = await signInAndExchange(PETRA, 'openid profile', { id: HUB_ID, redirect: HUB_REDIRECT, secret: HUB_SECRET })
     expect(petra.refreshToken, 'no offline scope, no refresh row').toBeNull()

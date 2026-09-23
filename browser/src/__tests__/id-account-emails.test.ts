@@ -75,7 +75,7 @@ async function demoLogin(email: string): Promise<string> {
 
 /** Invite + enroll an account; answers { id, cookie }. */
 async function enrollAccount(email: string, name: string, password = 'a perfectly good passphrase'): Promise<{ id: string; cookie: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const invite = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -141,7 +141,7 @@ demo_personas: true
   root.route('/api/auth', createAuthLeanRouter({ autoSeedDemo: true }))
   root.route('/', createOpAccountsRouter())
   app = root
-  await demoLogin('admin@oiml.org')
+  await demoLogin('admin@oimlsmart.org')
 })
 
 afterAll(async () => {
@@ -188,7 +188,7 @@ describe('the additional-address add', () => {
     expect((await ask('boris@example.org')).status).toBe(400) // its own primary
     expect((await ask('cora@example.org')).status).toBe(409) // another account's primary
     expect((await ask('boris.alias@example.org', other.cookie)).status).toBe(409) // another account's additional
-    expect((await ask('admin@oiml.org')).status).toBe(409) // a demo-cast address
+    expect((await ask('admin@oimlsmart.org')).status).toBe(409) // a demo-cast address
     // The idempotent re-add of the account's OWN row: 201 again, one row only.
     expect((await ask('boris.alias@example.org')).status).toBe(201)
     expect((await emailsOf(cookie)).length).toBe(2)
@@ -296,7 +296,7 @@ describe('the per-address verification ceremony (the kind add link)', () => {
     bindStubProvider()
     stub.reset()
     const { id } = await enrollAccount('gwen@example.org', 'Gwen Example')
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     void admin
     const cookie = (await passwordLogin('gwen@example.org', 'a perfectly good passphrase')).headers.get('set-cookie')!.split(';')[0]!
 
@@ -446,7 +446,7 @@ describe('the erasure', () => {
     await store.markAccountEmailVerified(id, 'mona.alias@example.org')
     expect((await passwordLogin('mona.alias@example.org', 'a perfectly good passphrase')).status).toBe(200)
 
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const erase = await app.request(`/api/op/accounts/${id}`, { method: 'DELETE', headers: { cookie: admin } })
     expect(erase.status).toBe(200)
 

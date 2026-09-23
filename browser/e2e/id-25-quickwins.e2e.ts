@@ -43,7 +43,7 @@ const ISSUER = `http://localhost:${ID_WEB}`
 const SUPPORT_URL = 'mailto:info@oimlsmart.org'
 
 /** The demo cast member the per-account leg signs in as. */
-const IA = { email: 'ia@oiml.org', password: 'demo2026' }
+const IA = { email: 'ia@oimlsmart.org', password: 'demo2026' }
 
 interface Stack {
   api: ChildProcess

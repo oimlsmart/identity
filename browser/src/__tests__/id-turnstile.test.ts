@@ -90,7 +90,7 @@ describe('the route gate (the three postures)', () => {
     globalThis.fetch = (async () => new Response(JSON.stringify({ success: false }), { status: 200 })) as typeof fetch
     const res = await app.request(`${ISSUER}/api/op/login`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026', 'cf-turnstile-response': 'bad' }),
+      body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026', 'cf-turnstile-response': 'bad' }),
     })
     expect(res.status).toBe(403)
     expect(((await res.json()) as { error: string }).error).toContain('bot')

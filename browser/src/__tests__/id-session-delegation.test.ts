@@ -229,7 +229,7 @@ demo_personas: true
   root.route('/', createOpRouter())
   app = root
 
-  await demoLogin('admin@oiml.org') // the demo cast lands
+  await demoLogin('admin@oimlsmart.org') // the demo cast lands
 })
 
 afterAll(() => {
@@ -242,7 +242,7 @@ afterAll(() => {
 
 describe('the session delegation (the RFC 8693 exchange, the access-token subject)', () => {
   it('the valid exchange mints the narrowed JWT — the actor named, the JWKS verifies', async () => {
-    const subject = await signInForAccessToken('ia@oiml.org')
+    const subject = await signInForAccessToken('ia@oimlsmart.org')
     const res = await delegate(subject, { scope: `${HUB.client_id}:read` })
     expect(res.status).toBe(200)
     const body = await res.json() as { access_token: string; issued_token_type: string; token_type: string; expires_in: number; scope: string }
@@ -254,7 +254,7 @@ describe('the session delegation (the RFC 8693 exchange, the access-token subjec
     expect(claims.iss).toBe(ISSUER)
     expect(claims.scope).toBe(`${HUB.client_id}:read`)
     expect(claims.aud).toEqual([HUB.client_id])
-    expect(claims.email).toBe('ia@oiml.org')
+    expect(claims.email).toBe('ia@oimlsmart.org')
     expect(claims.org, 'the sign-in’s active-org context (the demo IA’s EX1)').toBe('EX1')
     expect(claims.service_roles).toMatchObject({ [HUB.client_id]: ['ia_officer'] })
     // The ACTOR claim names the delegating service (the relying party's
@@ -273,8 +273,8 @@ describe('the session delegation (the RFC 8693 exchange, the access-token subjec
   })
 
   it('the standing re-judgment: a role lost since the sign-in narrows the answer honestly', async () => {
-    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
-    const subject = await signInForAccessToken('ia@oiml.org')
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oimlsmart.org')!
+    const subject = await signInForAccessToken('ia@oimlsmart.org')
     // The account loses the register between the sign-in and the
     // exchange (the explicit per-client none).
     await store.setOpClientRoles(iaRow.id, REGISTER.client_id, [], 'the test')
@@ -298,7 +298,7 @@ describe('the session delegation (the RFC 8693 exchange, the access-token subjec
   })
 
   it('the binding: another client’s token never exchanges (the foreign-token leg)', async () => {
-    const subject = await signInForAccessToken('ia@oiml.org')
+    const subject = await signInForAccessToken('ia@oimlsmart.org')
     // The hub (a different registered client, its own secret) presents
     // the ASSISTANT's subject — refused, indistinguishable on the wire.
     const foreign = await delegate(subject, { scope: `${HUB.client_id}:read` }, { clientId: HUB.client_id, secret: HUB.secret })
@@ -311,7 +311,7 @@ describe('the session delegation (the RFC 8693 exchange, the access-token subjec
   })
 
   it('the lattice: no client auth, the wrong secret, the unknown subject — all refuse honestly', async () => {
-    const subject = await signInForAccessToken('ia@oiml.org')
+    const subject = await signInForAccessToken('ia@oimlsmart.org')
     // No client authentication at all → invalid_client.
     const anon = await delegate(subject, { scope: `${HUB.client_id}:read` }, null)
     expect(anon.status).toBe(401)
@@ -329,7 +329,7 @@ describe('the session delegation (the RFC 8693 exchange, the access-token subjec
   })
 
   it('the scope is required, grammatical, and account-bound', async () => {
-    const subject = await signInForAccessToken('ia@oiml.org')
+    const subject = await signInForAccessToken('ia@oimlsmart.org')
     // Absent → invalid_scope (the delegation names its narrowed target).
     const absent = await delegate(subject)
     expect(absent.status).toBe(400)
@@ -342,7 +342,7 @@ describe('the session delegation (the RFC 8693 exchange, the access-token subjec
     expect(((await nobody.json()) as { error: string }).error).toBe('invalid_grant')
     // The viewer's write class refuses (the action-class bound): the
     // viewer enters the hub read-only — write drops, the set empties.
-    const viewerSubject = await signInForAccessToken('viewer@oiml.org')
+    const viewerSubject = await signInForAccessToken('viewer@oimlsmart.org')
     const write = await delegate(viewerSubject, { scope: `${HUB.client_id}:write` })
     expect(((await write.json()) as { error: string }).error).toBe('invalid_grant')
     const viewerRead = await delegate(viewerSubject, { scope: `${HUB.client_id}:read` })
@@ -368,8 +368,8 @@ describe('the session delegation (the RFC 8693 exchange, the access-token subjec
   })
 
   it('the deactivated account’s sessions die with it (the standing leg)', async () => {
-    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oiml.org')!
-    const subject = await signInForAccessToken('ia@oiml.org')
+    const iaRow = (await store.listUsers()).find(u => u.email === 'ia@oimlsmart.org')!
+    const subject = await signInForAccessToken('ia@oimlsmart.org')
     await store.setUserActive(iaRow.id, false)
     const dead = await delegate(subject, { scope: `${HUB.client_id}:read` })
     expect(((await dead.json()) as { error: string }).error).toBe('invalid_grant')

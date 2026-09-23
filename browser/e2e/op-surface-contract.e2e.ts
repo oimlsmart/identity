@@ -20,7 +20,7 @@
 //   npx tsx scripts/op-surface-contract.ts record http://localhost:9693 \
 //     --client-id fixture-rp --client-secret fixture-rp-secret \
 //     --redirect-uri http://127.0.0.1:9694/callback \
-//     --email ia@oiml.org --password demo2026
+//     --email ia@oimlsmart.org --password demo2026
 //
 // SELF-CONTAINED: the suite's shared stack (E2E_BASE_URL) is untouched.
 // ═══════════════════════════════════════════════════════════════════
@@ -147,7 +147,7 @@ describe('TODO.identity-ops — the OIDC-surface contract gate', () => {
       clientId: RP_CLIENT_ID,
       clientSecret: RP_CLIENT_SECRET,
       redirectUri: RP_REDIRECT_URI,
-      email: 'ia@oiml.org',
+      email: 'ia@oimlsmart.org',
       password: 'demo2026',
     })
 
@@ -162,7 +162,7 @@ describe('TODO.identity-ops — the OIDC-surface contract gate', () => {
       diffs,
       `the OIDC surface drifted from the committed golden:\n${diffs.join('\n')}\n` +
       'An INTENDED change re-records deliberately: npx tsx scripts/op-surface-contract.ts record ' +
-      `${ISSUER} --client-id ${RP_CLIENT_ID} --client-secret ${RP_CLIENT_SECRET} --redirect-uri ${RP_REDIRECT_URI} --email ia@oiml.org --password demo2026`,
+      `${ISSUER} --client-id ${RP_CLIENT_ID} --client-secret ${RP_CLIENT_SECRET} --redirect-uri ${RP_REDIRECT_URI} --email ia@oimlsmart.org --password demo2026`,
     ).toEqual([])
   })
 })

@@ -6,7 +6,7 @@
 // governance surface over real HTTP and the real UI, no stubs on the OP
 // side:
 //
-//   leg 1  THE API: the browser signs tl@oiml.org in through the RP with
+//   leg 1  THE API: the browser signs tl@oimlsmart.org in through the RP with
 //          the offline ask (the consent grant + the rotation family land
 //          for the fixture client); the governance endpoint — read as
 //          the ADMIN over the wire — answers the client slice (the
@@ -58,8 +58,8 @@ const RP_PORT = 10646
 const ISSUER = `http://localhost:${ID_WEB}` // the astro origin (the browser's OP)
 const RP_CLIENT_ID = 'fixture-rp'
 const RP_CLIENT_SECRET = 'fixture-rp-secret'
-const ACCOUNT = 'tl@oiml.org' // the demo cast (dev-reset seeds it; the form takes demo2026)
-const ADMIN = 'admin@oiml.org'
+const ACCOUNT = 'tl@oimlsmart.org' // the demo cast (dev-reset seeds it; the form takes demo2026)
+const ADMIN = 'admin@oimlsmart.org'
 
 interface Stack {
   api: ChildProcess

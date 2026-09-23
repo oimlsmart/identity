@@ -96,14 +96,14 @@ afterAll(() => {
 
 describe('the widening PATCH demands fresh proof', () => {
   it('a FRESH session widens (the act proceeds)', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const id = await mintReadToken(cookie)
     const widened = await patchScopes(cookie, id, [`${HUB.client_id}:read`, `${HUB.client_id}:write`])
     expect(widened.status).toBe(200)
   })
 
   it('a STALE session refuses the widening with the distinct shape', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const id = await mintReadToken(cookie)
     backdate(cookie.split('=')[1]!, 2 * 60 * 60)
     const refused = await patchScopes(cookie, id, [`${HUB.client_id}:read`, `${HUB.client_id}:write`])
@@ -113,7 +113,7 @@ describe('the widening PATCH demands fresh proof', () => {
   })
 
   it('a NARROWING edit is never gated (friction only where the risk is)', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const id = await mintReadToken(cookie)
     backdate(cookie.split('=')[1]!, 2 * 60 * 60)
     const narrowed = await patchScopes(cookie, id, [`${HUB.client_id}:read`])
@@ -121,7 +121,7 @@ describe('the widening PATCH demands fresh proof', () => {
   })
 
   it('the rename alone is never gated', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const id = await mintReadToken(cookie)
     backdate(cookie.split('=')[1]!, 2 * 60 * 60)
     const res = await app.request(`${ISSUER}/api/op/account/tokens/${id}`, {
@@ -141,7 +141,7 @@ describe('the org-key rotation demands fresh proof', () => {
     })
 
   it('a STALE session refuses before anything else', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     backdate(cookie.split('=')[1]!, 2 * 60 * 60)
     const res = await rotate(cookie)
     expect(res.status).toBe(403)
@@ -150,7 +150,7 @@ describe('the org-key rotation demands fresh proof', () => {
   })
 
   it('a FRESH session proceeds past the freshness gate (its own honest refusal for the unknown key)', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const res = await rotate(cookie)
     const body = await res.json().catch(() => ({})) as { code?: string }
     expect(body.code).not.toBe('fresh_auth_required')

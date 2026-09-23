@@ -154,7 +154,7 @@ demo_personas: false
   // The central federating user: a demo persona's session over real HTTP.
   const demo = await fetch(`${CENTRAL}/api/auth/demo`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@oiml.org', password: 'demo2026' }),
+    body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
   })
   expect(demo.status).toBe(200)
   centralCookie = demo.headers.get('set-cookie')!.split(';')[0]!

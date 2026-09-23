@@ -77,7 +77,7 @@ const DEMO_MANUFACTURER_ORGS = [
     name: 'ACME (the demonstration manufacturer)',
     shortName: 'ACME',
     country: 'Example Member State',
-    contacts: [{ name: 'ACME Applicant', email: 'applicant@oiml.org' }],
+    contacts: [{ name: 'ACME Applicant', email: 'applicant@oimlsmart.org' }],
   },
 ] as const
 

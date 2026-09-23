@@ -67,7 +67,7 @@ async function demoLogin(email: string): Promise<string> {
 /** Invite an account as the admin; answers the API payload (the account
  *  + the one-time setup link). */
 async function invite(email: string, name: string, role = 'viewer'): Promise<{ account: { id: string; email: string }; setupUrl: string }> {
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const res = await app.request('/api/op/accounts', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: admin },
@@ -120,7 +120,7 @@ demo_personas: true
   root.route('/', createOpAccountsRouter())
   app = root
   // The demo cast lands on the first auth request (ensureInit).
-  await demoLogin('admin@oiml.org')
+  await demoLogin('admin@oimlsmart.org')
 }, 30_000)
 
 afterAll(async () => {
@@ -259,7 +259,7 @@ describe('the enrollment link (one-time, 24 h)', () => {
   })
 
   it('the admin can re-issue a fresh link when one expires', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const { account } = await invite('grace@example.org', 'Grace Example')
     const fresh = await app.request(`/api/op/accounts/${account.id}/enrollment`, {
       method: 'POST',
@@ -366,11 +366,11 @@ describe('the invite surface', () => {
   it('anonymous and non-admin sessions are refused; the duplicate email answers 409', async () => {
     const anon = await app.request('/api/op/accounts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'x@y.org', name: 'X' }) })
     expect(anon.status).toBe(401)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     const notAdmin = await app.request('/api/op/accounts', { method: 'POST', headers: { 'content-type': 'application/json', cookie: viewer }, body: JSON.stringify({ email: 'x@y.org', name: 'X' }) })
     expect(notAdmin.status).toBe(403)
 
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const dupe = await app.request('/api/op/accounts', { method: 'POST', headers: { 'content-type': 'application/json', cookie: admin }, body: JSON.stringify({ email: 'heidi@example.org', name: 'Heidi Again' }) })
     expect(dupe.status).toBe(409)
     // The invite payload never carries credential material.
@@ -382,7 +382,7 @@ describe('the invite surface', () => {
   })
 
   it('the account list answers the sign-in posture (never credentials)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const list = await app.request('/api/op/accounts', { headers: { cookie: admin } })
     expect(list.status).toBe(200)
     const rows = await list.json() as Array<{ email: string; passwordSet: boolean; links: unknown[] }>
@@ -670,10 +670,10 @@ describe('the account erasure (DELETE /api/op/accounts/:id)', () => {
   it('anonymous and non-admin sessions are refused; the unknown id 404s', async () => {
     const anon = await app.request('/api/op/accounts/nope', { method: 'DELETE' })
     expect(anon.status).toBe(401)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     const notAdmin = await app.request('/api/op/accounts/nope', { method: 'DELETE', headers: { cookie: viewer } })
     expect(notAdmin.status).toBe(403)
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const unknown = await app.request('/api/op/accounts/nope', { method: 'DELETE', headers: { cookie: admin } })
     expect(unknown.status).toBe(404)
   })
@@ -687,7 +687,7 @@ describe('the account erasure (DELETE /api/op/accounts/:id)', () => {
   })
 
   it('the full erasure: every credential, link-token and grant goes; the row is an anonymized tombstone; the email is free again', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const invited = await invite('quentin@example.org', 'Quentin Erased')
     const cookie = await enroll(invited.setupUrl, 'quentin has a proper passphrase')
     const id = invited.account.id

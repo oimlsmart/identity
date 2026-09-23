@@ -310,7 +310,7 @@ describe('the SSO home', () => {
       // rides the DEMO endpoint directly: the form's OP password attempt
       // (/api/op/login) would seed the client registry (op-accounts'
       // bootstrap middleware) and the pristine state would be gone.
-      const cookie = await demoCookie(stack!.apiBase, 'viewer@oiml.org')
+      const cookie = await demoCookie(stack!.apiBase, 'viewer@oimlsmart.org')
       const viewerToken = cookie.split('=')[1]!
       await page.setCookie({ name: 'oiml-session', value: viewerToken, url: stack!.base })
       await gotoHome(page, stack!.base)
@@ -337,7 +337,7 @@ describe('the SSO home', () => {
     const { browser, page } = await newBrowser()
     try {
       flog(page, 'leg 2: the client editor')
-      await signIn(page, stack!.base, 'admin@oiml.org', 'demo2026')
+      await signIn(page, stack!.base, 'admin@oimlsmart.org', 'demo2026')
       // The post-login landing IS the launcher.
       expect(new URL(page.url()).pathname).toBe('/op/home')
       await page.goto(`${stack!.base}/op/admin/clients`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
@@ -386,7 +386,7 @@ describe('the SSO home', () => {
       // The siblings ride the registry API (the editor's own surface):
       // the TL (the request-access posture), the assistant (open to
       // every signed-in account), the machine relay (no card).
-      const adminCookie = await demoCookie(stack!.apiBase, 'admin@oiml.org')
+      const adminCookie = await demoCookie(stack!.apiBase, 'admin@oimlsmart.org')
       const hub = (await (await fetch(`${stack!.apiBase}/api/op/clients`, { headers: { cookie: adminCookie } })).json() as Array<{ clientId: string; launch: { description: string | null } | null }>)
         .find(c => c.clientId === 'hub-instance')
       expect(hub?.launch?.description).toBe('The certification hub, edited.')
@@ -425,7 +425,7 @@ describe('the SSO home', () => {
     const { browser, page } = await newBrowser()
     try {
       flog(page, 'leg 3: the populated launcher')
-      await signIn(page, stack!.base, 'admin@oiml.org', 'demo2026')
+      await signIn(page, stack!.base, 'admin@oimlsmart.org', 'demo2026')
       await gotoHome(page, stack!.base)
 
       // The hub launches; the TL shows the request posture WITHOUT a
@@ -452,7 +452,7 @@ describe('the SSO home', () => {
 
       const dark = await newBrowser(true)
       try {
-        await signIn(dark.page, stack!.base, 'admin@oiml.org', 'demo2026')
+        await signIn(dark.page, stack!.base, 'admin@oimlsmart.org', 'demo2026')
         await gotoHome(dark.page, stack!.base)
         await hideDevToolbar(dark.page)
         await dark.page.screenshot({ path: join(SHOTS, 'home-populated-dark.png') })
@@ -468,7 +468,7 @@ describe('the SSO home', () => {
     const { browser, page } = await newBrowser()
     try {
       flog(page, 'leg 4: the request act')
-      await signIn(page, stack!.base, 'viewer@oiml.org', 'demo2026')
+      await signIn(page, stack!.base, 'viewer@oimlsmart.org', 'demo2026')
       await gotoHome(page, stack!.base)
       // The viewer: the hub launches (viewer ∈ its allowlist), the admin
       // entry never renders.
@@ -487,7 +487,7 @@ describe('the SSO home', () => {
       expect(requested).toContain('Access requested')
 
       // The audit chain carries it (the registry's activity feed shape).
-      const adminCookie = await demoCookie(stack!.apiBase, 'admin@oiml.org')
+      const adminCookie = await demoCookie(stack!.apiBase, 'admin@oimlsmart.org')
       const activity = await (await fetch(`${stack!.apiBase}/api/op/registry/activity?q=access_request`, { headers: { cookie: adminCookie } })).json() as Array<{ action: string; metadata?: { clientId?: string } }>
       expect(activity.some(e => e.action === 'account.access_request' && e.metadata?.clientId === 'tl-instance')).toBe(true)
     } finally {
@@ -496,7 +496,7 @@ describe('the SSO home', () => {
   }, 1_200_000)
 
   it('leg 5: a role grant makes the card appear (the audit event carries it)', async () => {
-    const adminCookie = await demoCookie(stack!.apiBase, 'admin@oiml.org')
+    const adminCookie = await demoCookie(stack!.apiBase, 'admin@oimlsmart.org')
     // The invited OP account (the grant surface manages the registry's
     // own accounts — the demo cast is not assignable).
     const invite = await fetch(`${stack!.apiBase}/api/op/accounts`, {

@@ -117,7 +117,7 @@ describe('the event vocabulary (the SSOT whitelist)', () => {
 
 describe('the subscription surface (session-gated, account-owned)', () => {
   it('creates with the secret shown ONCE; lists without it', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     const res = await createSubscription(cookie, 'https://rp.example/hooks', ['account.pat_minted', 'account.session_revoked'])
     expect(res.status).toBe(201)
     const created = await res.json() as SubscriptionAnswer
@@ -134,7 +134,7 @@ describe('the subscription surface (session-gated, account-owned)', () => {
   })
 
   it('refuses http, private hosts, empty and unknown event sets', async () => {
-    const cookie = await demoLogin('ia@oiml.org')
+    const cookie = await demoLogin('ia@oimlsmart.org')
     expect((await createSubscription(cookie, 'http://rp.example/hooks', ['account.pat_minted'])).status).toBe(400)
     expect((await createSubscription(cookie, 'https://localhost/hooks', ['account.pat_minted'])).status).toBe(400)
     expect((await createSubscription(cookie, 'https://192.168.1.5/hooks', ['account.pat_minted'])).status).toBe(400)
@@ -149,8 +149,8 @@ describe('the subscription surface (session-gated, account-owned)', () => {
   })
 
   it('revokes only the owner\'s subscription', async () => {
-    const owner = await demoLogin('ia@oiml.org')
-    const other = await demoLogin('tl@oiml.org')
+    const owner = await demoLogin('ia@oimlsmart.org')
+    const other = await demoLogin('tl@oimlsmart.org')
     const created = await (await createSubscription(owner, 'https://rp.example/hooks', ['account.pat_minted'])).json() as SubscriptionAnswer
 
     const foreign = await app.request(`${ISSUER}/api/op/account/webhooks/${created.id}`, { method: 'DELETE', headers: { cookie: other } })
@@ -169,7 +169,7 @@ describe('the delivery ladder (bounded retries + the dead letter)', () => {
   it('delivers a subscribed event: signed, envelope-shaped, recorded', async () => {
     const { verifyWebhookSignature } = await import('../../server/webhooks/signature')
     const store = (await import('../../server/store')).getStore()
-    const ia2Id = (await store.findUserByEmail('ia2@oiml.org'))!.id
+    const ia2Id = (await store.findUserByEmail('ia2@oimlsmart.org'))!.id
     const secret = 'oswh_test_secret_one'
     await store.createWebhookSubscription({
       id: crypto.randomUUID(),
@@ -211,7 +211,7 @@ describe('the delivery ladder (bounded retries + the dead letter)', () => {
 
   it('a non-subscribed account or event delivers nothing', async () => {
     const store = (await import('../../server/store')).getStore()
-    const iaId = (await store.findUserByEmail('ia@oiml.org'))!.id
+    const iaId = (await store.findUserByEmail('ia@oimlsmart.org'))!.id
     let calls = 0
     globalThis.fetch = (async (): Promise<Response> => { calls++; return new Response('ok', { status: 200 }) }) as typeof fetch
 
@@ -223,7 +223,7 @@ describe('the delivery ladder (bounded retries + the dead letter)', () => {
 
   it('the exhausted ladder records the dead letter (attempts + last status)', async () => {
     const store = (await import('../../server/store')).getStore()
-    const bimlId = (await store.findUserByEmail('biml@oiml.org'))!.id
+    const bimlId = (await store.findUserByEmail('biml@oimlsmart.org'))!.id
     await store.createWebhookSubscription({
       id: crypto.randomUUID(),
       accountId: bimlId,
@@ -251,7 +251,7 @@ describe('the delivery ladder (bounded retries + the dead letter)', () => {
 describe('the fan-out at a real act (the PAT mint)', () => {
   it('a minted PAT reaches the subscribed endpoint, signed', async () => {
     const { verifyWebhookSignature } = await import('../../server/webhooks/signature')
-    const cookie = await demoLogin('cs@oiml.org')
+    const cookie = await demoLogin('cs@oimlsmart.org')
     const created = await (await createSubscription(cookie, 'https://rp.example/hooks', ['account.password'])).json() as SubscriptionAnswer
 
     const deliveries: Array<{ headers: Headers; body: string }> = []
@@ -325,10 +325,10 @@ describe('the dead-letter redelivery (edition 2: the cron pass)', () => {
   it('a dead letter with its envelope body: ONE pass re-signs and re-POSTs it verbatim; the letter retires; the log gains the outcome', async () => {
     const { getStore } = await import('../../server/store')
     const store = getStore()
-    const cookie = await demoLogin('biml@oiml.org')
+    const cookie = await demoLogin('biml@oimlsmart.org')
     const created = ((await (await createSubscription(cookie, 'https://redeliver.example/hooks', ['account.password'])).json()) as SubscriptionAnswer)
     const { getStore: gs0 } = await import('../../server/store')
-    const ownerId = (await gs0().findUserByEmail('biml@oiml.org'))!.id
+    const ownerId = (await gs0().findUserByEmail('biml@oimlsmart.org'))!.id
     const envelope = JSON.stringify({ id: 'the-envelope-id', event: 'account.password', account: ownerId, created: new Date().toISOString(), data: { otherSessionsRevoked: 0 } })
     await store.recordWebhookDelivery({
       subscriptionId: created.id, accountId: ownerId, event: 'account.password',
@@ -366,10 +366,10 @@ describe('the dead-letter redelivery (edition 2: the cron pass)', () => {
   it('the receiver still down: the pass attempts ONCE and the letter retires regardless (bounded — no storm)', async () => {
     const { getStore } = await import('../../server/store')
     const store = getStore()
-    const cookie = await demoLogin('biml@oiml.org')
+    const cookie = await demoLogin('biml@oimlsmart.org')
     const created = ((await (await createSubscription(cookie, 'https://still-down.example/hooks', ['account.password'])).json()) as SubscriptionAnswer)
     const { getStore: gs1 } = await import('../../server/store')
-    const ownerId2 = (await gs1().findUserByEmail('biml@oiml.org'))!.id
+    const ownerId2 = (await gs1().findUserByEmail('biml@oimlsmart.org'))!.id
     await store.recordWebhookDelivery({
       subscriptionId: created.id, accountId: ownerId2, event: 'account.password',
       url: 'https://still-down.example/hooks', attempts: 3, lastStatus: 500, delivered: false,
@@ -396,10 +396,10 @@ describe('the dead-letter redelivery (edition 2: the cron pass)', () => {
   it('a revoked subscription or a body-less legacy letter retires WITHOUT a fetch', async () => {
     const { getStore } = await import('../../server/store')
     const store = getStore()
-    const cookie = await demoLogin('biml@oiml.org')
+    const cookie = await demoLogin('biml@oimlsmart.org')
     const created = ((await (await createSubscription(cookie, 'https://revoked.example/hooks', ['account.password'])).json()) as SubscriptionAnswer)
     const { getStore: gs2 } = await import('../../server/store')
-    const ownerId3 = (await gs2().findUserByEmail('biml@oiml.org'))!.id
+    const ownerId3 = (await gs2().findUserByEmail('biml@oimlsmart.org'))!.id
     const revoked = await store.revokeWebhookSubscription(created.id, ownerId3)
     expect(revoked, 'the owner-guarded revoke lands (the test owns the account)').toBe(true)
       await store.recordWebhookDelivery({

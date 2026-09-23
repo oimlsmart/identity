@@ -227,7 +227,7 @@ demo_personas: true
   const probe = await app.request(`${ISSUER}/.well-known/openid-configuration`)
   expect(probe.status).toBe(200)
   // The demo cast's seed (auth-lean's ensureInit) rides the first /api/auth call.
-  await demoLogin('admin@oiml.org')
+  await demoLogin('admin@oimlsmart.org')
 }, 30_000)
 
 afterAll(() => {
@@ -273,7 +273,7 @@ describe('the migration backfill (0011)', () => {
   it('the dual-read honesty: the mirrored account and the row-less account read identically', async () => {
     // The mirrored account (the demo cast's IA officer — the seed's
     // mirror/backfill wrote the row).
-    const ia = await store.findUserByEmail('ia@oiml.org')
+    const ia = await store.findUserByEmail('ia@oimlsmart.org')
     const mirrored = await store.getOrgMembership(ia!.id, 'EX1')
     expect(mirrored).toMatchObject({ state: 'active', isPrimary: true, roles: ['ia_officer'] })
 
@@ -299,17 +299,17 @@ describe('the migration backfill (0011)', () => {
 
 describe('the membership lifecycle + the active-org context', () => {
   const nlAdmin = () => demoLogin('admin@nmi.example.org')
-  const officer = () => demoLogin('ia@oiml.org')
+  const officer = () => demoLogin('ia@oimlsmart.org')
 
   it('the org admin invites an EXISTING account (invited); the holder accepts (active); the switch changes the claims; the disable ends the context', async () => {
     const adminCookie = await nlAdmin()
     const officerCookie = await officer()
-    const officerUser = (await store.findUserByEmail('ia@oiml.org'))!
+    const officerUser = (await store.findUserByEmail('ia@oimlsmart.org'))!
 
     // The invite (the org grant, its own org).
     const invite = await app.request(`${ISSUER}/api/op/org-memberships`, {
       method: 'POST', headers: jsonHeaders(adminCookie),
-      body: JSON.stringify({ email: 'ia@oiml.org', roles: ['viewer'] }),
+      body: JSON.stringify({ email: 'ia@oimlsmart.org', roles: ['viewer'] }),
     })
     const invited = await json(invite, 201)
     expect(invited).toMatchObject({ userId: officerUser.id, orgId: 'ut-nmi-nl', roles: ['viewer'], state: 'invited' })
@@ -387,8 +387,8 @@ describe('the membership lifecycle + the active-org context', () => {
   it('an org-free account acting as an org keeps its account-level roles in the claims (honestly)', async () => {
     // The scheme's own staff (admin, org NULL) invited into the IA as a
     // viewer: the context's set ∪ the account-level set.
-    const adminCookie = await demoLogin('admin@oiml.org')
-    const adminUser = (await store.findUserByEmail('admin@oiml.org'))!
+    const adminCookie = await demoLogin('admin@oimlsmart.org')
+    const adminUser = (await store.findUserByEmail('admin@oimlsmart.org'))!
     await store.createOrgMembership({ userId: adminUser.id, orgId: 'EX1', roles: ['viewer'], state: 'active', invitedBy: 'test' })
     await json(await app.request(`${ISSUER}/api/op/account/active-org`, {
       method: 'POST', headers: jsonHeaders(adminCookie), body: JSON.stringify({ org_id: 'EX1' }),
@@ -412,7 +412,7 @@ describe('the membership lifecycle + the active-org context', () => {
 describe('the org-admin delegation is bounded', () => {
   it('the org grant manages ONLY its own org, never the org_admin role, never an org_admin membership', async () => {
     const adminCookie = await demoLogin('admin@nmi.example.org')
-    const officerUser = (await store.findUserByEmail('ia@oiml.org'))!
+    const officerUser = (await store.findUserByEmail('ia@oimlsmart.org'))!
     const nlAdminUser = (await store.findUserByEmail('admin@nmi.example.org'))!
 
     // Cross-org reads/writes: not found, never wider.
@@ -440,7 +440,7 @@ describe('the org-admin delegation is bounded', () => {
     // second membership with org_admin first, then the org grant's
     // disable attempt on IT is refused (the self-guard never fires — the
     // target is another account's row).
-    const wideCookie = await demoLogin('admin@oiml.org')
+    const wideCookie = await demoLogin('admin@oimlsmart.org')
     await store.setOrgMembershipRoles(officerUser.id, 'ut-nmi-nl', ['scheme_participant', 'org_admin'])
     const toggle = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-nmi-nl/state`, {
       method: 'POST', headers: jsonHeaders(adminCookie), body: JSON.stringify({ state: 'disabled' }),
@@ -465,8 +465,8 @@ describe('the org-admin delegation is bounded', () => {
   })
 
   it('the identity admin manages everything (the wide grant)', async () => {
-    const wideCookie = await demoLogin('admin@oiml.org')
-    const officerUser = (await store.findUserByEmail('ia@oiml.org'))!
+    const wideCookie = await demoLogin('admin@oimlsmart.org')
+    const officerUser = (await store.findUserByEmail('ia@oimlsmart.org'))!
     // The wide grant reaches any org's slice…
     const list = await app.request(`${ISSUER}/api/op/org-memberships?org_id=EX1`, { headers: { cookie: wideCookie } })
     const body = await json(list, 200)
@@ -496,9 +496,9 @@ describe('the org-admin delegation is bounded', () => {
 
 describe('the join-request flow for an existing account', () => {
   it('the holder asks from the account console; the org admin approves; the membership lands directly (no second account)', async () => {
-    const officerCookie = await demoLogin('tl@oiml.org') // the TL operator, primary org 21
+    const officerCookie = await demoLogin('tl@oimlsmart.org') // the TL operator, primary org 21
     const adminCookie = await demoLogin('admin@nmi.example.org')
-    const tlUser = (await store.findUserByEmail('tl@oiml.org'))!
+    const tlUser = (await store.findUserByEmail('tl@oimlsmart.org'))!
 
     // The ask (the session names the account — never self-asserted fields).
     const ask = await app.request(`${ISSUER}/api/op/account/membership-requests`, {
@@ -506,7 +506,7 @@ describe('the join-request flow for an existing account', () => {
       body: JSON.stringify({ org_id: 'ut-nmi-nl', requested_role: 'viewer', note: 'I run the R 60 tests for the joint review.' }),
     })
     const request = await json(ask, 201)
-    expect(request).toMatchObject({ email: 'tl@oiml.org', orgId: 'ut-nmi-nl', requestedRole: 'viewer', status: 'pending' })
+    expect(request).toMatchObject({ email: 'tl@oimlsmart.org', orgId: 'ut-nmi-nl', requestedRole: 'viewer', status: 'pending' })
 
     // A second pending ask from the same account is the honest 409.
     const dupe = await app.request(`${ISSUER}/api/op/account/membership-requests`, {
@@ -532,7 +532,7 @@ describe('the join-request flow for an existing account', () => {
     // invitation waits.
     expect((await store.getOrgMembership(tlUser.id, 'ut-nmi-nl'))?.state).toBe('active')
     // And the account list never grew a second row for the email.
-    expect((await store.listUsers()).filter(u => u.email === 'tl@oiml.org').length).toBe(1)
+    expect((await store.listUsers()).filter(u => u.email === 'tl@oimlsmart.org').length).toBe(1)
 
     // Approving AGAIN (a fresh ask while the membership is active) is the
     // honest 409. The console's ask refuses a second membership ask for
@@ -540,7 +540,7 @@ describe('the join-request flow for an existing account', () => {
     // exists, the request still names the org — the queue is the decider).
     const publicAsk = await app.request(`${ISSUER}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'TL Operator', email: 'tl@oiml.org', org_id: 'ut-nmi-nl', requested_role: 'scheme_participant' }),
+      body: JSON.stringify({ name: 'TL Operator', email: 'tl@oimlsmart.org', org_id: 'ut-nmi-nl', requested_role: 'scheme_participant' }),
     })
     const request2 = await json(publicAsk, 201)
     const again = await app.request(`${ISSUER}/api/op/join-requests/${request2.id}/approve`, {
@@ -555,15 +555,15 @@ describe('the join-request flow for an existing account', () => {
 
 describe('the registry surfaces', () => {
   it('the per-org view carries the members + the per-org roles + the org_admins + the queue', async () => {
-    const wideCookie = await demoLogin('admin@oiml.org')
+    const wideCookie = await demoLogin('admin@oimlsmart.org')
     const res = await app.request(`${ISSUER}/api/op/registry/orgs/ut-nmi-nl`, { headers: { cookie: wideCookie } })
     const view = await json(res, 200)
     expect(view.org).toMatchObject({ id: 'ut-nmi-nl', kind: 'utilizer', registered: true })
     const nlAdmin = (await store.findUserByEmail('admin@nmi.example.org'))!
-    const officer = (await store.findUserByEmail('ia@oiml.org'))!
+    const officer = (await store.findUserByEmail('ia@oimlsmart.org'))!
     expect(view.members.some((m: any) => m.userId === nlAdmin.id && m.roles.includes('org_admin'))).toBe(true)
     expect(view.members.some((m: any) => m.userId === officer.id && m.orgId === 'ut-nmi-nl')).toBe(true)
-    expect(view.requests.some((r: any) => r.email === 'tl@oiml.org')).toBe(true)
+    expect(view.requests.some((r: any) => r.email === 'tl@oimlsmart.org')).toBe(true)
     // The gate: the org admin's grant never reads the registry's per-org view.
     const orgAdminCookie = await demoLogin('admin@nmi.example.org')
     const refused = await app.request(`${ISSUER}/api/op/registry/orgs/ut-nmi-nl`, { headers: { cookie: orgAdminCookie } })
@@ -574,8 +574,8 @@ describe('the registry surfaces', () => {
   })
 
   it('the per-user detail aggregate carries the memberships', async () => {
-    const wideCookie = await demoLogin('admin@oiml.org')
-    const officer = (await store.findUserByEmail('ia@oiml.org'))!
+    const wideCookie = await demoLogin('admin@oimlsmart.org')
+    const officer = (await store.findUserByEmail('ia@oimlsmart.org'))!
     const res = await app.request(`${ISSUER}/api/op/registry/users/${officer.id}`, { headers: { cookie: wideCookie } })
     const detail = await json(res, 200)
     const byOrg = new Map((detail.memberships as any[]).map(m => [m.orgId, m]))
@@ -589,8 +589,8 @@ describe('the registry surfaces', () => {
 describe('the org-member cone', () => {
   it('the org admin sets the cone; the claims carry it for the cone-gated client ONLY; the audit slice records every act', async () => {
     const adminCookie = await demoLogin('admin@nmi.example.org')
-    const officerCookie = await demoLogin('ia@oiml.org')
-    const officer = (await store.findUserByEmail('ia@oiml.org'))!
+    const officerCookie = await demoLogin('ia@oimlsmart.org')
+    const officer = (await store.findUserByEmail('ia@oimlsmart.org'))!
     const nlAdmin = (await store.findUserByEmail('admin@nmi.example.org'))!
 
     // The member's posture starts org-wide (NULL — the silent default).
@@ -671,7 +671,7 @@ describe('the org-member cone', () => {
     expect(widened.status).toBe(403)
 
     // The identity admin's per-org view carries the cone honestly.
-    const wideCookie = await demoLogin('admin@oiml.org')
+    const wideCookie = await demoLogin('admin@oimlsmart.org')
     const view = await json(await app.request(`${ISSUER}/api/op/registry/orgs/ut-nmi-nl`, { headers: { cookie: wideCookie } }), 200)
     const viewRow = (view.members as any[]).find(m => m.userId === officer.id && m.orgId === 'ut-nmi-nl')
     expect(viewRow.cone).toEqual({ scope: 'org-wide', readOnly: false })
@@ -688,7 +688,7 @@ describe('the org-member cone', () => {
 describe('the effective-permission explainer (the org-scoped endpoint)', () => {
   it('the org grant reads the member’s COMPUTED effective set — the roles, the permissions, the cone’s effect, the dry-run', async () => {
     const adminCookie = await demoLogin('admin@nmi.example.org')
-    const officer = (await store.findUserByEmail('ia@oiml.org'))!
+    const officer = (await store.findUserByEmail('ia@oimlsmart.org'))!
     const nlAdmin = (await store.findUserByEmail('admin@nmi.example.org'))!
 
     // The gates: unauthenticated is the honest 401; a member WITHOUT the
@@ -696,7 +696,7 @@ describe('the effective-permission explainer (the org-scoped endpoint)', () => {
     // reaches another org's row (not found, never wider).
     const anon = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/explain`)
     expect(anon.status).toBe(401)
-    const officerCookie = await demoLogin('ia@oiml.org')
+    const officerCookie = await demoLogin('ia@oimlsmart.org')
     const noGrant = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/explain`, { headers: { cookie: officerCookie } })
     expect(noGrant.status).toBe(403)
     const crossOrg = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/EX1/explain`, { headers: { cookie: adminCookie } })
@@ -708,7 +708,7 @@ describe('the effective-permission explainer (the org-scoped endpoint)', () => {
     // org-wide): the computed set, every piece composed.
     const res = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/explain`, { headers: { cookie: adminCookie } })
     const x = await json(res, 200)
-    expect(x.member).toMatchObject({ userId: officer.id, email: 'ia@oiml.org', state: 'active', accountActive: true })
+    expect(x.member).toMatchObject({ userId: officer.id, email: 'ia@oimlsmart.org', state: 'active', accountActive: true })
     expect(x.org).toMatchObject({ id: 'ut-nmi-nl', kind: 'utilizer' })
     expect(x.acting).toBe(true)
     expect(x.context).toMatchObject({ orgId: 'ut-nmi-nl', cone: { scope: 'org-wide', readOnly: false } })
@@ -756,7 +756,7 @@ describe('the effective-permission explainer (the org-scoped endpoint)', () => {
 
     // The identity admin (the wide grant) explains any org's member —
     // here the officer's PRIMARY context (the IA's desk set).
-    const wideCookie = await demoLogin('admin@oiml.org')
+    const wideCookie = await demoLogin('admin@oimlsmart.org')
     const wide = await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/EX1/explain`, { headers: { cookie: wideCookie } }), 200)
     expect(wide.context.orgId).toBe('EX1')
     expect(wide.roles.map((r: any) => r.id)).toEqual(['ia_officer'])

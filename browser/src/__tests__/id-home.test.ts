@@ -155,7 +155,7 @@ demo_personas: true
   // Land the demo cast + the client-registry seed (the seed rides the
   // first op.ts request, the boot posture), then the OP-registry
   // account the grant legs run on.
-  const admin = await demoLogin('admin@oiml.org')
+  const admin = await demoLogin('admin@oimlsmart.org')
   const seeded = await app.request(`${ISSUER}/api/op/clients`, { headers: { cookie: admin } })
   expect(seeded.status).toBe(200)
   nadia = await inviteAndEnroll(admin, 'nadia.newcomer@example.org', 'Ms. Nadia Newcomer', 'nadia has a proper passphrase')
@@ -209,10 +209,10 @@ demo_personas: true
   })
 
   it('the admin sees exactly the services her roles admit', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const feed = await homeFeed(admin)
     expect(feed.admin).toBe(true)
-    expect(feed.account.email).toBe('admin@oiml.org')
+    expect(feed.account.email).toBe('admin@oimlsmart.org')
     const byId = Object.fromEntries(feed.services.map((s: any) => [s.clientId, s]))
     // The hub: admin ∈ the allowlist → launchable, with the URL.
     expect(byId['hub-instance'].state).toBe('launch')
@@ -228,7 +228,7 @@ demo_personas: true
   })
 
   it('the viewer meets the same computation from her own roles', async () => {
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     const feed = await homeFeed(viewer)
     expect(feed.admin).toBe(false)
     const byId = Object.fromEntries(feed.services.map((s: any) => [s.clientId, s]))
@@ -242,7 +242,7 @@ demo_personas: true
     const before = await homeFeed(nadia.cookie)
     expect(before.services.find((s: any) => s.clientId === 'tl-instance').state).toBe('request')
 
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const grant = await grantClientRoles(admin, nadia.id, 'tl-instance', ['tl_operator'])
     expect(grant.status).toBe(200)
 
@@ -277,14 +277,14 @@ demo_personas: true
   })
 
   it('a disabled client leaves the launcher entirely', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const off = await app.request(`${ISSUER}/api/op/clients/tl-instance/status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
       body: JSON.stringify({ status: 'disabled' }),
     })
     expect(off.status).toBe(200)
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     const feed = await homeFeed(viewer)
     expect(feed.services.find((s: any) => s.clientId === 'tl-instance')).toBeUndefined()
     const on = await app.request(`${ISSUER}/api/op/clients/tl-instance/status`, {
@@ -325,7 +325,7 @@ describe('the request-access intake', () => {
   })
 
   it('refuses the dishonest asks plainly', async () => {
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     const ask = (body: unknown, cookie = viewer) => app.request(`${ISSUER}/api/op/home/requests`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
@@ -343,7 +343,7 @@ describe('the request-access intake', () => {
     expect((await ask({ client_id: 'tl-instance' }, '')).status).toBe(401)
     // The admitted-on-a-request-posture client: grant tl_operator, the
     // ask now conflicts (the card is launchable).
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     expect((await grantClientRoles(admin, nadia.id, 'tl-instance', ['tl_operator'])).status).toBe(200)
     const conflict = await app.request(`${ISSUER}/api/op/home/requests`, {
       method: 'POST',
@@ -360,7 +360,7 @@ describe('the request-access intake', () => {
 
 describe('the registry API’s launch writes', () => {
   it('validates the card at write (the same refusal the seed throws)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const register = (launch: unknown) => app.request(`${ISSUER}/api/op/clients`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -391,7 +391,7 @@ describe('the registry API’s launch writes', () => {
   })
 
   it('an edit that omits launch keeps the card; launch: null takes it off', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     // Omit the launch key entirely: the stored card survives the edit.
     const edit = await app.request(`${ISSUER}/api/op/clients`, {
       method: 'POST',

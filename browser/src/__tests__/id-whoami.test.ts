@@ -99,7 +99,7 @@ demo_personas: true
 
   // The bootstrap seed lands on the first REGISTRY request (the discovery
   // document never seeds); drive it once, honestly.
-  const admin = await demoLogin('admin@oiml.org') // the demo cast lands
+  const admin = await demoLogin('admin@oimlsmart.org') // the demo cast lands
   expect((await app.request(`${ISSUER}/api/op/clients`, { headers: { cookie: admin } })).status).toBe(200)
 })
 
@@ -140,7 +140,7 @@ describe('the whoami beacon', () => {
   })
 
   it('a DISABLED client drops off the allowlist (the live registry is the source)', async () => {
-    const admin = await demoLogin('admin@oiml.org')
+    const admin = await demoLogin('admin@oimlsmart.org')
     const off = await app.request(`${ISSUER}/api/op/clients/pubs-site/status`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
       body: JSON.stringify({ status: 'disabled' }),
@@ -157,7 +157,7 @@ describe('the whoami beacon', () => {
   })
 
   it('signed in answers the minimal projection — a face, not a dossier — never cached', async () => {
-    const cookie = await demoLogin('admin@oiml.org')
+    const cookie = await demoLogin('admin@oimlsmart.org')
     const res = await whoami({ cookie, origin: 'https://hub.example' })
     expect(res.status).toBe(200)
     const body = await res.json() as Record<string, unknown>
@@ -175,14 +175,14 @@ describe('the whoami beacon', () => {
   })
 
   it('the admin flag follows the home feed’s ONE rule (a viewer is not an administrator)', async () => {
-    const viewer = await demoLogin('viewer@oiml.org')
+    const viewer = await demoLogin('viewer@oimlsmart.org')
     const body = await (await whoami({ cookie: viewer })).json() as { signedIn: boolean; admin: boolean }
     expect(body.signedIn).toBe(true)
     expect(body.admin).toBe(false)
   })
 
   it('the picture names the PUBLIC avatar URL once the account has an upload (and returns to null on removal)', async () => {
-    const cookie = await demoLogin('admin@oiml.org')
+    const cookie = await demoLogin('admin@oimlsmart.org')
     const session = await (await app.request(`${ISSUER}/api/auth/session`, { headers: { cookie } })).json() as { id: string }
     await store.setUserAvatar(session.id, '/api/op/account/avatar')
     try {

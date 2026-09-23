@@ -125,7 +125,7 @@ demo_personas: true
   await store.createOrgRegistryOrg({ id: 'as-demo', name: 'Demo Inspection Body', shortName: 'DIB', kind: 'associate', country: 'Demo Corresponding Economy', contacts: [{ name: null, email: 'oiml-cs@dib.example.org' }], participantRef: 'as-demo', designatedBy: 'cm-demo', csStatus: 'signed-active' })
   await store.createOrgRegistryOrg({ id: 'ut-legacy', name: 'Legacy Utilizer (no designation recorded)', kind: 'utilizer', country: 'Legacy Member State', contacts: [{ name: null, email: 'office@legacy.example.org' }], participantRef: 'ut-legacy' })
 
-  admin = await demoLogin('admin@oiml.org')
+  admin = await demoLogin('admin@oimlsmart.org')
 })
 
 afterAll(async () => {
@@ -378,7 +378,7 @@ describe('the designation chain’s rendering', () => {
     const ben = await mk('bulk.ben@example.org', 'Bulk Ben')
     const cid = await mk('bulk.cid@example.org', 'Bulk Cid')
     await store.createOrgMembership({ userId: ada, orgId: 'ut-example', roles: ['org_admin'], state: 'active' })
-    await store.createOrgMembership({ userId: ben, orgId: 'ut-example', roles: ['viewer'], state: 'invited', invitedBy: 'admin@oiml.org' })
+    await store.createOrgMembership({ userId: ben, orgId: 'ut-example', roles: ['viewer'], state: 'invited', invitedBy: 'admin@oimlsmart.org' })
     await store.createOrgMembership({ userId: cid, orgId: 'ut-example', roles: ['viewer'], state: 'disabled' })
     await store.createOrgMembership({ userId: ada, orgId: 'ms-example', roles: ['viewer'], state: 'active' })
 

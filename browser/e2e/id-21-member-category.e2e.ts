@@ -61,7 +61,7 @@ const ID_WEB = 10600
 const MEMBER_PERSONNEL_EMAIL = 'ingrid.halvorsen@emb.example.org'
 const MEMBER_PERSONNEL_PASSWORD = 'ingrid halvorsen member passphrase'
 const LEGACY_UTILIZER_ID = 'ut-legacy'
-const ADMIN_EMAIL = 'admin@oiml.org'
+const ADMIN_EMAIL = 'admin@oimlsmart.org'
 
 interface Stack {
   api: ChildProcess

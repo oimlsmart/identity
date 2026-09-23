@@ -1051,7 +1051,7 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
     // The platform user store's list (the demo cast's home — 16 rows on
     // a fresh stack: the 15-person cast + the instance admin's kind).
     const users = await (await fetch(`${stack.base}/api/users`, auth)).json() as Array<{ id: string; email: string; provider: string }>
-    const anchors = ['admin@oiml.org', 'cs@oiml.org', 'tl@oiml.org']
+    const anchors = ['admin@oimlsmart.org', 'cs@oimlsmart.org', 'tl@oimlsmart.org']
     for (const email of anchors) {
       expect(users.some(u => u.email === email && u.provider === 'demo'), `/api/users carries the cast member ${email}`).toBe(true)
     }
@@ -1074,7 +1074,7 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
 
     // …and the console's users page renders the registry section over
     // the cast — never the "No accounts yet" lie of the divergence.
-    const demoAdmin = users.find(u => u.email === 'admin@oiml.org')!
+    const demoAdmin = users.find(u => u.email === 'admin@oimlsmart.org')!
     await withPage(async (page) => {
       await signInViaCookie(page, stack.base, root)
       await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })

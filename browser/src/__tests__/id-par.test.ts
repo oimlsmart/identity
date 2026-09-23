@@ -130,7 +130,7 @@ describe('the authorize leg through a pushed request', () => {
   it('the pushed params drive the FULL round trip; the query is IGNORED', async () => {
     const login = await app.request('/api/auth/demo', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'ia@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'ia@oimlsmart.org', password: 'demo2026' }),
     })
     const cookie = login.headers.get('set-cookie')!.split(';')[0]!
     const pkce = await generatePkce()
@@ -171,7 +171,7 @@ describe('the authorize leg through a pushed request', () => {
   it('single-use: the second authorize on the same request_uri refuses', async () => {
     const login = await app.request('/api/auth/demo', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'tl@oiml.org', password: 'demo2026' }),
+      body: JSON.stringify({ email: 'tl@oimlsmart.org', password: 'demo2026' }),
     })
     const cookie = login.headers.get('set-cookie')!.split(';')[0]!
     const pushed = await (await push({

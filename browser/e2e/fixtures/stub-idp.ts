@@ -52,7 +52,7 @@ export const STUB_IDP_USERS: StubIdpUser[] = [
   // The verified-email LINK leg: vic's email is the demo viewer
   // account's — signing in links the identity, and the account keeps
   // ITS role (the ia-officers group must NOT widen it).
-  { id: 'vic', sub: 'stub-vic', email: 'viewer@oiml.org', name: 'Viewer Linked', emailVerified: true, groups: ['oiml-ia-officers'] },
+  { id: 'vic', sub: 'stub-vic', email: 'viewer@oimlsmart.org', name: 'Viewer Linked', emailVerified: true, groups: ['oiml-ia-officers'] },
   { id: 'carol', sub: 'stub-carol', email: 'carol@example.org', name: 'Carol Unknown', emailVerified: true, groups: [] },
   // The reject leg: an UNMAPPED group value maps to nothing.
   { id: 'erin', sub: 'stub-erin', email: 'erin@example.org', name: 'Erin Stranger', emailVerified: true, groups: ['oiml-strangers'] },
