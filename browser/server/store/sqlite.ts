@@ -130,6 +130,7 @@ import {
   listOpLiveSessions,
   listUserSessions,
   markAccountEmailVerified,
+  markPrimaryEmailVerified,
   removeAccountEmail,
   revokeOpUserCredentials,
   setOpClientRoles,
@@ -637,6 +638,9 @@ export class SqliteServerStore implements ServerStore {
   }
   async setPasswordHash(userId: string, hash: string, setBy?: string | null): Promise<void> {
     setPasswordHash(this.db, userId, hash, setBy)
+  }
+  async markPrimaryEmailVerified(userId: string): Promise<void> {
+    markPrimaryEmailVerified(this.db, userId)
   }
   async countSignInMethods(userId: string): Promise<{ password: boolean; links: number; passkeys: number }> {
     return countSignInMethods(this.db, userId)

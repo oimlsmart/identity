@@ -448,6 +448,61 @@ describe('the D1 half — the /op/authorize incident regression (2026-09-23)', (
     expect(replay.kind === 'reuse' && replay.familyId).toBe('fam-1')
   })
 
+  it('the account bootstrap seed lands on the D1 half: the declared persona carries org, roles, verification, credential, assignment, membership', async () => {
+    const { seedOpAccountsFromEnv } = await import('../../server/auth/op/accounts')
+    const { hashPassword, verifyPassword } = await import('../../server/auth/passwords')
+    // A reference hash proves the stored credential is the hashed form
+    // of the published demonstration password — never the plaintext.
+    const referenceHash = await hashPassword('demo2026')
+    const seeded = await seedOpAccountsFromEnv(
+      {
+        OP_ACCOUNT_SEED: JSON.stringify([{
+          email: 'ia@oimlsmart.org',
+          name: 'IA Officer (Demonstration)',
+          role: 'user',
+          orgId: 'EX1',
+          emailVerified: true,
+          password: 'demo2026',
+          clientRoles: { 'oiml-smart-demo': ['ia_officer'] },
+        }]),
+      },
+      store,
+      'http://op.test',
+    )
+    expect(seeded).toEqual(['ia@oimlsmart.org'])
+    const account = await store.findUserByEmail('ia@oimlsmart.org')
+    expect(account).not.toBeNull()
+    expect(account!.role).toBe('user')
+    expect(account!.orgId).toBe('EX1')
+    expect(account!.emailVerifiedAt).not.toBeNull()
+    const cred = await store.getPasswordLogin('ia@oimlsmart.org')
+    expect(cred).not.toBeNull()
+    expect(cred!.hash.startsWith('pbkdf2:')).toBe(true)
+    expect(await verifyPassword('demo2026', cred!.hash)).toBe(true)
+    expect(await verifyPassword('demo2026', referenceHash)).toBe(true)
+    expect(await store.getOpClientRoles(account!.id, 'oiml-smart-demo')).toEqual(['ia_officer'])
+    const membership = await store.getOrgMembership(account!.id, 'EX1')
+    expect(membership?.state).toBe('active')
+    expect(membership?.isPrimary).toBe(true)
+    // The replay converges instead of duplicating (the boot posture).
+    await seedOpAccountsFromEnv(
+      {
+        OP_ACCOUNT_SEED: JSON.stringify([{
+          email: 'ia@oimlsmart.org',
+          name: 'IA Officer (Demonstration)',
+          role: 'user',
+          orgId: 'EX1',
+          emailVerified: true,
+          password: 'demo2026',
+          clientRoles: { 'oiml-smart-demo': ['ia_officer'] },
+        }]),
+      },
+      store,
+      'http://op.test',
+    )
+    expect(await store.listOpClientRoles(account!.id)).toHaveLength(1)
+  })
+
   it('the entity batch (the module-const SQL): the upsert and its journal entry ride ONE batch', async () => {
     await store.putEntity('incident', 'ent-1', null, JSON.stringify({ hello: 'd1' }))
     const row = await store.getEntity('incident', 'ent-1')

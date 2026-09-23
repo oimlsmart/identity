@@ -13,6 +13,7 @@
 
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
+import { syncPrimaryMembership } from './store'
 import type {
   AccountEmail,
   AddAccountEmailResult,
@@ -62,31 +63,40 @@ function toEnrollmentToken(row: Record<string, unknown>): EnrollmentToken {
 /** Create the OP password account. Answers null when the email is taken
  *  (the invite route's 409; the UNIQUE constraint is the race backstop).
  *  TODO.identity-features/01: the taken read spans BOTH address tables —
- *  an additional on another account blocks the address as a primary. */
+ *  an additional on another account blocks the address as a primary.
+ *  The declared-persona fields (orgId/roles/emailVerified — the seed's
+ *  declared entries) ride the INSERT when present; an org binding syncs
+ *  the primary membership mirror (TODO.identity/11). */
 export function createOpAccount(db: Database.Database, input: {
   email: string
   name: string
   role: string
   createdBy?: string | null
+  orgId?: string
+  roles?: string[]
+  emailVerified?: boolean
 }): UserAdminRow | null {
   const id = randomUUID()
   const additional = db.prepare('SELECT user_id FROM account_emails WHERE email = ?').get(input.email.trim().toLowerCase())
   if (additional) return null
+  const rolesJson = input.roles?.length ? JSON.stringify(input.roles) : null
   try {
     db.prepare(
-      "INSERT INTO users (id, email, name, provider, role) VALUES (?, ?, ?, 'password', ?)",
-    ).run(id, input.email.trim().toLowerCase(), input.name.trim(), input.role)
+      `INSERT INTO users (id, email, name, provider, role, org_id, roles, email_verified_at)
+       VALUES (?, ?, ?, 'password', ?, ?, ?, CASE WHEN ? THEN datetime('now') ELSE NULL END)`,
+    ).run(id, input.email.trim().toLowerCase(), input.name.trim(), input.role, input.orgId ?? null, rolesJson, input.emailVerified ? 1 : 0)
   } catch (e) {
     if (String((e as Error).message).includes('UNIQUE')) return null
     throw e
   }
+  if (input.orgId) syncPrimaryMembership(db, id) // TODO.identity/11 — the mirror
   const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as Record<string, unknown>
   return {
     id: row.id as string,
     email: row.email as string,
     name: row.name as string,
     role: row.role as string,
-    roles: [row.role as string],
+    roles: input.roles?.length ? [...input.roles] : [row.role as string],
     orgId: (row.org_id as string | null) ?? null,
     active: row.active !== 0,
     provider: row.provider as string,
@@ -124,6 +134,13 @@ export function setPasswordHash(db: Database.Database, userId: string, hash: str
     `INSERT INTO passwords (user_id, hash, set_by) VALUES (?, ?, ?)
      ON CONFLICT (user_id) DO UPDATE SET hash = excluded.hash, set_at = datetime('now'), set_by = excluded.set_by`,
   ).run(userId, hash, setBy ?? null)
+}
+
+/** The primary address's verification stamp (the seed's declared
+ *  personas — the operator's declaration IS the proof; the ceremony
+ *  paths carry their own inline stamps). */
+export function markPrimaryEmailVerified(db: Database.Database, userId: string): void {
+  db.prepare("UPDATE users SET email_verified_at = datetime('now') WHERE id = ?").run(userId)
 }
 
 /** The sign-in methods the account holds (the account page's
