@@ -462,6 +462,19 @@ export const OPENAPI_SPEC = {
         responses: { 200: { description: 'The instance answers.' } },
       },
     },
+    '/robots.txt': {
+      get: {
+        tags: ['Instance'], operationId: 'getRobotsTxt', summary: 'The crawler front door',
+        description:
+          'The crawl stays OPEN (User-agent: *, Allow: /) — the owner directive\'s noindex rides the meta tag on '
+          + 'every page and the X-Robots-Tag header on every answer, so a Disallow here would trap the stale index '
+          + 'entries: a crawler that cannot fetch never sees the noindex.',
+        security: [],
+        responses: {
+          200: { description: 'The robots.txt document (text/plain), edge-cached 5 minutes.', content: { 'text/plain': { schema: { type: 'string' } } } },
+        },
+      },
+    },
     '/api/config': {
       get: {
         tags: ['Instance'], operationId: 'getConfig', summary: 'The instance\'s public posture (the branding, the provider flags)', security: [],
