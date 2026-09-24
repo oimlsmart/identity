@@ -107,6 +107,8 @@ onMounted(async () => {
  *  gap is the server's verdict, never the page's): ok swaps the cookie
  *  and answers the navigation target; not-ok answers the login fallback
  *  (dead row — sign in again); a refused assumption (403) says so. */
+const brokenAvatars = ref(new Set<string>())
+
 async function choose(account: ChooserAccount) {
   const rowKey = rowKeyOf(account)
   if (busyKey.value) return
@@ -190,11 +192,12 @@ function useAnother() {
             @click="choose(account)"
           >
             <img
-              v-if="account.avatarUrl"
+              v-if="account.avatarUrl && !brokenAvatars.has(account.email)"
               :src="account.avatarUrl"
               :alt="account.name"
               class="w-10 h-10 shrink-0 rounded-full object-cover border border-slate-200 dark:border-slate-700"
               data-testid="chooser-avatar"
+              @error="brokenAvatars.add(account.email)"
             />
             <span
               v-else
