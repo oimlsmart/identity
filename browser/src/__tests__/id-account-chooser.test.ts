@@ -205,11 +205,37 @@ describe('the multi-account chooser surface', () => {
     await loginInto(browser, 'ia@oimlsmart.org')
     await loginInto(browser, 'tl@oimlsmart.org')
     const res = await app.request('/api/op/choose-account', { headers: { cookie: browser.header() } })
-    const body = await res.json() as { accounts: Array<{ email: string; live: boolean; current: boolean }> }
+    const body = await res.json() as { accounts: Array<{ email: string; userId: string; avatarUrl: string | null; live: boolean; current: boolean }> }
     expect(body.accounts.map(a => a.email).sort()).toEqual(['ia@oimlsmart.org', 'tl@oimlsmart.org'])
     expect(body.accounts.every(a => a.live)).toBe(true)
     expect(body.accounts.find(a => a.email === 'tl@oimlsmart.org')?.current).toBe(true)
     expect(body.accounts.find(a => a.email === 'ia@oimlsmart.org')?.current).toBe(false)
+    // THE PHOTO (2026-09-23's report: the chooser showed no profile
+    // photos): every jar entry carries its avatar URL — the PUBLIC
+    // avatar route (/op/avatar/<id>) which serves the stored photo or
+    // the generated-initials SVG, live or not (the route is public by
+    // design; the id is already on the page).
+    for (const account of body.accounts) {
+      expect(account.avatarUrl, `the avatar for ${account.email}`).toBe(`/op/avatar/${account.userId}`)
+    }
+  })
+
+  it('a DEAD jar entry still carries its avatar URL (the trust posture hides the name/email half, never the public photo)', async () => {
+    const browser = cookieJar()
+    await loginInto(browser, 'ia@oimlsmart.org')
+    await loginInto(browser, 'tl@oimlsmart.org')
+    // Kill ONE account's live session (the logout-testing shape): the
+    // dead entry renders from the jar — but the photo stays public.
+    const dead = (await (await app.request('/api/op/choose-account', { headers: { cookie: browser.header() } })).json() as { accounts: Array<{ email: string; userId: string }> }).accounts.find(a => a.email === 'ia@oimlsmart.org')!
+    const { default: Database } = await import('better-sqlite3')
+    const raw = new Database(process.env.DATABASE_PATH!)
+    raw.prepare('DELETE FROM sessions WHERE user_id = ?').run(dead.userId)
+    raw.close()
+    const res = await app.request('/api/op/choose-account', { headers: { cookie: browser.header() } })
+    const body = await res.json() as { accounts: Array<{ email: string; live: boolean; avatarUrl: string | null }> }
+    const entry = body.accounts.find(a => a.email === 'ia@oimlsmart.org')!
+    expect(entry.live).toBe(false)
+    expect(entry.avatarUrl, 'the dead entry keeps its public avatar URL').toBe(`/op/avatar/${dead.userId}`)
   })
 })
 

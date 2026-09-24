@@ -994,7 +994,13 @@ export function createOpRouter(): Hono {
           userId: entry.userId,
           name: live && user ? user.name : entry.displayName,
           email: live && user ? user.email : entry.email,
-          avatarUrl: live && user ? (user.avatarUrl ?? null) : null,
+          // THE PHOTO (2026-09-23's report): the avatar is PUBLIC data —
+          // the /op/avatar/<id> route serves the stored photo or the
+          // generated-initials SVG for any non-erased account, live or
+          // not. The trust posture hides the dead entry's name/email,
+          // never its public photo. A live user's OWN avatarUrl (a
+          // provider photo) wins over the route.
+          avatarUrl: (live && user?.avatarUrl) || (entry.userId ? `/op/avatar/${entry.userId}` : null),
           org: entry.orgId ? (orgNames.get(entry.orgId) ?? entry.orgId) : null,
           live,
           current: !!active && active.user.id === entry.userId,
