@@ -431,6 +431,22 @@ export type GetHealthResponses = {
     200: unknown;
 };
 
+export type GetRobotsTxtData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/robots.txt';
+};
+
+export type GetRobotsTxtResponses = {
+    /**
+     * The robots.txt document (text/plain), edge-cached 5 minutes.
+     */
+    200: string;
+};
+
+export type GetRobotsTxtResponse = GetRobotsTxtResponses[keyof GetRobotsTxtResponses];
+
 export type GetConfigData = {
     body?: never;
     path?: never;

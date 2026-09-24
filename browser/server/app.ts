@@ -83,8 +83,12 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // answers — EXCEPT answers already carrying a CSP (the check
   // iframe's frame-ancestors * wins by design: the RPs frame it).
   // The first-set-wins rule throughout — this seam never overrides.
+  // X-Robots-Tag rides the same every-answer seam (the owner directive:
+  // no OIML SMART property is indexed) — it covers the API + SSR answers
+  // the meta tag cannot reach (JSON, the protocol's HTML fragments).
   app.use('*', async (c, next) => {
     c.header('X-Content-Type-Options', 'nosniff')
+    c.header('X-Robots-Tag', 'noindex, nofollow')
     await next()
     if ((c.res.headers.get('content-type') ?? '').includes('text/html')) {
       // This host is TLS-only by construction; includeSubDomains
@@ -329,6 +333,21 @@ export function createApiApp(options: ApiAppOptions): Hono {
       subject: resource,
       links: [{ rel: 'http://openid.net/specs/connect/1.0/issuer', href: config.issuer }],
     }, 200, { 'content-type': 'application/jrd+json', 'cache-control': 'public, max-age=300' })
+  })
+
+  // The crawler front door (the owner directive: no OIML SMART property
+  // is indexed). The crawl stays OPEN — the noindex rides the meta tag
+  // on every page (and X-Robots-Tag on every answer), so a disallow
+  // here would trap the stale index entries: a crawler that cannot
+  // fetch never sees the noindex. Allow everything, de-index by tag.
+  app.get('/robots.txt', (c) => {
+    return c.text(
+      '# noindex rides the meta tag on every page — crawl stays open so the de-index propagates\n'
+        + 'User-agent: *\n'
+        + 'Allow: /\n',
+      200,
+      { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=300' },
+    )
   })
 
   // RFC 9116 (TODO.modern/14): the vulnerability disclosure pointer.

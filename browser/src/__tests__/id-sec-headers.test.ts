@@ -47,6 +47,11 @@ describe('the API answers', () => {
     expect(res.headers.get('x-content-type-options')).toBe('nosniff')
     expect(res.headers.get('content-security-policy')).toBeNull()
   })
+
+  it('carry X-Robots-Tag noindex, nofollow (the owner directive — every answer)', async () => {
+    const res = await app.request(`${ISSUER}/api/health`)
+    expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow')
+  })
 })
 
 describe('the HTML answers', () => {
@@ -60,6 +65,7 @@ describe('the HTML answers', () => {
     expect(res.headers.get('referrer-policy')).toBe('no-referrer')
     expect(res.headers.get('content-security-policy')).toBe("frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'")
     expect(res.headers.get('cross-origin-opener-policy')).toBe('same-origin')
+    expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow')
   })
 
   it("the session iframe own frame-ancestors * WINS (the RPs frame it by design)", async () => {
