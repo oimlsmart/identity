@@ -905,7 +905,7 @@ on the live registry, one console session):
 | The demo hub | `oiml-smart-demo` | `https://demo.oimlsmart.org/api/auth/signin/oidc` | `monitor` | `roles` |
 | The NMI instance | `oiml-smart-nmi` | `https://nmi.oimlsmart.org/api/auth/signin/oidc` | `scale` | `roles` |
 | The test laboratory | `oiml-smart-tl` | `https://tl.oimlsmart.org/api/auth/signin/oidc` | `flask` | `request` |
-| OIML SMART AI | `oiml-rag` | `https://ai.oimlsmart.org/auth/login` | `chat` | `open` |
+| OIML SMART AI | `oiml-ai` | `https://ai.oimlsmart.org/auth/login` | `chat` | `open` |
 
 The launch URL is the service's own sign-in start (the platform
 instances' RP start is `/api/auth/signin/oidc`; the assistant's is
