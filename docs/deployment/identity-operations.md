@@ -108,8 +108,11 @@ has passed, never automatically mid-flight.
 ### The demonstration cast (the declared personas)
 
 The demonstration personas at `@oimlsmart.org` (the smart demo
-instance's cast — applicant, ia, tl, utilizer, cs, and the kept
-System Administration persona: admin (full access), the per-client
+instance's cast — applicant, ia, tl, utilizer, cs, the kept
+System Administration persona: admin (full access), and the
+market-surveillance officer (surveillance, the member-state
+authority's account, the register's authority audience; smart's
+TODO.remain/09), the per-client
 role key mirroring the smart instance's claim mapping; a viewer
 persona was DELIBERATELY DROPPED — certificates are public and
 utilizer@ covers authenticated non-public reads)
