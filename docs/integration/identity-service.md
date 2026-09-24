@@ -157,13 +157,13 @@ account's credential), the class fixed at registration. One entry:
 
 ```json
 {
-  "client_id": "svc-rag-mcp-ingest",
-  "name": "The RAG's MCP ingest pipeline",
+  "client_id": "svc-ai-mcp-ingest",
+  "name": "The assistant's MCP ingest pipeline",
   "class": "service",
   "service": {
-    "id": "rag-mcp-ingest",
+    "id": "ai-mcp-ingest",
     "org": "mfr-acme",
-    "audience": "oiml-rag-mcp",
+    "audience": "oiml-ai-mcp",
     "scopes": ["documents:read", "ingest:write"]
   },
   "generate_secret": true
