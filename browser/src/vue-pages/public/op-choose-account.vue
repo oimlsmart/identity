@@ -185,8 +185,8 @@ function useAnother() {
             :data-assumable="account.assumable ? 'true' : undefined"
             :aria-label="t('chooser.continueAs', { name: account.name || account.email })"
             :class="account.hinted
-              ? 'w-full text-left px-4 py-3 rounded-xl border-2 border-brand-500 dark:border-brand-400 bg-brand-50/60 dark:bg-brand-900/20 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors disabled:opacity-50 flex items-center gap-3'
-              : 'w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center gap-3'"
+              ? 'w-full text-left px-4 py-3 rounded-xl border-2 border-brand-500 dark:border-brand-400 bg-brand-50/60 dark:bg-brand-900/20 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-3'
+              : 'w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-3'"
             @click="choose(account)"
           >
             <img
@@ -237,7 +237,7 @@ function useAnother() {
             :disabled="anotherBusy"
             data-testid="chooser-use-another"
             @click="useAnother"
-            class="w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center gap-3"
+            class="w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-3"
           >
             <span class="w-10 h-10 shrink-0 rounded-full border border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-400 dark:text-slate-500" aria-hidden="true">
               <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
