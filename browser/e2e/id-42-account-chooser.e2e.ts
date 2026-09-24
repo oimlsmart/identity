@@ -151,12 +151,12 @@ async function bootIdentityStack(): Promise<Stack> {
       }]),
       // The demonstration personas + the assumption grants (the
       // grant-based posture's browser-level proof): the FULL
-      // six-persona cast — applicant, ia, tl, utilizer, cs, and the
-      // kept System Administration pair (admin = full access, viewer =
-      // read-only; the role keys mirror the smart demo mapping). The
-      // fixture credentials are THIS STACK's throwaways — production
-      // personas carry minted random credentials that exist in no
-      // repository.
+      // seven-persona cast — applicant, ia, tl, utilizer, cs, the kept
+      // System Administration persona (admin = full access), and the
+      // market-surveillance officer (the role keys mirror the smart
+      // demo mapping). The fixture credentials are THIS STACK's
+      // throwaways — production personas carry minted random
+      // credentials that exist in no repository.
       OP_ACCOUNT_SEED: JSON.stringify([
         {
           email: 'persona-applicant@oimlsmart.org', name: 'ACME Applicant (Demonstration)', role: 'user',
@@ -187,6 +187,11 @@ async function bootIdentityStack(): Promise<Stack> {
           email: 'persona-admin@oimlsmart.org', name: 'System Administrator (Demonstration)', role: 'user',
           emailVerified: true, password: 'e2e-persona-credential-6',
           clientRoles: { [RP_CLIENT_ID]: ['admin'] },
+        },
+        {
+          email: 'persona-surveillance@oimlsmart.org', name: 'Market Surveillance (NL) (Demonstration)', role: 'user',
+          orgId: 'ut-nmi-nl', emailVerified: true, password: 'e2e-persona-credential-7',
+          clientRoles: { [RP_CLIENT_ID]: ['market_surveillance'] },
         },
       ]),
       OP_DEMO_ASSUME_GRANTS: JSON.stringify({ clientId: RP_CLIENT_ID, grantees: ['ia@oimlsmart.org'] }),
@@ -336,19 +341,19 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
 
   // ── the grant-based assumption (the demo personas' own posture) ─────
 
-  it('leg 5 — the grant-holder\'s chooser lists the FULL six-persona cast; the click assumes the persona WITHOUT its credential and completes the flow as the PERSONA', { timeout: 900_000 }, async () => {
+  it('leg 5 — the grant-holder\'s chooser lists the FULL seven-persona cast; the click assumes the persona WITHOUT its credential and completes the flow as the PERSONA', { timeout: 900_000 }, async () => {
     // The presenting session is ia — the grant names her. The flow asks
     // for the chooser with the persona hinted.
     await page.goto(`${rp.baseUrl}/signin?prompt=select_account&login_hint=persona-applicant%40oimlsmart.org`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-choose-account"]', { timeout: SETTLE, polling: 500 })
 
-    // The whole cast lists (applicant, ia, tl, utilizer, cs, admin —
-    // every entry the declaration scopes to the client), each badged;
-    // the hint pre-selects the applicant.
+    // The whole cast lists (applicant, ia, tl, utilizer, cs, admin,
+    // surveillance — every entry the declaration scopes to the client),
+    // each badged; the hint pre-selects the applicant.
     const personaRow = '[data-testid="chooser-account-persona-applicant@oimlsmart.org"]'
     await page.waitForSelector(personaRow, { timeout: SETTLE, polling: 500 })
-    expect(await page.$$('[data-testid="chooser-persona-badge"]')).toHaveLength(6)
-    for (const seg of ['persona-admin', 'persona-tl', 'persona-ia', 'persona-utilizer', 'persona-cs']) {
+    expect(await page.$$('[data-testid="chooser-persona-badge"]')).toHaveLength(7)
+    for (const seg of ['persona-admin', 'persona-tl', 'persona-ia', 'persona-utilizer', 'persona-cs', 'persona-surveillance']) {
       expect(await page.$(`[data-testid="chooser-account-${seg}@oimlsmart.org"] [data-testid="chooser-persona-badge"]`), `${seg} carries the persona badge`).toBeTruthy()
     }
     expect(await page.$(`${personaRow} [data-testid="chooser-persona-badge"]`), 'the persona badge marks the assumable row').toBeTruthy()

@@ -33,7 +33,7 @@ const RP = {
 }
 process.env.OP_CLIENT_SEED = JSON.stringify([RP])
 
-// The demonstration cast: two declared personas + the grant naming the
+// The demonstration cast: the declared personas + the grant naming the
 // REAL team account (the demo-cast ia@oimlsmart.org stands in for the
 // grantee — any live account address grants the same way).
 const PERSONAS = [
@@ -72,6 +72,16 @@ const PERSONAS = [
     email: 'persona-admin@oimlsmart.org', name: 'System Administrator', role: 'user',
     emailVerified: true, password: 'personas-never-publish-passwords-6',
     clientRoles: { 'oiml-smart-demo': ['admin'] },
+  },
+  {
+    // The market-surveillance persona (smart's TODO.remain/09): the
+    // member-state authority's officer, bound to the same registered
+    // Utilizer as the utilizer persona; the per-client role key mirrors
+    // the smart demo mapping's market_surveillance rule (the register's
+    // authority audience resolves from it).
+    email: 'persona-surveillance@oimlsmart.org', name: 'Market Surveillance (NL)', role: 'user', orgId: 'ut-nmi-nl',
+    emailVerified: true, password: 'personas-never-publish-passwords-7',
+    clientRoles: { 'oiml-smart-demo': ['market_surveillance'] },
   },
 ]
 process.env.OP_ACCOUNT_SEED = JSON.stringify(PERSONAS)
@@ -176,14 +186,16 @@ describe('the grant gate (the chooser context)', () => {
     expect(res.ok).toBe(true)
     const body = await res.json() as { accounts: Array<{ email: string; assumable: boolean; hinted: boolean }> }
     const personas = body.accounts.filter(a => a.assumable)
-    // The full demonstration cast (SIX): applicant, ia, tl, utilizer,
-    // cs, and the kept System Administration persona (admin = full
-    // access) — every entry the declaration scopes to the client.
+    // The full demonstration cast (SEVEN): applicant, ia, tl, utilizer,
+    // cs, the kept System Administration persona (admin = full access),
+    // and the market-surveillance officer (smart's TODO.remain/09) —
+    // every entry the declaration scopes to the client.
     expect(personas.map(p => p.email).sort()).toEqual([
       'persona-admin@oimlsmart.org',
       'persona-applicant@oimlsmart.org',
       'persona-cs@oimlsmart.org',
       'persona-ia@oimlsmart.org',
+      'persona-surveillance@oimlsmart.org',
       'persona-tl@oimlsmart.org',
       'persona-utilizer@oimlsmart.org',
     ])
