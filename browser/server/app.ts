@@ -196,6 +196,15 @@ export function createApiApp(options: ApiAppOptions): Hono {
   app.use('/api/op/login/passkey', rateLimit)
   app.use('/api/op/login/passkey/options', rateLimit)
   app.use('/api/op/account/factors/totp/*/verify', rateLimit)
+  // The device-grant surface (the 2026-09-25 security pass): the
+  // anonymous ceremony create mints a row per call (the join-intake
+  // F10.5 shape), and the page API's user_code lookups are the
+  // brute-force window (40 bits of Crockford base32 — the bucket is
+  // the second layer, the code-shaped surfaces' doctrine). The decide
+  // endpoint rides under /api/op/device* with the page read.
+  app.use('/op/device/authorization', rateLimit)
+  app.use('/api/op/device', rateLimit)
+  app.use('/api/op/device/*', rateLimit)
   // The public join intake (the 2026-09-07 security cone audit's F10.5,
   // smart#297): the ANONYMOUS submit mints join-request rows — and, on
   // the manufacturer path, organization-registry rows — so it rides the
