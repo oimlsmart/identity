@@ -244,8 +244,14 @@ describe("the bootstrap seed's read-back arbiter (the 2026-09-23 lesson)", () =>
     })
   }
 
-  it("the seed's write confirm times out, the read-back proves the content landed — the login PROCEEDS, never the 503", async () => {
-    // ONLY the client-registry upsert hangs; every other statement runs.
+  it('a LANDED registry never reaches the seed path — the login proceeds without the arbiter\'s stall (the #78 check-first posture)', async () => {
+    // The content ALREADY LANDED (pre-planted above): since #78's fix
+    // the fresh isolate's read-back check runs BEFORE the seed — the
+    // declaration proves complete and the convergence is never started
+    // inline, so the hanging upsert is never reached and the answer
+    // pays no budget stall (the pre-fix posture paid BUDGET_MS here
+    // for the arbiter; the check-first posture removed the inline seed
+    // from this scenario entirely).
     facade.hangSql = /INSERT INTO oidc_clients/
     const started = Date.now()
     const res = await seedLogin()
@@ -253,11 +259,31 @@ describe("the bootstrap seed's read-back arbiter (the 2026-09-23 lesson)", () =>
     facade.hangSql = null
     expect(res.status).toBe(200)
     expect(res.headers.get('set-cookie')).toContain('oiml-session=')
-    // The answer carried the budget stall (the arbiter ran after it) —
-    // bounded, never the spin.
-    expect(elapsed).toBeGreaterThanOrEqual(BUDGET_MS)
-    expect(elapsed).toBeLessThan(5_000)
+    expect(elapsed, 'the check-first posture answers without the seed path').toBeLessThan(BUDGET_MS)
   }, 30_000)
+
+  it('the arbiter itself: a timed-out confirm PROCEEDS on a complete read-back, rethrows on an incomplete one', async () => {
+    // The route can no longer reach the rescue arm with the hang
+    // facade (check-first means a landed registry never seeds inline),
+    // but the production condition it guards is real: a D1 write whose
+    // CONFIRMATION times out after the statement was ACCEPTED (the
+    // 2026-09-23 login-503 incident). The arbiter's own contract,
+    // unit-covered directly.
+    const { StoreUnavailable } = await import('../../server/store')
+    const { seedWithReadBack } = await import('../../server/routes/op-seed-guard')
+    const landed = seedWithReadBack(
+      'unit rescue',
+      async () => { throw new StoreUnavailable('UPDATE oidc_clients', 2000, true) },
+      async () => true,
+    )
+    await expect(landed).resolves.toEqual([])
+    const incomplete = seedWithReadBack(
+      'unit rethrow',
+      async () => { throw new StoreUnavailable('UPDATE oidc_clients', 2000, true) },
+      async () => false,
+    )
+    await expect(incomplete).rejects.toBeInstanceOf(StoreUnavailable)
+  })
 
   it('a genuinely incomplete seed keeps the honest 503 + the retry posture', async () => {
     // The declared account does NOT exist and its write hangs: the

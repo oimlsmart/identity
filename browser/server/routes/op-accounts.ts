@@ -215,6 +215,18 @@ export function createOpAccountsRouter(): Hono {
   // Each step carries the read-back arbiter (op-seed-guard.ts): a
   // timed-out write-confirm never fails the seed whose content already
   // reads back complete — the 2026-09-23 login-503 lesson.
+  //
+  // THE CHECK COMES FIRST (the #78 lesson, 2026-09-25): the seed used
+  // to run its FULL declared convergence inline on every fresh
+  // isolate's first credential-gated request — the seven-persona demo
+  // cast cost 68 store calls ≈ 3.6s of D1 round trips that landed on
+  // whatever login hit it (the "cold isolate ~10s" report; production
+  // samples read 72 calls / 3655ms vs 4 / 220ms on warm isolates). The
+  // read-back now runs BEFORE the seed, the finds PARALLEL: a complete
+  // declaration answers the request immediately and converges in the
+  // BACKGROUND (drift repair, never login-critical); an incomplete
+  // registry — the fresh deployment — seeds INLINE, because there the
+  // bootstrap IS the first admin's front door.
   let seeded: Promise<void> | null = null
   function ensureSeeded(c: Context): Promise<void> {
     if (!seeded) {
@@ -222,30 +234,56 @@ export function createOpAccountsRouter(): Hono {
         const env = runtimeEnv<EnvLike>(c)
         const issuer = resolveOpConfig(env, opRequestOrigin(c.req.raw)).issuer
         const store = getStore()
-        const ids = await seedWithReadBack(
-          'account bootstrap',
-          () => seedOpAccountsFromEnv(env, store, issuer),
-          async () => {
-            if (!env.OP_ACCOUNT_SEED?.trim()) return true // nothing declared = trivially complete
-            for (const entry of parseOpAccountSeed(env.OP_ACCOUNT_SEED.trim())) {
-              if (!(await store.findUserByEmail(entry.email.trim().toLowerCase()))) return false
-            }
-            return true
-          },
-        )
-        if (ids.length) console.log(`[op] account bootstrap seeded: ${ids.join(', ')}`)
-        const clientIds = await seedWithReadBack(
-          'client registry bootstrap',
-          () => seedOidcClientsFromEnv(env, store),
-          async () => {
-            if (!env.OP_CLIENT_SEED?.trim()) return true // nothing declared = trivially complete
-            for (const entry of parseOpClientSeed(env.OP_CLIENT_SEED.trim())) {
-              if (!(await store.getOidcClient(entry.client_id))) return false
-            }
-            return true
-          },
-        )
-        if (clientIds.length) console.log(`[op] client registry bootstrap seeded: ${clientIds.join(', ')}`)
+
+        const runSeeds = async (): Promise<void> => {
+          const ids = await seedWithReadBack(
+            'account bootstrap',
+            () => seedOpAccountsFromEnv(env, store, issuer),
+            async () => {
+              if (!env.OP_ACCOUNT_SEED?.trim()) return true // nothing declared = trivially complete
+              for (const entry of parseOpAccountSeed(env.OP_ACCOUNT_SEED.trim())) {
+                if (!(await store.findUserByEmail(entry.email.trim().toLowerCase()))) return false
+              }
+              return true
+            },
+          )
+          if (ids.length) console.log(`[op] account bootstrap seeded: ${ids.join(', ')}`)
+          const clientIds = await seedWithReadBack(
+            'client registry bootstrap',
+            () => seedOidcClientsFromEnv(env, store),
+            async () => {
+              if (!env.OP_CLIENT_SEED?.trim()) return true // nothing declared = trivially complete
+              for (const entry of parseOpClientSeed(env.OP_CLIENT_SEED.trim())) {
+                if (!(await store.getOidcClient(entry.client_id))) return false
+              }
+              return true
+            },
+          )
+          if (clientIds.length) console.log(`[op] client registry bootstrap seeded: ${clientIds.join(', ')}`)
+        }
+
+        const accountEntries = env.OP_ACCOUNT_SEED?.trim() ? parseOpAccountSeed(env.OP_ACCOUNT_SEED.trim()) : []
+        const clientEntries = env.OP_CLIENT_SEED?.trim() ? parseOpClientSeed(env.OP_CLIENT_SEED.trim()) : []
+        const [accountsComplete, clientsComplete] = await Promise.all([
+          Promise.all(accountEntries.map(e => store.findUserByEmail(e.email.trim().toLowerCase())))
+            .then(found => found.every(Boolean)),
+          Promise.all(clientEntries.map(e => store.getOidcClient(e.client_id)))
+            .then(found => found.every(Boolean)),
+        ])
+        if (accountsComplete && clientsComplete) {
+          // The checks PROVED the content — the answer proceeds now.
+          const drift = runSeeds().catch((err) => {
+            console.error('[op] the background seed convergence failed (the registry reads back complete):', (err as Error).message)
+          })
+          try {
+            ;(c.executionCtx as unknown as { waitUntil: (p: Promise<void>) => void }).waitUntil(drift)
+          } catch {
+            // The node posture: no execution context to pin to — the
+            // process lives past the answer either way.
+          }
+          return
+        }
+        await runSeeds()
       })()
       seeded.catch((err) => {
         seeded = null // a failed seed retries next request — but NEVER silently again (2026-09-18: the production seed failed and the retry rode every /api/op/* window unseen, ~20 store calls + writes a piece, until the exact Server-Timing instrument caught it)
