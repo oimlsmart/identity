@@ -1046,18 +1046,19 @@ export function createOpRouter(): Hono {
       // Only a DECLARED persona address can take this branch, and only
       // a LIVE presenting session holding the GRANT may mint — every
       // verdict re-reads the declaration and the store, never the page.
-      const posture = personaGrantsFor(c)
-      const requestedEmail = (typeof body.email === 'string' && body.email ? body.email.trim().toLowerCase() : null)
+      // The address resolves from the caller's own claim or the named
+      // account's row (an assumed persona's dead jar row POSTs the
+      // userId) — but a row-derived address NEVER rides an answer: the
+      // prefill is the requester's own jar entry or the address the
+      // caller itself sent (the id is not a secret; the email is).
+      const bodyEmail = typeof body.email === 'string' && body.email ? body.email.trim().toLowerCase() : null
+      const requestedEmail = bodyEmail
         ?? (await getStore().getUserById(body.userId ?? ''))?.email.trim().toLowerCase()
         ?? null
+      const posture = personaGrantsFor(c)
       const persona = posture && requestedEmail ? declaredPersonaByEmail(posture.personas, requestedEmail) : null
-      if (persona) {
-        const active = await activeJarContext(c)
-        if (!active) {
-          // Signed out: the honest fallback — nothing about the grants
-          // leaks (the posture reads exactly like a dead jar entry).
-          return c.json({ ok: false, login: loginUrlForContinue(continueTarget, persona.email) })
-        }
+      const active = persona ? await activeJarContext(c) : null
+      if (persona && active) {
         const personaEmails = new Set(posture!.personas.map(p => p.email))
         if (!grantsAllowEmail(posture!.grants, active.user.email, personaEmails)) {
           return c.json({ error: 'the presenting account is not granted the persona assumption' }, 403)
@@ -1066,7 +1067,7 @@ export function createOpRouter(): Hono {
         if (!account) {
           // The declaration runs ahead of the roster (the seed has not
           // landed yet): the honest fallback, never a guess.
-          return c.json({ ok: false, login: loginUrlForContinue(continueTarget, persona.email) })
+          return c.json({ ok: false, login: loginUrlForContinue(continueTarget, bodyEmail) })
         }
         // The session mints AS the persona — same shape as a completed
         // sign-in, minus the credential: writes SERIAL (the store seam's
@@ -1101,11 +1102,12 @@ export function createOpRouter(): Hono {
         return c.json({ ok: true, redirect: continueTarget ?? '/op/account' })
       }
       // The honest fallback: the remembered entry (if the jar still
-      // knows the account) lends its email to the login prefill.
+      // knows the account) lends its email to the login prefill — never
+      // the named account's own address.
       const entry = body.userId
         ? (await resolveAccountJar(c)).find(r => r.entry.userId === body.userId)
         : undefined
-      return c.json({ ok: false, login: loginUrlForContinue(continueTarget, entry?.entry.email ?? requestedEmail) })
+      return c.json({ ok: false, login: loginUrlForContinue(continueTarget, entry?.entry.email ?? bodyEmail) })
     }
     setCookie(c, SESSION_COOKIE, target.entry.sessionId, sessionCookieOpts(c))
     // The chosen account moves to the jar's front (the LRU refresh) —

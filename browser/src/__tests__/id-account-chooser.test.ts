@@ -199,6 +199,47 @@ describe('login_hint on the chooser (the pre-selection)', () => {
   })
 })
 
+describe('the login prefill never leaks (the email is not public data)', () => {
+  it('a foreign userId POST answers the honest fallback WITHOUT the account\'s email', async () => {
+    // The signed-out caller names a REAL account's id (the id is not a
+    // secret — it rides the ID token's sub and the public avatar URL).
+    // The fallback's prefill may only lend the REQUESTER'S OWN jar
+    // entry's email — never the named account's.
+    const victim = (await store.findUserByEmail('tl@oimlsmart.org'))!
+    const res = await app.request('/api/op/choose-account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userId: victim.id, continue: '/op/account' }),
+    })
+    expect(res.ok).toBe(true)
+    const body = await res.json() as { ok: boolean; login?: string }
+    expect(body.ok).toBe(false)
+    expect(body.login, 'the victim\'s email must not ride the prefill').toBeTruthy()
+    expect(body.login!).not.toContain('tl%40oimlsmart.org')
+    expect(body.login!).not.toContain('tl@oimlsmart.org')
+  })
+
+  it('a jar holder\'s OWN dead entry still lends its email (the pre-change behavior, kept)', async () => {
+    const browser = cookieJar()
+    await loginInto(browser, 'ia@oimlsmart.org')
+    await loginInto(browser, 'tl@oimlsmart.org')
+    const dead = (await (await app.request('/api/op/choose-account', { headers: { cookie: browser.header() } })).json() as { accounts: Array<{ email: string; userId: string }> }).accounts.find(a => a.email === 'ia@oimlsmart.org')!
+    const { default: Database } = await import('better-sqlite3')
+    const raw = new Database(process.env.DATABASE_PATH!)
+    raw.prepare('DELETE FROM sessions WHERE user_id = ?').run(dead.userId)
+    raw.close()
+    const res = await app.request('/api/op/choose-account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: browser.header() },
+      body: JSON.stringify({ userId: dead.userId, continue: '/op/account' }),
+    })
+    expect(res.ok).toBe(true)
+    const body = await res.json() as { ok: boolean; login?: string }
+    expect(body.ok).toBe(false)
+    expect(body.login).toContain(encodeURIComponent('ia@oimlsmart.org'))
+  })
+})
+
 describe('the multi-account chooser surface', () => {
   it('two signed-in accounts list with the presenting one badged (both live)', async () => {
     const browser = cookieJar()

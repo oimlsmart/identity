@@ -318,6 +318,39 @@ describe('the assumption (the grant-holder becomes the persona)', () => {
     expect(claims.roles).toEqual(['applicant'])
     expect(claims.amr).toEqual(['assumed'])
   })
+
+  it('an assumed persona\'s DEAD jar row still re-assumes by userId (the row-derived lookup serves the granted holder)', async () => {
+    const browser = cookieJar()
+    await loginInto(browser, 'ia@oimlsmart.org')
+    // First assumption: the persona joins the jar as an ordinary row.
+    const first = await app.request('/api/op/choose-account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: browser.header() },
+      body: JSON.stringify({ email: 'persona-applicant@oimlsmart.org', continue: '/op/account' }),
+    })
+    expect(first.ok).toBe(true)
+    browser.absorb(first)
+    const persona = (await store.findUserByEmail('persona-applicant@oimlsmart.org'))!
+    // The presenting session swapped to the persona at assumption time;
+    // the holder signs back in as themselves (the persona stays in the
+    // jar), and THEN the persona's session dies.
+    await loginInto(browser, 'ia@oimlsmart.org')
+    const { default: Database } = await import('better-sqlite3')
+    const raw = new Database(process.env.DATABASE_PATH!)
+    raw.prepare('DELETE FROM sessions WHERE user_id = ?').run(persona.id)
+    raw.close()
+    // The granted holder clicks the dead row (the page POSTs userId):
+    // the re-verdict resolves the persona from the row and re-assumes.
+    const again = await app.request('/api/op/choose-account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: browser.header() },
+      body: JSON.stringify({ userId: persona.id, continue: '/op/account' }),
+    })
+    expect(again.status).toBe(200)
+    const body = await again.json() as { ok: boolean; redirect?: string }
+    expect(body.ok).toBe(true)
+    expect(body.redirect).toBe('/op/account')
+  })
 })
 
 describe('the assumption refusals (the server holds every verdict)', () => {
@@ -344,6 +377,24 @@ describe('the assumption refusals (the server holds every verdict)', () => {
     const body = await res.json() as { ok: boolean; login?: string }
     expect(body.ok).toBe(false)
     expect(body.login).toContain('/')
+  })
+
+  it('a signed-out persona-id probe answers the SAME fallback (no uuid-to-email echo, no persona oracle)', async () => {
+    // The persona's id is not a secret (it rides the ID token's sub
+    // after any assumption); the SIGNED-OUT answer must not turn an id
+    // into an address — and must not distinguish persona from
+    // non-persona (the probe answers byte-identically either way).
+    const persona = (await store.findUserByEmail('persona-applicant@oimlsmart.org'))!
+    const res = await app.request('/api/op/choose-account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userId: persona.id, continue: '/op/account' }),
+    })
+    expect(res.ok).toBe(true)
+    const body = await res.json() as { ok: boolean; login?: string }
+    expect(body.ok).toBe(false)
+    expect(body.login, 'no address may ride the signed-out prefill').toBeTruthy()
+    expect(body.login!).not.toContain('persona-applicant')
   })
 
   it('a forged or undeclared address never assumes (the declaration is the only persona set)', async () => {
