@@ -72,6 +72,7 @@ class HangableStatement {
 }
 
 const facade = { hangWrites: false, hangSql: null as RegExp | null }
+let d1Binding: import('@cloudflare/workers-types').D1Database | null = null
 let app: import('hono').Hono
 
 beforeAll(async () => {
@@ -87,6 +88,7 @@ beforeAll(async () => {
       return results
     },
   } as unknown as D1Database
+  d1Binding = binding
 
   const { D1ServerStore } = await import('../../server/store/d1')
   const { installStore } = await import('../../server/store')
@@ -253,13 +255,25 @@ describe("the bootstrap seed's read-back arbiter (the 2026-09-23 lesson)", () =>
     // for the arbiter; the check-first posture removed the inline seed
     // from this scenario entirely).
     facade.hangSql = /INSERT INTO oidc_clients/
+    // The deterministic discriminator (a wall-clock ceiling against the
+    // 60ms budget flaked on CI — the login's honest work can exceed it
+    // on a loaded runner with no stall at all): re-install the SAME
+    // binding under a 10-SECOND confirm budget. Pre-fix, the login
+    // awaited the seed's hung upsert through that budget (the arbiter
+    // ran at 10s); post-fix, the check proves the registry complete and
+    // the answer never touches the seed path.
+    const { D1ServerStore } = await import('../../server/store/d1')
+    const { installStore, installedStore } = await import('../../server/store')
+    const original = installedStore()!
+    installStore(new D1ServerStore(d1Binding!, { writeBudgetMs: 10_000 }))
     const started = Date.now()
     const res = await seedLogin()
     const elapsed = Date.now() - started
+    installStore(original)
     facade.hangSql = null
     expect(res.status).toBe(200)
     expect(res.headers.get('set-cookie')).toContain('oiml-session=')
-    expect(elapsed, 'the check-first posture answers without the seed path').toBeLessThan(BUDGET_MS)
+    expect(elapsed, 'the check-first posture answers without the seed path (a 10s confirm budget would have surfaced any inline seed)').toBeLessThan(2_000)
   }, 30_000)
 
   it('the arbiter itself: a timed-out confirm PROCEEDS on a complete read-back, rethrows on an incomplete one', async () => {
