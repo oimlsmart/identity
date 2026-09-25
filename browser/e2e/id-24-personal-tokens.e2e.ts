@@ -420,9 +420,11 @@ describe('the developer tokens (the identity profile)', () => {
     // The discovery document: the RP contract alone (the device class's
     // precedent — the register-internal cones never advertise: neither
     // client_credentials nor this RFC 8693 exchange; the wave-C
-    // refresh_token IS an RP grant and advertises honestly).
+    // refresh_token IS an RP grant and advertises honestly, and the
+    // RFC 8628 device_code grant joins it the same way — the public CLI
+    // clients are relying parties, id-43's cone).
     const discovery = await (await fetch(`${stack.apiBase}/.well-known/openid-configuration`)).json() as { grant_types_supported: string[] }
-    expect(discovery.grant_types_supported).toEqual(['authorization_code', 'refresh_token'])
+    expect(discovery.grant_types_supported).toEqual(['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'])
   })
 
   it('leg 4 — the narrowing mid-flight: the service’s disable shrinks the next exchange (the standing re-judgment)', { timeout: 900_000 }, async () => {
