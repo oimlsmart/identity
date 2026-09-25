@@ -50,9 +50,9 @@ describe('inlineScriptHashes', () => {
 })
 
 describe('the managed _headers block', () => {
-  it('the directive carries the hashes + self, appended to the CSP-lite posture', () => {
+  it('the directive carries the hashes + self + the analytics beacon origin, appended to the CSP-lite posture', () => {
     const block = managedBlock(["'sha256-Aaa='", "'sha256-Bbb='"])
-    expect(block).toContain("script-src 'self' 'sha256-Aaa=' 'sha256-Bbb='")
+    expect(block).toContain("script-src 'self' 'sha256-Aaa=' 'sha256-Bbb=' https://static.cloudflareinsights.com")
     expect(block).toContain("frame-ancestors 'none'")
     expect(block).toContain('Strict-Transport-Security: max-age=31536000')
     expect(block).toContain('X-Content-Type-Options: nosniff')
@@ -79,6 +79,6 @@ describe('the self-check (the build fails on drift)', () => {
 
   it('cspDirectiveFor composes the shell header line', () => {
     const line = cspDirectiveFor(["'sha256-Aaa='"])
-    expect(line).toBe("frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'sha256-Aaa='")
+    expect(line).toBe("frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'sha256-Aaa=' https://static.cloudflareinsights.com")
   })
 })
