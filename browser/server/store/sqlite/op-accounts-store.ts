@@ -409,6 +409,7 @@ export function eraseOpAccount(db: Database.Database, userId: string): {
   personalAccessTokens: number
   consentGrants: number
   emails: number
+  deviceAuthorizations: number
 } | null {
   const row = db.prepare('SELECT 1 AS ok FROM users WHERE id = ?').get(userId)
   if (!row) return null
@@ -440,6 +441,9 @@ export function eraseOpAccount(db: Database.Database, userId: string): {
   // TODO.identity-features/01: the additional addresses die with the
   // account (a tombstone's addresses never resolve a sign-in again).
   const emails = db.prepare('DELETE FROM account_emails WHERE user_id = ?').run(userId).changes
+  // TODO.ai-platform/10: the device-grant ceremonies die with the account
+  // (a tombstone's pending approval never mints).
+  const deviceAuthorizations = db.prepare('DELETE FROM device_authorizations WHERE user_id = ?').run(userId).changes
   db.prepare(
     `UPDATE users SET
        email = ?, name = 'Deleted account', provider = 'erased',
@@ -447,7 +451,7 @@ export function eraseOpAccount(db: Database.Database, userId: string): {
        avatar_url = NULL, email_verified_at = NULL, active = 0
      WHERE id = ?`,
   ).run(`deleted-${userId}@erased.invalid`, userId)
-  return { ...revoked, links, clientRoles, memberships, tokens, factors, personalAccessTokens, consentGrants, emails }
+  return { ...revoked, links, clientRoles, memberships, tokens, factors, personalAccessTokens, consentGrants, emails, deviceAuthorizations }
 }
 
 /** The last OP-side sign-in per account, FROM THE AUDIT CHAIN: the

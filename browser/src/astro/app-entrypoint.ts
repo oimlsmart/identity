@@ -35,6 +35,8 @@ const ROUTE_PATHS: Array<{ path: string; name: string }> = [
   { path: '/op/home', name: 'op-home' },
   { path: '/op/account', name: 'account' },
   { path: '/op/consent', name: 'op-consent' },
+  // TODO.ai-platform/10 — the device authorization grant's approval page.
+  { path: '/op/device', name: 'op-device' },
   { path: '/op/join', name: 'op-join' },
   { path: '/op/setup', name: 'op-setup' },
   { path: '/op/email-change', name: 'op-email-change' },

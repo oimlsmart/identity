@@ -857,7 +857,9 @@ export interface OpAssumptionEvent {
  *  the remembered consent rows (a dead account's grants die with it).
  *  TODO.identity-features/01 adds `emails`: the additional-address rows
  *  (every address of the account goes — the tombstone's primary is the
- *  anonymized users.email). */
+ *  anonymized users.email). TODO.ai-platform/10 adds
+ *  `deviceAuthorizations`: the RFC 8628 ceremony rows (a dead account's
+ *  pending approvals never mint). */
 export interface OpAccountErasure {
   sessions: number
   accessTokens: number
@@ -872,6 +874,7 @@ export interface OpAccountErasure {
   personalAccessTokens: number
   consentGrants: number
   emails: number
+  deviceAuthorizations: number
 }
 
 // ── the account console (TODO.identity/06) ───────────────────────────
@@ -1154,6 +1157,32 @@ export interface PersonalAccessToken {
   expiryNotifiedAt: string | null
   revokedAt: string | null
   revokedBy: string | null
+}
+
+/** A device authorization's row (the device_authorizations table — the
+ *  RFC 8628 grant, TODO.ai-platform/10). NEVER a plaintext code: both
+ *  codes store as SHA-256 hashes (the device_code is the poll's lookup,
+ *  the user_code the approval page's). The status machine: pending →
+ *  approved | denied → consumed (the token leg's one-time flip). The
+ *  approving account + the org-context pin land AT THE DECISION (the
+ *  request is account-free); expiresAt bounds the whole ceremony. */
+export interface DeviceAuthorization {
+  id: string
+  deviceCodeHash: string
+  userCodeHash: string
+  clientId: string
+  /** The requested scope set (the PAT grammar's encoded spellings). */
+  scopes: string[]
+  status: 'pending' | 'approved' | 'denied' | 'consumed'
+  /** The approving account (null until the decision). */
+  userId: string | null
+  /** The approving session's active-org context (the PAT mint's pin). */
+  orgContext: string | null
+  intervalSeconds: number
+  lastPollAt: string | null
+  createdAt: string
+  expiresAt: string
+  decidedAt: string | null
 }
 
 
@@ -2354,6 +2383,38 @@ export interface ServerStore {
     id: string,
     stamps: { usedAt: string; auditAt?: string | null; expiryNotifiedAt?: string | null },
   ): Promise<void>
+
+  // ── the device authorization grant (RFC 8628, TODO.ai-platform/10) ──
+  /** The §3.2 issuance: one row per ceremony. Both codes cross the seam
+   *  as SHA-256 hashes ONLY (the caller hashes — the PAT doctrine). */
+  createDeviceAuthorization(input: {
+    id: string
+    deviceCodeHash: string
+    userCodeHash: string
+    clientId: string
+    scopes: string[]
+    intervalSeconds: number
+    expiresAt: string
+  }): Promise<DeviceAuthorization>
+  /** The token leg's lookup: by the presented device_code's SHA-256. */
+  findDeviceAuthorizationByDeviceCodeHash(hash: string): Promise<DeviceAuthorization | null>
+  /** The approval page's lookup: by the entered user_code's SHA-256. */
+  findDeviceAuthorizationByUserCodeHash(hash: string): Promise<DeviceAuthorization | null>
+  /** The approval page's decision: the guarded flip from 'pending'
+   *  (a double decision or an expired row answers null), binding the
+   *  approving account + the session's active-org context. */
+  decideDeviceAuthorization(
+    id: string,
+    decision: { userId: string; orgContext: string | null; approve: boolean; decidedAt: string },
+  ): Promise<DeviceAuthorization | null>
+  /** The poll judgment's stamp (RFC 8628 §3.5's slow_down: the route
+   *  decides the throttle from the row it already read; the store
+   *  writes — lastPollAt always, the bumped interval on a slow_down). */
+  stampDeviceAuthorizationPoll(id: string, polledAt: string, intervalSeconds?: number): Promise<void>
+  /** The token leg's one-time consume: the ATOMIC flip approved →
+   *  consumed, answering the row it claimed (a re-presented or
+   *  never-approved code answers null — the invalid_grant leg). */
+  consumeDeviceAuthorization(id: string): Promise<DeviceAuthorization | null>
 
   // ── organization administration (TODO.identity/10) ──
   /** File a join request (the public "Request an account" page). */

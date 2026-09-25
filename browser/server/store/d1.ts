@@ -94,6 +94,7 @@ import {
   type InstrumentRegistrationWriteInput,
   type JournalAppend,
   type PersonalAccessToken,
+  type DeviceAuthorization,
   type PlatformEvent,
   resolveOrgContext,
   parseOrgMemberCone,
@@ -245,6 +246,7 @@ interface EnsureMemos {
   instrumentRegistrationSupport: Promise<void> | null
   oidcColumns: Promise<void> | null
   personalAccessTokenSupport: Promise<void> | null
+  deviceAuthorizationSupport: Promise<void> | null
   webhookSupport: Promise<void> | null
   knownDeviceSupport: Promise<void> | null
   parSupport: Promise<void> | null
@@ -268,6 +270,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
       personalAccessTokenSupport: null, consentGrantSupport: null,
       oidcRefreshTokenSupport: null,
       accountEmailSupport: null, notifyDeliverySupport: null,
+      deviceAuthorizationSupport: null,
       webhookSupport: null,
       knownDeviceSupport: null,
       parSupport: null,
@@ -2242,6 +2245,10 @@ export class D1ServerStore implements ServerStore {
     // account (a tombstone's addresses never resolve a sign-in again).
     await this.ensureAccountEmailSupport()
     const emails = await this.stmt('DELETE FROM account_emails WHERE user_id = ?', userId).run()
+    // TODO.ai-platform/10: the device-grant ceremonies die with the
+    // account (a tombstone's pending approval never mints).
+    await this.ensureDeviceAuthorizationSupport()
+    const deviceAuthorizations = await this.stmt('DELETE FROM device_authorizations WHERE user_id = ?', userId).run()
     await this.stmt(
       `UPDATE users SET
          email = ?, name = 'Deleted account', provider = 'erased',
@@ -2261,6 +2268,7 @@ export class D1ServerStore implements ServerStore {
       personalAccessTokens: personalAccessTokens.meta.changes ?? 0,
       consentGrants: consentGrants.meta.changes ?? 0,
       emails: emails.meta.changes ?? 0,
+      deviceAuthorizations: deviceAuthorizations.meta.changes ?? 0,
     }
   }
 
@@ -3151,6 +3159,122 @@ export class D1ServerStore implements ServerStore {
     }
     if (stamps.expiryNotifiedAt) {
       await this.stmt('UPDATE personal_access_tokens SET expiry_notified_at = ? WHERE id = ?', stamps.expiryNotifiedAt, id).run()
+    }
+  }
+
+  // ── the device authorization grant (RFC 8628, TODO.ai-platform/10) ──
+
+  private ensureDeviceAuthorizationSupport(): Promise<void> {
+    return ensured(this.binding, 'deviceAuthorizationSupport', async () => {
+      await this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS device_authorizations (
+           id TEXT PRIMARY KEY,
+           device_code_hash TEXT NOT NULL,
+           user_code_hash TEXT NOT NULL,
+           client_id TEXT NOT NULL,
+           scopes TEXT NOT NULL DEFAULT '[]',
+           status TEXT NOT NULL DEFAULT 'pending',
+           user_id TEXT REFERENCES users(id),
+           org_context TEXT,
+           interval_seconds INTEGER NOT NULL DEFAULT 5,
+           last_poll_at TEXT,
+           created_at TEXT NOT NULL DEFAULT (datetime('now')),
+           expires_at TEXT NOT NULL,
+           decided_at TEXT,
+           UNIQUE (device_code_hash),
+           UNIQUE (user_code_hash)
+         )`,
+      ).run()
+      await this.db.prepare('CREATE INDEX IF NOT EXISTS idx_device_authorizations_user ON device_authorizations (user_id)').run()
+    })
+  }
+
+  async createDeviceAuthorization(input: {
+    id: string
+    deviceCodeHash: string
+    userCodeHash: string
+    clientId: string
+    scopes: string[]
+    intervalSeconds: number
+    expiresAt: string
+  }): Promise<DeviceAuthorization> {
+    await this.ensureDeviceAuthorizationSupport()
+    await this.stmt(
+      `INSERT INTO device_authorizations
+         (id, device_code_hash, user_code_hash, client_id, scopes, interval_seconds, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      input.id, input.deviceCodeHash, input.userCodeHash, input.clientId,
+      JSON.stringify(input.scopes), input.intervalSeconds, input.expiresAt,
+    ).run()
+    return (await this.getDeviceAuthorization(input.id))!
+  }
+
+  private async getDeviceAuthorization(id: string): Promise<DeviceAuthorization | null> {
+    await this.ensureDeviceAuthorizationSupport()
+    const row = await this.stmt('SELECT * FROM device_authorizations WHERE id = ?', id).first<Record<string, unknown>>()
+    return row ? D1ServerStore.toDeviceAuthorization(row) : null
+  }
+
+  async findDeviceAuthorizationByDeviceCodeHash(hash: string): Promise<DeviceAuthorization | null> {
+    await this.ensureDeviceAuthorizationSupport()
+    const row = await this.stmt('SELECT * FROM device_authorizations WHERE device_code_hash = ?', hash).first<Record<string, unknown>>()
+    return row ? D1ServerStore.toDeviceAuthorization(row) : null
+  }
+
+  async findDeviceAuthorizationByUserCodeHash(hash: string): Promise<DeviceAuthorization | null> {
+    await this.ensureDeviceAuthorizationSupport()
+    const row = await this.stmt('SELECT * FROM device_authorizations WHERE user_code_hash = ?', hash).first<Record<string, unknown>>()
+    return row ? D1ServerStore.toDeviceAuthorization(row) : null
+  }
+
+  async decideDeviceAuthorization(
+    id: string,
+    decision: { userId: string; orgContext: string | null; approve: boolean; decidedAt: string },
+  ): Promise<DeviceAuthorization | null> {
+    await this.ensureDeviceAuthorizationSupport()
+    const res = await this.stmt(
+      `UPDATE device_authorizations
+         SET status = ?, user_id = ?, org_context = ?, decided_at = ?
+       WHERE id = ? AND status = 'pending' AND expires_at > ?`,
+      decision.approve ? 'approved' : 'denied', decision.userId, decision.orgContext, decision.decidedAt, id, decision.decidedAt,
+    ).run()
+    return (res.meta.changes ?? 0) > 0 ? this.getDeviceAuthorization(id) : null
+  }
+
+  async stampDeviceAuthorizationPoll(id: string, polledAt: string, intervalSeconds?: number): Promise<void> {
+    await this.ensureDeviceAuthorizationSupport()
+    await this.stmt('UPDATE device_authorizations SET last_poll_at = ? WHERE id = ?', polledAt, id).run()
+    if (intervalSeconds !== undefined) {
+      await this.stmt('UPDATE device_authorizations SET interval_seconds = ? WHERE id = ?', intervalSeconds, id).run()
+    }
+  }
+
+  async consumeDeviceAuthorization(id: string): Promise<DeviceAuthorization | null> {
+    await this.ensureDeviceAuthorizationSupport()
+    const res = await this.stmt(
+      "UPDATE device_authorizations SET status = 'consumed' WHERE id = ? AND status = 'approved'", id,
+    ).run()
+    return (res.meta.changes ?? 0) > 0 ? this.getDeviceAuthorization(id) : null
+  }
+
+  /** The device_authorizations row → the seam's shape (TODO.ai-
+   *  platform/10). The scopes cell parses defensively (the PAT
+   *  mapper's posture). */
+  private static toDeviceAuthorization(row: Record<string, unknown>): DeviceAuthorization {
+    return {
+      id: row.id as string,
+      deviceCodeHash: row.device_code_hash as string,
+      userCodeHash: row.user_code_hash as string,
+      clientId: row.client_id as string,
+      scopes: parseRoles((row.scopes as string | null) ?? null) ?? [],
+      status: row.status as DeviceAuthorization['status'],
+      userId: (row.user_id as string | null) ?? null,
+      orgContext: (row.org_context as string | null) ?? null,
+      intervalSeconds: Number(row.interval_seconds ?? 5),
+      lastPollAt: D1ServerStore.storeTimeToIso((row.last_poll_at as string | null) ?? null),
+      createdAt: D1ServerStore.storeTimeToIso(row.created_at as string)!,
+      expiresAt: D1ServerStore.storeTimeToIso(row.expires_at as string)!,
+      decidedAt: D1ServerStore.storeTimeToIso((row.decided_at as string | null) ?? null),
     }
   }
 

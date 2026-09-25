@@ -930,6 +930,37 @@ CREATE TABLE IF NOT EXISTS personal_access_tokens (
 CREATE INDEX IF NOT EXISTS idx_personal_access_tokens_user ON personal_access_tokens (user_id);
 
 -- ═══════════════════════════════════════════════════════════════════
+-- The RFC 8628 device authorization grant (TODO.ai-platform/10): the
+-- user-attended flow that lets a CLI act AS the account holder — the
+-- client asks for the device/user code pair, the holder approves at the
+-- console page, the token endpoint's device_code leg mints the personal
+-- access token through the one tokens.ts path. Both codes store as
+-- SHA-256 hashes only; the status machine is pending → approved | denied
+-- → consumed (the token leg's flip is atomic); expires_at is mandatory;
+-- the approving account + the org-context pin land AT APPROVAL; the
+-- account erasure removes the rows outright. The D1 migration set
+-- carries the identical end state (0036_device_authorizations.sql).
+-- ═══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS device_authorizations (
+  id TEXT PRIMARY KEY,
+  device_code_hash TEXT NOT NULL,
+  user_code_hash TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  scopes TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'pending',
+  user_id TEXT REFERENCES users(id),
+  org_context TEXT,
+  interval_seconds INTEGER NOT NULL DEFAULT 5,
+  last_poll_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL,
+  decided_at TEXT,
+  UNIQUE (device_code_hash),
+  UNIQUE (user_code_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_device_authorizations_user ON device_authorizations (user_id);
+
+-- ═══════════════════════════════════════════════════════════════════
 -- The remembered consent grants (TODO.identity-features/12): the OP
 -- remembers the account holder's "Allow" per (user, client, scope set) —
 -- a repeat authorization the grant COVERS skips the consent page (unless
