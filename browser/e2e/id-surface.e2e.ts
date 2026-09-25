@@ -171,6 +171,10 @@ async function stopStack(stack: Stack | undefined): Promise<void> {
 
 const SETTLE = 240_000 // spawned astro compiles page chunks cold on first hit
 
+/** The shells' inline scheme-guard marker (IdShell.astro + the
+ *  standalone heads): the string the guard script contains verbatim. */
+const SCHEME_GUARD_MARKER = "location.protocol==='http:'"
+
 describe('TODO.identity-extract/02a — the identity-native frontend surface', () => {
   let stack: Stack
   let browser: Browser
@@ -206,6 +210,26 @@ describe('TODO.identity-extract/02a — the identity-native frontend surface', (
     }))
     expect(platformChrome).toEqual({ siteNav: false, manifest: false })
     await page.close()
+  })
+
+  it('leg 1b — every shell answers with the scheme guard (the http self-heal)', { timeout: 900_000 }, async () => {
+    // The zone's Always-Use-HTTPS is the real redirect (the owner's
+    // dashboard act; the Worker's 308 guard covers only the paths that
+    // reach the worker). The PRERENDERED SHELLS are served assets-first
+    // — the edge cache answers them on plain http with 200 and the
+    // worker never runs (the 2026-09-25 finding). Until and beneath
+    // the zone toggle, every shell carries an early inline script that
+    // replaces an http location with https — the browser self-heals
+    // before paint. The dev postures stay untouched: the guard exempts
+    // localhost exactly as the worker's guard does.
+    // (The api-docs page carries the guard in source too, but the DEV
+    // stack's proxy forwards /api* to the node API — the prefix shadows
+    // the route here; production serves the page from the worker.)
+    for (const path of ['/', '/op/account/', '/op/choose-account', '/register', '/no-such-page']) {
+      const res = await fetch(`${stack.base}${path}`, { redirect: 'manual' })
+      const html = await res.text()
+      expect(html, `the scheme guard on ${path}`).toContain(SCHEME_GUARD_MARKER)
+    }
   })
 
   it('leg 2 — the consoles render natively behind sign-in', { timeout: 900_000 }, async () => {
