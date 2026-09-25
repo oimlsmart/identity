@@ -209,6 +209,7 @@ async function bootIdentityStack(github: StubGitHub): Promise<Stack> {
       cpSync(sharedViteCache, stackViteCache, { recursive: true })
     }
     astro = spawnLogged(join(BROWSER_DIR, 'node_modules', '.bin', 'astro'), ['dev', '--port', String(ID_WEB), '--ignore-lock'], {
+      ASTRO_DEV_BACKGROUND: '1',
       API_ORIGIN: apiBase,
       VITE_CACHE_DIR: stackViteCache,
       DEV_PUBLIC_HOST: `localhost:${ID_WEB}`,
@@ -407,6 +408,42 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
       // The activity feed already carries the enrollment.
       await page.waitForSelector('[data-testid="account-activity-account-enrolled"]', { timeout: SETTLE, polling: 500 })
       flog(page, 'leg1: the console stands')
+    })
+  })
+
+  it('leg 1b — the section rail navigates from EVERY entry (the dead-click class)', { timeout: 900_000 }, async () => {
+    // The 2026-09-25 live report ("the sidebar links don't navigate"):
+    // the rail's active entry rendered as a non-clickable span, and the
+    // scroll-spy's 30%-viewport focus line let a SHORT section's
+    // successor steal the highlight — the entry the user clicked was
+    // often the dead span. A coordinate click (the user-faithful mode)
+    // on every entry must land the URL's hash on its section.
+    const cookie = await passwordCookie(stack.base, CASEY.email, CASEY.password)
+    await withPage(async (page) => {
+      await openConsole(page, stack.base, cookie)
+      const entries = await page.$$eval('[data-testid^="op-account-nav-"]', els =>
+        els.filter(e => e.tagName === 'A').map(e => e.getAttribute('data-testid')!))
+      expect(entries.length, 'the rail renders six+ clickable entries').toBeGreaterThanOrEqual(6)
+      // SEQUENTIAL, no reset between clicks — the user-faithful flow:
+      // each click's scroll hands the scroll-spy its next verdict, the
+      // page settles (the human rhythm: click, land, read, click), and
+      // THEN the next click. The swallowed click was exactly the entry
+      // the (over-eager) spy had just promoted to the dead span.
+      const deadSpan = '[data-testid^="op-account-nav-"]'
+        + ':not(a):not([aria-current])'
+      for (const testid of entries) {
+        await page.waitForFunction(
+          () => !document.querySelector('[data-testid^="op-account-nav-"]:not(a)'),
+          { timeout: 5_000, polling: 200 },
+        ).catch(() => { /* the pre-fix span asserts below */ })
+        expect(await page.$(deadSpan), `no dead rail entry before ${testid}`).toBeNull()
+        await page.click(`[data-testid="${testid}"]`)
+        await page.waitForFunction(
+          (id) => window.location.hash === `#${(id as string).replace('op-account-nav-', '')}`,
+          { timeout: 5_000, polling: 200 }, testid,
+        )
+      }
+      flog(page, 'leg1b: every rail entry navigates')
     })
   })
 

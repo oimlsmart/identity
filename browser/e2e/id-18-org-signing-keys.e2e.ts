@@ -184,6 +184,7 @@ async function bootIdentityStack(): Promise<Stack> {
       cpSync(sharedViteCache, stackViteCache, { recursive: true })
     }
     astro = spawnLogged(join(BROWSER_DIR, 'node_modules', '.bin', 'astro'), ['dev', '--port', String(ID_WEB), '--ignore-lock'], {
+      ASTRO_DEV_BACKGROUND: '1',
       API_ORIGIN: apiBase,
       VITE_CACHE_DIR: stackViteCache,
       DEV_PUBLIC_HOST: `localhost:${ID_WEB}`,
