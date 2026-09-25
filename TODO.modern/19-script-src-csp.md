@@ -1,6 +1,10 @@
 # TODO.modern/19 — the script-src CSP: the shells join the transport story
 
-**Priority:** P1 · **Status:** IN PROGRESS (the plan; the build follows on this branch)
+**Priority:** P1 · **Status:** IMPLEMENTED (2026-09-25; the generator,
+the `_headers` managed block, and the build's uncovered-script tripwire
+are live — verified on production: the served shells carry the full
+header set, the analytics beacon's origin joined script-src (#186), and
+the scheme guard's inline script auto-hashed at build (#191))
 
 ## The evidence (2026-09-22, the built dist + the live host)
 
