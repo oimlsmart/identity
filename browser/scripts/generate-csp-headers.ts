@@ -49,9 +49,15 @@ function sha256Sync(body: string): string {
   return createHash('sha256').update(body, 'utf8').digest('base64')
 }
 
-/** The shell CSP: the CSP-lite posture + the build-derived script-src. */
+/** The shell CSP: the CSP-lite posture + the build-derived script-src.
+ *  The analytics beacon's origin rides script-src: the zone's Web
+ *  Analytics auto-injects the beacon into every HTML response, and the
+ *  strict script-src would block it (the 2026-09-23 finding — the
+ *  owner enabled analytics). */
+export const ANALYTICS_BEACON_ORIGIN = 'https://static.cloudflareinsights.com'
+
 export function cspDirectiveFor(hashes: string[]): string {
-  return `frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' ${hashes.join(' ')}`
+  return `frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' ${hashes.join(' ')} ${ANALYTICS_BEACON_ORIGIN}`
 }
 
 const MANAGED_BEGIN = '# ── the script-src CSP (TODO.modern/19, generated — do not edit) ──'
