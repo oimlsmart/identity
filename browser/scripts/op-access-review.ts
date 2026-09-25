@@ -87,19 +87,34 @@ export function queryLocalDb(dbPath: string): AccessReviewData {
 }
 
 /** Query the live D1 through wrangler (the secret-free read path; the
- *  operator's CLOUDFLARE_* credentials ride the environment). */
+ *  operator's CLOUDFLARE_* credentials ride the environment). Each
+ *  spawn reads wrangler's stored OAuth token — and a spawn that lands
+ *  while the PREVIOUS spawn's token refresh is still settling answers
+ *  API 10000 (the 2026-09-26 review run: the back-to-back queries
+ *  failed alternately). A bounded retry on that code rides out the
+ *  refresh; every other failure keeps the honest abort. */
 export function queryRemoteD1(d1Name: string): AccessReviewData {
   const out = {} as Record<keyof AccessReviewData, unknown>
   for (const [key, sql] of Object.entries(QUERIES) as Array<[keyof AccessReviewData, string]>) {
-    const run = spawnSync('npx', ['wrangler', 'd1', 'execute', d1Name, '--remote', '--json', '--command', sql], {
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    })
-    if (run.status !== 0) {
-      throw new Error(`wrangler d1 execute (${key}) failed: ${(run.stderr || run.stdout || '').slice(0, 400)}`)
+    let run: ReturnType<typeof spawnSync> | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3_000)
+      }
+      run = spawnSync('npx', ['wrangler', 'd1', 'execute', d1Name, '--remote', '--json', '--command', sql], {
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+      })
+      const out = String(run.stdout ?? '')
+      const err = String(run.stderr ?? '')
+      const authError = out.includes('10000') || err.includes('10000')
+      if (run.status === 0 || !authError) break
+    }
+    if (!run || run.status !== 0) {
+      throw new Error(`wrangler d1 execute (${key}) failed: ${((run?.stderr || run?.stdout || '')).slice(0, 400)}`)
     }
     // wrangler --json answers an array of per-database results.
-    const parsed = JSON.parse(run.stdout) as Array<{ results?: unknown[] }>
+    const parsed = JSON.parse(String(run.stdout)) as Array<{ results?: unknown[] }>
     out[key] = parsed[0]?.results ?? []
   }
   return out as AccessReviewData
@@ -188,7 +203,10 @@ export function buildAccessReviewReport(data: AccessReviewData, source: string, 
 
   // ── 3. findings (the review's attention list) ──
   const findings: string[] = []
-  const knownRoles = new Set<string>(APP_ROLES)
+  // 'user' is the OP account's OWN default role (createOpAccount's
+  // plain account) — not a platform-vocabulary member; flagging every
+  // plain account drowned the review's signal (the 2026-09-26 run).
+  const knownRoles = new Set<string>([...APP_ROLES, 'user'])
   for (const u of data.users) {
     const unknown = roleSet(u).filter(r => !knownRoles.has(r))
     if (unknown.length) findings.push(`\`${showEmail(u.email)}\` carries role(s) outside the platform vocabulary: ${unknown.join(', ')}`)
