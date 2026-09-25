@@ -393,6 +393,7 @@ async function bootIdentityStack(): Promise<Stack> {
     if (seedProbe.status !== 401) throw new Error(`the OP login probe answered ${seedProbe.status} (401 expected)\n${logs.join('').slice(-2000)}`)
 
     astro = spawnLogged(join(BROWSER_DIR, 'node_modules', '.bin', 'astro'), ['dev', '--port', String(ID_WEB), '--ignore-lock'], {
+      ASTRO_DEV_BACKGROUND: '1',
       API_ORIGIN: apiBase,
     }, logs)
     const base = `http://localhost:${ID_WEB}`

@@ -114,8 +114,14 @@ const sections = computed<ReadonlyArray<NavEntry>>(() =>
 // the page's own island — the rail's highlight must FOLLOW: the hash
 // on load and on section-link clicks, the scroll as the viewport
 // crosses sections (the 2026-09-18 report: "the highlight doesn't
-// follow"). The pick: the LAST section whose top has crossed a focus
-// line 30% down the viewport; before any crossing, profile.
+// follow"). The pick: the LAST section whose top has crossed the focus
+// line just below the sticky header (the section whose heading sits at
+// the top of the reading area); before any crossing, profile. A deep
+// focus line (a viewport fraction) let a SHORT section's successor
+// cross the line while the short section was still at the top — the
+// highlight ran one entry ahead of the reader (the 2026-09-25 report:
+// "the links don't navigate" — the entry clicked was the dead one).
+// The header-anchored line keeps the highlight ON the clicked section.
 const activeSection = ref('profile')
 const currentKey = computed(() => (props.area === 'account' ? activeSection.value : props.current))
 
@@ -130,7 +136,8 @@ function pickActiveFromScroll(): void {
     activeSection.value = ACCOUNT_ENTRIES[ACCOUNT_ENTRIES.length - 1].key
     return
   }
-  const focusLine = window.innerHeight * 0.3
+  // The shell header is h-12 (48 px); a small margin below it.
+  const focusLine = 64
   let current = 'profile'
   for (const entry of ACCOUNT_ENTRIES) {
     const el = document.getElementById(entry.key)
@@ -245,16 +252,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <p class="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ t('shell.nav.sections') }}</p>
       <ul class="space-y-0.5">
         <li v-for="entry in sections" :key="entry.key">
-          <span
-            v-if="entry.key === currentKey"
-            class="block rounded-md px-3 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-200 bg-brand-50 dark:bg-brand-900/30"
-            aria-current="page"
-            :data-testid="`${area === 'admin' ? 'op-admin-nav' : 'op-account-nav'}-${entry.key}`"
-          >{{ t(entry.labelKey) }}</span>
+          <!-- EVERY entry is an anchor — the current one carries
+               aria-current instead of turning into a dead <span> (the
+               2026-09-25 report: clicking the highlighted entry did
+               nothing, which read as "the links don't navigate"). A
+               re-click on the current section re-aligns it at the top;
+               assistive tech still gets the current-page marker. -->
           <a
-            v-else
             :href="entry.to"
-            class="block rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors"
+            :aria-current="entry.key === currentKey ? 'page' : undefined"
+            :class="entry.key === currentKey
+              ? 'block rounded-md px-3 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-200 bg-brand-50 dark:bg-brand-900/30'
+              : 'block rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors'"
             :data-testid="`${area === 'admin' ? 'op-admin-nav' : 'op-account-nav'}-${entry.key}`"
             @click="close"
           >{{ t(entry.labelKey) }}</a>
