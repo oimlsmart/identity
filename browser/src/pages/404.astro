@@ -9,6 +9,14 @@ export const prerender = true
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    {/* The scheme guard: the prerendered shells are served
+        assets-first — the edge cache answers them on plain http with
+        200 and the WORKER's own 308 guard never runs (the zone's
+        Always-Use-HTTPS remains the completing act; the 2026-09-25
+        finding). This early inline script self-heals the browser
+        before paint; the dev postures are exempt exactly as the
+        worker's guard exempts them. */}
+    <script is:inline>if (location.protocol==='http:' && location.hostname!=='localhost' && !location.hostname.endsWith('.localhost')) location.replace('https://'+location.host+location.pathname+location.search+location.hash)</script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="theme-color" content="#004996" />
