@@ -230,10 +230,15 @@ async function load(): Promise<void> {
 /** The activity read (the dashboard API): merged by clientId. A failure
  *  never blocks the registry itself — the strips just stay hidden. */
 async function loadActivity(): Promise<void> {
-  const res = await api('/api/op/dashboard/clients')
-  if (!res.ok) return
-  const body = await res.json() as { clients: ClientActivity[] }
-  activity.value = Object.fromEntries(body.clients.map(row => [row.clientId, row]))
+  try {
+    const res = await api('/api/op/dashboard/clients')
+    if (!res.ok) return
+    const body = await res.json() as { clients: ClientActivity[] }
+    activity.value = Object.fromEntries(body.clients.map(row => [row.clientId, row]))
+  } catch {
+    // The strips stay hidden (the failure never blocks the registry) —
+    // but a network throw is caught, not an unhandled rejection.
+  }
 }
 
 // ── the governance expansion (the client-registry governance console) ──
@@ -657,7 +662,8 @@ onMounted(async () => {
                 >{{ governanceOpen === row.clientId ? t('admin.clients.governanceHide') : t('admin.clients.governanceButton') }}</button>
                 <button
                   :data-testid="`op-client-toggle-${row.clientId}`"
-                  class="text-xs font-medium rounded-md px-2 py-1 border transition-colors"
+                  :disabled="saving"
+                  class="text-xs font-medium rounded-md px-2 py-1 border transition-colors disabled:opacity-50"
                   :class="row.status === 'active'
                     ? 'border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
                     : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400'"

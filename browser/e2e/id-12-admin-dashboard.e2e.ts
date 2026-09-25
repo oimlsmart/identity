@@ -380,7 +380,15 @@ describe('TODO.identity-sso/01 — the admin dashboard', () => {
     })
     await page.waitForSelector('[data-testid^="op-sess-current-"]', { timeout: SETTLE, polling: 500 })
 
-    // END ONE: the row's own session stops resolving.
+    // END ONE (the armed two-click, the end-all's shape): the first
+    // click arms, the second ends. The row's own session stops resolving.
+    await page.evaluate((id) => {
+      (document.querySelector(`[data-testid="op-sess-revoke-${id}"]`) as HTMLElement).click()
+    }, rowId)
+    await page.waitForFunction(
+      (id) => document.querySelector(`[data-testid="op-sess-revoke-${id}"]`)?.textContent?.includes('Confirm'),
+      { timeout: SETTLE, polling: 500 }, rowId,
+    )
     await page.evaluate((id) => {
       (document.querySelector(`[data-testid="op-sess-revoke-${id}"]`) as HTMLElement).click()
     }, rowId)

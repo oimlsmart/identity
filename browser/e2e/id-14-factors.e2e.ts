@@ -874,6 +874,12 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       // The admin revokes the authenticator app; the account's chain
       // carries the event (the account's own feed shows it).
       await page.evaluate(() => (document.querySelector('[data-testid^="op-reg-factor-totp-"][data-testid$="-revoke"]') as HTMLElement).click())
+      // The armed confirm: the first click arms, the second revokes.
+      await page.waitForFunction(
+        () => document.querySelector('[data-testid^="op-reg-factor-totp-"][data-testid$="-revoke"]')?.textContent?.includes('Confirm'),
+        { timeout: SETTLE, polling: 500 },
+      )
+      await page.evaluate(() => (document.querySelector('[data-testid^="op-reg-factor-totp-"][data-testid$="-revoke"]') as HTMLElement).click())
       await page.waitForFunction(
         () => !document.querySelector('[data-testid^="op-reg-factor-totp-"][data-testid$="-revoke"]'),
         { timeout: 60_000, polling: 500 },

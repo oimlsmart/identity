@@ -51,6 +51,7 @@ const acting = ref<string | null>(null)
 /** The two-step confirms, armed per account/session id. */
 const revokeAllArmed = ref<string | null>(null)
 const deactivateArmedFor = ref<string | null>(null)
+const revokeOneArmedFor = ref<string | null>(null)
 
 const visible = computed(() => {
   const q = filter.value.trim().toLowerCase()
@@ -90,6 +91,11 @@ async function load(): Promise<void> {
 
 async function revokeOne(row: SessionRow) {
   if (acting.value) return
+  if (revokeOneArmedFor.value !== row.id) {
+    revokeOneArmedFor.value = row.id
+    return
+  }
+  revokeOneArmedFor.value = null
   acting.value = row.id
   error.value = null
   notice.value = null
@@ -261,9 +267,10 @@ onMounted(async () => {
                 <button
                   :disabled="acting !== null"
                   :data-testid="`op-sess-revoke-${row.id}`"
-                  class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline disabled:opacity-50"
+                  :class="revokeOneArmedFor === row.id ? 'text-amber-700 dark:text-amber-300 font-semibold' : 'text-brand-600 dark:text-brand-300 hover:underline'"
+                  class="text-xs font-medium disabled:opacity-50"
                   @click="revokeOne(row)"
-                >{{ t('admin.sess.endOne') }}</button>
+                >{{ revokeOneArmedFor === row.id ? t('admin.sess.endOneConfirm') : t('admin.sess.endOne') }}</button>
                 <button
                   :disabled="acting !== null"
                   :data-testid="`op-sess-revoke-all-${row.account.id}`"
