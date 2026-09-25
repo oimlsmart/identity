@@ -387,6 +387,7 @@ const grantFormOpen = ref(false)
 const grantClient = ref('')
 const grantRoles = ref<string[]>([])
 const revokeArmed = ref<Record<string, boolean>>({})
+const factorRevokeArmed = ref<Record<string, boolean>>({})
 
 // The audit trail's pager (the aggregate carries the first page; the
 // paged endpoint serves the older ones).
@@ -658,6 +659,12 @@ async function unlink(link: LinkRow) {
  *  endpoints carry the act; the account's chain audits it. */
 async function revokeFactor(kind: 'passkey' | 'totp', id: string) {
   if (acting.value) return
+  const armedKey = `${kind}-${id}`
+  if (!factorRevokeArmed.value[armedKey]) {
+    factorRevokeArmed.value[armedKey] = true
+    return
+  }
+  factorRevokeArmed.value[armedKey] = false
   acting.value = `${kind}-${id}`
   error.value = null
   notice.value = null
@@ -1383,9 +1390,10 @@ onMounted(async () => {
                   type="button"
                   :disabled="acting === `passkey-${pk.credentialId}`"
                   :data-testid="`op-reg-factor-passkey-${pk.credentialId}-revoke`"
-                  class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  :class="factorRevokeArmed[`passkey-${pk.credentialId}`] ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-semibold' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'"
+                  class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors disabled:opacity-50"
                   @click="revokeFactor('passkey', pk.credentialId)"
-                >{{ acting === `passkey-${pk.credentialId}` ? t('admin.user.factors.revoking') : t('admin.user.factors.revoke') }}</button>
+                >{{ acting === `passkey-${pk.credentialId}` ? t('admin.user.factors.revoking') : (factorRevokeArmed[`passkey-${pk.credentialId}`] ? t('admin.user.factors.revokeConfirm') : t('admin.user.factors.revoke')) }}</button>
               </li>
               <li
                 v-for="app in detail.factors.totp"
@@ -1404,9 +1412,10 @@ onMounted(async () => {
                   type="button"
                   :disabled="acting === `totp-${app.id}`"
                   :data-testid="`op-reg-factor-totp-${app.id}-revoke`"
-                  class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  :class="factorRevokeArmed[`totp-${app.id}`] ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-semibold' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'"
+                  class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors disabled:opacity-50"
                   @click="revokeFactor('totp', app.id)"
-                >{{ acting === `totp-${app.id}` ? t('admin.user.factors.revoking') : t('admin.user.factors.revoke') }}</button>
+                >{{ acting === `totp-${app.id}` ? t('admin.user.factors.revoking') : (factorRevokeArmed[`totp-${app.id}`] ? t('admin.user.factors.revokeConfirm') : t('admin.user.factors.revoke')) }}</button>
               </li>
             </ul>
             <p v-else class="text-[11px] text-slate-400 dark:text-slate-500 mb-2" data-testid="op-reg-factors-empty">{{ t('admin.user.factors.empty') }}</p>

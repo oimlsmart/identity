@@ -123,12 +123,16 @@ function auditParams(): URLSearchParams {
 
 async function loadAudit(): Promise<void> {
   auditError.value = null
-  const res = await fetch(`/api/op/dashboard/audit?${auditParams()}`, { credentials: 'include' })
-  if (!res.ok) {
-    auditError.value = t('admin.sec.auditFailed', { status: res.status })
-    return
+  try {
+    const res = await fetch(`/api/op/dashboard/audit?${auditParams()}`, { credentials: 'include' })
+    if (!res.ok) {
+      auditError.value = t('admin.sec.auditFailed', { status: res.status })
+      return
+    }
+    audit.value = await res.json() as AuditAnswer
+  } catch {
+    auditError.value = t('error.network')
   }
-  audit.value = await res.json() as AuditAnswer
 }
 
 function queueAuditReload() {
