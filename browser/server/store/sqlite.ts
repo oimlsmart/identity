@@ -179,6 +179,14 @@ import {
   stampPersonalAccessTokenUse,
 } from './sqlite/pat-store'
 import {
+  consumeDeviceAuthorization,
+  createDeviceAuthorization,
+  decideDeviceAuthorization,
+  findDeviceAuthorizationByDeviceCodeHash,
+  findDeviceAuthorizationByUserCodeHash,
+  stampDeviceAuthorizationPoll,
+} from './sqlite/device-authorizations-store'
+import {
   createWebhookSubscription,
   listWebhookSubscriptions,
   revokeWebhookSubscription,
@@ -851,6 +859,37 @@ export class SqliteServerStore implements ServerStore {
     stamps: { usedAt: string; auditAt?: string | null; expiryNotifiedAt?: string | null },
   ): Promise<void> {
     stampPersonalAccessTokenUse(this.db, id, stamps)
+  }
+
+  // ── the device authorization grant (RFC 8628, TODO.ai-platform/10) ──
+  async createDeviceAuthorization(input: {
+    id: string
+    deviceCodeHash: string
+    userCodeHash: string
+    clientId: string
+    scopes: string[]
+    intervalSeconds: number
+    expiresAt: string
+  }): Promise<import('../store').DeviceAuthorization> {
+    return createDeviceAuthorization(this.db, input)
+  }
+  async findDeviceAuthorizationByDeviceCodeHash(hash: string): Promise<import('../store').DeviceAuthorization | null> {
+    return findDeviceAuthorizationByDeviceCodeHash(this.db, hash)
+  }
+  async findDeviceAuthorizationByUserCodeHash(hash: string): Promise<import('../store').DeviceAuthorization | null> {
+    return findDeviceAuthorizationByUserCodeHash(this.db, hash)
+  }
+  async decideDeviceAuthorization(
+    id: string,
+    decision: { userId: string; orgContext: string | null; approve: boolean; decidedAt: string },
+  ): Promise<import('../store').DeviceAuthorization | null> {
+    return decideDeviceAuthorization(this.db, id, decision)
+  }
+  async stampDeviceAuthorizationPoll(id: string, polledAt: string, intervalSeconds?: number): Promise<void> {
+    stampDeviceAuthorizationPoll(this.db, id, polledAt, intervalSeconds)
+  }
+  async consumeDeviceAuthorization(id: string): Promise<import('../store').DeviceAuthorization | null> {
+    return consumeDeviceAuthorization(this.db, id)
   }
 
   // ── the outbound webhooks (TODO.modern/08) ──

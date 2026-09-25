@@ -118,9 +118,12 @@ import {
 import {
   auditPat, hashPat, narrowPatScopesParam, patExchangeBeatDue, patExpiryNoticeDue,
   patIntrospectionClaims, patPlausible, patTokenClaims, resolvePatScopesForAccount,
-  delegationScopesParam, delegationTokenClaims,
+  delegationScopesParam, delegationTokenClaims, mintPatSecret, patDisplayPrefix, resolvePatExpiry,
   DELEGATION_TOKEN_TYPE, PAT_EXCHANGE_GRANT, PAT_EXCHANGE_HEARTBEAT_MS, PAT_TOKEN_TYPE,
 } from '../auth/op/tokens'
+import {
+  DEVICE_CODE_GRANT, deviceGrantPatName, hashDeviceCode, judgeDevicePoll,
+} from '../auth/op/device-grant'
 import { auditGrant } from '../auth/op/grants'
 import {
   authTimeOf, logoutBlockOf, prepareBackchannelLogout,
@@ -264,8 +267,12 @@ export function createOpRouter(): Hono {
       revocation_endpoint: `${issuer}/op/revoke`,
       introspection_endpoint: `${issuer}/op/introspect`,
       jwks_uri: `${issuer}/jwks.json`,
+      // RFC 8628 (TODO.ai-platform/10): the device authorization grant —
+      // the CLI cone's user-attended bootstrap (the public client, the
+      // PAT-grammar scope ask, the poll mints the personal access token).
+      device_authorization_endpoint: `${issuer}/op/device/authorization`,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
+      grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
       subject_types_supported: ['public'],
       id_token_signing_alg_values_supported: ['ES256'],
       // offline_access (the wave-C token surface): the refresh grant's
@@ -1046,18 +1053,19 @@ export function createOpRouter(): Hono {
       // Only a DECLARED persona address can take this branch, and only
       // a LIVE presenting session holding the GRANT may mint — every
       // verdict re-reads the declaration and the store, never the page.
-      const posture = personaGrantsFor(c)
-      const requestedEmail = (typeof body.email === 'string' && body.email ? body.email.trim().toLowerCase() : null)
+      // The address resolves from the caller's own claim or the named
+      // account's row (an assumed persona's dead jar row POSTs the
+      // userId) — but a row-derived address NEVER rides an answer: the
+      // prefill is the requester's own jar entry or the address the
+      // caller itself sent (the id is not a secret; the email is).
+      const bodyEmail = typeof body.email === 'string' && body.email ? body.email.trim().toLowerCase() : null
+      const requestedEmail = bodyEmail
         ?? (await getStore().getUserById(body.userId ?? ''))?.email.trim().toLowerCase()
         ?? null
+      const posture = personaGrantsFor(c)
       const persona = posture && requestedEmail ? declaredPersonaByEmail(posture.personas, requestedEmail) : null
-      if (persona) {
-        const active = await activeJarContext(c)
-        if (!active) {
-          // Signed out: the honest fallback — nothing about the grants
-          // leaks (the posture reads exactly like a dead jar entry).
-          return c.json({ ok: false, login: loginUrlForContinue(continueTarget, persona.email) })
-        }
+      const active = persona ? await activeJarContext(c) : null
+      if (persona && active) {
         const personaEmails = new Set(posture!.personas.map(p => p.email))
         if (!grantsAllowEmail(posture!.grants, active.user.email, personaEmails)) {
           return c.json({ error: 'the presenting account is not granted the persona assumption' }, 403)
@@ -1066,7 +1074,7 @@ export function createOpRouter(): Hono {
         if (!account) {
           // The declaration runs ahead of the roster (the seed has not
           // landed yet): the honest fallback, never a guess.
-          return c.json({ ok: false, login: loginUrlForContinue(continueTarget, persona.email) })
+          return c.json({ ok: false, login: loginUrlForContinue(continueTarget, bodyEmail) })
         }
         // The session mints AS the persona — same shape as a completed
         // sign-in, minus the credential: writes SERIAL (the store seam's
@@ -1101,11 +1109,12 @@ export function createOpRouter(): Hono {
         return c.json({ ok: true, redirect: continueTarget ?? '/op/account' })
       }
       // The honest fallback: the remembered entry (if the jar still
-      // knows the account) lends its email to the login prefill.
+      // knows the account) lends its email to the login prefill — never
+      // the named account's own address.
       const entry = body.userId
         ? (await resolveAccountJar(c)).find(r => r.entry.userId === body.userId)
         : undefined
-      return c.json({ ok: false, login: loginUrlForContinue(continueTarget, entry?.entry.email ?? requestedEmail) })
+      return c.json({ ok: false, login: loginUrlForContinue(continueTarget, entry?.entry.email ?? bodyEmail) })
     }
     setCookie(c, SESSION_COOKIE, target.entry.sessionId, sessionCookieOpts(c))
     // The chosen account moves to the jar's front (the LRU refresh) —
@@ -1259,6 +1268,129 @@ export function createOpRouter(): Hono {
         // The effective scopes ride the service class's answer (RFC 6749
         // §5.1's explicitness — the caller reads what it actually got).
         ...(service ? { scope: serviceScopes.join(' ') } : {}),
+      })
+    }
+
+    // ── the device authorization grant's poll (RFC 8628 §3.5,
+    // TODO.ai-platform/10 — routes/op-device.ts's ceremony): the CLI
+    // polls with its device_code; on the holder's approval the leg mints
+    // the personal access token through the ONE store path, so the
+    // plaintext shows exactly once — in this answer (the GitHub
+    // doctrine). The delivered credential IS the PAT (never an OIDC
+    // answer — no ID token, no userinfo): the CLI exchanges it at the
+    // RFC 8693 grant per use, exactly like a console-minted token; the
+    // audit names the device grant and the client. The §3.5 error set
+    // rides verbatim: authorization_pending / slow_down / access_denied /
+    // expired_token; a re-presented consumed code answers invalid_grant.
+    if (grantType === DEVICE_CODE_GRANT) {
+      const { client: deviceClient, error: deviceClientError } = await authenticateClient(c, form)
+      if (deviceClientError || !deviceClient) {
+        await audit('client.token_refused', form.get('client_id')?.trim() || 'unauthenticated', {}, { error: 'invalid_client', grant: 'device_code' })
+        return deviceClientError ?? oidcError(c, 401, 'invalid_client', 'the device-code poll requires client authentication')
+      }
+      const presentedDeviceCode = form.get('device_code') ?? ''
+      const ceremony = presentedDeviceCode
+        ? await store.findDeviceAuthorizationByDeviceCodeHash(await hashDeviceCode(presentedDeviceCode))
+        : null
+      if (!ceremony || ceremony.clientId !== deviceClient.clientId) {
+        return refuseToken(400, 'invalid_grant', 'the device_code is unknown or was not issued to this client', deviceClient.clientId)
+      }
+      const poll = judgeDevicePoll(ceremony)
+      const pollNowIso = new Date().toISOString()
+      if (poll.kind === 'expired') {
+        return refuseToken(400, 'expired_token', 'the device_code has expired — restart the sign-in in the terminal', deviceClient.clientId)
+      }
+      if (poll.kind === 'denied') {
+        return refuseToken(400, 'access_denied', 'the account holder declined the authorization', deviceClient.clientId)
+      }
+      if (poll.kind === 'consumed') {
+        return refuseToken(400, 'invalid_grant', 'the device_code was already used', deviceClient.clientId)
+      }
+      if (poll.kind === 'slow_down') {
+        await store.stampDeviceAuthorizationPoll(ceremony.id, pollNowIso, poll.intervalSeconds)
+        return refuseToken(400, 'slow_down', 'the poll interval is being exceeded — the interval grows by 5 seconds', deviceClient.clientId)
+      }
+      if (poll.kind === 'pending') {
+        await store.stampDeviceAuthorizationPoll(ceremony.id, pollNowIso)
+        return refuseToken(400, 'authorization_pending', 'the account holder has not decided yet', deviceClient.clientId)
+      }
+      // Approved → the ONE-TIME consume claims the row atomically (a
+      // replay or a race answers invalid_grant, never a second token).
+      const claimed = await store.consumeDeviceAuthorization(ceremony.id)
+      if (!claimed || !claimed.userId) {
+        return refuseToken(400, 'invalid_grant', 'the device_code was already used', deviceClient.clientId)
+      }
+      // The approving account's standing (the exchange lattice's leg: a
+      // deactivated or erased account's approvals die with it).
+      const approvedRow = (await store.listUsers()).find(u => u.id === claimed.userId)
+      const approved = await store.getUserById(claimed.userId)
+      if (!approvedRow || !approved || !approvedRow.active || approvedRow.provider === 'erased') {
+        return refuseToken(400, 'invalid_grant', 'the approving account no longer stands', deviceClient.clientId)
+      }
+      // The pinned org context + the scope set, re-judged LIVE (the
+      // exchange doctrine: what the account lost since the approval falls
+      // away — the audit names the dropped; a whole-set loss refuses).
+      const claimedContext = await claimsContextFor(store, approved, claimed.orgContext)
+      const claimedPinned = normalizePatScopes(claimed.scopes) ?? []
+      const claimedGranted: PatScope[] = []
+      const claimedDropped: string[] = []
+      for (const scope of claimedPinned) {
+        const scopeVerdict = await resolvePatScopesForAccount(store, approved, claimedContext, [scope], runtimeEnv<EnvLike>(c))
+        if (scopeVerdict.ok) {
+          claimedGranted.push(scope)
+        } else {
+          claimedDropped.push(`${scope.service}:${scope.action}`)
+        }
+      }
+      if (!claimedGranted.length) {
+        return refuseToken(400, 'invalid_grant', 'the approving account no longer holds the approved scopes', deviceClient.clientId)
+      }
+      // The PAT mints NOW — the plaintext shows exactly once (this
+      // answer). The one store path, the console mint's audit + mail; the
+      // catalog-permission cone stays a console act (empty at mint).
+      const claimedExpiry = resolvePatExpiry(undefined)
+      if ('error' in claimedExpiry) {
+        return refuseToken(400, 'invalid_request', claimedExpiry.error, deviceClient.clientId)
+      }
+      const claimedPlaintext = mintPatSecret()
+      const claimedPat = await store.createPersonalAccessToken({
+        id: crypto.randomUUID(),
+        userId: approved.id,
+        name: deviceGrantPatName(deviceClient.name),
+        tokenHash: await hashPat(claimedPlaintext),
+        tokenPrefix: patDisplayPrefix(claimedPlaintext),
+        scopes: claimedGranted.map(s => `${s.service}:${s.action}`),
+        permissions: [],
+        orgContext: claimedContext.orgId,
+        expiresAt: claimedExpiry.expiresAt,
+      })
+      await auditPat('account.pat_minted', approved.id, { userId: approved.id, userName: approved.name }, {
+        pat: claimedPat.id,
+        name: claimedPat.name,
+        scopes: claimedPat.scopes,
+        orgContext: claimedPat.orgContext,
+        expiresAt: claimedPat.expiresAt,
+        via: 'device_grant',
+        device_authorization: claimed.id,
+        client: deviceClient.clientId,
+        ...(claimedDropped.length ? { dropped: claimedDropped } : {}),
+      })
+      await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+        userId: approved.id,
+        template: 'pat_minted',
+        issuer: config.issuer,
+        params: {
+          name: approved.name,
+          tokenName: claimedPat.name,
+          scopes: claimedPat.scopes.join(', '),
+          expires: claimedPat.expiresAt.slice(0, 10),
+        },
+      })
+      return c.json({
+        access_token: claimedPlaintext,
+        token_type: 'Bearer',
+        expires_in: Math.max(0, Math.floor((new Date(claimedPat.expiresAt).getTime() - Date.now()) / 1000)),
+        scope: claimedPat.scopes.join(' '),
       })
     }
 

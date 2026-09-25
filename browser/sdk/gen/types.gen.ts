@@ -206,6 +206,51 @@ export type ExchangeTokenResponses = {
 
 export type ExchangeTokenResponse = ExchangeTokenResponses[keyof ExchangeTokenResponses];
 
+export type DeviceAuthorizationData = {
+    body: {
+        /**
+         * The registered public CLI client.
+         */
+        client_id: string;
+        /**
+         * The ask, in the PAT grammar.
+         */
+        scope: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/op/device/authorization';
+};
+
+export type DeviceAuthorizationErrors = {
+    /**
+     * invalid_request / invalid_scope / unauthorized_client (the class refusals).
+     */
+    400: Error;
+    /**
+     * invalid_client (unknown or disabled).
+     */
+    401: Error;
+};
+
+export type DeviceAuthorizationError = DeviceAuthorizationErrors[keyof DeviceAuthorizationErrors];
+
+export type DeviceAuthorizationResponses = {
+    /**
+     * The ceremony's codes + URIs (§3.2).
+     */
+    200: {
+        device_code: string;
+        user_code: string;
+        verification_uri: string;
+        verification_uri_complete?: string;
+        expires_in: number;
+        interval: number;
+    };
+};
+
+export type DeviceAuthorizationResponse = DeviceAuthorizationResponses[keyof DeviceAuthorizationResponses];
+
 export type IntrospectTokenData = {
     body: {
         token: string;

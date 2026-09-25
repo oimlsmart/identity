@@ -43,7 +43,8 @@ Issuer: `https://id.oimlsmart.org`
 | Discovery (RFC 8414) | `GET {issuer}/.well-known/openid-configuration` |
 | JWKS (the signing keys) | `GET {issuer}/jwks.json` (the discovery document's `jwks_uri` is authoritative) |
 | Authorization endpoint | `{issuer}/op/authorize` |
-| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; refresh_token for the offline half — §5b; client_credentials for the machine classes — device + service, §9; the RFC 8693 token exchange for the developer cone's personal access tokens — §9a — and the session delegation's access-token subject — §9b) |
+| Token endpoint | `{issuer}/op/token` (authorization_code for the application class; refresh_token for the offline half — §5b; client_credentials for the machine classes — device + service, §9; the RFC 8693 token exchange for the developer cone's personal access tokens — §9a — and the session delegation's access-token subject — §9b; the RFC 8628 device_code leg for the CLI cone — §9c) |
+| Device authorization endpoint | `{issuer}/op/device/authorization` (the RFC 8628 §3.1 ask — the CLI cone's bootstrap, §9c; advertised in the discovery document) |
 | UserInfo | `{issuer}/op/userinfo` |
 | Token revocation (RFC 7009) | `{issuer}/op/revoke` (§5b) |
 | Token introspection (RFC 7662) | `{issuer}/op/introspect` (§5b) |
@@ -806,6 +807,72 @@ Your service's bearer gate is §9a's verbatim: validate per §6, enforce
 the scope cone (`patScopeCovers`), and stand your own role map on the
 token's `service_roles` entry for your client id. Both narrow; neither
 grants.
+
+## 9c. The CLI cone (the device grant, RFC 8628 — TODO.ai-platform/10)
+
+A **device grant** is how a CLI acts AS the account holder with no
+secret paste (the `gh auth login` pattern): the CLI asks for a code
+pair, the holder approves in the browser, the CLI polls and receives a
+personal access token — from then on the §9a exchange is the only
+thing it speaks. Your service never sees the ceremony: it sees the
+exchanged OP JWT, identical to a console-minted token's.
+
+The client is the registered **public** CLI client (a secretless,
+application-class row — a confidential client has the §2 code flow, a
+machine class has §9's `client_credentials`). Registration is the
+operator's deliberate act (the §3 admin surface or the `OP_CLIENT_SEED`
+bootstrap):
+
+```
+POST {issuer}/op/device/authorization
+Content-Type: application/x-www-form-urlencoded
+
+client_id=smart-cli&scope=hub-instance%3Aread+hub-instance%3Awrite
+```
+
+```
+{
+  "device_code": "…",                                  the CLI's poll credential
+  "user_code": "WDJB-MJHT",                            what the holder types
+  "verification_uri": "{issuer}/op/device",
+  "verification_uri_complete": "{issuer}/op/device?code=WDJB-MJHT",
+  "expires_in": 600,                                   the codes die in 10 minutes
+  "interval": 5                                        the poll interval, seconds
+}
+```
+
+The scope ask is the §9a PAT grammar (`<service>:<read|write|admin>`,
+space-joined; the ordinal fold collapses classes on one service). The
+approval page (`/op/device`) reads the ask honestly — the client's
+name, each service's name with its action class — and re-judges the
+FULL set against the approving account's live standing: an account
+that cannot hold the ask refuses WITHOUT deciding (the ceremony stays
+pending; the holder may switch accounts and retry while the code
+lives). The poll speaks §3.5 verbatim:
+
+```
+POST {issuer}/op/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code
+&client_id=smart-cli&device_code=…
+```
+
+`authorization_pending` until the decision (a poll inside the interval
+answers `slow_down` and the interval grows), `access_denied` on a
+refusal, `expired_token` past the 10 minutes. On approval the answer
+arrives **once** — `access_token` IS the freshly minted personal
+access token (the `ospt_…` plaintext; the store holds only its
+SHA-256), named for the client and the day, scoped exactly to the
+surviving grant, expiring in 90 days. The poll then consumes the code:
+a re-present answers `invalid_grant`.
+
+Advice for CLI authors: ask read-only by default, one service, the
+narrowest class that does the work — the holder reads the ask, and the
+console's token list (rename, revoke) is their control surface from
+then on. The catalog-permission cone (§9a's pinned permission ids)
+stays a console act: a device-granted token carries no catalog
+permissions at mint.
 
 ## 10. What your service inherits
 

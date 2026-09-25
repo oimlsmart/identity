@@ -25,6 +25,7 @@ import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
 import { createOpFactorsRouter } from './routes/op-factors'
 import { createOpTokensRouter } from './routes/op-tokens'
+import { createOpDeviceRouter } from './routes/op-device'
 import { createOpWebhooksRouter } from './routes/op-webhooks'
 import { createScimRouter } from './routes/scim'
 import { createOpGrantsRouter } from './routes/op-grants'
@@ -244,6 +245,11 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // personal-access-token surface (list / mint / revoke); the exchange
   // grant itself lives on the OP router's /op/token.
   app.route('/', createOpTokensRouter())
+  // The device authorization grant (RFC 8628, TODO.ai-platform/10): the
+  // CLI cone's user-attended bootstrap — the authorization endpoint +
+  // the approval page's API; the poll leg lives on the OP router's
+  // /op/token.
+  app.route('/', createOpDeviceRouter())
   // The outbound webhooks (TODO.modern/08): the account's event
   // subscriptions + the delivery log; the emission sites live at the
   // acts themselves (the audit-seam metadata, signed + fire-and-forget).

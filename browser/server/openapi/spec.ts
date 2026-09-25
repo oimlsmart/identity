@@ -256,7 +256,10 @@ export const OPENAPI_SPEC = {
           + '`grant_type=urn:ietf:params:oauth:grant-type:token-exchange` with '
           + '`subject_token_type=urn:oimlsmart:params:oauth:token-type:pat` and the personal access token as '
           + '`subject_token` — answering a short-lived, scope-narrowed OP JWT. '
-          + 'The token\'s scopes are re-judged against the holder\'s LIVE standing at every exchange.',
+          + 'The token\'s scopes are re-judged against the holder\'s LIVE standing at every exchange. '
+          + 'The RFC 8628 device_code leg (TODO.ai-platform/10) polls the device flow\'s ceremony: '
+          + 'authorization_pending / slow_down / access_denied / expired_token while it runs, and on approval '
+          + 'the ONE-TIME answer carrying the freshly minted personal access token\'s plaintext.',
         security: [],
         requestBody: {
           required: true,
@@ -295,6 +298,60 @@ export const OPENAPI_SPEC = {
             },
           },
           400: { description: 'The ONE refusal: invalid_grant (unknown / expired / revoked / wrong-standing — never a distinction).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/op/device/authorization': {
+      post: {
+        tags: ['OIDC'], operationId: 'deviceAuthorization', summary: 'The device authorization (RFC 8628 §3.1–3.2)',
+        description:
+          'The CLI cone\'s user-attended bootstrap (TODO.ai-platform/10). The PUBLIC client (a secretless, '
+          + 'application-class row — a confidential client has the code flow, a machine class has client_credentials) '
+          + 'names its scope ask in the PAT grammar (`<service>:<read|write|admin>` space-joined, every service a '
+          + 'registered, active, application-class relying party). The answer carries the device_code (the poll '
+          + 'credential for /op/token\'s device_code leg), the user_code (what the holder types at the verification '
+          + 'URI), both verification URIs, the expiry, and the poll interval. The approval (the browser leg at '
+          + '/op/device) re-judges the ask against the approving account\'s live standing; the successful poll '
+          + 'mints the personal access token — the delivered credential IS the PAT, exchanged at the RFC 8693 '
+          + 'grant per use exactly like a console-minted token.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/x-www-form-urlencoded': {
+              schema: {
+                type: 'object',
+                properties: {
+                  client_id: { type: 'string', description: 'The registered public CLI client.' },
+                  scope: { type: 'string', description: 'The ask, in the PAT grammar.', example: 'hub-instance:read hub-instance:write' },
+                },
+                required: ['client_id', 'scope'],
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'The ceremony\'s codes + URIs (§3.2).',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    device_code: { type: 'string' },
+                    user_code: { type: 'string', example: 'WDJB-MJHT' },
+                    verification_uri: { type: 'string' },
+                    verification_uri_complete: { type: 'string' },
+                    expires_in: { type: 'integer', example: 600 },
+                    interval: { type: 'integer', example: 5 },
+                  },
+                  required: ['device_code', 'user_code', 'verification_uri', 'expires_in', 'interval'],
+                },
+              },
+            },
+          },
+          400: { description: 'invalid_request / invalid_scope / unauthorized_client (the class refusals).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'invalid_client (unknown or disabled).', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
     },
