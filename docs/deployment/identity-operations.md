@@ -563,6 +563,13 @@ review of what changed.
 - The heartbeat, independent of the platform: a scheduled probe hitting
   the discovery document, JWKS, and a synthetic RP claim; a red probe
   opens or updates a standing issue (the demo-reset pattern).
+- The latency-budget bell (2026-09-23): the heartbeat's
+  degradation-watch job also reads https://status.oimlsmart.org — any
+  component the status worker marks Degraded (a passing probe over its
+  latency budget) opens or appends the standing issue, and a clean page
+  closes it with the recovery comment. A latency window can therefore
+  never again sit on the status page unnoticed: the instrument's
+  `Degraded` badge IS the alert.
 - Degraded mode: existing RP sessions ride their own cookies (OP down
   does not mean logged out); new logins fail honestly on a plain status
   page; the demo instances' local demo accounts stay available as the
