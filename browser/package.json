@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
-    "@astrojs/cloudflare": "^14.2.1",
+    "@astrojs/cloudflare": "^14.3.3",
     "@astrojs/node": "^11.0.2",
     "@astrojs/vue": "^7.0.1",
     "@cloudflare/workers-types": "^5.20260813.1",
