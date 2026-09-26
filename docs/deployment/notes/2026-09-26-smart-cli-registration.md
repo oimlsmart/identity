@@ -277,3 +277,29 @@ HTTP 400 — "Cannot authorize this request: The redirect_uri is not one this cl
 redirect_uri=https%3A%2F%2Fattacker.example%2Fauth%2Fcallback
 HTTP 400 — the same refusal, no redirect
 ```
+
+## The `oiml-ommisa` display rename (the same day, the owner's brand call)
+
+The CLI's display identity settled as **Ommisa CLI** after the
+registration above (the repo moved to `ommisa/ommisa`, the package
+`@ommisa/cli`, the command `ommisa`). The client's registered name is
+the string every downstream artifact shows — the approval page, the
+minted token's name, the security mail — so the row follows the brand:
+
+```
+CLOUDFLARE_ACCOUNT_ID=06cad8ae9a017c856ab496c6bca9a9d8 \
+npx wrangler d1 execute oiml-smart-platform-identity --remote --env identity --json \
+  --command "UPDATE oidc_clients SET name='Ommisa CLI' WHERE client_id='oiml-ommisa'"
+```
+
+```
+SELECT client_id, name, status FROM oidc_clients WHERE client_id='oiml-ommisa'
+```
+
+```json
+[{"client_id": "oiml-ommisa", "name": "Ommisa CLI", "status": "active"}]
+```
+
+Names freeze at mint: the token minted before this rename keeps its
+"Ommisa — device grant" name until the holder revokes it and signs in
+again (a fresh ceremony mints with the new name).
