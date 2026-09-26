@@ -68,11 +68,22 @@ interface Bucket {
   resetAt: number
 }
 
-/** The bucket key: the proxy-forwarded client address's first hop, else
- *  the direct marker. */
+/** The bucket key: the edge-attested connecting address first
+ *  (`CF-Connecting-IP` — set by the platform, not spoofable), then
+ *  XFF's LAST hop (the value a TLS-terminating proxy appends), else the
+ *  direct marker. The FIRST hop was the pre-audit shape — on Cloudflare
+ *  a client-sent XFF survives with the real address appended after it,
+ *  so the first hop was attacker-chosen and one header rotated buckets
+ *  (the 2026-09-26 audit finding). */
 export function opRateLimitKeyFor(c: Context): string {
-  const forwarded = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-  return forwarded || 'direct'
+  const connecting = c.req.header('cf-connecting-ip')?.trim()
+  if (connecting) return connecting
+  const forwarded = c.req.header('x-forwarded-for')
+    ?.split(',')
+    .map(hop => hop.trim())
+    .filter(Boolean)
+  const last = forwarded?.[forwarded.length - 1]
+  return last || 'direct'
 }
 
 /** The audit trail on a trip — logged, never thrown. */
