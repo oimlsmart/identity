@@ -919,7 +919,14 @@ on the live registry, one console session):
 
 The launch URL is the service's own sign-in start (the platform
 instances' RP start is `/api/auth/signin/oidc`; the assistant's is
-`/auth/login`), so the live OP session lets the user straight in. The
+`/auth/login`), so the live OP session lets the user straight in. Two further
+registered clients carry no launch card by design: the device-grant
+command-line clients `smart-cli` (The OIML SMART CLI) and
+`oiml-ommisa` (Ommisa, the OIML Metrology Machine Intelligence
+Standards Assistant) are secretless application-class rows with no
+redirect and no launcher entry — their "entry" is the terminal's
+device code and the approval page at `/op/device` (the registrations
+are recorded in `notes/2026-09-26-smart-cli-registration.md`). The
 client ids name the documented registry rows; if the live registry's
 naming resolution (the wave-03 finding) lands differently, the same
 metadata applies to the resolved rows.
