@@ -24,8 +24,8 @@ is the contract.
 GET list endpoint against a small fixture and the same fixture grown 10×,
 with the store seam wrapped in the counting facade
 (`endpoint-scaling.ts`'s `StoreCallCounter` — a test-side Proxy over the
-installed `ServerStore`; the kernel's production code is never touched
-for this). The assertion is on the DELTA between the two scales: zero
+installed `ServerStore`; the production code is never touched for
+this). The assertion is on the DELTA between the two scales: zero
 growth, or within the leg's declared per-row budget. Per-request
 constants (the session resolution) cancel out of the delta.
 
@@ -41,22 +41,22 @@ named step ("endpoint-scaling gate").
 ## Fixing a failing leg
 
 The audit's pattern: prefetch the referenced sets once per request, group
-in memory. The kernel seam's bulk reads are the instruments
+in memory. The store seam's bulk reads are the instruments
 (`listAllOpClientRoles`, `listAllOrgMemberships`, `listOidcClients`,
 `listUsers`, …); where the per-row helper is shared with a single-row
 caller, the batch arrives as an OPTIONAL parameter and the single-row
 caller keeps its plain point read. Responses stay byte-compatible: the
 batch read answers the same rows in the same per-account order (the
-kernel's bulk reads keep the per-account `ORDER BY`), verified by the
+bulk reads keep the per-account `ORDER BY`), verified by the
 gate's content pins and the route's own suites.
 
 ## A budget exception is a ceiling with a named follow-up
 
-Declare `budgetPerRow` on a leg ONLY when the kernel seam carries no bulk
+Declare `budgetPerRow` on a leg ONLY when the store seam carries no bulk
 read for a genuinely per-row need, and name the follow-up that drives it
 to zero in `budgetNote` (the harness refuses a budget without the note).
 Live examples on this service: the accounts list's and the registry users
-list's sign-in posture + linked-handles reads (a kernel bulk
+list's sign-in posture + linked-handles reads (a bulk
 sign-in-posture read is the follow-up), and the dashboard overview's
 invited count (the same follow-up). A regression BEYOND a budget fails
 exactly like a missing prefetch.
