@@ -75,6 +75,10 @@ const composed = {
   // silently won, so the deploy would have shipped WITHOUT it).
   ...(block.r2_buckets ? { r2_buckets: block.r2_buckets } : {}),
   ...(block.send_email ? { send_email: block.send_email } : {}),
+  // 2026-09-26: the same gap for observability (the Worker's own log
+  // retention — the adapter's generated base config drops the field,
+  // so the env block's declaration has to ride the composer).
+  ...(block.observability ? { observability: block.observability } : {}),
   vars: { ...(base.vars ?? {}), ...(block.vars ?? {}) },
   routes: [],
   tail_consumers: [],

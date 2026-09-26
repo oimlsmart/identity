@@ -7,8 +7,8 @@
 //
 // Posture differences from the node root, all deliberate:
 //   - demo accounts are NEVER auto-seeded here (the production
-//     posture); the preview's cast arrives through the declared
-//     OP_ACCOUNT_SEED worker secret;
+//     posture); a declared cast arrives only through the
+//     OP_ACCOUNT_SEED worker secret (the demo-runbook act);
 //   - the OP's own bootstrap seeds (the first administrator, the client
 //     registry, the upstream providers) run lazily inside the OP
 //     routers' env-driven seed seams, as in the monorepo.
