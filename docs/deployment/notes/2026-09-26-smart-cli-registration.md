@@ -216,3 +216,90 @@ HTTP 400
    full end-to-end shard set green, which includes
    `browser/e2e/id-43-device-grant.e2e.ts` on the production-bound
    bundle.
+
+## The `oiml-ai` redirect-URI amendment (the operations deployment's callback)
+
+The operations deployment of the Ommisa assistant at
+`ops-ai.oimlsmart.org` signs in through the authorization-code flow,
+and the rag lane declares the same public PKCE client for both of its
+deployments: `workers/worker_public/wrangler.toml` and
+`workers/worker_operations/wrangler.toml` in the rag repository both
+set `OIDC_CLIENT_ID = "oiml-ai"` and differ only in
+`OIDC_REDIRECT_URI`. The registered client therefore gains the
+operations callback rather than a second client registration, because
+the assistant's two deployments are one audience with one claims
+policy. The registry edit is the wholesale rewrite the seed upsert and
+the admin console both perform — the existing URI is preserved and the
+operations URI is appended:
+
+```
+CLOUDFLARE_ACCOUNT_ID=06cad8ae9a017c856ab496c6bca9a9d8 \
+npx wrangler d1 execute oiml-smart-platform-identity --remote --env identity --json \
+  --command "UPDATE oidc_clients SET redirect_uris = '[\"https://ai.oimlsmart.org/auth/callback\",\"https://ops-ai.oimlsmart.org/auth/callback\"]' WHERE client_id = 'oiml-ai'"
+```
+
+Response: `success: true`, `changes: 1`, `rows_written: 1`. The
+read-back confirms the row: `oiml-ai`, name "OIML SMART AI", public
+(`secret_hash` NULL), `claims_policy` unchanged at
+`{"claims":["roles","picture"]}`, status `active`, with both redirect
+URIs present.
+
+## The `oiml-ai` verification transcripts
+
+All transcripts were captured against the production service on
+2026-09-26, after the amendment above. Each probe names
+`response_type=code`, `scope=openid profile email`, a one-time state
+and nonce, and PKCE S256.
+
+1. The newly registered operations callback is accepted — the request
+   passes the redirect-URI wall and the authorize path answers with the
+   sign-in bounce, which carries the full authorize re-entry:
+
+```
+GET /op/authorize?...&client_id=oiml-ai
+    &redirect_uri=https%3A%2F%2Fops-ai.oimlsmart.org%2Fauth%2Fcallback&...
+
+HTTP 302 → https://id.oimlsmart.org/?redirect=%2Fop%2Fauthorize%3F…redirect_uri%3Dhttps%253A%252F%252Fops-ai.oimlsmart.org%252Fauth%252Fcallback…
+```
+
+2. The pre-existing `https://ai.oimlsmart.org/auth/callback` answers
+   the same 302 sign-in bounce, so the amendment changed nothing for
+   the public deployment.
+
+3. An unregistered redirect URI is refused in place and never
+   redirected to — the open-redirect wall holds on both a same-host
+   path and a foreign origin:
+
+```
+redirect_uri=https%3A%2F%2Fops-ai.oimlsmart.org%2Fevil%2Fcallback
+HTTP 400 — "Cannot authorize this request: The redirect_uri is not one this client registered." (no redirect)
+
+redirect_uri=https%3A%2F%2Fattacker.example%2Fauth%2Fcallback
+HTTP 400 — the same refusal, no redirect
+```
+
+## The `oiml-ommisa` display rename (the same day, the owner's brand call)
+
+The CLI's display identity settled as **Ommisa CLI** after the
+registration above (the repo moved to `ommisa/ommisa`, the package
+`@ommisa/cli`, the command `ommisa`). The client's registered name is
+the string every downstream artifact shows — the approval page, the
+minted token's name, the security mail — so the row follows the brand:
+
+```
+CLOUDFLARE_ACCOUNT_ID=06cad8ae9a017c856ab496c6bca9a9d8 \
+npx wrangler d1 execute oiml-smart-platform-identity --remote --env identity --json \
+  --command "UPDATE oidc_clients SET name='Ommisa CLI' WHERE client_id='oiml-ommisa'"
+```
+
+```
+SELECT client_id, name, status FROM oidc_clients WHERE client_id='oiml-ommisa'
+```
+
+```json
+[{"client_id": "oiml-ommisa", "name": "Ommisa CLI", "status": "active"}]
+```
+
+Names freeze at mint: the token minted before this rename keeps its
+"Ommisa — device grant" name until the holder revokes it and signs in
+again (a fresh ceremony mints with the new name).
