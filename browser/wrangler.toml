@@ -30,7 +30,11 @@
 # deliberately unset here: a dev posture derives the issuer from the
 # request origin (server/auth/op/config.ts).
 name = "oiml-smart-platform-identity-dev"
-compatibility_date = "2026-04-15"
+# The compatibility date rides the platform's runtime behavior; bumped
+# at the 2026-09-26 audit (five months stale — the newest date the
+# pinned local workerd also supports) and gated by the full CI set
+# (both builds, the contract gate, the e2e shards) before the tag.
+compatibility_date = "2026-08-27"
 workers_dev = true
 # The node-only audit (the same doctrine as the monorepo's deployment,
 # docs/deployment/cloudflare.md there): the API graph (server/*.ts)
@@ -80,6 +84,14 @@ demo_personas: true
 # wave-03 cutover deploys to the SAME worker over the SAME database).
 [env.identity]
 name = "oiml-smart-platform-identity"
+
+# The Workers observability (the 2026-09-26 audit): the Worker's own
+# structured logs (the seed seams' console output, the store's budget
+# warnings, the rate-limit trips) retain in the dashboard instead of
+# streaming past unseen. Full sampling — the traffic is human-paced.
+[env.identity.observability]
+enabled = true
+head_sampling_rate = 1.0
 
 [[env.identity.d1_databases]]
 binding = "DB"
