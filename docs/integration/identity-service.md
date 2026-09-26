@@ -439,7 +439,7 @@ matters.
 
 The reference implementation (copy it; ~300 lines, zero dependencies,
 WebCrypto + fetch only, runs on Node ≥ 18 and edge runtimes):
-`@oimlsmart/platform-server/oidc` in `oimlsmart/platform-server` — discovery, PKCE,
+`server/oidc` in `oimlsmart/platform-server` — discovery, PKCE,
 the exchange, the validation, the logout URL, and the error taxonomy.
 
 ## 7. Who declares what actions are allowed (the authorization division)
@@ -457,8 +457,8 @@ This is the question every integrator asks. The division:
   engine, by design).
 
 The platform's own RBAC is the reference shape (`oimlsmart/smart`):
-`@oimlsmart/platform-server/vocab` declares the action vocabulary;
-`@oimlsmart/platform-server/vocab` holds the default role→permission map;
+`server/vocab` declares the action vocabulary;
+`server/vocab` holds the default role→permission map;
 `browser/server/rbac.ts` resolves the EFFECTIVE map per instance
 (an installed profile map, then the `INSTANCE_RBAC_JSON` env, then the
 shipped default) and the entity routes enforce the write gates. The
@@ -730,7 +730,7 @@ never a per-request write).
 Your service's bearer gate (the at-use half): validate the JWT per §6,
 then enforce the scope cone — the request's act must fit a granted
 `<service>:<action>` scope (the kernel's `patScopeCovers` is the one
-check, `@oimlsmart/platform-server/store`), AND the role check your
+check, `server/store`), AND the role check your
 routes already run stands on the token's `service_roles` entry for your
 client id. Both narrow; neither grants. The OP-side bound is the
 approximation; your own map is the final word — that is deliberate (§7's

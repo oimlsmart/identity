@@ -223,13 +223,13 @@ is dispatchable by hand any time. Each run:
    tables excluded on both sides — the LIKE prefixes are plain, no
    backslash escapes); the restored per-table row counts equal the
    export's per-table INSERT counts (the export is one INSERT per row,
-   so the floor is exact); and `d1_migrations` agrees with the kernel's
+   so the floor is exact); and `d1_migrations` agrees with this repository's
    migration set — the restored bookkeeping is byte-faithful to the
-   snapshot's, and every applied name is a file in the kernel's
-   canonical set (`node_modules/@oimlsmart/platform-server/migrations`,
-   the append-only contract: an applied name that is not a kernel file
-   is drift and fails). A kernel file not yet applied is the normal
-   kernel-bump → tag-deploy window (the migration discipline above):
+   snapshot's, and every applied name is a file in the canonical set
+   (`browser/migrations`, the append-only contract: an applied name
+   that is not a migration file
+   is drift and fails). A migration file not yet applied is the normal
+   merge → apply → tag-deploy window (the migration discipline above):
    logged as a notice, never a failure.
 
 A red run opens (or appends to) the standing issue "Identity restore
@@ -938,7 +938,7 @@ The identity service is not single-vendor by construction:
 
 - The Worker-safe doctrine: the shared server code uses WebCrypto only,
   no node built-ins; the same bundle runs in the edge runtime and Node.
-- The store seam (@oimlsmart/platform-server/store): two live backends today —
+- The store seam (server/store): two live backends today —
   D1 on the edge, SQLite on Node. Local development and the CI e2e
   identity legs run the Node+SQLite shape constantly, so the portable
   path is continuously proven, not theoretical.

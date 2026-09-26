@@ -43,9 +43,10 @@ the public issuer is `https://id.example.invalid` (`.invalid` — RFC
 
 - Node.js 22+, npm.
 - This repository, stock `main` (or a tagged `id-v*` release).
-- Nothing else: the shared server kernel (`@oimlsmart/platform-server`)
-  comes from npm with `npm ci` (TODO.repos/01 retired the sibling
-  checkout).
+- Nothing else: the server code is self-contained in this repository
+  (the kernel extraction completed — TODO.restructure/15 vendored the
+  shared modules into `browser/server/`; `npm ci` installs only the
+  npm dependencies).
 
 ```bash
 git clone https://github.com/oimlsmart/identity.git
@@ -236,7 +237,7 @@ name = "acme-identity-op"
 binding = "DB"
 database_name = "acme-identity-registry"
 database_id = "<the database_id from B1>"
-migrations_dir = "node_modules/@oimlsmart/platform-server/migrations"
+migrations_dir = "migrations"
 
 [[env.selfhost.r2_buckets]]
 binding = "BLOBS"

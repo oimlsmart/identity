@@ -135,8 +135,9 @@ exactly; the registry is untouched either way and live sessions survive
 unchanged, and `OP_SIGNING_KEY` is account-side Worker state no deploy
 disturbs).
 
-**The migration contract**: the migration set ships in the kernel
-package (`node_modules/@oimlsmart/platform-server/migrations/`) and is
+**The migration contract**: the migration set is THIS repository's own
+(`browser/migrations/` — the extraction, TODO.restructure/15, brought
+the set in-repo; the wrangler config names it `migrations_dir`) and is
 expand-only (new tables, new
 columns with defaults, never a drop or a narrowing rename) and anything
 destructive waits for a two-release overlap, so a rollback never meets
@@ -148,10 +149,9 @@ the production gate refuses a deploy while the live registry shows an
 unapplied file, so a change carrying a migration lands in two deliberate
 steps:
 
-1. Merge the change. The migration file rides the KERNEL package's set
-   (oimlsmart/platform-server's `migrations/`, released as a version
-   bump this repo pins — wrangler keys the bookkeeping on filenames, so
-   the set appends expand-only and never renumbers).
+1. Merge the change. The migration file rides THIS repository's set
+   (`browser/migrations/` — wrangler keys the bookkeeping on filenames,
+   so the set appends expand-only and never renumbers).
 2. Apply it to the live registry OUT OF BAND, before tagging:
 
    ```bash
@@ -199,7 +199,7 @@ npx wrangler d1 execute oiml-smart-platform-identity --remote \
 JWKS serves every `active` row, so in-flight ID tokens keep validating
 through the overlap; a retired row leaves the JWKS answer and tokens
 signed with it fail validation at the RPs' next JWKS fetch (their cache
-TTL is one hour, `JWKS_TTL_MS` in `@oimlsmart/platform-server/oidc`).
+TTL is one hour, `JWKS_TTL_MS` in `server/oidc.ts`).
 
 **Compromise**: rotate immediately (`--apply`), then retire the
 compromised row at once (the same SQL, no margin; in-flight tokens die

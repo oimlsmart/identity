@@ -83,7 +83,7 @@ identity:
 
 The section's OIDC fields ride the SAME `identity:` block as the org
 identity (`org_id`/`org_name`/`role_codes`); the profile parser
-(`@oimlsmart/platform-server/profile`) reads the org half and tolerates the OIDC
+(`server/profile`) reads the org half and tolerates the OIDC
 half. The two runtimes consume the OIDC half differently:
 
 - **Node (self-hosted).** The boot reads the profile FILE's section
@@ -137,7 +137,7 @@ names) before writing `match` values.
 ## Claim mapping reference
 
 The mapping decides the account's **role** (one of the platform roles
-of `@oimlsmart/platform-server/vocab`: `applicant`, `ia_officer`,
+of `server/vocab` (roles.ts): `applicant`, `ia_officer`,
 `tl_operator`, `biml_officer`, `cs_admin`, `mc_member`, `rc_member`,
 `executive_secretary`, `admin`, `viewer`) and its **organization
 binding** (a manufacturer id, an IA `oiml_code`, or a TL `oiml_id`).
@@ -263,7 +263,7 @@ The GitHub posture arrives through the same env seam as the OIDC one
 | `GITHUB_CLIENT_SECRET` | The OAuth App's client secret. |
 | `GITHUB_ADMIN_LOGINS` | Comma-separated GitHub usernames (case-insensitive) → role `admin`. |
 | `GITHUB_ALLOWED_LOGINS` | Comma-separated usernames → the default allowed role, `cs_admin`. |
-| `GITHUB_ROLE_MAP` | `login:role,login2:role2` — per-login initial roles. Roles validate against the platform vocabulary (`@oimlsmart/platform-server/vocab`); an unknown role fails CLOSED: the entry is dropped and logged at boot, never invented. |
+| `GITHUB_ROLE_MAP` | `login:role,login2:role2` — per-login initial roles. Roles validate against the platform vocabulary (`server/vocab`); an unknown role fails CLOSED: the entry is dropped and logged at boot, never invented. |
 | `GITHUB_ALLOWED_ORG` | One org slug — every ACTIVE member may sign in. Membership is checked LIVE at each sign-in (`GET /user/memberships/orgs/{org}` with the user's own token; `pending` invitations do not count). Members get the default allowed role. The authorization request adds the `read:org` scope when this is set — a private membership is invisible without it. |
 | `GITHUB_OAUTH_BASE_URL` / `GITHUB_API_BASE_URL` | Endpoint overrides for GitHub Enterprise Server (defaults `https://github.com` / `https://api.github.com`). |
 
@@ -342,7 +342,7 @@ whole demo path at once:
 
 - the account seed skips the demo cast — no `provider='demo'` rows are
   provisioned (the profile-aware account plan,
-  `@oimlsmart/platform-server/profile`);
+  `server/profile`);
 - the demo endpoints refuse honestly: `POST /api/auth/demo` answers 403
   and `GET /api/auth/demo-accounts` answers
   `{ enabled: false, accounts: [] }`;
@@ -399,7 +399,7 @@ client id/secret) exactly as it would for any external IdP.
 
 ### The `identity` deployment profile
 
-`@oimlsmart/platform-server/profile` carries a fourth profile role: `identity`.
+`server/profile` carries a fourth profile role: `identity`.
 An instance booted with `roles: [identity]` serves the OP endpoints and
 nothing else — the profile's own identity (`org_name`, the branding)
 IS the provider's public identity (the consent page names it), and the
@@ -557,7 +557,7 @@ rotation doctrine (kernel 0.2.6, migration `0025_oidc_refresh_tokens`):
   + the reuse kill are the compensating controls that make the public
   client's offline access safe).
 - **The reuse verdict** (RFC 6819 §5.2.2.3) — a presented CONSUMED
-  token is the theft signal: the kernel's consume has already killed
+  token is the theft signal: the store's consume has already killed
   the whole family (the legitimate chain and the attacker's copy both
   end), the answer is `invalid_grant`, and the audit chain carries
   `client.refresh_reuse_detected` naming the account, the client, and
@@ -594,7 +594,7 @@ The refresh token's life is `OP_REFRESH_TOKEN_TTL_MS` (default 30
 days); the access token's stays `OP_ACCESS_TOKEN_TTL_MS`. The known
 deferrals: `max_age` (ask with `prompt=login`, verify `auth_time`), and
 the refreshed ID token's `nonce` (OIDC Core §12.2's "if present" carry
-— the kernel's refresh row predates a nonce column; the original ID
+— the refresh row predates a nonce column; the original ID
 token's `nonce` stands, the refreshed one omits it). The discovery
 document declares `grant_types_supported` +
 `refresh_token`, `scopes_supported` + `offline_access`, and the
@@ -907,7 +907,7 @@ in the `account.*` EN/FR catalog namespace:
    shows it): the best-practice eviction path.
 4. **Sessions**: `sessions` gained `user_agent` and `ip` (stamped at
    creation from the request's `user-agent` and `cf-connecting-ip` /
-   first `x-forwarded-for` hop, `@oimlsmart/platform-server/client-info`; NULL
+   first `x-forwarded-for` hop, `server/client-info`; NULL
    renders as "not recorded") and `last_seen_at` (touched by session
    resolution, throttled to one write per minute per session).
    `POST /api/op/account/sessions/revoke-others` signs out everywhere
@@ -1158,7 +1158,7 @@ The allowlist is validated at write time (the clients API and the
 vocabulary, naming it). The consent page names the effective set before
 anything is released ("On ⟨client⟩ you hold: …"). The instance side
 never invents a role either: the fed-10 claim mapping
-(`@oimlsmart/platform-server/vocab`'s `rolesFromClaims`, and the profile's declared
+(`server/vocab`'s `rolesFromClaims`, and the profile's declared
 `claimMapping` rules) keeps only roles the instance's own RBAC map
 knows; an account with NO role claim for the instance lands in the
 configured `defaultRole` (viewer — the intended safe value) or the
@@ -1220,7 +1220,7 @@ ORGANIZATION ── manages ──▶ ITS OWN PEOPLE (the org-scoped
 ### The pieces
 
 - **The `org_admin` role + the org-scoped `org.users.manage`
-  permission** (the RBAC catalog, `@oimlsmart/platform-server/vocab`).
+  permission** (the RBAC catalog, `server/vocab`).
   On the users API (`/api/users`) the grant scopes EVERY read and write
   to the caller's own organization binding: the list answers only the
   org's users, creates land in the org with a role the org's KIND bounds
@@ -1327,7 +1327,7 @@ notification (the password sign-in and every upstream sign-in), and the
 confirm-the-new-address
 message (TODO.identity/06's email-change flow sends it through the
 delivery seam; the section above documents it). Every send rides ONE
-mailer interface (`@oimlsmart/platform-server/mailer`, `send({ to, subject, text,
+mailer interface (`server/mailer`, `send({ to, subject, text,
 html? })`), with three postures resolved from the environment, best
 first:
 
