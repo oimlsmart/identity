@@ -127,7 +127,9 @@ export async function verifyUpstreamState(
   } catch {
     return null
   }
-  if (typeof payload?.p !== 'string' || (payload.m !== 'login' && payload.m !== 'link') || typeof payload.iat !== 'number') {
+  if (typeof payload?.p !== 'string'
+    || (payload.m !== 'login' && payload.m !== 'link' && payload.m !== 'attribute')
+    || typeof payload.iat !== 'number') {
     return null
   }
   const now = opts?.now ?? Date.now()

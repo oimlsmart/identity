@@ -53,6 +53,15 @@ const setupDone = ref(false)
 const orgs = computed<PickerOrg[]>(() =>
   countries.value.find(c => c.country === country.value)?.orgs ?? [])
 
+// The attribution CHOICE (the interstitial): the start leg's answer
+// carries one bounce per enabled human-proof upstream. The applicant
+// picks WHO attests them — before any assignment, the page explains
+// WHY the check exists (the anti-mailer-gun gate: one attributable
+// login buys one confirmation email; the upstream identity itself is
+// never stored, never linked).
+interface AttributionProvider { id: string; name: string; next: string }
+const attribution = ref<AttributionProvider[] | null>(null)
+
 // The country autocomplete: type instead of scroll. The query filters
 // the sorted list (the XX class stays last); picking sets the country.
 const countryQuery = ref('')
@@ -106,6 +115,10 @@ const emailMatchesOrg = computed<boolean>(() => {
   return orgDomains.value.some(e => d === e || d.endsWith('.' + e))
 })
 
+function continueAttribution(p: AttributionProvider): void {
+  window.location.assign(p.next)
+}
+
 async function start(): Promise<void> {
   if (busy.value) return
   busy.value = true
@@ -116,16 +129,16 @@ async function start(): Promise<void> {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ country: country.value, org: org.value, name: name.value, email: email.value }),
     })
-    const body = await res.json() as { ok?: boolean; next?: string; queued?: boolean; error?: string }
+    const body = await res.json() as { ok?: boolean; providers?: AttributionProvider[]; queued?: boolean; error?: string }
     if (body.queued) {
       notice.value = body.error ?? t('selfreg.queuedFallback')
       return
     }
-    if (!res.ok || !body.next) {
+    if (!res.ok || !body.providers?.length) {
       error.value = body.error ?? t('selfreg.failed')
       return
     }
-    window.location.assign(body.next)
+    attribution.value = body.providers
   } catch {
     error.value = t('error.network')
   } finally {
@@ -267,8 +280,31 @@ onMounted(async () => {
         </template>
       </div>
 
+      <!-- The attribution INTERSTITIAL: the why, then the choice. The
+           page explains itself before it hands the applicant to an
+           upstream login — the check proves a human, never an account. -->
+      <div v-else-if="attribution" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6" data-testid="selfreg-attribution">
+        <h2 class="text-lg font-serif font-bold text-slate-900 dark:text-white" data-testid="selfreg-attribution-title">{{ t('selfreg.attributionTitle') }}</h2>
+        <p class="mt-3 text-sm text-slate-600 dark:text-slate-400" data-testid="selfreg-attribution-why">{{ t('selfreg.attributionWhy') }}</p>
+        <p class="mt-4 text-sm font-medium text-slate-900 dark:text-white">{{ t('selfreg.attributionChoose') }}</p>
+        <div class="mt-3 space-y-2">
+          <button
+            v-for="p in attribution" :key="p.id" type="button"
+            class="w-full px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-brand-50 dark:hover:bg-slate-600 transition-colors"
+            :data-testid="`selfreg-attribution-${p.id}`"
+            @click="continueAttribution(p)"
+          >{{ t('selfreg.continueWith', { provider: p.name }) }}</button>
+        </div>
+        <button
+          type="button"
+          class="mt-4 w-full text-sm text-slate-500 dark:text-slate-400 hover:underline"
+          data-testid="selfreg-attribution-back"
+          @click="attribution = null"
+        >{{ t('selfreg.backToForm') }}</button>
+      </div>
+
       <!-- The start form (the pickers → the name → the work email →
-           Turnstile → the attribution bounce). -->
+           Turnstile → the attribution choice). -->
       <form v-else class="space-y-4" @submit.prevent="start">
         <div class="relative">
           <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-country">{{ t('selfreg.countryLabel') }}</label>

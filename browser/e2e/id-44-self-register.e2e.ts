@@ -157,6 +157,15 @@ async function bootIdentityStack(idp: StubIdp): Promise<Stack> {
   }
 }
 
+/** The country COMBOBOX drive (an input, not a select): type to
+ *  filter, click the matching option button. */
+async function pickCountry(page: Page, name: string): Promise<void> {
+  await page.click('[data-testid="selfreg-country"]')
+  await page.type('[data-testid="selfreg-country"]', name)
+  await page.waitForSelector(`[data-testid="selfreg-country-options"] [data-country="${name}"]`, { timeout: SETTLE, polling: 500 })
+  await page.click(`[data-testid="selfreg-country-options"] [data-country="${name}"]`)
+}
+
 describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => {
   let stack: Stack
   let browser: Browser
@@ -223,13 +232,22 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
 
     // THE FLOW: the start form (the pickers ride the vendored
     // projection — the United States' NIST is in it).
+    page.on('framenavigated', f => { if (f === page.mainFrame()) console.log(`[leg] NAV → ${f.url()}`) })
+    page.on('pageerror', e => console.log(`[leg] PAGEERROR ${String(e).slice(0, 400)}`))
+    page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[leg] CONSOLE ${m.type()} ${m.text().slice(0, 300)}`) })
+    page.on('response', r => { if (r.status() >= 400) console.log(`[leg] HTTP ${r.status()} ${r.url()}`) })
     await page.goto(`${stack.base}/op/self-register`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="selfreg-country"]', { timeout: SETTLE, polling: 500 })
-    await page.select('[data-testid="selfreg-country"]', 'United States')
+    await pickCountry(page, 'United States')
     await page.select('[data-testid="selfreg-org"]', 'National Institute of Standards and Technology (NIST)')
     await page.type('[data-testid="selfreg-name"]', MEMBER.name)
     await page.type('[data-testid="selfreg-email"]', MEMBER.email)
     await page.click('[data-testid="selfreg-submit"]')
+
+    // THE INTERSTITIAL: the why, then the CHOICE of who attests — the
+    // leg takes the github row (the only enabled one on this stack).
+    await page.waitForSelector('[data-testid="selfreg-attribution"]', { timeout: SETTLE, polling: 500 })
+    await page.click('[data-testid="selfreg-attribution-github"]')
 
     // The attribution round-trip: the stub IdP's consent page (one link
     // per fixture user) — click the first; the return carries the code;
@@ -240,9 +258,15 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     try {
       await page.waitForFunction(() => window.location.search.includes('sent=1'), { timeout: 60_000, polling: 500 })
     } catch (err) {
+      try { await page.screenshot({ path: '/tmp/id44-leg1-failure.png' }) } catch { /* gone */ }
+      const lines = stack.logs.join('').split('\n')
+      const interesting = lines.filter(l =>
+        l.includes('[op]') || l.includes('self-register') || l.includes('upstream') || /\[\d{3}\]/.test(l))
       throw new Error(`the attribution never landed on sent=1: url=${page.url()}
---- api logs ---
-${stack.logs.join('').slice(-2500)}`)
+--- interesting api logs ---
+${interesting.slice(-50).join('\n')}
+--- raw tail ---
+${stack.logs.join('').slice(-1500)}`)
     }
     const devLinkHref = await page.$eval('[data-testid="selfreg-dev-link"] a', el => (el as HTMLAnchorElement).href)
     expect(devLinkHref).toContain('/op/self-register?token=')
@@ -273,9 +297,9 @@ ${stack.logs.join('').slice(-2500)}`)
     })).headers.get('set-cookie')!.split(';')[0]!
     const org = await fetch(`${stack.apiBase}/api/op/registry/orgs/nist.gov`, { headers: { cookie: rootCookie2 } })
     expect(org.status).toBe(200)
-    const orgRow = await org.json() as { name?: string; state?: string; country?: string }
-    expect(orgRow.name).toBe('National Institute of Standards and Technology (NIST)')
-    expect(orgRow.state).toBe('active')
+    const orgRow = await org.json() as { org?: { name?: string; state?: string; country?: string } }
+    expect(orgRow.org?.name).toBe('National Institute of Standards and Technology (NIST)')
+    expect(orgRow.org?.state).toBe('active')
     await page.close()
   })
 
@@ -287,7 +311,7 @@ ${stack.logs.join('').slice(-2500)}`)
 
     // The mismatch: the US/NIST pick with a Czech address names the
     // owning organization.
-    await page.select('[data-testid="selfreg-country"]', 'United States')
+    await pickCountry(page, 'United States')
     await page.select('[data-testid="selfreg-org"]', 'National Institute of Standards and Technology (NIST)')
     await page.type('[data-testid="selfreg-name"]', 'X')
     await page.type('[data-testid="selfreg-email"]', 'someone@cmi.gov.cz')
