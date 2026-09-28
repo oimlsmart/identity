@@ -402,7 +402,8 @@ describe('TODO.identity-features/11 — the visual-elevation wave', () => {
           input: px(document.querySelector('[data-testid="login-email"]')),
           submit: px(document.querySelector('[data-testid="login-submit"]')),
           legitimacy: px(document.querySelector('[data-testid="login-legitimacy"]')),
-          join: px(document.querySelector('[data-testid="login-join"]')),
+          pathsTitle: px(document.querySelector('[data-testid="login-paths-title"]')),
+          pathCardBody: px(document.querySelector('[data-testid="login-path-invited"] p + p')),
           footer: px(document.querySelector('[data-testid="shell-footer"]')),
           smallest,
         }
@@ -412,7 +413,8 @@ describe('TODO.identity-features/11 — the visual-elevation wave', () => {
       expect(sizes.input).toBe(16)
       expect(sizes.submit).toBe(16)
       expect(sizes.legitimacy).toBe(14)
-      expect(sizes.join).toBe(14)
+      expect(sizes.pathsTitle).toBe(12)
+      expect(sizes.pathCardBody).toBe(12)
       expect(sizes.footer).toBe(12)
       // The floor: nothing readable below 12px anywhere on the page.
       expect(sizes.smallest).toBeGreaterThanOrEqual(12)
