@@ -56,8 +56,14 @@ function sha256Sync(body: string): string {
  *  owner enabled analytics). */
 export const ANALYTICS_BEACON_ORIGIN = 'https://static.cloudflareinsights.com'
 
+/** The Turnstile widget's script origin (the bot gate's client half —
+ *  the 2026-09-28 production finding: the strict allowlist blocked our
+ *  OWN widget; the challenge iframe needs no frame-src, which this CSP
+ *  deliberately never sets). */
+export const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com'
+
 export function cspDirectiveFor(hashes: string[]): string {
-  return `frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' ${hashes.join(' ')} ${ANALYTICS_BEACON_ORIGIN}`
+  return `frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' ${hashes.join(' ')} ${TURNSTILE_ORIGIN} ${ANALYTICS_BEACON_ORIGIN}`
 }
 
 const MANAGED_BEGIN = '# ── the script-src CSP (TODO.modern/19, generated — do not edit) ──'
