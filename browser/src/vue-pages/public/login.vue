@@ -834,6 +834,14 @@ async function submitReset() {
         {{ t('login.joinNote') }}
       </p>
 
+      <!-- The Ommisa member tier's self-enrollment (the verified-first
+           flow): the member states' authorities' people create their
+           account with their work email, on the organization's
+           registered domain. -->
+      <p class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-selfregister">
+        <router-link to="/op/self-register" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-selfregister-link">{{ t('login.selfRegisterLink') }}</router-link>
+      </p>
+
       <!-- The public self-registration (TODO.restructure/05): the
            applicant's own account, no organization needed. -->
       <p v-if="selfRegistration" class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-register">
