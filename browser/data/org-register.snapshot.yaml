@@ -74,15 +74,16 @@ members:
 organizations:
   - id: EX1
     kind: issuing-authority
-    name: "Example Issuing Authority"
-    short_name: "EIA"
+    name: "Brobdingnag Legal Metrology Authority"
+    short_name: "BLMA"
     oiml_code: EX1
     # The proposing member state (TODO.identity-features/10): the member
     # participates in the OIML-CS by PROPOSING its IA.
     proposed_by: ms-example
-    country: "Example Member State"
-    address: { street: "1 Scheme Avenue", city: "Demoville", country: "Example Member State", postal_code: "DL-100" }
-    contact: { person: "Ms. Emily Irving", email: "office@eia.example.org", phone: "+100 555 0101" }
+    country: "Brobdingnag"
+    logo: "/orgs/blma.svg"
+    address: { street: "1 Scheme Avenue", city: "Lorbrulgrud", country: "Brobdingnag", postal_code: "LG-903" }
+    contact: { person: "Ms. Emily Irving", email: "office@blma.example.org", phone: "+903 555 0101" }
     oiml_scope:
       - { ref: "R 60:2021", scheme: A }
       - { ref: "R 91:2025", scheme: A }
@@ -91,8 +92,9 @@ organizations:
     certificate_prefix: EX1
   - id: "21"
     kind: test-laboratory
-    name: "Example Test Laboratory"
-    short_name: "ETL"
+    name: "Blefuscu Central Laboratory"
+    short_name: "BCL"
+    logo: "/orgs/bcl.svg"
     lab_kind: independent
     oiml_id: 21
     parent_oiml_code: EX1
@@ -100,9 +102,9 @@ organizations:
     # designated by its issuing authority (the participants model's
     # designated_by: issuing_authority).
     designated_by: EX1
-    country: "Example Member State"
-    address: { street: "2 Metrology Way", city: "Demoville", country: "Example Member State", postal_code: "DL-102" }
-    contact: { person: "Mr. Martin Berger", email: "lab@etl.example.org", phone: "+100 555 0102" }
+    country: "Blefuscu"
+    address: { street: "2 Metrology Way", city: "the metropolis of Blefuscu", country: "Blefuscu", postal_code: "BF-905" }
+    contact: { person: "Mr. Martin Berger", email: "lab@bcl.example.org", phone: "+905 555 0102" }
     oiml_scope:
       - { ref: "R 60:2021", scheme: A }
       - { ref: "R 91:2025", scheme: A }

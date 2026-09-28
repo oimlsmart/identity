@@ -394,7 +394,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     const roles = await page.$eval(`[data-testid="account-org-roles-${IA_ID}"]`, el => el.textContent ?? '')
     expect(roles).toContain('ia_officer')
     const context = await page.$eval('[data-testid="account-active-context"]', el => el.textContent ?? '')
-    expect(context).toContain('Example Issuing Authority')
+    expect(context).toContain('Brobdingnag Legal Metrology Authority')
 
     // The ask: pick the Utilizer + the viewer role from the console.
     await page.select('[data-testid="account-org-join-org"]', UTILIZER_ID)
@@ -558,7 +558,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     await page.goto(`${stack.base}/op/admin/registry/users/${officerId}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-reg-memberships-list"]', { timeout: SETTLE, polling: 500 })
     const memberships = await page.$eval('[data-testid="op-reg-memberships-list"]', el => el.textContent ?? '')
-    expect(memberships).toContain('Example Issuing Authority')
+    expect(memberships).toContain('Brobdingnag Legal Metrology Authority')
     expect(memberships).toContain(UTILIZER_NAME)
     expect(memberships).toContain('viewer')
     const primaryRoles = await page.$eval(`[data-testid="op-reg-membership-roles-${IA_ID}"]`, el => el.textContent ?? '')

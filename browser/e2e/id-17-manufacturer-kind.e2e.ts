@@ -458,7 +458,7 @@ describe('TODO.register/01 — the manufacturer org kind (the identity profile)'
     expect(standing).toContain('NOT an OIML-CS participant')
     await page.waitForSelector('[data-testid="op-reg-org-endorsement-EX1"]', { timeout: SETTLE, polling: 500 })
     const endorsement = await page.$eval('[data-testid="op-reg-org-endorsement-EX1"]', el => el.textContent ?? '')
-    expect(endorsement).toContain('Example Issuing Authority')
+    expect(endorsement).toContain('Brobdingnag Legal Metrology Authority')
     // The org's own audit slice renders the endorsement act in words.
     await page.waitForFunction(() => {
       const list = document.querySelector('[data-testid="op-reg-org-activity-list"]')

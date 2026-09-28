@@ -185,7 +185,7 @@ export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<n
 }
 
 // ── the demo cast's signing key (TODO.trust-registry/01) ─────────────
-// The demonstration IA (EX1 — the snapshot's Example Issuing Authority)
+// The demonstration IA (EX1 — the snapshot's Brobdingnag Legal Metrology Authority)
 // carries a DEMONSTRATION signing key so the dev/e2e stacks can run the
 // full signing arc: the public half lands on the org's key set (the
 // public endpoint /op/keys/EX1.json resolves it with the participant

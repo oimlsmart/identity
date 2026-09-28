@@ -358,7 +358,7 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     expect(await page.$eval('[data-testid="op-reg-org-kind"]', el => el.textContent ?? '')).toContain('OIML Member — Member State')
     expect(await page.$eval('[data-testid="op-reg-org-standing"]', el => el.textContent ?? '')).toContain('OIML Member')
     await page.waitForSelector('[data-testid="op-reg-org-chain"]', { timeout: SETTLE, polling: 500 })
-    expect(await page.$eval('[data-testid="op-reg-org-chain-proposes"]', el => el.textContent ?? '')).toContain('Example Issuing Authority')
+    expect(await page.$eval('[data-testid="op-reg-org-chain-proposes"]', el => el.textContent ?? '')).toContain('Brobdingnag Legal Metrology Authority')
     const designates = await page.$eval('[data-testid="op-reg-org-chain-designates"]', el => el.textContent ?? '')
     expect(designates).toContain('Example Market Surveillance Authority')
     expect(designates).toContain('utilizer')
@@ -368,7 +368,7 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     await page.waitForSelector('[data-testid="op-reg-org-proposed-by"]', { timeout: SETTLE, polling: 500 })
     expect(await page.$eval('[data-testid="op-reg-org-proposed-by"]', el => el.textContent ?? '')).toContain('Example Member Body')
     await page.waitForSelector('[data-testid="op-reg-org-chain-tls"]', { timeout: SETTLE, polling: 500 })
-    expect(await page.$eval('[data-testid="op-reg-org-chain-tls"]', el => el.textContent ?? '')).toContain('Example Test Laboratory')
+    expect(await page.$eval('[data-testid="op-reg-org-chain-tls"]', el => el.textContent ?? '')).toContain('Blefuscu Central Laboratory')
 
     // The utilizer's page: designated by the member state; the CS
     // status facet reads the Declaration's standing.
