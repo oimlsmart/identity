@@ -286,6 +286,7 @@ onMounted(async () => {
       <div v-else-if="attribution" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6" data-testid="selfreg-attribution">
         <h2 class="text-lg font-serif font-bold text-slate-900 dark:text-white" data-testid="selfreg-attribution-title">{{ t('selfreg.attributionTitle') }}</h2>
         <p class="mt-3 text-sm text-slate-600 dark:text-slate-400" data-testid="selfreg-attribution-why">{{ t('selfreg.attributionWhy') }}</p>
+        <p class="mt-3 text-sm rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-amber-800 dark:text-amber-200" data-testid="selfreg-attribution-note">{{ t('selfreg.attributionNote') }}</p>
         <p class="mt-4 text-sm font-medium text-slate-900 dark:text-white">{{ t('selfreg.attributionChoose') }}</p>
         <div class="mt-3 space-y-2">
           <button
