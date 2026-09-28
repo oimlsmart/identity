@@ -126,7 +126,6 @@ onMounted(async () => {
   const queryError = typeof route.query.error === 'string' ? route.query.error : null
   if (queryError === 'exists') error.value = t('selfreg.errorExists')
   else if (queryError === 'expired') error.value = t('selfreg.errorExpired')
-  else if (queryError === 'not-configured') error.value = t('selfreg.errorNotConfigured')
 
   if (typeof route.query.link === 'string' && route.query.link) devLink.value = route.query.link
   if (typeof route.query.sent === 'string') notice.value = t('selfreg.sent')

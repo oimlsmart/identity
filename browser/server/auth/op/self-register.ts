@@ -26,36 +26,33 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import type { ServerStore } from '../../store'
-import { loadDomains, resolveOrg, type DomainOwner } from './member-domains'
+import { loadDomains, resolveOrgDomain, type DomainOwner } from './member-domains'
 
 export interface SelfRegisterConfig {
   enabled: boolean
-  /** The fail-closed reason when the deployment has not configured the
-   *  tier (the org binding is the owner's deliberate act — the endpoint
-   *  refuses rather than guess). */
-  reason?: 'disabled' | 'not-configured'
-  orgId: string
+  /** The fail-closed reason: only the kill switch closes the tier now —
+   *  the landing org comes from the REGISTRY (rev 5, the owner's
+   *  ruling: every account but the four super admins carries an org —
+   *  the org the registry hit names, provisioned from the sourced
+   *  registry data at the verified click). */
+  reason?: 'disabled'
   client: string
-  role: string
 }
 
 export function resolveSelfRegisterConfig(env: Record<string, string | undefined>): SelfRegisterConfig {
   const flag = env.OP_SELF_REGISTER?.trim()
   if (flag === '0' || flag === 'false') {
-    return { enabled: false, reason: 'disabled', orgId: '', client: 'oiml-ommisa', role: 'user' }
+    return { enabled: false, reason: 'disabled', client: 'oiml-ommisa' }
   }
-  const orgId = env.OP_SELF_REGISTER_ORG?.trim() ?? ''
-  if (!orgId) {
-    // Fail-closed: the tier's org binding is a deployment decision; an
-    // unconfigured deployment refuses honestly instead of guessing.
-    return { enabled: false, reason: 'not-configured', orgId: '', client: 'oiml-ommisa', role: 'user' }
-  }
-  return {
-    enabled: true,
-    orgId,
-    client: env.OP_SELF_REGISTER_CLIENT?.trim() || 'oiml-ommisa',
-    role: env.OP_SELF_REGISTER_ROLES?.trim() || 'user',
-  }
+  return { enabled: true, client: env.OP_SELF_REGISTER_CLIENT?.trim() || 'oiml-ommisa' }
+}
+
+/** The eligibility's org resolution: the org OF THE SAME DOMAIN NAME —
+ *  the registry entry the email's domain maps to, carried with its
+ *  domain (the domain IS the organization's id in the identity
+ *  registry). */
+export function resolveEligibilityOrg(email: string): { domain: string; owner: DomainOwner } | null {
+  return resolveOrgDomain(email)
 }
 
 export interface EligibilityVerdict {
@@ -69,6 +66,9 @@ export interface EligibilityVerdict {
   mismatch?: { country: string; org: string }
   error?: string
   hit?: DomainOwner
+  /** The matched registry domain — the account's organization id (the
+   *  org OF THE SAME DOMAIN NAME). */
+  orgDomain?: string
 }
 
 /** The eligibility judgment: the pickers (the country, then the org
@@ -86,19 +86,19 @@ export function eligibilityFor(
   if (!pickedOrg) {
     return { ok: false, error: `the organization you picked does not belong to ${country} — pick your organization from ${country}'s list` }
   }
-  const hit = resolveOrg(email)
-  if (!hit) {
+  const resolved = resolveOrgDomain(email)
+  if (!resolved) {
     return {
       ok: false,
       error: 'this email domain is not in the member-domains registry — if your organization should be eligible, an administrator can review your request through the join queue',
       queue: true,
     }
   }
-  if (hit.org !== pickedOrg.name) {
+  if (resolved.owner.org !== pickedOrg.name) {
     return {
       ok: false,
-      mismatch: { country: hit.country, org: hit.org },
-      error: `this domain is registered to ${hit.org} (${hit.country}) — choose it from the organization list`,
+      mismatch: { country: resolved.owner.country, org: resolved.owner.org },
+      error: `this domain is registered to ${resolved.owner.org} (${resolved.owner.country}) — choose it from the organization list`,
     }
   }
   if (pickedOrg.admin_queue) {
@@ -108,7 +108,7 @@ export function eligibilityFor(
       error: 'your organization is enrolled through administrator review — submit the request and an administrator will review it',
     }
   }
-  return { ok: true, hit }
+  return { ok: true, hit: resolved.owner, orgDomain: resolved.domain }
 }
 
 /** The completion's input contract — the name and the password arrive

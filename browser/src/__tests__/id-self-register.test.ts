@@ -17,10 +17,10 @@ const TMP = mkdtempSync(join(tmpdir(), 'oiml-selfreg-'))
 process.env.DATABASE_PATH = join(TMP, 'test.db')
 const ISSUER = 'http://op.test'
 process.env.OP_ISSUER = ISSUER
-// The tier's config: ON, bound to an org the test activates below, the
-// Ommisa client carrying the registry roles.
+// The tier's config: ON; the Ommisa client carrying the registry
+// roles. The landing org needs NO configuration — it is the
+// organization the registry entry names, keyed by the domain.
 process.env.OP_SELF_REGISTER = '1'
-process.env.OP_SELF_REGISTER_ORG = 'EX1'
 process.env.OP_SELF_REGISTER_CLIENT = 'oiml-ommisa'
 
 let app: import('hono').Hono
@@ -51,11 +51,6 @@ demo_personas: false
   const { createApiApp } = await import('../../server/app')
   app = createApiApp({ autoSeedDemo: false, identityModule: { modules: ['identity'] } } as never)
 
-  // The tier's org: an ACTIVE registry org (the invite's own rule — the
-  // binding validates against the registry).
-  await store.createOrgRegistryOrg({ id: 'EX1', name: 'Example Member State Authority', createdBy: 'test' })
-  await store.setOrgRegistryOrgState('EX1', 'active', 'test')
-
   // The attribution upstream: the enabled google row (the tier prefers
   // it; github is the accepted alternative).
   await store.upsertIdentityProvider({
@@ -79,7 +74,7 @@ demo_personas: false
 
 afterAll(() => {
   rmSync(TMP, { recursive: true, force: true })
-  for (const key of ['OP_ISSUER', 'OP_SIGNING_KEY', 'DATABASE_PATH', 'OP_SELF_REGISTER', 'OP_SELF_REGISTER_ORG', 'OP_SELF_REGISTER_CLIENT']) {
+  for (const key of ['OP_ISSUER', 'OP_SIGNING_KEY', 'DATABASE_PATH', 'OP_SELF_REGISTER', 'OP_SELF_REGISTER_CLIENT']) {
     delete process.env[key]
   }
 })
@@ -145,10 +140,16 @@ describe('leg 3+4 — the verified click (the flow\'s ONLY write)', () => {
     })
     expect(complete.status).toBe(200)
 
-    // The account: verified by the click, bound to the tier's org.
+    // The account: verified by the click, bound to the ORG OF THE SAME
+    // DOMAIN NAME — the row materialized from the registry, its FULL
+    // NAME from the registry entry, active.
     const account = await store.findUserByEmail('member@nist.gov')
     expect(account).toBeTruthy()
     expect(account!.emailVerifiedAt ?? 'verified').toBeTruthy()
+    const org = await store.getOrgRegistryOrg('nist.gov')
+    expect(org?.name).toBe('National Institute of Standards and Technology (NIST)')
+    expect(org?.state).toBe('active')
+    expect(org?.country).toBe('United States')
 
     // The registry roles ride as the Ommisa client's per-client
     // assignments (the standing the service reads).
