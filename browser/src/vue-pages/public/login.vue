@@ -810,29 +810,28 @@ async function submitReset() {
         </div>
       </div>
 
-      <!-- The self-service join intake: request an account naming your
-           organization from the participants register; approval comes
-           from your organization. -->
-      <p class="mt-4 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-join">
-        {{ t('login.joinPrompt') }}
-        <router-link to="/op/join" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-join-link">{{ t('login.joinLink') }}</router-link>
-        {{ t('login.joinNote') }}
-      </p>
-
-      <!-- The Ommisa member tier's self-enrollment (the verified-first
-           flow): the member states' authorities' people create their
-           account with their work email, on the organization's
-           registered domain. -->
-      <p class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-selfregister">
-        <router-link to="/op/self-register" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-selfregister-link">{{ t('login.selfRegisterLink') }}</router-link>
-      </p>
-
-      <!-- The public self-registration (TODO.restructure/05): the
-           applicant's own account, no organization needed. -->
-      <p v-if="selfRegistration" class="mt-2 text-center text-sm text-slate-600 dark:text-slate-400" data-testid="login-register">
-        {{ t('login.registerPrompt') }}
-        <router-link to="/register" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-register-link">{{ t('login.registerLink') }}</router-link>
-      </p>
+      <!-- The THREE WAYS to get an account (the 2026-09-28 owner
+           ruling): invited by the organization's admin, requested from
+           an organization, or self-registered on the registered
+           domain. The invited path has no self-service act — the card
+           names the human to ask. -->
+      <div class="mt-6" data-testid="login-paths">
+        <p class="text-center text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2" data-testid="login-paths-title">{{ t('login.paths.title') }}</p>
+        <div class="space-y-2">
+          <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3" data-testid="login-path-invited">
+            <p class="text-sm font-medium text-slate-900 dark:text-white">{{ t('login.paths.invited.title') }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.invited.body') }}</p>
+          </div>
+          <router-link to="/op/join" class="block rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50/50 dark:hover:bg-slate-800 transition-colors" data-testid="login-path-join">
+            <p class="text-sm font-medium text-brand-700 dark:text-brand-300">{{ t('login.paths.join.title') }} <span aria-hidden="true">→</span></p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.join.body') }}</p>
+          </router-link>
+          <router-link to="/op/self-register" class="block rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50/50 dark:hover:bg-slate-800 transition-colors" data-testid="login-path-selfregister">
+            <p class="text-sm font-medium text-brand-700 dark:text-brand-300">{{ t('login.paths.selfregister.title') }} <span aria-hidden="true">→</span></p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.selfregister.body') }}</p>
+          </router-link>
+        </div>
+      </div>
 
       <p v-if="branding.supportUrl" class="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">
         {{ t('login.supportPrompt') }} <a :href="branding.supportUrl" target="_blank" rel="noopener" data-testid="login-support" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('login.supportLink') }}</a>
