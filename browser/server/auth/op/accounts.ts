@@ -32,6 +32,14 @@
 //     every relying party's claim mapping, and the only roles they
 //     carry are the ones the declaration assigns to the named client.
 //
+//     The grant declaration's OBJECTS (OP_DEMO_ASSUME_GRANTS + the
+//     entries' clientRoles — persona-assume.ts's persona set) also
+//     converge a REMEMBERED CONSENT grant per persona per client
+//     (DEMO_PERSONA_CONSENT_SCOPES), so the demonstration's persona
+//     switches never stop at the consent page. The pre-seed reaches no
+//     other account: a general account's consent is the holder's own
+//     click, always.
+//
 // The linked sign-in methods (GitHub, OIDC upstreams) are
 // TODO.identity/08's registry-driven flows (auth/upstream/*,
 // routes/op-upstream.ts) — the account list here never depends on them.
@@ -41,12 +49,19 @@
 
 import { opRandomToken } from './keys'
 import { hashPassword } from '../passwords'
+import { declaredPersonasForClient, personaGrantsFromEnv } from './persona-assume'
 import type { ServerStore } from '../../store'
 
 type EnvLike = Record<string, string | undefined>
 
 /** The enrollment link's lifetime (24 h — the spec's value). */
 export const OP_ENROLLMENT_TTL_MS = 24 * 60 * 60 * 1000
+
+/** The demonstration personas' pre-seeded consent scope set: the demo
+ *  client registrations' standard ask, offline_access included (the
+ *  refresh cone the demo's flows ride). Recorded through the store's own
+ *  upsert, which normalizes the spelling. */
+export const DEMO_PERSONA_CONSENT_SCOPES = 'openid profile email offline_access'
 
 /** The provider value an OP password account carries on the users row
  *  (the demo cast is 'demo', OAuth-provisioned rows carry their upstream;
@@ -140,8 +155,19 @@ export async function seedOpAccountsFromEnv(
 ): Promise<string[]> {
   const raw = env.OP_ACCOUNT_SEED?.trim()
   if (!raw) return []
+  const entries = parseOpAccountSeed(raw)
+  // The persona set for the consent pre-seed: exactly the grant
+  // declaration's OBJECTS (OP_DEMO_ASSUME_GRANTS scopes the roster to the
+  // client) — a malformed or absent declaration answers the empty set and
+  // no consent is ever pre-seeded (personaGrantsFromEnv logs the malformed
+  // document itself). A GENERAL account's consent stays the holder's own
+  // click, always.
+  const assumeGrants = personaGrantsFromEnv(env)
+  const personaEmails = new Set(
+    assumeGrants ? declaredPersonasForClient(entries, assumeGrants.clientId).map(p => p.email) : [],
+  )
   const seeded: string[] = []
-  for (const entry of parseOpAccountSeed(raw)) {
+  for (const entry of entries) {
     let account: { id: string; email: string } | null = await store.findUserByEmail(entry.email.trim().toLowerCase())
     if (!account) {
       const created = await store.createOpAccount({
@@ -159,6 +185,19 @@ export async function seedOpAccountsFromEnv(
     seeded.push(account.email)
     if (isDeclaredSeedEntry(entry)) {
       await convergeDeclaredAccount(store, account.id, entry)
+    }
+    // The demonstration personas' REMEMBERED CONSENT (the streamlined
+    // persona switching): each declared persona converges a live consent
+    // grant for the standard scope set on every client its clientRoles
+    // name, so the demo's persona switches never stop at the consent
+    // page. The upsert's own semantics keep it idempotent (the live
+    // triple's stamp refreshes, never duplicates; a revocation the demo's
+    // own console recorded yields to the declaration on the next boot,
+    // the declared-entry convergence doctrine).
+    if (personaEmails.has(entry.email.trim().toLowerCase())) {
+      for (const clientId of Object.keys(entry.clientRoles ?? {})) {
+        await store.recordConsentGrant({ userId: account.id, clientId, scope: DEMO_PERSONA_CONSENT_SCOPES })
+      }
     }
     const methods = await store.countSignInMethods(account.id)
     if (!methods.password && entry.password === undefined) {

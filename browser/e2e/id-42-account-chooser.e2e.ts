@@ -23,8 +23,10 @@
 //          cast (seven personas — applicant, ia, tl, utilizer, cs, and
 //          the kept System Administration pair, badged, the login_hint
 //          pre-selects) — clicking a persona mints the session AS the
-//          persona with NO persona credential presented and the flow
-//          completes with the RP's validated token naming the PERSONA;
+//          persona with NO persona credential presented, the pre-seeded
+//          consent grant carries the flow past the consent page, and the
+//          flow completes with the RP's validated token naming the
+//          PERSONA;
 //   leg 6  an account without the grant sees no persona rows at all —
 //          the chooser stays exactly the remembered accounts.
 //
@@ -364,10 +366,11 @@ describe('the account chooser (the multi-account wave, browser-level)', () => {
     await page.screenshot({ path: join(DB_DIR, 'chooser-persona-granted.png') })
 
     // The click assumes: no password field ever renders for the persona
-    // — the session mints server-side and the flow rides on.
+    // — the session mints server-side and the flow rides on. The
+    // persona's remembered consent is PRE-SEEDED (the account seed's
+    // persona convergence), so the consent page never stops the flow
+    // either: the RP's landing follows the click directly.
     await page.evaluate((sel) => (document.querySelector(sel) as HTMLElement).click(), personaRow)
-    await page.waitForSelector('[data-testid="op-consent-allow"]', { timeout: SETTLE, polling: 500 })
-    await page.evaluate(() => (document.querySelector('[data-testid="op-consent-allow"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="rp-signed-in"]', { timeout: SETTLE, polling: 500 })
     // The RP's validated token names the PERSONA — the assumption rode
     // the whole flow (the grantee's own identity appears nowhere).

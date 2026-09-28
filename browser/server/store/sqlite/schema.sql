@@ -50,6 +50,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   -- 'webauthn', 'hwk', the OP-private 'recovery'). NULL = no OP-side
   -- credential event recorded (an upstream-provider sign-in).
   amr TEXT,
+  -- The persona assumption's ACTOR (migration 0037): an assumed session
+  -- (amr carries the OP-private 'assumed' marker) stamps the grant-holder's
+  -- user id, carried verbatim across persona→persona chain hops so the
+  -- chooser's grant verdicts re-judge the ORIGINAL grantee. NULL for
+  -- every ordinary sign-in.
+  assumed_by TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

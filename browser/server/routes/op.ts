@@ -958,6 +958,23 @@ export function createOpRouter(): Hono {
     return { grants, personas: declaredPersonasForClient(seed, grants.clientId) }
   }
 
+  /** The account the persona-assumption verdicts judge (the persona→
+   *  persona chaining): the presenting account itself, or — for an
+   *  ASSUMED session (amr carries the OP-private marker) — the ORIGINAL
+   *  grantee the session row stamps (sessions.assumed_by), so a chained
+   *  switch never returns to the personal account first. A chain whose
+   *  actor no longer resolves (the account erased, or a session row
+   *  minted before the stamp existed) closes honestly: null answers no
+   *  persona rows and a 403 on the attempt, and the jar's ordinary swap
+   *  back to the personal account stays the way out. One bounded read,
+   *  only for an assumed session. */
+  async function assumptionPrincipalFor(active: { token: string; user: AuthUserPayload } | null): Promise<AuthUserPayload | null> {
+    if (!active) return null
+    if (!active.user.amr?.includes('assumed')) return active.user
+    if (!active.user.assumedBy) return null
+    return getStore().getUserById(active.user.assumedBy)
+  }
+
   // GET /api/op/choose-account — the chooser page's context: the jar's
   // accounts, each re-judged against its live session row (the trust
   // posture — auth/op/account-jar.ts), the presenting account badged,
@@ -973,8 +990,11 @@ export function createOpRouter(): Hono {
   // THE PERSONA ROWS (the grant-based assumption): when the presenting
   // session's account holds the declared grant, the chooser ALSO lists
   // the declared demo personas (`assumable` — the row's click assumes
-  // the persona, no persona password ever presented). An account
-  // without a grant — and the signed-out posture — never sees them.
+  // the persona, no persona password ever presented). An ASSUMED session
+  // lists them on the ORIGINAL grantee's standing (the persona→persona
+  // chaining — assumptionPrincipalFor), so the switch never returns to
+  // the personal account first. An account without a grant — and the
+  // signed-out posture — never sees them.
   op.get('/api/op/choose-account', async (c) => {
     await ensureSeeded(c)
     const continueTarget = sanitizeContinueTarget(c.req.query('continue'))
@@ -990,7 +1010,10 @@ export function createOpRouter(): Hono {
     // the declared personas').
     const posture = personaGrantsFor(c)
     const personaEmails = new Set(posture?.personas.map(p => p.email) ?? [])
-    const granted = !!posture && !!active && grantsAllowEmail(posture.grants, active.user.email, personaEmails)
+    // The grant verdict judges the PRINCIPAL — the presenting account,
+    // or the original grantee behind an assumed session (the chaining).
+    const principal = await assumptionPrincipalFor(active)
+    const granted = !!posture && !!principal && grantsAllowEmail(posture.grants, principal.email, personaEmails)
     const personas = granted ? posture!.personas : []
     const orgIds = [...new Set([
       ...resolved.map(r => r.entry.orgId),
@@ -1075,8 +1098,14 @@ export function createOpRouter(): Hono {
       const persona = posture && requestedEmail ? declaredPersonaByEmail(posture.personas, requestedEmail) : null
       const active = persona ? await activeJarContext(c) : null
       if (persona && active) {
+        // The verdict judges the PRINCIPAL: the presenting account, or —
+        // for an assumed session — the original grantee it stamps (the
+        // persona→persona chain; assumptionPrincipalFor's doctrine). A
+        // chain whose actor fails the grant is refused exactly like an
+        // ungranted presenting account.
+        const principal = await assumptionPrincipalFor(active)
         const personaEmails = new Set(posture!.personas.map(p => p.email))
-        if (!grantsAllowEmail(posture!.grants, active.user.email, personaEmails)) {
+        if (!principal || !grantsAllowEmail(posture!.grants, principal.email, personaEmails)) {
           return c.json({ error: 'the presenting account is not granted the persona assumption' }, 403)
         }
         const account = await getStore().findUserByEmail(persona.email)
@@ -1087,16 +1116,19 @@ export function createOpRouter(): Hono {
         }
         // The session mints AS the persona — same shape as a completed
         // sign-in, minus the credential: writes SERIAL (the store seam's
-        // own discipline), amr carries the OP-private 'assumed' marker.
+        // own discipline), amr carries the OP-private 'assumed' marker,
+        // assumed_by stamps the PRINCIPAL (a direct hop's grantee, a
+        // chain hop's ORIGINAL actor — carried verbatim).
         await getStore().touchLastLogin(account.id)
-        const token = await getStore().createSession(account.id, { ...clientInfo(c), amr: ['assumed'] })
+        const token = await getStore().createSession(account.id, { ...clientInfo(c), amr: ['assumed'], assumedBy: principal.id })
         // The journal (the audit trail): who assumed which persona, for
-        // which client. Never blocks the answer.
+        // which client — the grant-holder of record, identically for a
+        // direct hop and a chained one. Never blocks the answer.
         try {
           await getStore().recordOpAssumption({
             id: crypto.randomUUID(),
-            actorUserId: active.user.id,
-            actorEmail: active.user.email,
+            actorUserId: principal.id,
+            actorEmail: principal.email,
             personaUserId: account.id,
             personaEmail: account.email,
             clientId: posture!.grants.clientId,
@@ -1105,8 +1137,8 @@ export function createOpRouter(): Hono {
         } catch (err) {
           console.error(`[op] the assumption journal write failed:`, (err as Error).message)
         }
-        await audit('account.assumed', account.id, { userId: active.user.id, userName: active.user.name }, {
-          actorEmail: active.user.email,
+        await audit('account.assumed', account.id, { userId: principal.id, userName: principal.name }, {
+          actorEmail: principal.email,
           personaEmail: account.email,
           clientId: posture!.grants.clientId,
           method: 'assumed',

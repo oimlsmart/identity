@@ -692,6 +692,8 @@ export class D1ServerStore implements ServerStore {
       if (!names.has('last_seen_at')) await this.db.prepare('ALTER TABLE sessions ADD COLUMN last_seen_at TEXT').run()
       // TODO.identity-sso/02+03: the sign-in provenance.
       if (!names.has('amr')) await this.db.prepare('ALTER TABLE sessions ADD COLUMN amr TEXT').run()
+      // Migration 0037: the persona assumption's actor stamp.
+      if (!names.has('assumed_by')) await this.db.prepare('ALTER TABLE sessions ADD COLUMN assumed_by TEXT').run()
     })
   }
 
@@ -1052,15 +1054,15 @@ export class D1ServerStore implements ServerStore {
 
   async createSession(
     userId: string,
-    opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null },
+    opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null; assumedBy?: string | null },
   ): Promise<string> {
     await this.ensureSessionColumns()
     const token = crypto.randomUUID()
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     await this.stmt(
-      'INSERT INTO sessions (id, user_id, token, expires_at, id_token_hint, user_agent, ip, last_seen_at, amr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sessions (id, user_id, token, expires_at, id_token_hint, user_agent, ip, last_seen_at, amr, assumed_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       crypto.randomUUID(), userId, token, expiresAt, opts?.idTokenHint ?? null, opts?.userAgent ?? null, opts?.ip ?? null, null,
-      opts?.amr?.length ? JSON.stringify(opts.amr) : null,
+      opts?.amr?.length ? JSON.stringify(opts.amr) : null, opts?.assumedBy ?? null,
     ).run()
     return token
   }
@@ -1098,11 +1100,11 @@ export class D1ServerStore implements ServerStore {
     // reassignment takes effect on the next request; deactivation ends
     // the session at once.
     const session = await this.stmt(
-      `SELECT s.user_id, s.active_org, s.amr, s.created_at, u.email, u.name, u.role, u.roles, u.org_id, u.avatar_url, u.provider, u.email_verified_at
+      `SELECT s.user_id, s.active_org, s.amr, s.assumed_by, s.created_at, u.email, u.name, u.role, u.roles, u.org_id, u.avatar_url, u.provider, u.email_verified_at
        FROM sessions s JOIN users u ON s.user_id = u.id
        WHERE s.token = ? AND s.expires_at > datetime('now') AND u.active = 1`,
       token,
-    ).first<{ user_id: string; active_org: string | null; amr: string | null; created_at: string; email: string; name: string; role: string; roles: string | null; org_id: string | null; avatar_url: string | null; provider: string; email_verified_at: string | null }>()
+    ).first<{ user_id: string; active_org: string | null; amr: string | null; assumed_by: string | null; created_at: string; email: string; name: string; role: string; roles: string | null; org_id: string | null; avatar_url: string | null; provider: string; email_verified_at: string | null }>()
     if (!session) return null
     const amr = parseRoles(session.amr)
     const payload: AuthUserPayload = {
@@ -1116,6 +1118,9 @@ export class D1ServerStore implements ServerStore {
       provider: session.provider,
       emailVerifiedAt: session.email_verified_at ?? null,
       ...(amr?.length ? { amr } : {}),
+      // Migration 0037: the persona assumption's actor — the chooser's
+      // grant verdicts re-judge this account for a chained switch.
+      ...(session.assumed_by ? { assumedBy: session.assumed_by } : {}),
       // TODO.identity-sso (the wave-A tail): the authentication instant —
       // the ID token's auth_time derives from it (the consumer converts).
       sessionCreatedAt: session.created_at,

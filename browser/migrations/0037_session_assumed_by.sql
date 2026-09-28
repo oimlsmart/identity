@@ -1,0 +1,11 @@
+-- The persona assumption's ACTOR on the session row (the account
+-- chooser's persona→persona chaining): an assumed session (amr carries
+-- the OP-private 'assumed' marker) stamps the grant-holder who minted
+-- the assumption, so a chained assumption — persona to persona, no
+-- return to the personal account — re-judges the ORIGINAL grantee's
+-- grants and re-stamps the SAME actor. NULL for every ordinary sign-in.
+-- The op_assumptions journal (0035) stays the audit trail; this column
+-- lets the chooser's verdicts resolve the actor from the live session
+-- itself. Expand-only per the migration contract; schema.sql's mirror
+-- lands in the same commit.
+ALTER TABLE sessions ADD COLUMN assumed_by TEXT;
