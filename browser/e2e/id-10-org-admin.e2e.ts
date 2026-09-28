@@ -314,7 +314,7 @@ describe('TODO.identity/10 — delegated organization administration (the identi
 
   it('leg 1 — the login page links to the join page; the selector is fed from the register (registered only)', { timeout: 600_000 }, async () => {
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await page.waitForSelector('[data-testid="login-join-link"]', { timeout: SETTLE, polling: 500 })
+    await page.waitForSelector('[data-testid="login-path-join"]', { timeout: SETTLE, polling: 500 })
 
     await page.goto(`${stack.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-join"]', { timeout: SETTLE, polling: 500 })

@@ -305,15 +305,10 @@ describe('TODO.restructure/05 — the public self-registration (the identity pro
     await stopStack(stack)
   })
 
-  it('leg 1 — the sign-in page carries the register entry; /register renders the form', { timeout: 900_000 }, async () => {
+  it('leg 1 — /register renders the form (entered by URL: the sign-in page advertises the THREE-WAYS cards — the 2026-09-28 ruling — and the personal path is no longer among them)', { timeout: 900_000 }, async () => {
     await withPage(async (page) => {
-      flog(page, 'leg1: opening the sign-in page')
-      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-      await page.waitForSelector('[data-testid="login-register-link"]', { timeout: APP_COLD, polling: 500 })
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: SETTLE }),
-        page.click('[data-testid="login-register-link"]'),
-      ])
+      flog(page, 'leg1: opening /register by URL')
+      await page.goto(`${stack.base}/register`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="register-submit"]', { timeout: SETTLE, polling: 500 })
       expect(await page.$eval('[data-testid="register-email"]', el => (el as HTMLInputElement).type)).toBe('email')
       expect(await page.$eval('[data-testid="register-password"]', el => (el as HTMLInputElement).type)).toBe('password')
