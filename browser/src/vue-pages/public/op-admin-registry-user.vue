@@ -47,6 +47,7 @@ import { useRoute } from 'vue-router'
 import PageHeader from '../../components/PageHeader.vue'
 import { useBranding } from '../../branding'
 import { t, type MessageKey } from '../../i18n'
+import { byOrgKindOrder, orgKindLabelKey } from '../../org-vocabulary'
 import { api } from '../../lib/api-client'
 
 interface AuditEvent {
@@ -274,6 +275,19 @@ const memberships = computed(() => detail.value?.memberships ?? [])
 const addableOrgs = computed(() => {
   const taken = new Set(memberships.value.map(m => m.orgId))
   return registryOrgs.value.filter(o => !taken.has(o.id))
+})
+
+/** The addable orgs GROUPED BY KIND — the OIML members never sit in
+ *  the same menu as the issuing authorities and the test laboratories
+ *  (the 2026-09-28 owner ruling; the sibling pages' own grouping). */
+const addableOrgsByKind = computed(() => {
+  const groups = new Map<string, typeof addableOrgs.value>()
+  for (const org of addableOrgs.value) {
+    const list = groups.get(org.kind) ?? []
+    list.push(org)
+    groups.set(org.kind, list)
+  }
+  return [...groups.entries()].sort(([a], [b]) => byOrgKindOrder(a, b))
 })
 
 /** The role options for the add form follow the chosen org's kind, plus
@@ -1517,7 +1531,9 @@ onMounted(async () => {
               @change="addOrgRoles = []"
             >
               <option value="" disabled>{{ t('admin.user.memberships.addOrg') }}</option>
-              <option v-for="o in addableOrgs" :key="o.id" :value="o.id" :data-testid="`op-reg-membership-add-option-${o.id}`">{{ o.name }}</option>
+              <optgroup v-for="[kind, orgs] in addableOrgsByKind" :key="kind" :label="t(orgKindLabelKey(kind))">
+                <option v-for="o in orgs" :key="o.id" :value="o.id" :data-testid="`op-reg-membership-add-option-${o.id}`">{{ o.name }}</option>
+              </optgroup>
             </select>
             <button
               :disabled="acting === 'membership-add' || !addOrgId"
