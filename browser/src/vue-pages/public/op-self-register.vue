@@ -24,7 +24,7 @@ import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { t } from '../../i18n'
 
-interface PickerOrg { name: string; domains: string[]; verification: string; admin_queue: boolean }
+interface PickerOrg { name: string; domains: string[]; website_domains?: string[]; web_domains?: string[]; verification: string; admin_queue: boolean }
 interface PickerCountry { country: string; country_fr: string; orgs: PickerOrg[] }
 
 const route = useRoute()
@@ -52,6 +52,28 @@ const setupDone = ref(false)
 
 const orgs = computed<PickerOrg[]>(() =>
   countries.value.find(c => c.country === country.value)?.orgs ?? [])
+
+/** The pickers render ALPHABETICALLY (the artifact's own order is
+ *  member-states-first — the page's reader wants the alphabet). */
+const sortedCountries = computed<PickerCountry[]>(() =>
+  [...countries.value].sort((a, b) => a.country.localeCompare(b.country)))
+
+/** The selected organization's auto-approved email domains — every
+ *  domain the registry claims for it, shown so the reader knows which
+ *  address will be accepted before they type it. */
+const orgDomains = computed<string[]>(() => {
+  const picked = orgs.value.find(o => o.name === org.value)
+  if (!picked) return []
+  return [...new Set([...picked.domains, ...(picked.website_domains ?? []), ...(picked.web_domains ?? [])])].sort()
+})
+
+/** The typed address's verdict against the shown domains (the instant
+ *  client-side mirror of the server's dot-boundary check). */
+const emailMatchesOrg = computed<boolean>(() => {
+  const d = email.value.split('@')[1]?.toLowerCase()
+  if (!d) return false
+  return orgDomains.value.some(e => d === e || d.endsWith('.' + e))
+})
 
 async function start(): Promise<void> {
   if (busy.value) return
@@ -225,7 +247,7 @@ onMounted(async () => {
             data-testid="selfreg-country"
           >
             <option value="" disabled>{{ t('selfreg.countryPlaceholder') }}</option>
-            <option v-for="c in countries" :key="c.country" :value="c.country">{{ c.country }} — {{ c.country_fr }}</option>
+            <option v-for="c in sortedCountries" :key="c.country" :value="c.country">{{ c.country }} — {{ c.country_fr }}</option>
           </select>
         </div>
         <div>
@@ -238,6 +260,9 @@ onMounted(async () => {
             <option value="" disabled>{{ t('selfreg.orgPlaceholder') }}</option>
             <option v-for="o in orgs" :key="o.name" :value="o.name">{{ o.name }}</option>
           </select>
+          <p v-if="orgDomains.length" class="mt-1 text-xs text-slate-500 dark:text-slate-400" data-testid="selfreg-org-domains">
+            {{ t('selfreg.orgDomains', { domains: orgDomains.join(', ') }) }}
+          </p>
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-name">{{ t('selfreg.nameLabel') }}</label>
@@ -254,7 +279,9 @@ onMounted(async () => {
             class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
             data-testid="selfreg-email"
           />
-          <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ t('selfreg.emailHint') }}</p>
+          <p class="mt-1 text-xs" :class="email && email.includes('@') ? (emailMatchesOrg ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400') : 'text-slate-400 dark:text-slate-500'" :data-state="email && email.includes('@') ? (emailMatchesOrg ? 'match' : 'no-match') : undefined">
+            {{ email && email.includes('@') ? (emailMatchesOrg ? t('selfreg.emailMatch') : t('selfreg.emailNoMatch', { domains: orgDomains.join(', ') })) : t('selfreg.emailHint') }}
+          </p>
         </div>
         <TurnstileField v-if="turnstileSiteKey" ref="turnstileField" :site-key="turnstileSiteKey" />
         <button
