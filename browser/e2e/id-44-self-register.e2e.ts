@@ -100,6 +100,9 @@ async function bootIdentityStack(github: StubGitHub): Promise<Stack> {
       DEMO_ACCOUNTS_ENABLED: 'true',
       OP_ISSUER: `http://localhost:${ID_WEB}`,
       OP_SIGNING_KEY: await fixtureOpSigningKey(),
+      // The root administrator's declared seed: the boot mints the
+      // one-time setup link (the log line the leg reads).
+      OP_ACCOUNT_SEED: JSON.stringify([{ email: ROOT.email, name: ROOT.name, role: 'admin' }]),
       // The member tier's own config: ON, bound to the org the leg
       // activates, the Ommisa client carrying the registry roles.
       OP_SELF_REGISTER: '1',
@@ -179,10 +182,22 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
 
     // The admin bootstraps: the root's seed link sets the password; the
     // admin activates the member org + registers the attribution
-    // provider row (the stub GitHub behind it).
-    const setupMatch = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-    expect(setupMatch, 'the bootstrap setup link in the boot log').toBeTruthy()
-    await page.goto(setupMatch![1]!, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    // provider row (the stub GitHub behind it). The seed runs on the
+    // FIRST credential-gated request (the lazy request-driven seed) —
+    // the loop fires the gate and polls the log for the minted link.
+    const deadline = Date.now() + 60_000
+    let setupUrl = ''
+    while (Date.now() < deadline) {
+      await fetch(`${stack.apiBase}/api/op/login`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'seed-trigger@oimlsmart.org', password: 'no such account' }),
+      })
+      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
+      if (m) { setupUrl = m[1]!; break }
+      await delay(500)
+    }
+    expect(setupUrl, 'the bootstrap setup link in the log stream').toContain('/op/setup?token=')
+    await page.goto(setupUrl, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-setup-password"]', { timeout: SETTLE, polling: 500 })
     await page.type('[data-testid="op-setup-password"]', ROOT.password)
     await page.type('[data-testid="op-setup-confirm"]', ROOT.password)
