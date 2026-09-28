@@ -168,6 +168,49 @@ describe('the upstream flow state (stateless + signed)', () => {
     // The link mode demands the bound account.
     const noUser = await signUpstreamState('secret-1', { p: 'google', m: 'link' as never }, 1_000_000)
     expect(await verifyUpstreamState('secret-1', noUser, { now: 1_000_000 })).toBeNull()
+
+    // The self-registration's attribution mode (m: 'attribute') — the
+    // 2026-09-28 callback rejection's regression wall: the guard must
+    // accept the mode (the target email rides it) and verify its sig.
+    const attributeState = await signUpstreamState('secret-1', {
+      p: 'github', m: 'attribute', e: 'member@nist.gov',
+    }, 1_000_000)
+    const attributePayload = await verifyUpstreamState('secret-1', attributeState, { now: 1_000_000 + 1000 })
+    expect(attributePayload?.m).toBe('attribute')
+    expect(attributePayload?.e).toBe('member@nist.gov')
+  })
+})
+
+// ── the self-registration attribution return (mode 'attribute') ───────
+
+describe('the self-registration attribution return', () => {
+  it('the verified-assertion fast path skips the email; a distinct address rides the mail leg; nothing is created', async () => {
+    process.env.OP_SELF_REGISTER = '1'
+    process.env.OP_SELF_REGISTER_CLIENT = 'oiml-ommisa'
+    try {
+      // The fast path: the stub IdP asserts member@nist.gov (verified)
+      // and the target IS that address — the mailbox is already proven,
+      // so the token hands straight back to the proving browser.
+      const fast = await runFlow('/op/upstream/fixture-idp/signin?mode=attribute&email=member%40nist.gov', 'nist')
+      expect(fast.status).toBe(302)
+      const fastTo = fast.headers.get('location')!
+      expect(fastTo.startsWith('/op/self-register?token=')).toBe(true)
+
+      // The mail leg: the target differs from the upstream's own
+      // address — the confirmation email is the only mailbox proof
+      // (no mailer in the unit env: the link shows once).
+      const mailed = await runFlow('/op/upstream/fixture-idp/signin?mode=attribute&email=other%40nist.gov', 'nist')
+      expect(mailed.status).toBe(302)
+      const mailedTo = mailed.headers.get('location')!
+      expect(mailedTo.startsWith('/op/self-register?sent=1&link=')).toBe(true)
+
+      // The law: NOTHING was created by either leg.
+      expect(await store.findUserByEmail('member@nist.gov')).toBeNull()
+      expect(await store.findUserByEmail('other@nist.gov')).toBeNull()
+    } finally {
+      delete process.env.OP_SELF_REGISTER
+      delete process.env.OP_SELF_REGISTER_CLIENT
+    }
   })
 })
 

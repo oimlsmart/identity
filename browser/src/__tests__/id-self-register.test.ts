@@ -84,10 +84,11 @@ describe('leg 1 — the start (the eligibility reads; NOTHING is written)', () =
     const before = await store.listUsers()
     const res = await START({ country: 'United States', org: 'National Institute of Standards and Technology (NIST)', name: 'Test Applicant', email: 'applicant@nist.gov' })
     expect(res.status).toBe(200)
-    const body = await res.json() as { ok: boolean; next: string; provider: string }
+    const body = await res.json() as { ok: boolean; providers: { id: string; name: string; next: string }[] }
     expect(body.ok).toBe(true)
-    expect(body.next).toContain('/op/upstream/google/signin?mode=attribute&email=applicant%40nist.gov')
-    expect(body.provider.toLowerCase()).toContain('google')
+    expect(body.providers.length).toBe(1)
+    expect(body.providers[0].id).toBe('google')
+    expect(body.providers[0].next).toContain('/op/upstream/google/signin?mode=attribute&email=applicant%40nist.gov')
     const after = await store.listUsers()
     expect(after.length).toBe(before.length) // the law: nothing is written
   })

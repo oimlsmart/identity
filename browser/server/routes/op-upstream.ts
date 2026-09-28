@@ -81,6 +81,12 @@ interface UpstreamIdentity {
   handle: string
   /** The name claim (OIDC) / the profile name (GitHub), when shared. */
   name?: string
+  /** The upstream's own VERIFIED email (the ID token's email claim
+   *  behind email_verified; GitHub's verified primary) — the
+   *  attribution fast path compares it with the target: an equality
+   *  means the mailbox is ALREADY proven (nobody signs in to the
+   *  provider as that address without controlling it). */
+  email?: string
 }
 
 export function createOpUpstreamRouter(): Hono {
@@ -346,7 +352,7 @@ export function createOpUpstreamRouter(): Hono {
       const identity = await fetchGitHubIdentity(gitHubEndpoints(env), {
         clientId: provider.clientId, clientSecret: secret, code, redirectUri: callbackUri,
       })
-      return { accountId: identity.id, handle: identity.login, name: identity.name }
+      return { accountId: identity.id, handle: identity.login, name: identity.name, email: identity.email }
     }
 
     if (!payload.n || !payload.v) {
@@ -375,6 +381,11 @@ export function createOpUpstreamRouter(): Hono {
     return {
       accountId: claims.sub,
       handle: typeof claims.email === 'string' && claims.email ? claims.email : claims.sub,
+      // Only a VERIFIED claim counts (an unverified email claim attests
+      // nothing — the fast path would hand the mailbox to a stranger).
+      ...(typeof claims.email === 'string' && claims.email && claims.email_verified === true
+        ? { email: claims.email }
+        : {}),
       ...(typeof claims.name === 'string' && claims.name ? { name: claims.name } : {}),
     }
   }
@@ -431,6 +442,7 @@ export function createOpUpstreamRouter(): Hono {
     }
 
     const store = getStore()
+    console.warn(`[op] upstream callback: provider=${providerId} mode=${payload.m} target=${payload.e ?? '-'}`)
 
     if (payload.m === 'attribute') {
       // The self-registration's attribution return (the 2026-09-26
@@ -439,7 +451,7 @@ export function createOpUpstreamRouter(): Hono {
       // moment), the verification email goes out, and the upstream
       // identity is NEVER stored, never linked, never consulted again —
       // nothing is written except the email itself.
-      const target = await continueSelfRegisterAttribution(c, origin, payload.e, provider?.displayName ?? payload.p, identity.handle)
+      const target = await continueSelfRegisterAttribution(c, origin, payload.e, provider?.displayName ?? payload.p, identity.handle, identity.email)
       return c.redirect(target)
     }
 

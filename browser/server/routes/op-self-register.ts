@@ -150,19 +150,23 @@ export function createSelfRegisterRouter(): Hono {
       return selfRegisterError(c, 400, 'an account with this email address already exists — sign in instead, or ask for a password reset if you forgot it')
     }
 
-    // The attribution bounce: the enabled upstream (google preferred —
-    // phone-vetted at Google's own signup; github accepted), carrying
-    // the attribute mode + the target email. The round-trip proves an
-    // attributable human; one login buys one verification email.
-    const providers = await getStore().listIdentityProviders()
-    const attribution = providers.find(p => p.enabled && p.id === 'google')
-      ?? providers.find(p => p.enabled && p.id === 'github')
-    if (!attribution) {
-      return selfRegisterError(c, 503, 'the registration attribution provider is not configured on this deployment — request an account through the join queue instead')
+    // The attribution CHOICE: every enabled human-proof upstream
+    // (google — phone-vetted at its own signup; github — the
+    // developer's own) answers with its own bounce URL. The APPLICANT
+    // chooses who attests them; one login buys one verification email
+    // to one address. The upstream identity itself is never stored,
+    // never linked — it only proves a real, attributable human.
+    const providers = (await getStore().listIdentityProviders())
+      .filter(p => p.enabled && (p.id === 'google' || p.id === 'github'))
+      .map(p => ({
+        id: p.id,
+        name: p.displayName ?? p.id,
+        next: `${opRequestOrigin(c.req.raw)}/op/upstream/${p.id}/signin?mode=attribute&email=${encodeURIComponent(email)}`,
+      }))
+    if (!providers.length) {
+      return selfRegisterError(c, 503, 'the registration attribution providers are not configured on this deployment — request an account through the join queue instead')
     }
-    const origin = opRequestOrigin(c.req.raw)
-    const bounce = `${origin}/op/upstream/${attribution.id}/signin?mode=attribute&email=${encodeURIComponent(email)}`
-    return c.json({ ok: true, next: bounce, provider: attribution.displayName ?? attribution.id })
+    return c.json({ ok: true, providers })
   })
 
   // POST /api/op/self-register/verify — the setup page's on-load call:
@@ -320,9 +324,11 @@ export async function continueSelfRegisterAttribution(
   targetEmail: string | undefined,
   providerName: string,
   handle: string,
+  assertedEmail?: string,
 ): Promise<string> {
   const config = resolveSelfRegisterConfig(runtimeEnv<EnvLike>(c))
   const done = (fragment: string): string => `/op/self-register${fragment}`
+  console.warn(`[op] self-register attribution RETURN: provider=${providerName} handle=${handle} target=${targetEmail ?? 'NONE'} enabled=${config.enabled}`)
   if (!config.enabled) return done('?error=not-configured')
   const email = targetEmail?.trim().toLowerCase() ?? ''
   if (!email.includes('@')) return done('?error=expired')
@@ -351,20 +357,17 @@ export async function continueSelfRegisterAttribution(
     issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), origin).issuer,
     params: { verifyUrl, org: resolved.owner.org, hours: 24 },
   })
-  console.log(`[op] self-register: the verification email for ${email} via ${providerName} (${handle}): ${mail.sent ? 'sent' : mail.posture}`)
+  // THE FAST PATH: the upstream itself asserts THIS address as a
+  // VERIFIED email (a Workspace / M365 org account, GitHub's verified
+  // primary). Nobody signs in to that provider as the address without
+  // controlling its mailbox — the mail round-trip is already proven,
+  // so no outbound email and the setup link hands straight back to the
+  // very browser that just proved itself.
+  if (assertedEmail && assertedEmail.trim().toLowerCase() === email) {
+    console.warn(`[op] self-register attribution FAST PATH: ${providerName} (${handle}) asserts ${email} as verified — the mail round-trip is skipped`)
+    return done(`?token=${encodeURIComponent(token)}`)
+  }
+  console.warn(`[op] self-register attribution OK: ${providerName} (${handle}) → ${email} — mail ${mail.sent ? 'sent' : mail.posture} → ${done('')}`)
   return done(mail.sent ? '?sent=1' : `?sent=1&link=${encodeURIComponent(verifyUrl)}`)
 }
 
-/** The attribution continuation's stateless intent carrier: leg 1 hands
- *  the target email to the upstream bounce; the callback re-derives it
- *  from the state's `e`. The applicant's NAME cannot ride the bounce
- *  URL unencoded — it rides the SIGNED LINK instead (minted at the
- *  callback from the state's `e`-paired name field). */
-export async function startSelfRegisterAttribution(
-  c: Context,
-  providerId: string,
-  email: string,
-): Promise<string> {
-  const origin = opRequestOrigin(c.req.raw)
-  return `${origin}/op/upstream/${providerId}/signin?mode=attribute&email=${encodeURIComponent(email)}`
-}

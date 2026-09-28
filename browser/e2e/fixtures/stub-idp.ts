@@ -56,6 +56,11 @@ export const STUB_IDP_USERS: StubIdpUser[] = [
   { id: 'carol', sub: 'stub-carol', email: 'carol@example.org', name: 'Carol Unknown', emailVerified: true, groups: [] },
   // The reject leg: an UNMAPPED group value maps to nothing.
   { id: 'erin', sub: 'stub-erin', email: 'erin@example.org', name: 'Erin Stranger', emailVerified: true, groups: ['oiml-strangers'] },
+  // The self-registration attribution's FAST PATH: a registry-domain
+  // address (nist.gov is in the vendored member-domains projection) —
+  // the upstream asserting the target email means the mailbox is
+  // already proven.
+  { id: 'nist', sub: 'stub-nist', email: 'member@nist.gov', name: 'NIST Member', emailVerified: true, groups: [] },
 ]
 
 // ── keys + JWT signing (exported for the validation-failure tests) ──
