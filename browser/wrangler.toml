@@ -133,6 +133,12 @@ bucket_name = "oiml-smart-avatars-identity"
 [env.identity.vars]
 ENTITY_BACKEND = "server"
 OP_ISSUER = "https://id.oimlsmart.org"
+# The Turnstile SITE key (the PUBLIC half — the widget renders with it;
+# /api/config serves it). The SECRET half rides `wrangler secret put
+# TURNSTILE_SECRET` — never this file. The gate guards ACCOUNT
+# CREATION only (the 2026-09-28 scope ruling): register, join-requests,
+# self-register start — the sign-in never captcha-gates.
+TURNSTILE_SITE_KEY = "0x4AAAAAAFGikck53zrdsZzl"
 # The support affordance (the ISO-benchmark quick win, item 6): the
 # sign-in page + the shell footer render a plain "Need help?" link —
 # never a third-party widget on the credential surface. The address is

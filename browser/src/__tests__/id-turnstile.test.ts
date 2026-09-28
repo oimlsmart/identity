@@ -84,30 +84,41 @@ describe('the route gate (the three postures)', () => {
     expect([201, 400]).toContain(res.status)
   })
 
-  it('SET + a bad token: the 403 bot answer, before any credential work', async () => {
+  it('SET + a bad token on a CREATION surface: the 403 bot answer, before any account work', async () => {
     process.env.TURNSTILE_SECRET = 's'
     process.env.TURNSTILE_SITE_KEY = 'k'
     globalThis.fetch = (async () => new Response(JSON.stringify({ success: false }), { status: 200 })) as typeof fetch
-    const res = await app.request(`${ISSUER}/api/op/login`, {
+    const res = await app.request(`${ISSUER}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026', 'cf-turnstile-response': 'bad' }),
+      body: JSON.stringify({ name: 'Bot Probe', email: `bot-${Date.now()}@example.org`, org_name_text: 'The Bot Co', 'cf-turnstile-response': 'bad' }),
     })
     expect(res.status).toBe(403)
     expect(((await res.json()) as { error: string }).error).toContain('bot')
   })
 
-  it('SET + a good token: the gate OPENS (the act proceeds past the bot check)', async () => {
+  it('SET + a good token: the gate OPENS on the creation surface (the act proceeds past the bot check)', async () => {
     process.env.TURNSTILE_SECRET = 's'
     process.env.TURNSTILE_SITE_KEY = 'k'
     globalThis.fetch = (async () => new Response(JSON.stringify({ success: true }), { status: 200 })) as typeof fetch
-    const res = await app.request(`${ISSUER}/api/op/login`, {
+    const res = await app.request(`${ISSUER}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'whoever@example.org', password: 'whatever-passphrase', 'cf-turnstile-response': 'good' }),
+      body: JSON.stringify({ name: 'Gate Probe 2', email: `gate2-${Date.now()}@example.org`, org_name_text: 'The Gate Probe Co', 'cf-turnstile-response': 'good' }),
     })
     // The GATE's contract: a verified token never answers the bot 403 —
-    // the request proceeds into the credential work (its own honest
-    // 401 for unknown credentials, never the gate's shape).
-    expect(res.status, 'the gate opened — the credential path answers, never the bot 403').not.toBe(403)
+    // the request proceeds into the account work (its own honest
+    // validation answers, never the gate's shape).
+    expect(res.status, 'the gate opened — the account path answers, never the bot 403').not.toBe(403)
+    expect(((await res.json()) as { error?: string }).error ?? '').not.toContain('bot')
+  })
+
+  it('THE SCOPE RULING (2026-09-28): the sign-in is NEVER captcha-gated — a token-less login answers the credential 401, never the bot 403', async () => {
+    process.env.TURNSTILE_SECRET = 's'
+    process.env.TURNSTILE_SITE_KEY = 'k'
+    const res = await app.request(`${ISSUER}/api/op/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'whoever@example.org', password: 'whatever-passphrase' }),
+    })
+    expect(res.status).toBe(401)
     expect(((await res.json()) as { error: string }).error).not.toContain('bot')
   })
 })

@@ -153,7 +153,7 @@ afterAll(() => {
 })
 
 describe('the Turnstile golden path (the always-pass test pair)', () => {
-  it('leg 1 — the config carries the site key; the widget MOUNTS and AUTO-SOLVES on the real sign-in page; the form rides the gate to a signed-in landing', { timeout: 480_000 }, async () => {
+  it('leg 1 — the config carries the site key; the widget MOUNTS and AUTO-SOLVES on the join page; the form rides the gate to a filed request', { timeout: 480_000 }, async () => {
     const cfg = await fetch(`${stack!.base}/api/config`)
     expect(cfg.status).toBe(200)
     const body = await cfg.json() as { turnstile?: { siteKey?: string | null } }
@@ -167,8 +167,12 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
     try {
       const page = await browser.newPage()
       await page.setViewport({ width: 1440, height: 900 })
-      await page.goto(`${stack!.base}/`, { waitUntil: 'domcontentloaded', timeout: 240_000 })
-      flog(page, 'login page loaded')
+      // The SCOPE RULING (2026-09-28): the widget lives on the ACCOUNT
+      // CREATION surfaces — the join page is the probe (the sign-in
+      // page carries no widget anymore; the classic register page
+      // refuses mail-less deployments, the join queue does not).
+      await page.goto(`${stack!.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: 240_000 })
+      flog(page, 'join page loaded')
 
       // The widget container mounts (the armed projection drove it).
       await page.waitForSelector('[data-testid="turnstile-widget"]', { timeout: 120_000 })
@@ -188,34 +192,49 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
       }, { timeout: 180_000, polling: 500 })
       flog(page, 'challenge auto-solved (the token stands)')
 
-      // The sign-in THROUGH THE FORM: the token rides the POST, the
-      // gate opens, the demo cast lands signed in (a refused bot check
-      // would answer the form's error instead of navigating).
-      await page.type('[data-testid="login-email"]', 'ia@oimlsmart.org')
-      await page.type('[data-testid="login-password"]', 'demo2026')
-      await page.evaluate(() => (document.querySelector('[data-testid="login-submit"]') as HTMLElement).click())
+      // The CREATION THROUGH THE FORM: the token rides the POST, the
+      // gate opens, the request files (a refused bot check would leave
+      // the form's error instead of the done posture).
+      page.on('response', async r => {
+        if (r.url().includes('/api/op/join-requests')) {
+          let body = ''
+          try { body = (await r.text()).slice(0, 300) } catch { /* gone */ }
+          flog(page, `join answered ${r.status()} ${body}`)
+        }
+      })
+      page.on('console', m => { if (m.type() === 'error') flog(page, `console ${m.text().slice(0, 200)}`) })
+      // The not-listed path: a typed org name — no register search.
+      await page.click('[data-testid="join-not-listed"]')
+      await page.type('[data-testid="join-name"]', 'Turnstile Probe')
+      await page.type('[data-testid="join-email"]', `turnstile-probe-${Date.now()}@example.org`)
+      await page.type('[data-testid="join-org-name-text"]', 'The Probe Cooperation')
+      await page.evaluate(() => (document.querySelector('[data-testid="join-submit"]') as HTMLElement).click())
       flog(page, 'submitted')
-      // The sign-in is an SPA route change (router.replace) — NO
-      // document navigation ever fires; the landing's own marker is
-      // the wait (the id-15 pattern).
-      // The launcher (/op/home) is the default landing — its own
-      // testid is the signed-in marker (a refused bot check leaves
-      // the page on / with the form's error instead).
-      await page.waitForSelector('[data-testid="home"]', { timeout: 240_000, polling: 500 })
-      flog(page, `landed at ${await page.evaluate(() => window.location.pathname)}`)
-      expect(await page.evaluate(() => window.location.pathname)).not.toBe('/')
+      await page.waitForSelector('[data-testid="join-success"]', { timeout: 240_000, polling: 500 })
+      flog(page, 'the request filed — the gate opened')
     } finally {
       await closeBrowser(browser)
     }
   })
 
-  it('leg 2 — the honest negative: a token-less POST answers the bot 403 (the gate is the arbiter, never the page)', { timeout: 60_000 }, async () => {
-    const res = await fetch(`${stack!.base}/api/op/login`, {
+  it('leg 2 — the honest negative: a token-less CREATION POST answers the bot 403; the sign-in never captcha-gates (the scope ruling)', { timeout: 60_000 }, async () => {
+    const res = await fetch(`${stack!.base}/api/op/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Bot Probe', email: `bot-${Date.now()}@example.org`, password: 'the probe passphrase 2026' }),
+    })
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as { error: string }).error).toContain('bot')
+
+    // The sign-in is NOT a creation surface: token-less, it answers the
+    // credential work — never the bot 403 (whatever the credentials'.
+    // own verdict: 200, 401, the MFA ask — the gate's shape is absent).
+    const signin = await fetch(`${stack!.base}/api/op/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email: 'ia@oimlsmart.org', password: 'demo2026' }),
     })
-    expect(res.status).toBe(403)
-    expect(((await res.json()) as { error: string }).error).toContain('bot')
+    expect(signin.status).not.toBe(403)
+    expect(((await signin.json()) as { error?: string }).error ?? '').not.toContain('bot')
   })
 })
