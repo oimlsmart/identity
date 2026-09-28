@@ -41,7 +41,7 @@ import { resolveOpConfig, opRequestOrigin } from '../auth/op/config'
 import { resolveOpSigningKey } from '../auth/op/keys'
 import { turnstileEnabled, turnstileVerify } from '../auth/op/turnstile'
 import { loadDomains, resolveOrgDomain } from '../auth/op/member-domains'
-import { eligibilityFor, resolveSelfRegisterConfig } from '../auth/op/self-register'
+import { eligibilityFor, resolveEligibilityOrg, resolveSelfRegisterConfig } from '../auth/op/self-register'
 import { isRegistryOrgKind } from '../auth/org-registry'
 import { mintRegistrationToken, verifyRegistrationPayload } from '../auth/op/self-register-links'
 import { hashPassword } from '../auth/passwords'
@@ -327,12 +327,16 @@ export async function continueSelfRegisterAttribution(
   const email = targetEmail?.trim().toLowerCase() ?? ''
   if (!email.includes('@')) return done('?error=expired')
 
-  const verdict = eligibilityFor({ country: '', org: '', email })
-  // The pickers' country/org rode leg 1; the click's authority is the
-  // DOMAIN resolve — the country/org mismatch cannot recur here (the
-  // domain IS the verdict). An unmatched domain at this late leg reads
-  // as the queue path's domain (the registry moved under the flow).
-  if (!verdict.ok && !verdict.queue) return done('?error=expired')
+  // The pickers' country/org rode leg 1 and were judged there; the
+  // click's authority is the DOMAIN resolve alone — the registry's
+  // fresh verdict at this moment (an unmatched domain reads as the
+  // queue path's: the registry moved under the flow).
+  const resolved = resolveEligibilityOrg(email)
+  if (!resolved) return done('?error=queued')
+  const orgRow = loadDomains().countries
+    .find(c => c.country === resolved.owner.country)?.orgs
+    .find(o => o.name === resolved.owner.org)
+  if (orgRow?.admin_queue) return done('?error=queued')
 
   const store = getStore()
   if (await store.findUserByEmail(email)) return done('?error=exists')
@@ -345,7 +349,7 @@ export async function continueSelfRegisterAttribution(
     to: email,
     template: 'self_register_verify',
     issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), origin).issuer,
-    params: { verifyUrl, org: verdict.hit?.org ?? '', hours: 24 },
+    params: { verifyUrl, org: resolved.owner.org, hours: 24 },
   })
   console.log(`[op] self-register: the verification email for ${email} via ${providerName} (${handle}): ${mail.sent ? 'sent' : mail.posture}`)
   return done(mail.sent ? '?sent=1' : `?sent=1&link=${encodeURIComponent(verifyUrl)}`)
