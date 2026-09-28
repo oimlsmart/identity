@@ -266,8 +266,6 @@ The GitHub posture arrives through the same env seam as the OIDC one
 | `GITHUB_ROLE_MAP` | `login:role,login2:role2` — per-login initial roles. Roles validate against the platform vocabulary (`server/vocab`); an unknown role fails CLOSED: the entry is dropped and logged at boot, never invented. |
 | `GITHUB_ALLOWED_ORG` | One org slug — every ACTIVE member may sign in. Membership is checked LIVE at each sign-in (`GET /user/memberships/orgs/{org}` with the user's own token; `pending` invitations do not count). Members get the default allowed role. The authorization request adds the `read:org` scope when this is set — a private membership is invisible without it. |
 | `OP_SELF_REGISTER` | Absent = the member tier's self-enrollment is ON; `0`/`false` closes it. The close answers the join-queue sentence. |
-| `OP_SELF_REGISTER_ORG` | **Required for the tier** — the registry org id every self-registered member binds to (the pickers are eligibility gates, never bindings). Unset = the endpoint refuses, fail-closed. |
-| `OP_SELF_REGISTER_ROLES` | The OP-side account role for self-registered members (default `user`). The REGISTRY's roles ride separately as the Ommisa client's per-client assignments. |
 | `OP_SELF_REGISTER_CLIENT` | The relying party whose per-client roles carry the registry hit's roles (default `oiml-ommisa`). |
 | `GITHUB_OAUTH_BASE_URL` / `GITHUB_API_BASE_URL` | Endpoint overrides for GitHub Enterprise Server (defaults `https://github.com` / `https://api.github.com`). |
 

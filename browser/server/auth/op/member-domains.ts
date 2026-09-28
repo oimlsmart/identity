@@ -84,14 +84,21 @@ export function loadDomains(): DomainsCatalog {
 /** The contract's matcher, verbatim: the exact flat-map hit, else the
  *  dot-boundary label walk (subdomains only), else null. */
 export function resolveOrg(email: string): DomainOwner | null {
+  return resolveOrgDomain(email)?.owner ?? null
+}
+
+/** The resolved org WITH its registry domain — the domain IS the
+ *  organization's id in the identity registry (the org of the same
+ *  domain name). */
+export function resolveOrgDomain(email: string): { domain: string; owner: DomainOwner } | null {
   const d = email.split('@')[1]?.toLowerCase()
   if (!d) return null
   const { domains } = loadDomains()
-  if (domains.has(d)) return domains.get(d) ?? null
+  if (domains.has(d)) return { domain: d, owner: domains.get(d)! }
   const labels = d.split('.')
   for (let i = 1; i < labels.length; i++) {
     const candidate = labels.slice(i).join('.')
-    if (domains.has(candidate)) return domains.get(candidate) ?? null
+    if (domains.has(candidate)) return { domain: candidate, owner: domains.get(candidate)! }
   }
   return null
 }

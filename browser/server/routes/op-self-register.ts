@@ -40,8 +40,9 @@ import { getInstanceProfile } from '../profile'
 import { resolveOpConfig, opRequestOrigin } from '../auth/op/config'
 import { resolveOpSigningKey } from '../auth/op/keys'
 import { turnstileEnabled, turnstileVerify } from '../auth/op/turnstile'
-import { loadDomains, resolveOrg } from '../auth/op/member-domains'
+import { loadDomains, resolveOrgDomain } from '../auth/op/member-domains'
 import { eligibilityFor, resolveSelfRegisterConfig } from '../auth/op/self-register'
+import { isRegistryOrgKind } from '../auth/org-registry'
 import { mintRegistrationToken, verifyRegistrationPayload } from '../auth/op/self-register-links'
 import { hashPassword } from '../auth/passwords'
 import { sendOpMail } from '../auth/op/mail'
@@ -84,11 +85,7 @@ export function createSelfRegisterRouter(): Hono {
   function configOrRefuse(c: Context): { config: ReturnType<typeof resolveSelfRegisterConfig> } | { refuse: Response } {
     const config = resolveSelfRegisterConfig(runtimeEnv<EnvLike>(c))
     if (!config.enabled) {
-      const status = config.reason === 'disabled' ? 403 : 503
-      const message = config.reason === 'disabled'
-        ? 'self-registration is closed on this deployment — request an account through the join queue, where an administrator reviews every request'
-        : 'self-registration is not configured on this deployment — request an account through the join queue, where an administrator reviews every request'
-      return { refuse: selfRegisterError(c, status, message) }
+      return { refuse: selfRegisterError(c, 403, 'self-registration is closed on this deployment — request an account through the join queue, where an administrator reviews every request') }
     }
     return { config }
   }
@@ -185,14 +182,14 @@ export function createSelfRegisterRouter(): Hono {
     if (!verified) {
       return selfRegisterError(c, 400, 'this registration link has expired or was already used — start the registration again; your email was never stored')
     }
-    const hit = resolveOrg(verified.email)
-    if (!hit) {
+    const resolved = resolveOrgDomain(verified.email)
+    if (!resolved) {
       return selfRegisterError(c, 403, 'this email domain is not in the member-domains registry — submit your request through the join queue, where an administrator reviews it')
     }
     if (await getStore().findUserByEmail(verified.email)) {
       return selfRegisterError(c, 400, 'an account with this email address already exists — sign in instead, or ask for a password reset if you forgot it')
     }
-    return c.json({ ok: true, email: verified.email, name: verified.name, org: hit.org, country: hit.country, roles: hit.roles })
+    return c.json({ ok: true, email: verified.email, name: verified.name, org: resolved.owner.org, country: resolved.owner.country, roles: resolved.owner.roles, orgDomain: resolved.domain })
   })
 
   // POST /api/op/self-register/complete — THE creation (the only write
@@ -218,52 +215,63 @@ export function createSelfRegisterRouter(): Hono {
     if (!verified) {
       return selfRegisterError(c, 400, 'this registration link has expired or was already used — start the registration again; your email was never stored')
     }
-    const email = verified.email
-    const name = verified.name ?? email.split('@')[0]!
-    const hit = resolveOrg(email)
-    if (!hit) {
+    const resolved = resolveOrgDomain(verified.email)
+    if (!resolved) {
       return selfRegisterError(c, 403, 'this email domain is not in the member-domains registry — submit your request through the join queue, where an administrator reviews it')
     }
+    const { domain, owner } = resolved
+    const name = verified.name ?? verified.email.split('@')[0]!
     const store = getStore()
-    if (await store.findUserByEmail(email)) {
+    if (await store.findUserByEmail(verified.email)) {
       return selfRegisterError(c, 400, 'an account with this email address already exists — sign in instead, or ask for a password reset if you forgot it')
     }
 
-    // The org binding must be an active registry org (the invite's own
-    // rule): the config names it, the registry validates it.
-    const { isActiveRegistryOrg } = await import('../auth/org-registry')
-    if (!(await isActiveRegistryOrg(store, config.orgId))) {
-      return selfRegisterError(c, 503, 'self-registration is not configured correctly on this deployment — the member organization is missing from the registry; request an account through the join queue instead')
+    // THE ORG OF THE SAME DOMAIN NAME: the organization the registry
+    // entry names — the row's full name comes from the registry
+    // (e.g. 'National Institute of Standards and Technology (NIST)'),
+    // keyed by the domain, materialized from the sourced data when
+    // absent, active. Every account but the four super admins carries
+    // an org (the owner's ruling).
+    const orgKind = isRegistryOrgKind(owner.status) ? owner.status : 'associate'
+    if (!(await store.getOrgRegistryOrg(domain))) {
+      await store.createOrgRegistryOrg({
+        id: domain,
+        name: owner.org,
+        kind: orgKind,
+        country: owner.country,
+        createdBy: 'self-register',
+      })
+      await store.setOrgRegistryOrgState(domain, 'active', 'self-register')
     }
 
-    // THE creation: verified by the click, named here, bound to the
-    // tier's org, carrying the registry hit's roles as the Ommisa
-    // client's per-client assignments (the containment the registry
-    // declares — the OP-side account stays role 'user', no
-    // administration reach).
+    // THE creation: verified by the click, bound to the domain's org,
+    // carrying the registry hit's roles as the Ommisa client's
+    // per-client assignments (the containment the registry declares —
+    // the OP-side account stays role 'user', no administration reach).
     const account = await store.createOpAccount({
-      email,
+      email: verified.email,
       name,
-      role: config.role,
+      role: 'user',
       createdBy: 'self-register',
-      orgId: config.orgId,
-      roles: [config.role],
+      orgId: domain,
+      roles: ['user'],
       emailVerified: true,
     })
     if (!account) return selfRegisterError(c, 400, 'an account with this email address already exists — sign in instead')
-    await store.setUserRoles(account.id, config.role, [config.role])
-    await store.setOpClientRoles(account.id, config.client, hit.roles, 'self-register')
+    await store.setUserRoles(account.id, 'user', ['user'])
+    await store.setOpClientRoles(account.id, config.client, owner.roles, 'self-register')
     await store.setPasswordHash(account.id, await hashPassword(password), 'self-register')
     await store.markPrimaryEmailVerified(account.id)
-    if (config.orgId) await store.updateUserRoleOrg(account.id, config.role, config.orgId)
+    await store.updateUserRoleOrg(account.id, 'user', domain)
 
     const catalog = loadDomains()
-    await auditSelfRegister(store, account.id, email, {
-      org: hit.org,
-      country: hit.country,
-      roles: hit.roles,
-      verification: hit.verification,
-      evidence: hit.evidence,
+    await auditSelfRegister(store, account.id, verified.email, {
+      org: owner.org,
+      org_domain: domain,
+      country: owner.country,
+      roles: owner.roles,
+      verification: owner.verification,
+      evidence: owner.evidence,
       registry_generated_at: catalog.generatedAt,
       client: config.client,
     })
