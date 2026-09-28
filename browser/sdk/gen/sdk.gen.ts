@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, DeviceAuthorizationData, DeviceAuthorizationErrors, DeviceAuthorizationResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetRobotsTxtData, GetRobotsTxtResponses, GetSecurityTxtData, GetSecurityTxtResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, GetWebfingerData, GetWebfingerErrors, GetWebfingerResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RedeliverDeadWebhooksData, RedeliverDeadWebhooksErrors, RedeliverDeadWebhooksResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
+import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, DeviceAuthorizationData, DeviceAuthorizationErrors, DeviceAuthorizationResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetRobotsTxtData, GetRobotsTxtResponses, GetSecurityTxtData, GetSecurityTxtResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, GetWebfingerData, GetWebfingerErrors, GetWebfingerResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RedeliverDeadWebhooksData, RedeliverDeadWebhooksErrors, RedeliverDeadWebhooksResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, SelfRegisterCatalogData, SelfRegisterCatalogResponses, SelfRegisterCompleteData, SelfRegisterCompleteErrors, SelfRegisterCompleteResponses, SelfRegisterStartData, SelfRegisterStartErrors, SelfRegisterStartResponses, SelfRegisterVerifyData, SelfRegisterVerifyErrors, SelfRegisterVerifyResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -205,6 +205,55 @@ export const getOpenApi = <ThrowOnError extends boolean = false>(options?: Optio
  * The registered participant orgs plus the active OIML member orgs, each with the roles its kind bounds — the join page's selector feed. Public scheme data; edge-cached (5-minute freshness).
  */
 export const listOrganizations = <ThrowOnError extends boolean = false>(options?: Options<ListOrganizationsData, ThrowOnError>): RequestResult<ListOrganizationsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListOrganizationsResponses, unknown, ThrowOnError>({ url: '/api/op/organizations', ...options });
+
+/**
+ * The member-domains projection (the pickers)
+ *
+ * The bundled member-domains registry projection: the countries, the organizations inside each, and the domains each organization claims. The enrollment page's pickers consume it; the served copy is cached a day (the registry moves at the pipeline's cadence).
+ */
+export const selfRegisterCatalog = <ThrowOnError extends boolean = false>(options?: Options<SelfRegisterCatalogData, ThrowOnError>): RequestResult<SelfRegisterCatalogResponses, unknown, ThrowOnError> => (options?.client ?? client).get<SelfRegisterCatalogResponses, unknown, ThrowOnError>({ url: '/api/op/self-register/catalog', ...options });
+
+/**
+ * Start the member self-enrollment (public, the eligibility reads)
+ *
+ * Validates the picked country and organization against the member-domains registry and the email's domain under the registry's dot-boundary rule. Writes NOTHING: the happy answer is the attribution bounce URL (a fresh Google/GitHub round-trip proves an attributable human); an admin_queue organization or an unmatched domain answers the join-queue path.
+ */
+export const selfRegisterStart = <ThrowOnError extends boolean = false>(options: Options<SelfRegisterStartData, ThrowOnError>): RequestResult<SelfRegisterStartResponses, SelfRegisterStartErrors, ThrowOnError> => (options.client ?? client).post<SelfRegisterStartResponses, SelfRegisterStartErrors, ThrowOnError>({
+    url: '/api/op/self-register/start',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Prove the emailed registration token (the setup page's on-load)
+ *
+ * Validates the self-contained, time-bound token bound to the receiving address. Creates nothing — the answer names the proven email, the organization, and the roles the completion will carry.
+ */
+export const selfRegisterVerify = <ThrowOnError extends boolean = false>(options: Options<SelfRegisterVerifyData, ThrowOnError>): RequestResult<SelfRegisterVerifyResponses, SelfRegisterVerifyErrors, ThrowOnError> => (options.client ?? client).post<SelfRegisterVerifyResponses, SelfRegisterVerifyErrors, ThrowOnError>({
+    url: '/api/op/self-register/verify',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Complete the verified enrollment (the flow's only creation)
+ *
+ * The emailed token re-verified and the eligibility re-run fresh: the account is created verified-by-construction, bound to the tier's organization, carrying the registry hit's roles as the Ommisa client's per-client assignments, with the chosen password. This is the flow's ONLY write.
+ */
+export const selfRegisterComplete = <ThrowOnError extends boolean = false>(options: Options<SelfRegisterCompleteData, ThrowOnError>): RequestResult<SelfRegisterCompleteResponses, SelfRegisterCompleteErrors, ThrowOnError> => (options.client ?? client).post<SelfRegisterCompleteResponses, SelfRegisterCompleteErrors, ThrowOnError>({
+    url: '/api/op/self-register/complete',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * File the account request (public, rate-bounded)

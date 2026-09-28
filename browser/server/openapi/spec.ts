@@ -564,6 +564,62 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/api/op/self-register/catalog': {
+      get: {
+        tags: ['Self-registration'], operationId: 'selfRegisterCatalog', summary: 'The member-domains projection (the pickers)',
+        description: 'The bundled member-domains registry projection: the countries, the organizations inside each, and the domains each organization claims. The enrollment page\'s pickers consume it; the served copy is cached a day (the registry moves at the pipeline\'s cadence).',
+        security: [],
+        responses: {
+          200: { description: 'The projection (countries + orgs + the matching rule + the registry vintage).', content: { 'application/json': { schema: { type: 'object', properties: { countries: { type: 'array', items: { type: 'object' } }, matchingRule: { type: 'string' }, generatedAt: { type: 'string' } } } } } },
+        },
+      },
+    },
+    '/api/op/self-register/start': {
+      post: {
+        tags: ['Self-registration'], operationId: 'selfRegisterStart', summary: 'Start the member self-enrollment (public, the eligibility reads)',
+        description: 'Validates the picked country and organization against the member-domains registry and the email\'s domain under the registry\'s dot-boundary rule. Writes NOTHING: the happy answer is the attribution bounce URL (a fresh Google/GitHub round-trip proves an attributable human); an admin_queue organization or an unmatched domain answers the join-queue path.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { country: { type: 'string' }, org: { type: 'string' }, name: { type: 'string' }, email: { type: 'string', format: 'email' } }, required: ['country', 'org', 'name', 'email'] } } },
+        },
+        responses: {
+          200: { description: 'The bounce URL (ok) or the queue path (queued).', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, next: { type: 'string' }, queued: { type: 'boolean' }, requestId: { type: 'string' }, error: { type: 'string' } } } } } },
+          403: { description: 'The tier closed, the bot check failed, the domain mismatch (the owning organization named), or the eligibility refusal.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          503: { description: 'The tier not configured, or the attribution provider missing.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/self-register/verify': {
+      post: {
+        tags: ['Self-registration'], operationId: 'selfRegisterVerify', summary: 'Prove the emailed registration token (the setup page\'s on-load)',
+        description: 'Validates the self-contained, time-bound token bound to the receiving address. Creates nothing — the answer names the proven email, the organization, and the roles the completion will carry.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { token: { type: 'string' } }, required: ['token'] } } },
+        },
+        responses: {
+          200: { description: 'The token proves the mailbox; the setup data answers.', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, email: { type: 'string' }, name: { type: 'string', nullable: true }, org: { type: 'string' }, country: { type: 'string' }, roles: { type: 'array', items: { type: 'string' } } } } } } },
+          400: { description: 'Expired, tampered, or already registered.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/self-register/complete': {
+      post: {
+        tags: ['Self-registration'], operationId: 'selfRegisterComplete', summary: 'Complete the verified enrollment (the flow\'s only creation)',
+        description: 'The emailed token re-verified and the eligibility re-run fresh: the account is created verified-by-construction, bound to the tier\'s organization, carrying the registry hit\'s roles as the Ommisa client\'s per-client assignments, with the chosen password. This is the flow\'s ONLY write.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { token: { type: 'string' }, password: { type: 'string', minLength: 12 } }, required: ['token', 'password'] } } },
+        },
+        responses: {
+          200: { description: 'The account exists (verified), the password is set — sign in.', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' } } } } } },
+          400: { description: 'Expired, tampered, already registered, or the password refuses.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/api/op/join-requests': {
       post: {
         tags: ['Join'], operationId: 'fileJoinRequest', summary: 'File the account request (public, rate-bounded)',

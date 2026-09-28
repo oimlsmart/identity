@@ -86,6 +86,15 @@ export type CloudflareApiEnv = {
   MAIL_RATE_LIMIT_CAPACITY?: string
   MAIL_RATE_LIMIT_WINDOW_MS?: string
   MAIL_LOCALE?: string
+  /** The Ommisa member tier's self-enrollment (the 2026-09-26 flow):
+   *  the kill switch (absent = ON; '0'/'false' disables), the tier's
+   *  org binding (REQUIRED — unset = the endpoint refuses, fail-closed),
+   *  the OP-side role fallback, and the relying party whose per-client
+   *  roles carry the registry hit's roles. */
+  OP_SELF_REGISTER?: string
+  OP_SELF_REGISTER_ORG?: string
+  OP_SELF_REGISTER_ROLES?: string
+  OP_SELF_REGISTER_CLIENT?: string
 }
 
 function buildWorkerApp(): Hono {

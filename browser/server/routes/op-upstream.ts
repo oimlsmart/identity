@@ -55,6 +55,7 @@ import {
 } from '../auth/upstream/registry'
 import { seedWithReadBack } from './op-seed-guard'
 import { safeLocalRedirect, signUpstreamState, verifyUpstreamState, type UpstreamStatePayload } from '../auth/upstream/state'
+import { continueSelfRegisterAttribution } from './op-self-register'
 import {
   buildUpstreamAuthorizationUrl,
   discoverIssuer,
@@ -200,8 +201,8 @@ export function createOpUpstreamRouter(): Hono {
   async function startFlow(
     c: Context,
     provider: IdentityProvider,
-    mode: 'login' | 'link',
-    extra: { linkUserId?: string; redirect?: string; prompt?: string },
+    mode: 'login' | 'link' | 'attribute',
+    extra: { linkUserId?: string; redirect?: string; prompt?: string; attributeEmail?: string },
   ): Promise<Response> {
     const env = runtimeEnv<EnvLike>(c)
     const origin = opRequestOrigin(c.req.raw)
@@ -210,7 +211,7 @@ export function createOpUpstreamRouter(): Hono {
 
     if (provider.kind === 'github') {
       const state = await signUpstreamState(key.secretMaterial, {
-        p: provider.id, m: mode, ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}),
+        p: provider.id, m: mode, ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}), ...(extra.attributeEmail ? { e: extra.attributeEmail } : {}),
       })
       return c.redirect(buildGitHubAuthorizeUrl(gitHubEndpoints(env), {
         clientId: provider.clientId,
@@ -225,7 +226,7 @@ export function createOpUpstreamRouter(): Hono {
     const pkce = await generatePkce()
     const state = await signUpstreamState(key.secretMaterial, {
       p: provider.id, m: mode, n: nonce, v: pkce.verifier,
-      ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}),
+      ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}), ...(extra.attributeEmail ? { e: extra.attributeEmail } : {}),
     })
     return c.redirect(buildUpstreamAuthorizationUrl(provider, metadata, {
       redirectUri: callbackUri,
@@ -248,6 +249,24 @@ export function createOpUpstreamRouter(): Hono {
     const origin = opRequestOrigin(c.req.raw)
     const provider = await enabledProvider(c, c.req.param('id'))
     if (!provider) return c.redirect(loginErrorRedirect(origin, 'unknown'))
+    // The self-registration's attribution mode (?mode=attribute&email=):
+    // the round-trip proves an attributable human BEFORE the service
+    // sends the domain-verification email — one attributable login buys
+    // one verification email to one address. The upstream identity is
+    // never stored, never linked (the attribute branch at the callback).
+    if (c.req.query('mode') === 'attribute') {
+      const email = c.req.query('email')?.trim().toLowerCase() ?? ''
+      if (!email.includes('@')) {
+        return c.redirect(loginErrorRedirect(origin, 'state'))
+      }
+      try {
+        return await startFlow(c, provider, 'attribute', { attributeEmail: email })
+      } catch (err) {
+        const reason = err instanceof OidcError ? err.reason : 'config'
+        console.error(`[op] upstream attribution start failed (${provider.id}/${reason}):`, (err as Error).message)
+        return c.redirect(loginErrorRedirect(origin, reason, provider.displayName))
+      }
+    }
     try {
       return await startFlow(c, provider, 'login', {
         redirect: safeLocalRedirect(c.req.query('redirect')),
@@ -412,6 +431,17 @@ export function createOpUpstreamRouter(): Hono {
     }
 
     const store = getStore()
+
+    if (payload.m === 'attribute') {
+      // The self-registration's attribution return (the 2026-09-26
+      // flow): the successful exchange IS the human proof. The
+      // eligibility re-runs fresh here (the registry's verdict at this
+      // moment), the verification email goes out, and the upstream
+      // identity is NEVER stored, never linked, never consulted again —
+      // nothing is written except the email itself.
+      const target = await continueSelfRegisterAttribution(c, origin, payload.e, provider?.displayName ?? payload.p, identity.handle)
+      return c.redirect(target)
+    }
 
     if (payload.m === 'link') {
       // The link binds to the flow's OWN account — the current session

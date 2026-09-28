@@ -104,7 +104,7 @@ import { getInstanceProfile } from '../../profile'
 import { mailerFor, type MailEnv, type MailPosture } from '../../mailer'
 import type { ServerStore } from '../../store'
 
-export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_edited' | 'pat_expiring'
+export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'self_register_verify' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_edited' | 'pat_expiring'
   // TODO.identity-sso/04 slice D: the account-lifecycle security notices
   // (each a pure notification — never a primary button; the "was this
   // you?" reset pointer rides the secondary block, the `reset` flag).
@@ -160,6 +160,7 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   invite: { subject: 'mail.invite.subject', preheader: 'mail.invite.preheader', heading: 'mail.invite.heading', body: 'mail.invite.body', why: 'mail.invite.why', action: 'mail.invite.action', link: true },
   reset: { subject: 'mail.reset.subject', preheader: 'mail.reset.preheader', heading: 'mail.reset.heading', body: 'mail.reset.body', why: 'mail.reset.why', action: 'mail.reset.action', link: true },
   signin: { subject: 'mail.signin.subject', preheader: 'mail.signin.preheader', heading: 'mail.signin.heading', body: 'mail.signin.body', why: 'mail.signin.why', link: false, reset: true },
+  self_register_verify: { subject: 'mail.selfRegister.subject', preheader: 'mail.selfRegister.preheader', heading: 'mail.selfRegister.heading', body: 'mail.selfRegister.body', why: 'mail.selfRegister.why', action: 'mail.selfRegister.action', link: true },
   verify_email: { subject: 'mail.verifyEmail.subject', preheader: 'mail.verifyEmail.preheader', heading: 'mail.verifyEmail.heading', body: 'mail.verifyEmail.body', why: 'mail.verifyEmail.why', action: 'mail.verifyEmail.action', link: true },
   // TODO.identity-features/01: the added address's own verification —
   // the same one-time-link ceremony, the copy naming the ADD.
@@ -248,7 +249,7 @@ export function renderOpMail(
   //  the confirmation link for the verify_* family) —
   //  never "whichever param happens to be present" (a caller carrying
   //  both would mis-lift).
-  const actionKey = template === 'verify_email' || template === 'verify_added_email' || template === 'verify_primary_email' ? 'verifyUrl' : 'setupUrl'
+  const actionKey = template === 'self_register_verify' || template === 'verify_email' || template === 'verify_added_email' || template === 'verify_primary_email' ? 'verifyUrl' : 'setupUrl'
   const actionUrl = keys.link && typeof params[actionKey] === 'string' ? String(params[actionKey]) : null
 
   // TODO.identity-sso/04 slice D: the security notices' "was this you?"

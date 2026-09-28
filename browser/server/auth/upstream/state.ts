@@ -66,10 +66,17 @@ function timingSafeEqual(a: string, b: string): boolean {
 export interface UpstreamStatePayload {
   /** The identity_providers row id. */
   p: string
-  /** 'login' (the sign-in) or 'link' (bind to the account u). */
-  m: 'login' | 'link'
+  /** 'login' (the sign-in), 'link' (bind to the account u), or
+   *  'attribute' (the self-registration's attribution gate — the
+   *  round-trip proves an attributable human; the upstream identity is
+   *  never stored, never linked). */
+  m: 'login' | 'link' | 'attribute'
   /** The linking account (mode 'link'). */
   u?: string
+  /** The self-registration's target email (mode 'attribute') — the
+   *  verification email goes to THIS address; the upstream login is the
+   *  human proof, not the identity. */
+  e?: string
   /** The OIDC nonce (kind 'oidc'). */
   n?: string
   /** The PKCE S256 verifier (kind 'oidc'). */
