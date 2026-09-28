@@ -621,6 +621,15 @@ export function createOpRouter(): Hono {
     // `user` arrived with the client read above (TODO.restructure/12's
     // one-phase boot).
     if (!user || forceLogin) {
+      // prompt=none (the OIDC-correct silent probe): a request that
+      // cannot be answered silently answers the CLIENT at its
+      // redirect_uri with login_required — never the login page (the
+      // sessionless boot probe lands anonymous cleanly; the
+      // full-page login never flashes).
+      if (prompts.includes('none')) {
+        return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'login_required',
+          'the end-user is not authenticated', responseModeParam, clientId))
+      }
       const here = new URL(c.req.url)
       if (forceLogin) {
         const rest = prompts.filter(p => p !== 'login')
