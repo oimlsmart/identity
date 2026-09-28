@@ -24,7 +24,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync, rmSync, existsSync, cpSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
-import { startStubGitHub, type StubGitHub } from './fixtures/stub-github'
+import { startStubIdp, type StubIdp } from './fixtures/stub-idp'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -39,8 +39,10 @@ const MEMBER = { email: 'member@nist.gov', name: 'NIST Member', password: 'the m
 
 interface Stack { api: ChildProcess; astro: ChildProcess; base: string; apiBase: string; logs: string[] }
 
-let stubGithub: StubGitHub | null = null
-const facadeLogs: string[] = []
+let stubIdp: StubIdp | null = null
+
+const IDP_CLIENT_ID = 'oiml-smart-op'
+const IDP_SECRET = 'e2e-idp-secret'
 
 function spawnLogged(cmd: string, args: string[], env: NodeJS.ProcessEnv, logs: string[]): ChildProcess {
   const inherited = Object.fromEntries(
@@ -72,7 +74,7 @@ async function waitForHttp(url: string, timeoutMs: number, logs: string[]): Prom
   throw new Error(`timed out waiting for ${url} (${lastError})\n--- stack logs ---\n${logs.join('').slice(-4000)}`)
 }
 
-async function bootIdentityStack(github: StubGitHub): Promise<Stack> {
+async function bootIdentityStack(idp: StubIdp): Promise<Stack> {
   const logs: string[] = []
   mkdirSync(DB_DIR, { recursive: true })
   const dbPath = join(DB_DIR, 'identity.db')
@@ -103,16 +105,13 @@ async function bootIdentityStack(github: StubGitHub): Promise<Stack> {
       // The root administrator's declared seed: the boot mints the
       // one-time setup link (the log line the leg reads).
       OP_ACCOUNT_SEED: JSON.stringify([{ email: ROOT.email, name: ROOT.name, role: 'admin' }]),
-      // The member tier's own config: ON, bound to the org the leg
-      // activates, the Ommisa client carrying the registry roles.
+      // The member tier's own config: ON, the Ommisa client carrying
+      // the registry roles. The landing org needs NO configuration —
+      // it is the organization the registry names, keyed by the domain.
       OP_SELF_REGISTER: '1',
-      OP_SELF_REGISTER_ORG: 'ms-test',
       OP_SELF_REGISTER_CLIENT: 'oiml-ommisa',
       // The attribution upstream's client secret (the row references it).
-      GITHUB_UPSTREAM_CLIENT_SECRET: 'id-44-stub-secret',
-      // The github endpoints point at the stub.
-      GITHUB_OAUTH_BASE_URL: github.baseUrl,
-      GITHUB_API_BASE_URL: github.baseUrl,
+      IDP_E2E_SECRET: IDP_SECRET,
     }, logs)
     const apiBase = `http://localhost:${ID_API}`
     await waitForHttp(`${apiBase}/api/health`, 120_000, logs)
@@ -163,8 +162,8 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
   let browser: Browser
 
   beforeAll(async () => {
-    stubGithub = await startStubGitHub({ clientSecret: 'id-44-stub-secret', users: [{ login: 'the-human', id: 4401, name: 'The Human', email: 'the-human@github.example' }] })
-    stack = await bootIdentityStack(stubGithub)
+    stubIdp = await startStubIdp({ port: 9594 })
+    stack = await bootIdentityStack(stubIdp)
     browser = await puppeteer.launch({ headless: 'shell', protocolTimeout: 480_000, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   }, 900_000)
 
@@ -173,7 +172,7 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     if (stack) {
       for (const proc of [stack.astro, stack.api]) killTreeHard(proc)
     }
-    await stubGithub?.close()
+    await stubIdp?.close()
   })
 
   it('leg 1 — the four gates, end to end: the form → the attribution → the emailed link → the verified creation → the sign-in', { timeout: 900_000 }, async () => {
@@ -210,21 +209,14 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     })
     expect(adminLogin.ok).toBe(true)
     const cookie = adminLogin.headers.get('set-cookie')!.split(';')[0]!
-    const created = await fetch(`${stack.apiBase}/api/op/registry/orgs`, {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ id: 'ms-test', name: 'The Test Member State Authority', kind: 'utilizer' }),
-    })
-    expect(created.status, await created.text()).toBe(201)
-    const activated = await fetch(`${stack.apiBase}/api/op/registry/orgs/ms-test/state`, {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ state: 'active' }),
-    })
-    expect(activated.ok).toBe(true)
+    // The attribution provider: id 'github' (what the start leg picks),
+    // kind 'oidc', the stub IdP behind it (the id-08 pattern).
     const provider = await fetch(`${stack.apiBase}/api/op/providers`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({
-        id: 'github', kind: 'github', display_name: 'GitHub', enabled: true,
-        client_id: 'id-44-stub-client', client_secret_ref: 'env:GITHUB_UPSTREAM_CLIENT_SECRET',
+        id: 'github', kind: 'oidc', display_name: 'GitHub', enabled: true,
+        issuer: stubIdp!.issuer, client_id: IDP_CLIENT_ID,
+        client_secret_ref: 'env:IDP_E2E_SECRET',
       }),
     })
     expect(provider.status, await provider.text()).toBe(201)
@@ -239,10 +231,19 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     await page.type('[data-testid="selfreg-email"]', MEMBER.email)
     await page.click('[data-testid="selfreg-submit"]')
 
-    // The attribution round-trip: the stub's consent shortcut returns
-    // the flow; the callback sends the email (no mailer — the link
-    // shows once) and lands on the sent posture.
-    await page.waitForFunction(() => window.location.search.includes('sent=1'), { timeout: SETTLE, polling: 500 })
+    // The attribution round-trip: the stub IdP's consent page (one link
+    // per fixture user) — click the first; the return carries the code;
+    // the callback sends the email (no mailer — the link shows once)
+    // and lands on the sent posture.
+    await page.waitForSelector('[data-testid="stub-idp-consent"]', { timeout: SETTLE, polling: 500 })
+    await page.evaluate(() => (document.querySelector('ul li a') as HTMLElement).click())
+    try {
+      await page.waitForFunction(() => window.location.search.includes('sent=1'), { timeout: 60_000, polling: 500 })
+    } catch (err) {
+      throw new Error(`the attribution never landed on sent=1: url=${page.url()}
+--- api logs ---
+${stack.logs.join('').slice(-2500)}`)
+    }
     const devLinkHref = await page.$eval('[data-testid="selfreg-dev-link"] a', el => (el as HTMLAnchorElement).href)
     expect(devLinkHref).toContain('/op/self-register?token=')
 
@@ -264,9 +265,17 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     expect(signIn.status).toBe(200)
 
     // The registry roles ride the Ommisa client (the containment the
-    // registry declares).
-    const me = await fetch(`${stack.apiBase}/api/op/accounts/self`, { headers: { cookie: `oiml-session=${(await fetch(`${stack.apiBase}/api/op/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: ROOT.email, password: ROOT.password }) })).headers.get('set-cookie')!.split(';')[0]!}` } })
-    expect(me.ok).toBe(true)
+    // registry declares) and the org OF THE SAME DOMAIN NAME stands:
+    // the registry entry's FULL NAME, active, keyed by the domain.
+    const rootCookie2 = (await fetch(`${stack.apiBase}/api/op/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: ROOT.email, password: ROOT.password }),
+    })).headers.get('set-cookie')!.split(';')[0]!
+    const org = await fetch(`${stack.apiBase}/api/op/registry/orgs/nist.gov`, { headers: { cookie: rootCookie2 } })
+    expect(org.status).toBe(200)
+    const orgRow = await org.json() as { name?: string; state?: string; country?: string }
+    expect(orgRow.name).toBe('National Institute of Standards and Technology (NIST)')
+    expect(orgRow.state).toBe('active')
     await page.close()
   })
 
@@ -288,7 +297,9 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     expect(error).toContain('registered to')
     expect(error).toContain('Czech Metrology Institute')
 
-    // The unmatched domain: the queue sentence; NO account row.
+    // The unmatched domain: the queue sentence; NO account row. The
+    // field is CLEARED first (page.type appends).
+    await page.$eval('[data-testid="selfreg-email"]', (el, v) => { (el as HTMLInputElement).value = v }, '')
     await page.type('[data-testid="selfreg-email"]', 'industry@acme-industry.example')
     await page.click('[data-testid="selfreg-submit"]')
     await page.waitForFunction(() => document.querySelector('[data-testid="selfreg-notice"]')?.textContent?.includes('administrator'), { timeout: SETTLE, polling: 500 })
