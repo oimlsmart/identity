@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-28T06:58:34.410Z",
+  "generated_at": "2026-09-28T08:56:27.757Z",
   "version": 2,
   "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
   "domains": {
@@ -1392,6 +1392,18 @@
       ],
       "verification": "inferred",
       "evidence": "email"
+    },
+    "ribose.com": {
+      "country": "Hong Kong",
+      "country_fr": "Hong Kong",
+      "iso": "HK",
+      "status": "corresponding-member",
+      "org": "Ribose",
+      "roles": [
+        "oiml-cs-associate"
+      ],
+      "verification": "verified",
+      "evidence": "website"
     },
     "rostest.ru": {
       "country": "Russian Federation",
@@ -4098,6 +4110,20 @@
             "customs.gov.hk"
           ],
           "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Ribose",
+          "roles": [
+            "oiml-cs-associate"
+          ],
+          "website": "https://www.ribose.com",
+          "domains": [],
+          "website_domains": [
+            "ribose.com"
+          ],
+          "web_domains": [],
+          "verification": "verified",
           "admin_queue": false
         }
       ]
