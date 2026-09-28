@@ -110,6 +110,11 @@ async function bootIdentityStack(idp: StubIdp): Promise<Stack> {
       // it is the organization the registry names, keyed by the domain.
       OP_SELF_REGISTER: '1',
       OP_SELF_REGISTER_CLIENT: 'oiml-ommisa',
+      // The bot gate ARMED (the always-pass pair): the 2026-09-28
+      // production finding — the start's Turnstile plumbing was
+      // invisible with the gate off. Leg 1 now walks the gated path.
+      TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+      TURNSTILE_SECRET: '1x0000000000000000000000000000000AA',
       // The attribution upstream's client secret (the row references it).
       IDP_E2E_SECRET: IDP_SECRET,
     }, logs)
@@ -242,6 +247,13 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     await page.select('[data-testid="selfreg-org"]', 'National Institute of Standards and Technology (NIST)')
     await page.type('[data-testid="selfreg-name"]', MEMBER.name)
     await page.type('[data-testid="selfreg-email"]', MEMBER.email)
+    // The gate solves before the submit (the always-pass pair
+    // auto-solves; the token must STAND in the form or the start
+    // refuses — the exact production failure this wait pins).
+    await page.waitForFunction(() => {
+      const input = document.querySelector('[data-testid="turnstile-widget"] input[name="cf-turnstile-response"]')
+      return input !== null && input.value.length > 0
+    }, { timeout: 120_000, polling: 500 })
     await page.click('[data-testid="selfreg-submit"]')
 
     // THE INTERSTITIAL: the why, then the CHOICE of who attests — the
@@ -315,6 +327,12 @@ ${stack.logs.join('').slice(-1500)}`)
     await page.select('[data-testid="selfreg-org"]', 'National Institute of Standards and Technology (NIST)')
     await page.type('[data-testid="selfreg-name"]', 'X')
     await page.type('[data-testid="selfreg-email"]', 'someone@cmi.gov.cz')
+    // The gate solves first (the armed stack): the mismatch verdict
+    // lives PAST the bot gate.
+    await page.waitForFunction(() => {
+      const input = document.querySelector('[data-testid="turnstile-widget"] input[name="cf-turnstile-response"]')
+      return input !== null && input.value.length > 0
+    }, { timeout: 120_000, polling: 500 })
     await page.click('[data-testid="selfreg-submit"]')
     await page.waitForSelector('[data-testid="selfreg-error"]', { timeout: SETTLE, polling: 500 })
     const error = await page.$eval('[data-testid="selfreg-error"]', el => el.textContent ?? '')
@@ -322,9 +340,15 @@ ${stack.logs.join('').slice(-1500)}`)
     expect(error).toContain('Czech Metrology Institute')
 
     // The unmatched domain: the queue sentence; NO account row. The
-    // field is CLEARED first (page.type appends).
+    // field is CLEARED first (page.type appends). The FIRST start
+    // burned the token at siteverify (single-use) and the island reset
+    // the widget — wait for the RE-SOLVE before this submit.
     await page.$eval('[data-testid="selfreg-email"]', (el, v) => { (el as HTMLInputElement).value = v }, '')
     await page.type('[data-testid="selfreg-email"]', 'industry@acme-industry.example')
+    await page.waitForFunction(() => {
+      const input = document.querySelector('[data-testid="turnstile-widget"] input[name="cf-turnstile-response"]')
+      return input !== null && input.value.length > 0
+    }, { timeout: 120_000, polling: 500 })
     await page.click('[data-testid="selfreg-submit"]')
     await page.waitForFunction(() => document.querySelector('[data-testid="selfreg-notice"]')?.textContent?.includes('administrator'), { timeout: SETTLE, polling: 500 })
     const probe = await fetch(`${stack.apiBase}/api/op/login`, {

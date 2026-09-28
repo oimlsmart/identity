@@ -135,6 +135,11 @@ async function bootIdentityStack(mailer: StubMailer): Promise<Stack> {
       DEMO_ACCOUNTS_ENABLED: 'true',
       OP_ISSUER: ISSUER,
       OP_SIGNING_KEY: await fixtureOpSigningKey(),
+      // The bot gate ARMED (the always-pass pair): the register page's
+      // happy path then walks the gated flow, the 2026-09-28 blind
+      // spot's class closed at the source.
+      TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+      TURNSTILE_SECRET: '1x0000000000000000000000000000000AA',
       OP_ACCOUNT_SEED: JSON.stringify([{ email: ROOT.email, name: ROOT.name, role: 'admin' }]),
       OP_CLIENT_SEED: JSON.stringify([{
         client_id: RP_CLIENT_ID,
@@ -259,6 +264,12 @@ async function fillRegister(page: Page, name: string, email: string, password: s
   await page.type('[data-testid="register-name"]', name)
   await page.type('[data-testid="register-email"]', email)
   await page.type('[data-testid="register-password"]', password)
+  // The gate solves before the submit (the armed stack's always-pass
+  // pair; the token must STAND or the act refuses).
+  await page.waitForFunction(() => {
+    const input = document.querySelector('[data-testid="turnstile-widget"] input[name="cf-turnstile-response"]')
+    return input !== null && input.value.length > 0
+  }, { timeout: 120_000, polling: 500 })
   await page.click('[data-testid="register-submit"]')
 }
 
