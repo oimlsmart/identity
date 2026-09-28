@@ -79,6 +79,39 @@ afterAll(() => {
   }
 })
 
+describe('the start leg\'s Turnstile (the body-carried token — the 2026-09-28 production finding)', () => {
+  const ELIGIBLE = { country: 'United States', org: 'National Institute of Standards and Technology (NIST)', name: 'Bot Probe', email: 'bot-probe@nist.gov' }
+  const realFetch = globalThis.fetch
+
+  afterAll(() => {
+    globalThis.fetch = realFetch
+    delete process.env.TURNSTILE_SITE_KEY
+    delete process.env.TURNSTILE_SECRET
+  })
+
+  it('ON + a token-less start: the honest 403 bot answer', async () => {
+    process.env.TURNSTILE_SITE_KEY = 'k'
+    process.env.TURNSTILE_SECRET = 's'
+    const res = await START(ELIGIBLE)
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as { error: string }).error).toContain('bot')
+  })
+
+  it('ON + a GOOD token in the BODY: the gate opens (the eligibility answers, never the bot 403)', async () => {
+    process.env.TURNSTILE_SITE_KEY = 'k'
+    process.env.TURNSTILE_SECRET = 's'
+    globalThis.fetch = (async (url: unknown) => {
+      expect(String(url)).toContain('siteverify')
+      return new Response(JSON.stringify({ success: true }), { status: 200 })
+    }) as typeof fetch
+    const res = await START({ ...ELIGIBLE, 'cf-turnstile-response': 'good-body-token' })
+    expect(res.status, 'the body token opened the gate').not.toBe(403)
+    const body = await res.json() as { ok?: boolean; error?: string; providers?: unknown[] }
+    expect(body.ok).toBe(true)
+    expect(body.providers?.length).toBeGreaterThan(0)
+  })
+})
+
 describe('leg 1 — the start (the eligibility reads; NOTHING is written)', () => {
   it('the happy eligibility answers the attribution bounce and writes NOTHING', async () => {
     const before = await store.listUsers()

@@ -996,6 +996,7 @@ export const fr: Record<MessageKey, string> = {
   "selfreg.emailMatch": "Cette adresse est sur le domaine enregistré de votre organisation — continuez.",
   "selfreg.emailNoMatch": "Cette adresse n’est pas sur le(s) domaine(s) auto-approuvé(s) {domains} — utilisez votre adresse professionnelle, ou passez par la file d’attente.",
   "selfreg.submitLabel": "Continuer",
+  "selfreg.turnstileRequired": "Veuillez compléter la vérification, puis continuez.",
   "selfreg.working": "En cours…",
   "selfreg.failed": "L’inscription n’a pas pu être terminée — vérifiez les informations et réessayez.",
   "selfreg.queuedFallback": "Votre organisation ne figure pas au registre d’auto-inscription — votre demande part dans la file des administrateurs.",
