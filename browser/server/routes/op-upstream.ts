@@ -55,7 +55,7 @@ import {
 } from '../auth/upstream/registry'
 import { seedWithReadBack } from './op-seed-guard'
 import { safeLocalRedirect, signUpstreamState, verifyUpstreamState, type UpstreamStatePayload } from '../auth/upstream/state'
-import { continueSelfRegisterAttribution } from './op-self-register'
+import { continueSelfRegisterAttribution, continueSelfRegisterSecondProof } from './op-self-register'
 import {
   buildUpstreamAuthorizationUrl,
   discoverIssuer,
@@ -208,7 +208,7 @@ export function createOpUpstreamRouter(): Hono {
     c: Context,
     provider: IdentityProvider,
     mode: 'login' | 'link' | 'attribute',
-    extra: { linkUserId?: string; redirect?: string; prompt?: string; attributeEmail?: string },
+    extra: { linkUserId?: string; redirect?: string; prompt?: string; attributeEmail?: string; attributeName?: string; proofToken?: string },
   ): Promise<Response> {
     const env = runtimeEnv<EnvLike>(c)
     const origin = opRequestOrigin(c.req.raw)
@@ -217,7 +217,10 @@ export function createOpUpstreamRouter(): Hono {
 
     if (provider.kind === 'github') {
       const state = await signUpstreamState(key.secretMaterial, {
-        p: provider.id, m: mode, ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}), ...(extra.attributeEmail ? { e: extra.attributeEmail } : {}),
+        p: provider.id, m: mode,
+        ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}),
+        ...(extra.attributeEmail ? { e: extra.attributeEmail } : {}), ...(extra.attributeName ? { nm: extra.attributeName } : {}),
+        ...(extra.proofToken ? { t: extra.proofToken } : {}),
       })
       return c.redirect(buildGitHubAuthorizeUrl(gitHubEndpoints(env), {
         clientId: provider.clientId,
@@ -232,7 +235,9 @@ export function createOpUpstreamRouter(): Hono {
     const pkce = await generatePkce()
     const state = await signUpstreamState(key.secretMaterial, {
       p: provider.id, m: mode, n: nonce, v: pkce.verifier,
-      ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}), ...(extra.attributeEmail ? { e: extra.attributeEmail } : {}),
+      ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}),
+      ...(extra.attributeEmail ? { e: extra.attributeEmail } : {}), ...(extra.attributeName ? { nm: extra.attributeName } : {}),
+      ...(extra.proofToken ? { t: extra.proofToken } : {}),
     })
     return c.redirect(buildUpstreamAuthorizationUrl(provider, metadata, {
       redirectUri: callbackUri,
@@ -261,12 +266,25 @@ export function createOpUpstreamRouter(): Hono {
     // one verification email to one address. The upstream identity is
     // never stored, never linked (the attribute branch at the callback).
     if (c.req.query('mode') === 'attribute') {
+      const ptoken = c.req.query('ptoken') ?? ''
+      if (ptoken) {
+        // The setup step's SECOND PROOF: the presented link token rides
+        // the state; the callback re-proofs the SAME upstream identity.
+        try {
+          return await startFlow(c, provider, 'attribute', { proofToken: ptoken })
+        } catch (err) {
+          const reason = err instanceof OidcError ? err.reason : 'config'
+          console.error(`[op] upstream second-proof start failed (${provider.id}/${reason}):`, (err as Error).message)
+          return c.redirect(loginErrorRedirect(origin, reason, provider.displayName))
+        }
+      }
       const email = c.req.query('email')?.trim().toLowerCase() ?? ''
       if (!email.includes('@')) {
         return c.redirect(loginErrorRedirect(origin, 'state'))
       }
+      const name = c.req.query('n')?.trim() ?? ''
       try {
-        return await startFlow(c, provider, 'attribute', { attributeEmail: email })
+        return await startFlow(c, provider, 'attribute', { attributeEmail: email, ...(name ? { attributeName: name } : {}) })
       } catch (err) {
         const reason = err instanceof OidcError ? err.reason : 'config'
         console.error(`[op] upstream attribution start failed (${provider.id}/${reason}):`, (err as Error).message)
@@ -451,7 +469,9 @@ export function createOpUpstreamRouter(): Hono {
       // moment), the verification email goes out, and the upstream
       // identity is NEVER stored, never linked, never consulted again —
       // nothing is written except the email itself.
-      const target = await continueSelfRegisterAttribution(c, origin, payload.e, provider?.displayName ?? payload.p, identity.handle, identity.email)
+      const target = payload.t
+        ? await continueSelfRegisterSecondProof(c, origin, payload.t, provider?.displayName ?? payload.p, identity.handle, providerId, identity.accountId)
+        : await continueSelfRegisterAttribution(c, origin, payload.e, provider?.displayName ?? payload.p, identity.handle, identity.email, { provider: providerId, accountId: identity.accountId, name: payload.nm })
       return c.redirect(target)
     }
 

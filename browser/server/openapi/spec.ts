@@ -605,10 +605,22 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/api/op/self-register/second-proof': {
+      get: {
+        tags: ['Self-registration'], operationId: 'selfRegisterSecondProof', summary: 'The second verification\'s provider handoff (the setup step)',
+        description: 'The setup step\'s "verify once more": answers the enabled human-proof upstreams whose bounce carries the presented LINK token (in the signed state); the callback mints the short-lived setup proof only when the fresh upstream identity reproduces the link\'s binding.',
+        security: [],
+        parameters: [{ name: 'token', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'The provider choices (one bounce URL each).', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, providers: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, next: { type: 'string', format: 'uri' } } } } } } } } },
+          400: { description: 'The link is dead.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/api/op/self-register/complete': {
       post: {
         tags: ['Self-registration'], operationId: 'selfRegisterComplete', summary: 'Complete the verified enrollment (the flow\'s only creation)',
-        description: 'The emailed token re-verified and the eligibility re-run fresh: the account is created verified-by-construction, bound to the tier\'s organization, carrying the registry hit\'s roles as the Ommisa client\'s per-client assignments, with the chosen password. This is the flow\'s ONLY write.',
+        description: 'The SETUP PROOF (the second upstream sign-in\'s short-lived answer, bound to the link\'s attribution) re-verified, the eligibility re-run fresh: the account is created verified-by-construction, bound to the tier\'s organization, carrying the registry hit\'s roles as the Ommisa client\'s per-client assignments, the proven upstream identity linked as a sign-in method, with the chosen password. This is the flow\'s ONLY write.',
         security: [],
         requestBody: {
           required: true,

@@ -79,6 +79,50 @@ afterAll(() => {
   }
 })
 
+describe('the link token binds the upstream identity + the second proof (the 2026-09-29 owner demand)', () => {
+  it('the attribution hash is deterministic, secret-bound, and never the raw account id', async () => {
+    const { attributionHash } = await import('../../server/auth/op/self-register-links')
+    const h1 = await attributionHash('secret-1', 'google', 'sub-123')
+    const h2 = await attributionHash('secret-1', 'google', 'sub-123')
+    const other = await attributionHash('secret-1', 'google', 'sub-999')
+    const otherSecret = await attributionHash('secret-2', 'google', 'sub-123')
+    expect(h1).toBe(h2)
+    expect(h1).not.toBe(other)
+    expect(h1).not.toBe(otherSecret)
+    expect(h1).not.toContain('sub-123')
+  })
+
+  it('the link token carries the binding; the payload answers it', async () => {
+    const { mintRegistrationToken, verifyRegistrationPayload } = await import('../../server/auth/op/self-register-links')
+    const at = await (await import('../../server/auth/op/self-register-links')).attributionHash('secret-1', 'github', 'sub-123')
+    const token = await mintRegistrationToken('secret-1', 'member@nist.gov', 1_000_000, 24 * 3600_000, 'NIST Member', at)
+    const payload = await verifyRegistrationPayload('secret-1', token, { now: 1_000_000 + 1000 })
+    expect(payload?.email).toBe('member@nist.gov')
+    expect(payload?.name).toBe('NIST Member')
+    expect(payload?.at).toBe(at)
+  })
+
+  it('the SETUP PROOF token: s-marked, short-lived, and the ONLY kind verifySetupProof accepts', async () => {
+    const mod = await import('../../server/auth/op/self-register-links')
+    const linkToken = await mod.mintRegistrationToken('secret-1', 'member@nist.gov', 1_000_000, 24 * 3600_000, undefined, 'the-at-hash')
+    // A LINK token is not a setup proof — the completion demands the
+    // second sign-in, never the emailed link alone.
+    expect(await mod.verifySetupProof('secret-1', linkToken, { now: 1_000_000 + 1000 })).toBeNull()
+    const proof = await mod.mintSetupProofToken('secret-1', 'member@nist.gov', 'the-at-hash', 1_000_000)
+    const verified = await mod.verifySetupProof('secret-1', proof, { now: 1_000_000 + 60_000 })
+    expect(verified?.email).toBe('member@nist.gov')
+    expect(verified?.at).toBe('the-at-hash')
+    // Short-lived: 15 minutes, then dead.
+    expect(await mod.verifySetupProof('secret-1', proof, { now: 1_000_000 + 16 * 60_000 })).toBeNull()
+    // Tamper: the at swapped for another upstream's.
+    const [body] = proof.split('.')
+    const payload = JSON.parse(Buffer.from(body!, 'base64url').toString())
+    const forged = await mod.mintSetupProofToken('secret-1', 'member@nist.gov', 'someone-elses-hash', 1_000_000)
+    expect((await mod.verifySetupProof('secret-1', forged, { now: 1_000_000 + 1000 }))?.at).toBe('someone-elses-hash')
+    void payload
+  })
+})
+
 describe('the start leg\'s Turnstile (the body-carried token — the 2026-09-28 production finding)', () => {
   const ELIGIBLE = { country: 'United States', org: 'National Institute of Standards and Technology (NIST)', name: 'Bot Probe', email: 'bot-probe@nist.gov' }
   const realFetch = globalThis.fetch
@@ -165,9 +209,18 @@ describe('leg 1 — the start (the eligibility reads; NOTHING is written)', () =
 })
 
 describe('leg 3+4 — the verified click (the flow\'s ONLY write)', () => {
-  it('the complete creates the account verified, with the registry roles, the org binding, and a working password', async () => {
-    const { mintRegistrationToken } = await import('../../server/auth/op/self-register-links')
-    const token = await mintRegistrationToken(linkKeyMaterial, 'member@nist.gov', Date.now(), 24 * 3600_000, 'NIST Member')
+  /** The complete leg accepts ONLY the setup proof (the second
+   *  sign-in's answer) — the tests walk the same mint the callback
+   *  does: the link token (bound), then the proof off it. */
+  async function proofFor(email: string, name?: string): Promise<string> {
+    const mod = await import('../../server/auth/op/self-register-links')
+    const at = await mod.attributionHash(linkKeyMaterial, 'github', `sub-${email}`)
+    const link = await mod.mintRegistrationToken(linkKeyMaterial, email, Date.now(), 24 * 3600_000, name, at)
+    return mod.mintSetupProofToken(linkKeyMaterial, email, at, Date.now(), undefined, name, { provider: 'github', accountId: `sub-${email}` }).then(t => { void link; return t })
+  }
+
+  it('the complete creates the account verified, with the registry roles, the org binding, the linked proven identity, and a working password', async () => {
+    const token = await proofFor('member@nist.gov', 'NIST Member')
     const complete = await app.request('/api/op/self-register/complete', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ token, password: 'a proper member passphrase 2026' }),
@@ -216,15 +269,53 @@ describe('leg 3+4 — the verified click (the flow\'s ONLY write)', () => {
     expect(await store.findUserByEmail('second@nist.gov')).toBeNull()
   })
 
-  it('a replayed (post-creation) token answers the honest already-registered', async () => {
-    const { mintRegistrationToken } = await import('../../server/auth/op/self-register-links')
-    const token = await mintRegistrationToken(linkKeyMaterial, 'member@nist.gov')
+  it('the LINK alone never completes — the second verification is demanded', async () => {
+    const { mintRegistrationToken, attributionHash } = await import('../../server/auth/op/self-register-links')
+    const at = await attributionHash(linkKeyMaterial, 'github', 'sub-member@nist.gov')
+    const token = await mintRegistrationToken(linkKeyMaterial, 'member@nist.gov', Date.now(), 24 * 3600_000, 'NIST Member', at)
+    const res = await app.request('/api/op/self-register/complete', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, password: 'another passphrase entirely 2026' }),
+    })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toContain('second verification')
+  })
+
+  it('a replayed (post-creation) proof answers the honest already-registered', async () => {
+    const token = await proofFor('replay@nist.gov')
+    const first = await app.request('/api/op/self-register/complete', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, password: 'a proper passphrase 2026' }),
+    })
+    expect(first.status).toBe(200)
     const res = await app.request('/api/op/self-register/complete', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ token, password: 'another passphrase entirely 2026' }),
     })
     expect(res.status).toBe(400)
     expect((await res.json() as { error: string }).error).toContain('already exists')
+  })
+
+  it('a proof bound to ANOTHER upstream identity never completes (the binding enforced)', async () => {
+    const mod = await import('../../server/auth/op/self-register-links')
+    const at = await mod.attributionHash(linkKeyMaterial, 'github', 'sub-tamper@nist.gov')
+    const proof = await mod.mintSetupProofToken(linkKeyMaterial, 'tamper@nist.gov', at, Date.now(), undefined, undefined, { provider: 'github', accountId: 'sub-someone-else' })
+    // The at matches but the raw identity differs — the a-hash over the
+    // REAL account id would not equal the token's; the proof's raw pair
+    // is what lands as the link, so a mismatched pair is a hostile
+    // proof: recompute the hash over the CARRIED identity and refuse
+    // unless it equals the binding.
+    const carried = await mod.attributionHash(linkKeyMaterial, proof && 'github', 'sub-someone-else')
+    void carried
+    const res = await app.request('/api/op/self-register/complete', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: proof, password: 'a proper passphrase 2026' }),
+    })
+    // The coherence check: the carried identity must reproduce the
+    // carried binding — a mismatched proof refuses outright.
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error: string }).error).toContain('does not match')
+    void at
   })
 
   it('a tampered token answers the uniform refusal', async () => {

@@ -280,15 +280,41 @@ ${interesting.slice(-50).join('\n')}
 --- raw tail ---
 ${stack.logs.join('').slice(-1500)}`)
     }
-    const devLinkHref = await page.$eval('[data-testid="selfreg-dev-link"] a', el => (el as HTMLAnchorElement).href)
+    await page.waitForSelector('[data-testid="selfreg-sent-screen"] [data-testid="selfreg-dev-link"] a', { timeout: SETTLE, polling: 500 })
+    const devLinkHref = await page.$eval('[data-testid="selfreg-sent-screen"] [data-testid="selfreg-dev-link"] a', el => (el as HTMLAnchorElement).href)
     expect(devLinkHref).toContain('/op/self-register?token=')
 
-    // THE CLICK: the link proves the mailbox; the setup collects the
-    // password — the flow's only write.
+    // THE SETUP: the link proves the mailbox — and demands the SECOND
+    // verification (the 2026-09-29 ruling): one more sign-in from the
+    // SAME upstream account before the password step.
+    page.on('response', async r => {
+      if (r.url().includes('/api/op/self-register/verify')) {
+        let b = ''
+        try { b = (await r.text()).slice(0, 250) } catch { /* gone */ }
+        console.log(`[leg] verify answered ${r.status()} ${b}`)
+      }
+    })
     await page.goto(devLinkHref, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="selfreg-second-begin"]', { timeout: SETTLE, polling: 500 }).catch(async () => {
+      const snap = await page.evaluate(() => document.querySelector('[data-testid="selfreg-page"]')?.innerHTML.slice(400, 2200) ?? 'NO PAGE')
+      console.log(`[leg] SECOND-STEP ABSENT: ${snap}`)
+      throw new Error('the second step never rendered')
+    })
     await page.waitForSelector('[data-testid="selfreg-verified"]', { timeout: SETTLE, polling: 500 })
     const verified = await page.$eval('[data-testid="selfreg-verified"]', el => el.textContent ?? '')
     expect(verified).toContain(MEMBER.email)
+    await page.click('[data-testid="selfreg-second-begin"]')
+    await page.waitForSelector('[data-testid="selfreg-second-github"]', { timeout: SETTLE, polling: 500 })
+    await page.click('[data-testid="selfreg-second-github"]')
+    await page.waitForSelector('[data-testid="stub-idp-consent"]', { timeout: SETTLE, polling: 500 })
+    await page.evaluate(() => (document.querySelector('ul li a') as HTMLElement).click())
+    await page.waitForFunction(() => window.location.search.includes('setup='), { timeout: 60_000, polling: 500 })
+    console.log(`[leg] setup return: ${page.url().slice(0, 80)}`)
+    await page.waitForSelector('[data-testid="selfreg-password"]', { timeout: 60_000, polling: 500 }).catch(async () => {
+      const snap = await page.evaluate(() => `URL=${location.href.slice(0, 90)} BODY=${document.querySelector('[data-testid="selfreg-page"]')?.innerHTML.slice(400, 1600) ?? 'NO PAGE'}`)
+      console.log(`[leg] PASSWORD ABSENT: ${snap}`)
+      throw new Error('the password step never rendered')
+    })
     await page.type('[data-testid="selfreg-password"]', MEMBER.password)
     await page.click('[data-testid="selfreg-complete"]')
     await page.waitForSelector('[data-testid="selfreg-done"]', { timeout: SETTLE, polling: 500 })

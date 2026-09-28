@@ -43,13 +43,13 @@ import { turnstileEnabled, turnstileVerify } from '../auth/op/turnstile'
 import { loadDomains, resolveOrgDomain } from '../auth/op/member-domains'
 import { eligibilityFor, resolveEligibilityOrg, resolveSelfRegisterConfig } from '../auth/op/self-register'
 import { isRegistryOrgKind } from '../auth/org-registry'
-import { mintRegistrationToken, verifyRegistrationPayload } from '../auth/op/self-register-links'
+import { attributionHash, mintRegistrationToken, mintSetupProofToken, verifyRegistrationPayload, verifySetupProof } from '../auth/op/self-register-links'
 import { hashPassword } from '../auth/passwords'
 import { sendOpMail } from '../auth/op/mail'
 
 type EnvLike = Record<string, string | undefined>
 
-function selfRegisterError(c: Context, status: 400 | 403 | 404 | 429 | 503, error: string, extra?: Record<string, unknown>): Response {
+function selfRegisterError(c: Context, status: 400 | 403 | 404 | 409 | 429 | 503, error: string, extra?: Record<string, unknown>): Response {
   return c.json({ error, ...extra }, status)
 }
 
@@ -170,7 +170,7 @@ export function createSelfRegisterRouter(): Hono {
       .map(p => ({
         id: p.id,
         name: p.displayName ?? p.id,
-        next: `${opRequestOrigin(c.req.raw)}/op/upstream/${p.id}/signin?mode=attribute&email=${encodeURIComponent(email)}`,
+        next: `${opRequestOrigin(c.req.raw)}/op/upstream/${p.id}/signin?mode=attribute&email=${encodeURIComponent(email)}&n=${encodeURIComponent(name)}`,
       }))
     if (!providers.length) {
       return selfRegisterError(c, 503, 'the registration attribution providers are not configured on this deployment — request an account through the join queue instead')
@@ -202,7 +202,46 @@ export function createSelfRegisterRouter(): Hono {
     if (await getStore().findUserByEmail(verified.email)) {
       return selfRegisterError(c, 400, 'an account with this email address already exists — sign in instead, or ask for a password reset if you forgot it')
     }
-    return c.json({ ok: true, email: verified.email, name: verified.name, org: resolved.owner.org, country: resolved.owner.country, roles: resolved.owner.roles, orgDomain: resolved.domain })
+    return c.json({
+      ok: true,
+      email: verified.email,
+      name: verified.name,
+      org: resolved.owner.org,
+      country: resolved.owner.country,
+      roles: resolved.owner.roles,
+      orgDomain: resolved.domain,
+      // The 2026-09-29 owner demand: the completion demands a SECOND
+      // upstream sign-in (the same attributable account) — the emailed
+      // link alone never unlocks the creation, so a forwarded link is
+      // unwired and one upstream account cannot complete what it did
+      // not prove twice.
+      secondProof: !verified.secondProof,
+    })
+  })
+
+  // GET /api/op/self-register/second-proof?token=… — the setup step's
+  // "verify once more" handoff: the presented LINK token rides the
+  // bounce (in the signed state's `t`), and the callback's fresh
+  // upstream identity must reproduce the token's `a` binding.
+  router.get('/api/op/self-register/second-proof', async (c) => {
+    const configured = configOrRefuse(c)
+    if ('refuse' in configured) return configured.refuse
+    const token = c.req.query('token') ?? ''
+    const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+    if (!token || !(await verifyRegistrationPayload(key.secretMaterial, token))) {
+      return selfRegisterError(c, 400, 'this registration link has expired or was already used — start the registration again')
+    }
+    const providers = (await getStore().listIdentityProviders())
+      .filter(p => p.enabled && (p.id === 'google' || p.id === 'github'))
+      .map(p => ({
+        id: p.id,
+        name: p.displayName ?? p.id,
+        next: `${opRequestOrigin(c.req.raw)}/op/upstream/${p.id}/signin?mode=attribute&ptoken=${encodeURIComponent(token)}`,
+      }))
+    if (!providers.length) {
+      return selfRegisterError(c, 503, 'the registration attribution providers are not configured on this deployment')
+    }
+    return c.json({ ok: true, providers })
   })
 
   // POST /api/op/self-register/complete — THE creation (the only write
@@ -224,10 +263,19 @@ export function createSelfRegisterRouter(): Hono {
 
     const env = runtimeEnv<EnvLike>(c)
     const key = await resolveOpSigningKey(env)
-    const verified = await verifyRegistrationPayload(key.secretMaterial, token)
-    if (!verified) {
-      return selfRegisterError(c, 400, 'this registration link has expired or was already used — start the registration again; your email was never stored')
+    // THE SETUP PROOF ONLY: the second upstream sign-in's short-lived
+    // answer — never the emailed link alone (the 2026-09-29 ruling).
+    const proof = await verifySetupProof(key.secretMaterial, token)
+    if (!proof) {
+      return selfRegisterError(c, 400, 'the second verification is missing or expired — open your registration link again and verify once more with your sign-in account')
     }
+    // Coherence: the carried raw identity must reproduce the carried
+    // binding (the mint is the only legitimate writer; anything else
+    // refuses).
+    if (!proof.upstream || (await attributionHash(key.secretMaterial, proof.upstream.provider, proof.upstream.accountId)) !== proof.at) {
+      return selfRegisterError(c, 400, 'the second verification does not match this registration — start the registration again')
+    }
+    const verified = { email: proof.email, name: proof.name, at: proof.at, secondProof: true }
     const resolved = resolveOrgDomain(verified.email)
     if (!resolved) {
       return selfRegisterError(c, 403, 'this email domain is not in the member-domains registry — submit your request through the join queue, where an administrator reviews it')
@@ -261,6 +309,18 @@ export function createSelfRegisterRouter(): Hono {
     // carrying the registry hit's roles as the Ommisa client's
     // per-client assignments (the containment the registry declares —
     // the OP-side account stays role 'user', no administration reach).
+    // THE PROVEN LINK (the 2026-09-29 ruling): the twice-proven
+    // upstream identity becomes the account's own sign-in method,
+    // created atomically with the account. A conflict (the upstream
+    // account linked elsewhere mid-flow) refuses the creation honestly.
+    let createdLink: { ok: boolean } = { ok: true }
+    if (proof.upstream) {
+      const existingLink = await store.findIdentityLink(proof.upstream.provider, proof.upstream.accountId)
+      if (existingLink) {
+        return selfRegisterError(c, 409, 'this sign-in account is already linked to an existing account — sign in instead, or use a different one for the second verification')
+      }
+      createdLink = { ok: true }
+    }
     const account = await store.createOpAccount({
       email: verified.email,
       name,
@@ -276,6 +336,21 @@ export function createSelfRegisterRouter(): Hono {
     await store.setPasswordHash(account.id, await hashPassword(password), 'self-register')
     await store.markPrimaryEmailVerified(account.id)
     await store.updateUserRoleOrg(account.id, 'user', domain)
+    // The twice-proven upstream identity lands as the account's own
+    // sign-in method (the link conflict cannot race here: the guard
+    // above read it inside this request's scope, and the UNIQUE
+    // constraint answers null — mapped to the honest refusal).
+    if (proof.upstream) {
+      const link = await store.createIdentityLink({
+        userId: account.id,
+        provider: proof.upstream.provider,
+        providerAccountId: proof.upstream.accountId,
+        linkedBy: 'self-register',
+      })
+      if (!link) {
+        return selfRegisterError(c, 409, 'this sign-in account was linked to another account during the verification — sign in instead')
+      }
+    }
 
     const catalog = loadDomains()
     await auditSelfRegister(store, account.id, verified.email, {
@@ -321,6 +396,38 @@ async function auditSelfRegister(
   }
 }
 
+/** The second sign-in's continuation (op-upstream.ts, the presented
+ *  link token riding state `t`): the FRESH upstream identity must
+ *  reproduce the link token's `a` binding — a forwarded link is
+ *  unwired, a different upstream account never matches. On match, the
+ *  short-lived setup proof mints and the setup unlocks. NOTHING is
+ *  written. */
+export async function continueSelfRegisterSecondProof(
+  c: Context,
+  origin: string,
+  presentedToken: string,
+  providerName: string,
+  handle: string,
+  provider: string,
+  accountId: string,
+): Promise<string> {
+  const done = (fragment: string): string => `/op/self-register${fragment}`
+  const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+  const link = await verifyRegistrationPayload(key.secretMaterial, presentedToken)
+  if (!link?.at) {
+    console.warn(`[op] self-register second-proof: the presented token is dead or unbound (${providerName}/${handle})`)
+    return done('?error=expired')
+  }
+  const fresh = await attributionHash(key.secretMaterial, provider, accountId)
+  if (fresh !== link.at) {
+    console.warn(`[op] self-register second-proof MISMATCH: ${providerName} (${handle}) does not reproduce the link's binding`)
+    return done('?error=second-proof')
+  }
+  const proof = await mintSetupProofToken(key.secretMaterial, link.email, link.at, Date.now(), undefined, link.name ?? undefined, { provider, accountId })
+  console.warn(`[op] self-register second-proof OK: ${providerName} (${handle}) reproduced the binding for ${link.email}`)
+  return done(`?setup=${encodeURIComponent(proof)}`)
+}
+
 /** The upstream callback's attribute-mode continuation (op-upstream.ts
  *  imports this): the exchange already proved an attributable human.
  *  The eligibility re-runs FRESH, the dup read guards, the
@@ -334,6 +441,7 @@ export async function continueSelfRegisterAttribution(
   providerName: string,
   handle: string,
   assertedEmail?: string,
+  upstream?: { provider: string; accountId: string; name?: string },
 ): Promise<string> {
   const config = resolveSelfRegisterConfig(runtimeEnv<EnvLike>(c))
   const done = (fragment: string): string => `/op/self-register${fragment}`
@@ -357,7 +465,11 @@ export async function continueSelfRegisterAttribution(
   if (await store.findUserByEmail(email)) return done('?error=exists')
 
   const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
-  const token = await mintRegistrationToken(key.secretMaterial, email)
+  // THE BINDING (the 2026-09-29 ruling): the link carries the salted
+  // hash of the upstream identity that proved this attribution — the
+  // completion's second sign-in must reproduce it. Never the raw id.
+  const at = upstream ? await attributionHash(key.secretMaterial, upstream.provider, upstream.accountId) : undefined
+  const token = await mintRegistrationToken(key.secretMaterial, email, Date.now(), 24 * 60 * 60 * 1000, upstream?.name, at)
   const verifyUrl = `${origin}/op/self-register?token=${encodeURIComponent(token)}`
 
   const mail = await sendOpMail(runtimeEnv<Record<string, string | undefined>>(c) as never, {
