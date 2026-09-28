@@ -994,6 +994,7 @@ export const en = {
   "selfreg.emailMatch": "This address is on your organization's registered domain — continue.",
   "selfreg.emailNoMatch": "This address is not on the auto-approved domain(s) {domains} — use your work address, or request through the join queue.",
   "selfreg.submitLabel": "Continue",
+  "selfreg.turnstileRequired": "Complete the verification check, then continue.",
   "selfreg.working": "Working…",
   "selfreg.failed": "The registration could not be completed — check the details and try again.",
   "selfreg.queuedFallback": "Your organization is not in the self-registration registry — your request goes to the administrator queue.",

@@ -121,15 +121,25 @@ function continueAttribution(p: AttributionProvider): void {
 
 async function start(): Promise<void> {
   if (busy.value) return
+  // The bot gate (armed only): the widget's token rides the POST body.
+  let turnstileToken: string | undefined
+  if (turnstileSiteKey.value) {
+    turnstileToken = turnstileField.value?.getToken() ?? ''
+    if (!turnstileToken) {
+      error.value = t('selfreg.turnstileRequired')
+      return
+    }
+  }
   busy.value = true
   error.value = null
   try {
     const res = await fetch('/api/op/self-register/start', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ country: country.value, org: org.value, name: name.value, email: email.value }),
+      body: JSON.stringify({ country: country.value, org: org.value, name: name.value, email: email.value, ...(turnstileToken !== undefined ? { 'cf-turnstile-response': turnstileToken } : {}) }),
     })
     const body = await res.json() as { ok?: boolean; providers?: AttributionProvider[]; queued?: boolean; error?: string }
+    if (res.status === 403) turnstileField.value?.reset() // a spent token never repeats
     if (body.queued) {
       notice.value = body.error ?? t('selfreg.queuedFallback')
       return

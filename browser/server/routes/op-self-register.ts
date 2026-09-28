@@ -58,7 +58,16 @@ function selfRegisterError(c: Context, status: 400 | 403 | 404 | 429 | 503, erro
 async function turnstileGate(c: Context): Promise<Response | null> {
   const env = runtimeEnv<EnvLike>(c)
   if (!turnstileEnabled(env)) return null
-  const token = c.req.header('cf-turnstile-response') ?? ''
+  // The token rides the JSON BODY (the register/join gate's own
+  // posture — the widget's hidden input posts with the form); the
+  // header stays a fallback for non-JSON callers. Hono caches the
+  // parsed body, so the handler's own read below is safe.
+  let bodyToken = ''
+  try {
+    const body = await c.req.json() as Record<string, unknown>
+    if (typeof body?.['cf-turnstile-response'] === 'string') bodyToken = body['cf-turnstile-response']
+  } catch { /* a bodyless call: the empty token refuses below */ }
+  const token = bodyToken || c.req.header('cf-turnstile-response') || ''
   const ip = c.req.header('cf-connecting-ip') ?? null
   if (!token || !(await turnstileVerify(env, token, ip))) {
     return selfRegisterError(c, 403, 'the bot check did not pass — retry the check and submit again')
