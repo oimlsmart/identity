@@ -53,6 +53,31 @@ const setupDone = ref(false)
 const orgs = computed<PickerOrg[]>(() =>
   countries.value.find(c => c.country === country.value)?.orgs ?? [])
 
+// The country autocomplete: type instead of scroll. The query filters
+// the sorted list (the XX class stays last); picking sets the country.
+const countryQuery = ref('')
+const countryOpen = ref(false)
+const countryMatches = computed<PickerCountry[]>(() => {
+  const q = countryQuery.value.trim().toLowerCase()
+  const list = sortedCountries.value
+  if (!q) return list
+  return list.filter(c =>
+    c.country.toLowerCase().includes(q) || c.country_fr.toLowerCase().includes(q) || c.iso?.toLowerCase() === q)
+})
+function pickCountry(c: PickerCountry): void {
+  country.value = c.country
+  countryQuery.value = c.country
+  countryOpen.value = false
+  org.value = ''
+}
+function onCountryKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') { countryOpen.value = false; return }
+  if (e.key !== 'ArrowDown' && e.key !== 'Enter') return
+  e.preventDefault()
+  const first = countryMatches.value[0]
+  if (first) pickCountry(first)
+}
+
 /** The pickers render ALPHABETICALLY (the artifact's own order is
  *  member-states-first — the page's reader wants the alphabet), with
  *  the Other-organizations class (the ISO 3166 user-assigned XX)
@@ -245,16 +270,32 @@ onMounted(async () => {
       <!-- The start form (the pickers → the name → the work email →
            Turnstile → the attribution bounce). -->
       <form v-else class="space-y-4" @submit.prevent="start">
-        <div>
+        <div class="relative">
           <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-country">{{ t('selfreg.countryLabel') }}</label>
-          <select
-            id="selfreg-country" v-model="country" required
-            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+          <input
+            id="selfreg-country" v-model="countryQuery" type="text" role="combobox"
+            :aria-expanded="countryOpen" autocomplete="off"
+            :placeholder="t('selfreg.countryPlaceholder')"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             data-testid="selfreg-country"
+            @focus="countryOpen = true"
+            @input="countryOpen = true"
+            @keydown="onCountryKeydown"
+          />
+          <ul
+            v-if="countryOpen && countryMatches.length"
+            class="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg"
+            data-testid="selfreg-country-options"
           >
-            <option value="" disabled>{{ t('selfreg.countryPlaceholder') }}</option>
-            <option v-for="c in sortedCountries" :key="c.country" :value="c.country">{{ c.country }} — {{ c.country_fr }}</option>
-          </select>
+            <li v-for="c in countryMatches" :key="c.country">
+              <button
+                type="button"
+                :data-country="c.country"
+                class="w-full text-left px-3 py-2 text-sm text-slate-900 dark:text-white hover:bg-brand-50 dark:hover:bg-slate-700"
+                @click="pickCountry(c)"
+              >{{ c.country }} — {{ c.country_fr }}</button>
+            </li>
+          </ul>
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-org">{{ t('selfreg.orgLabel') }}</label>
