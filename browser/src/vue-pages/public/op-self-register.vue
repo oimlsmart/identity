@@ -1,0 +1,271 @@
+<script setup lang="ts">
+// ═══════════════════════════════════════════════════════════════════
+// The Ommisa member tier's self-enrollment page (the four-gate flow's
+// human surface):
+//
+//   the start form  — the country → the organization → the name + the
+//                     work email, behind the Turnstile field. The
+//                     submit rides leg 1 (the eligibility reads) and
+//                     bounces to the attribution upstream.
+//   ?sent=1         — "check your inbox" (the shown-once link rides
+//                     only when no mailer stands).
+//   ?error=…        — the honest sentence + the start again.
+//   ?token=…        — the emailed click: the proof posts on load, and
+//                     the setup step collects the password (the name
+//                     and the email ride the link's own signature).
+//
+// NOTHING is stored until the verified click — the page is a reader,
+// never a writer, until then.
+// ═══════════════════════════════════════════════════════════════════
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import BrandLogo from '../../components/BrandLogo.vue'
+import TurnstileField from '../../components/TurnstileField.vue'
+import { fetchTurnstileSiteKey } from '../../components/turnstile'
+import { t } from '../../i18n'
+
+interface PickerOrg { name: string; domains: string[]; verification: string; admin_queue: boolean }
+interface PickerCountry { country: string; country_fr: string; orgs: PickerOrg[] }
+
+const route = useRoute()
+
+const loading = ref(true)
+const busy = ref(false)
+const error = ref<string | null>(null)
+const notice = ref<string | null>(null)
+const devLink = ref<string | null>(null)
+
+// The start form's state.
+const countries = ref<PickerCountry[]>([])
+const country = ref('')
+const org = ref('')
+const name = ref('')
+const email = ref('')
+const turnstileSiteKey = ref<string | null>(null)
+const turnstileField = ref<InstanceType<typeof TurnstileField> | null>(null)
+
+// The verified setup's state (the token leg).
+const token = typeof route.query.token === 'string' ? route.query.token : ''
+const verifiedEmail = ref<string | null>(null)
+const verifiedOrg = ref<string | null>(null)
+const setupDone = ref(false)
+
+const orgs = computed<PickerOrg[]>(() =>
+  countries.value.find(c => c.country === country.value)?.orgs ?? [])
+
+async function start(): Promise<void> {
+  if (busy.value) return
+  busy.value = true
+  error.value = null
+  try {
+    const res = await fetch('/api/op/self-register/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ country: country.value, org: org.value, name: name.value, email: email.value }),
+    })
+    const body = await res.json() as { ok?: boolean; next?: string; queued?: boolean; error?: string }
+    if (body.queued) {
+      notice.value = body.error ?? t('selfreg.queuedFallback')
+      return
+    }
+    if (!res.ok || !body.next) {
+      error.value = body.error ?? t('selfreg.failed')
+      return
+    }
+    window.location.assign(body.next)
+  } catch {
+    error.value = t('error.network')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function complete(): Promise<void> {
+  if (busy.value) return
+  busy.value = true
+  error.value = null
+  try {
+    const res = await fetch('/api/op/self-register/complete', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, password: password.value }),
+    })
+    const body = await res.json() as { ok?: boolean; error?: string }
+    if (res.ok && body.ok) {
+      setupDone.value = true
+      return
+    }
+    error.value = body.error ?? t('selfreg.failed')
+  } catch {
+    error.value = t('error.network')
+  } finally {
+    busy.value = false
+  }
+}
+
+const password = ref('')
+async function verifyToken(): Promise<void> {
+  try {
+    const res = await fetch('/api/op/self-register/verify', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+    const body = await res.json() as { ok?: boolean; email?: string; org?: string; error?: string }
+    if (res.ok && body.ok) {
+      verifiedEmail.value = body.email ?? null
+      verifiedOrg.value = body.org ?? null
+    } else {
+      error.value = body.error ?? t('selfreg.failed')
+    }
+  } catch {
+    error.value = t('error.network')
+  }
+}
+
+onMounted(async () => {
+  const queryError = typeof route.query.error === 'string' ? route.query.error : null
+  if (queryError === 'exists') error.value = t('selfreg.errorExists')
+  else if (queryError === 'expired') error.value = t('selfreg.errorExpired')
+  else if (queryError === 'not-configured') error.value = t('selfreg.errorNotConfigured')
+
+  if (typeof route.query.link === 'string' && route.query.link) devLink.value = route.query.link
+  if (typeof route.query.sent === 'string') notice.value = t('selfreg.sent')
+
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json()) as { turnstile?: { siteKey?: string | null } }
+    turnstileSiteKey.value = cfg.turnstile?.siteKey ?? null
+  } catch { /* the field hides; the server still judges */ }
+  void fetchTurnstileSiteKey
+
+  try {
+    const res = await fetch('/api/op/self-register/catalog')
+    if (res.ok) {
+      const body = await res.json() as { countries: PickerCountry[] }
+      countries.value = body.countries
+    } else {
+      error.value = t('selfreg.catalogFailed')
+    }
+  } catch {
+    error.value = t('error.network')
+  }
+
+  if (token) await verifyToken()
+  loading.value = false
+})
+</script>
+
+<template>
+  <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-cream dark:bg-slate-900">
+    <div class="w-full max-w-md" data-testid="selfreg-page">
+      <div class="text-center mb-8">
+        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
+        <h1 class="text-2xl font-serif font-bold text-slate-900 dark:text-white" data-testid="selfreg-heading">{{ t('selfreg.heading') }}</h1>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400" data-testid="selfreg-subtitle">{{ t('selfreg.subtitle') }}</p>
+      </div>
+
+      <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+        <p class="text-sm text-red-700 dark:text-red-300" data-testid="selfreg-error">{{ error }}</p>
+        <p v-if="!token" class="mt-2 text-sm text-slate-600 dark:text-slate-400">{{ t('selfreg.queueHint') }}
+          <router-link to="/op/join" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="selfreg-join-link">{{ t('selfreg.queueLink') }}</router-link>
+        </p>
+      </div>
+
+      <div v-if="notice" class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+        <p class="text-sm text-green-700 dark:text-green-300" data-testid="selfreg-notice">{{ notice }}</p>
+        <p v-if="devLink" class="mt-2 text-xs break-all text-slate-600 dark:text-slate-400" data-testid="selfreg-dev-link">
+          <a :href="devLink" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('selfreg.devLink') }}</a>
+        </p>
+      </div>
+
+      <div v-if="loading" class="flex flex-col items-center gap-4">
+        <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
+      </div>
+
+      <!-- The verified setup: the password step (the name and the email
+           ride the link's own signature — displayed, never re-asked). -->
+      <div v-else-if="token" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+        <template v-if="setupDone">
+          <p class="text-sm text-green-700 dark:text-green-300" data-testid="selfreg-done">{{ t('selfreg.done') }}</p>
+          <p class="mt-3 text-sm">
+            <router-link to="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="selfreg-done-signin">{{ t('selfreg.doneSignin') }}</router-link>
+          </p>
+        </template>
+        <template v-else-if="verifiedEmail">
+          <p class="text-sm text-slate-600 dark:text-slate-400 mb-4" data-testid="selfreg-verified">
+            {{ t('selfreg.verifiedFor', { email: verifiedEmail, org: verifiedOrg ?? '' }) }}
+          </p>
+          <form @submit.prevent="complete">
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-password">{{ t('selfreg.passwordLabel') }}</label>
+            <input
+              id="selfreg-password" v-model="password" type="password" required minlength="12"
+              class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              data-testid="selfreg-password"
+            />
+            <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ t('selfreg.passwordHint') }}</p>
+            <button
+              type="submit" :disabled="busy"
+              class="mt-4 w-full px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+              data-testid="selfreg-complete"
+            >{{ busy ? t('selfreg.working') : t('selfreg.completeLabel') }}</button>
+          </form>
+        </template>
+        <template v-else>
+          <p v-if="!error" class="text-sm text-slate-600 dark:text-slate-400" data-testid="selfreg-proving">{{ t('selfreg.proving') }}</p>
+        </template>
+      </div>
+
+      <!-- The start form (the pickers → the name → the work email →
+           Turnstile → the attribution bounce). -->
+      <form v-else class="space-y-4" @submit.prevent="start">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-country">{{ t('selfreg.countryLabel') }}</label>
+          <select
+            id="selfreg-country" v-model="country" required
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+            data-testid="selfreg-country"
+          >
+            <option value="" disabled>{{ t('selfreg.countryPlaceholder') }}</option>
+            <option v-for="c in countries" :key="c.country" :value="c.country">{{ c.country }} — {{ c.country_fr }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-org">{{ t('selfreg.orgLabel') }}</label>
+          <select
+            id="selfreg-org" v-model="org" required :disabled="!country"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white disabled:opacity-50"
+            data-testid="selfreg-org"
+          >
+            <option value="" disabled>{{ t('selfreg.orgPlaceholder') }}</option>
+            <option v-for="o in orgs" :key="o.name" :value="o.name">{{ o.name }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-name">{{ t('selfreg.nameLabel') }}</label>
+          <input
+            id="selfreg-name" v-model="name" type="text" required
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+            data-testid="selfreg-name"
+          />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-email">{{ t('selfreg.emailLabel') }}</label>
+          <input
+            id="selfreg-email" v-model="email" type="email" required
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+            data-testid="selfreg-email"
+          />
+          <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ t('selfreg.emailHint') }}</p>
+        </div>
+        <TurnstileField v-if="turnstileSiteKey" ref="turnstileField" :site-key="turnstileSiteKey" />
+        <button
+          type="submit" :disabled="busy"
+          class="w-full px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+          data-testid="selfreg-submit"
+        >{{ busy ? t('selfreg.working') : t('selfreg.submitLabel') }}</button>
+        <p class="text-xs text-center text-slate-400 dark:text-slate-500">{{ t('selfreg.queueHint') }}
+          <router-link to="/op/join" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="selfreg-join-link2">{{ t('selfreg.queueLink') }}</router-link>
+        </p>
+      </form>
+    </div>
+  </div>
+</template>
