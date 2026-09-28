@@ -230,7 +230,9 @@ export function createApiApp(options: ApiAppOptions): Hono {
     }
     return next()
   }
-  app.use('/api/op/login', turnstileGate)
+  // The SCOPE RULING (2026-09-28): captcha guards ACCOUNT CREATION
+  // only — the sign-in never captcha-gates. The self-register start
+  // carries its own gate inside its router.
   app.use('/api/op/register', turnstileGate)
   app.use('/api/op/join-requests', turnstileGate)
 

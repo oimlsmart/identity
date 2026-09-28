@@ -30,8 +30,6 @@ import { useRoute, useRouter } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
 import SigninPanelFeed from '../../components/SigninPanelFeed.vue'
 import StatusBanner from '../../components/StatusBanner.vue'
-import TurnstileField from '../../components/TurnstileField.vue'
-import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 import {
@@ -105,8 +103,6 @@ const selfRegistration = ref(true)
 const demoEnabled = ref(false)
 // The bot gate's armed posture (the widget mounts only when the config
 // carries the public site key — the server's gate is the arbiter).
-const turnstileSiteKey = ref<string | null>(null)
-const turnstileField = ref<InstanceType<typeof TurnstileField> | null>(null)
 // The OP's upstream providers: the enabled registry rows render as
 // sign-in buttons (GitHub, Google, Apple, Entra, a generic OIDC — the
 // OP's sign-in methods).
@@ -198,8 +194,7 @@ onMounted(async () => {
       try {
         const res = await fetchBounded('/api/config')
         if (res.ok) {
-          const cfg = await res.json() as { identity?: { demoAccountsEnabled?: boolean }, turnstile?: { siteKey?: string | null }, registration?: { selfService?: boolean } }
-          turnstileSiteKey.value = cfg.turnstile?.siteKey ?? null
+          const cfg = await res.json() as { identity?: { demoAccountsEnabled?: boolean }, registration?: { selfService?: boolean } }
           selfRegistration.value = cfg.registration?.selfService !== false
           return cfg.identity?.demoAccountsEnabled !== false
         }
@@ -264,23 +259,14 @@ function upstreamLogin(providerId: string) {
  *  the page swaps to the factor step (below). */
 async function submitOpLogin() {
   abortConditionalUi() // the form wins over the passkey autofill
-  // The bot gate (armed only): a token-less submit is refused HERE —
-  // the human completes the challenge before the round trip.
-  let turnstileToken: string | undefined
-  if (turnstileSiteKey.value) {
-    turnstileToken = turnstileField.value?.getToken() ?? ''
-    if (!turnstileToken) {
-      error.value = t('login.turnstileRequired')
-      return
-    }
-  }
+  // The sign-in never captcha-gates (the 2026-09-28 scope ruling:
+  // Turnstile guards ACCOUNT CREATION only).
   const res = await fetchBounded('/api/op/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ email: email.value, password: password.value, ...(turnstileToken !== undefined ? { 'cf-turnstile-response': turnstileToken } : {}) }),
+    body: JSON.stringify({ email: email.value, password: password.value }),
   })
-  if (res.status === 403) turnstileField.value?.reset() // a spent token never repeats
   if (res.ok) {
     const body = await res.json().catch(() => null) as {
       mfaRequired?: boolean
@@ -775,7 +761,6 @@ async function submitReset() {
             :placeholder="t('login.passwordPlaceholder')"
           />
         </div>
-        <TurnstileField v-if="turnstileSiteKey" ref="turnstileField" :site-key="turnstileSiteKey" />
         <button
           type="submit"
           :disabled="submitting"
