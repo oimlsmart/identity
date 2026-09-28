@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-28T08:56:27.757Z",
+  "generated_at": "2026-09-28T10:20:23.087Z",
   "version": 2,
   "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
   "domains": {
@@ -1394,10 +1394,10 @@
       "evidence": "email"
     },
     "ribose.com": {
-      "country": "Hong Kong",
-      "country_fr": "Hong Kong",
-      "iso": "HK",
-      "status": "corresponding-member",
+      "country": "Other organizations",
+      "country_fr": "Autres organisations",
+      "iso": "XX",
+      "status": "other",
       "org": "Ribose",
       "roles": [
         "oiml-cs-associate"
@@ -4111,20 +4111,6 @@
           ],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "Ribose",
-          "roles": [
-            "oiml-cs-associate"
-          ],
-          "website": "https://www.ribose.com",
-          "domains": [],
-          "website_domains": [
-            "ribose.com"
-          ],
-          "web_domains": [],
-          "verification": "verified",
-          "admin_queue": false
         }
       ]
     },
@@ -5086,6 +5072,28 @@
             "mic.gov.zw"
           ],
           "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Other organizations",
+      "country_fr": "Autres organisations",
+      "iso": "XX",
+      "status": "other",
+      "orgs": [
+        {
+          "name": "Ribose",
+          "roles": [
+            "oiml-cs-associate"
+          ],
+          "website": "https://www.ribose.com",
+          "domains": [],
+          "website_domains": [
+            "ribose.com"
+          ],
+          "web_domains": [],
+          "verification": "verified",
           "admin_queue": false
         }
       ]
