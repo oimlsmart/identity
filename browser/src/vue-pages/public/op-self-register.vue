@@ -54,9 +54,15 @@ const orgs = computed<PickerOrg[]>(() =>
   countries.value.find(c => c.country === country.value)?.orgs ?? [])
 
 /** The pickers render ALPHABETICALLY (the artifact's own order is
- *  member-states-first — the page's reader wants the alphabet). */
+ *  member-states-first — the page's reader wants the alphabet), with
+ *  the Other-organizations class (the ISO 3166 user-assigned XX)
+ *  pinned LAST — never a country claim. */
 const sortedCountries = computed<PickerCountry[]>(() =>
-  [...countries.value].sort((a, b) => a.country.localeCompare(b.country)))
+  [...countries.value].sort((a, b) => {
+    const ax = a.iso === 'XX' ? 1 : 0
+    const bx = b.iso === 'XX' ? 1 : 0
+    return ax - bx || a.country.localeCompare(b.country)
+  }))
 
 /** The selected organization's auto-approved email domains — every
  *  domain the registry claims for it, shown so the reader knows which
