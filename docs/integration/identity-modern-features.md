@@ -191,6 +191,20 @@ rows. Persona credentials do not exist as shared knowledge: no
 password is published for any persona, so the chooser assumption is
 the only way in.
 
+The switch is streamlined end to end. An assumed session chains
+directly to another declared persona: the chooser lists the persona
+rows and mints the next session on the ORIGINAL grantee's standing
+(the session row stamps the grant-holder who minted the assumption
+and every hop carries the same actor), so a persona-to-persona switch
+never returns to the personal account first. A chain whose actor no
+longer holds the grant is refused exactly like an ungranted account,
+and the journal records every hop under the same actor of record. The
+personas' consent is pre-seeded at the account seed — the standard
+scope set (`openid profile email offline_access`) for every client a
+persona's declaration assigns — so a persona's first flow for your
+client mints its code without a consent stop. The pre-seed reaches no
+other account: every other holder's consent remains their own click.
+
 ## 5. The typed SDK (`@oimlsmart/identity-api`)
 
 The SDK is generated from the drift-gated OpenAPI spec

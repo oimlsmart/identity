@@ -179,6 +179,11 @@ function migrateAuthTables(db: Database.Database): void {
   if (!sessionCols.some(c => c.name === 'amr')) {
     db.exec('ALTER TABLE sessions ADD COLUMN amr TEXT')
   }
+  // The persona assumption's actor stamp (migration 0037) — a dev file
+  // predating it grows the column here.
+  if (!sessionCols.some(c => c.name === 'assumed_by')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN assumed_by TEXT')
+  }
   const amrCodeCols = db.prepare('PRAGMA table_info(oidc_codes)').all() as Array<{ name: string }>
   if (!amrCodeCols.some(c => c.name === 'amr')) {
     db.exec('ALTER TABLE oidc_codes ADD COLUMN amr TEXT')
@@ -270,6 +275,10 @@ function toAuthPayload(user: any, avatarUrl?: string): AuthUserPayload {
   // TODO.identity-sso/02+03: the session row's amr (a JSON array) — only
   // the session-backed read carries it; a plain user row answers absent.
   const amr = parseRoles(user.amr) ?? undefined
+  // Migration 0037: the persona assumption's actor (sessions.assumed_by) —
+  // the session-backed read's join carries it; absent on every row that
+  // never rode an assumption.
+  const assumedBy = typeof user.assumed_by === 'string' && user.assumed_by ? user.assumed_by : undefined
   return {
     id: user.id,
     email: user.email,
@@ -283,6 +292,7 @@ function toAuthPayload(user: any, avatarUrl?: string): AuthUserPayload {
     // rows that predate the console; the account page shows it honestly).
     emailVerifiedAt: user.email_verified_at ?? null,
     ...(amr?.length ? { amr } : {}),
+    ...(assumedBy ? { assumedBy } : {}),
   }
 }
 
@@ -301,13 +311,13 @@ export function authenticateDemo(db: Database.Database, email: string, password:
 
 export function createSession(db: Database.Database,
   userId: string,
-  opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null },
+  opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null; assumedBy?: string | null },
 ): string {
   const token = randomUUID()
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  db.prepare('INSERT INTO sessions (id, user_id, token, expires_at, id_token_hint, user_agent, ip, last_seen_at, amr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  db.prepare('INSERT INTO sessions (id, user_id, token, expires_at, id_token_hint, user_agent, ip, last_seen_at, amr, assumed_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(randomUUID(), userId, token, expiresAt, opts?.idTokenHint ?? null, opts?.userAgent ?? null, opts?.ip ?? null, null,
-      opts?.amr?.length ? JSON.stringify(opts.amr) : null)
+      opts?.amr?.length ? JSON.stringify(opts.amr) : null, opts?.assumedBy ?? null)
   return token
 }
 

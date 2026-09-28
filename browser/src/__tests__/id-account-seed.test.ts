@@ -211,3 +211,44 @@ describe('the plain entry (the bootstrap administrator)', () => {
     expect(account.role).toBe('admin')
   })
 })
+
+describe('the personas\' consent pre-seed (only the grant declaration\'s objects)', () => {
+  it('a declared persona converges the standard grant per clientRoles client — a scoped NON-persona entry never does', async () => {
+    const cast = [
+      {
+        email: 'persona-one@oimlsmart.org', name: 'Persona One', role: 'user',
+        emailVerified: true, password: 'never-published-1',
+        clientRoles: { 'oiml-smart-demo': ['applicant'], 'demo-sidecar': ['viewer'] },
+      },
+      {
+        // Scoped to ANOTHER client only — the grant declaration's client
+        // never names this entry, so it is NOT a persona: its consent
+        // stays the holder's own click.
+        email: 'scoped-officer@oimlsmart.org', name: 'Scoped Officer', role: 'user',
+        emailVerified: true, password: 'never-published-2',
+        clientRoles: { 'demo-sidecar': ['operator'] },
+      },
+    ]
+    await seedOpAccountsFromEnv({
+      OP_ACCOUNT_SEED: JSON.stringify(cast),
+      OP_DEMO_ASSUME_GRANTS: JSON.stringify({ clientId: 'oiml-smart-demo', grantees: ['owner@oimlsmart.org'] }),
+    }, store, 'http://op.test')
+
+    const persona = (await store.findUserByEmail('persona-one@oimlsmart.org'))!
+    for (const clientId of ['oiml-smart-demo', 'demo-sidecar']) {
+      const grant = await store.getConsentGrant(persona.id, clientId, 'openid profile email offline_access')
+      expect(grant, `the persona's pre-seeded grant for ${clientId}`).toBeTruthy()
+      // The canonical spelling (normalizeOidcScopeSet) is what lands.
+      expect(grant!.scope).toBe('email offline_access openid profile')
+    }
+    const officer = (await store.findUserByEmail('scoped-officer@oimlsmart.org'))!
+    expect(await store.listConsentGrants(officer.id)).toHaveLength(0)
+  })
+
+  it('no grant declaration, no pre-seed — even for a fully scoped entry', async () => {
+    // The file's own PERSONA legs never carried OP_DEMO_ASSUME_GRANTS:
+    // their accounts prove the closed posture.
+    const account = (await store.findUserByEmail('ia@oimlsmart.org'))!
+    expect(await store.listConsentGrants(account.id)).toHaveLength(0)
+  })
+})

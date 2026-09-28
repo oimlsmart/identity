@@ -74,6 +74,13 @@ export interface AuthUserPayload {
    *  OIDC NumericDate conversion is the consumer's — the column's storage
    *  format is the store's own). */
   sessionCreatedAt?: string
+  /** The persona assumption's ACTOR (migration 0037, sessions.assumed_by):
+   *  the grant-holder's user id, stamped at the assumption mint and carried
+   *  verbatim across persona→persona chain hops, so the chooser's grant
+   *  verdicts re-judge the ORIGINAL grantee. Projected by the
+   *  session-backed read (getSessionUser) only; ABSENT = not an assumed
+   *  session. */
+  assumedBy?: string
 }
 
 // ── identity federation (TODO.federation/10) ─────────────────────────
@@ -1755,10 +1762,12 @@ export interface ServerStore {
    *  sessions section): the user agent + the client IP, stamped at
    *  creation (server/auth/client-info.ts). TODO.identity-sso/02+03:
    *  `amr` records the sign-in's provenance (the RFC 8176 list the ID
-   *  token later carries); absent = no OP-side credential event. */
+   *  token later carries); absent = no OP-side credential event.
+   *  Migration 0037: `assumedBy` stamps the persona assumption's actor
+   *  (the grant-holder's user id); absent = an ordinary sign-in. */
   createSession(
     userId: string,
-    opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null },
+    opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null; assumedBy?: string | null },
   ): Promise<string>
   /** Stamp the account's last sign-in (TODO.identity/07 — the registry's
    *  last-sign-in column). The OP's own sign-in paths call this on a

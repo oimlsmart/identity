@@ -246,7 +246,7 @@ export class SqliteServerStore implements ServerStore {
   }
   async createSession(
     userId: string,
-    opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null },
+    opts?: { idTokenHint?: string | null; userAgent?: string | null; ip?: string | null; amr?: string[] | null; assumedBy?: string | null },
   ): Promise<string> {
     return createSession(this.db, userId, opts)
   }
