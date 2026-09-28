@@ -636,6 +636,40 @@ export type SelfRegisterVerifyResponses = {
 
 export type SelfRegisterVerifyResponse = SelfRegisterVerifyResponses[keyof SelfRegisterVerifyResponses];
 
+export type SelfRegisterSecondProofData = {
+    body?: never;
+    path?: never;
+    query: {
+        token: string;
+    };
+    url: '/api/op/self-register/second-proof';
+};
+
+export type SelfRegisterSecondProofErrors = {
+    /**
+     * The link is dead.
+     */
+    400: Error;
+};
+
+export type SelfRegisterSecondProofError = SelfRegisterSecondProofErrors[keyof SelfRegisterSecondProofErrors];
+
+export type SelfRegisterSecondProofResponses = {
+    /**
+     * The provider choices (one bounce URL each).
+     */
+    200: {
+        ok?: boolean;
+        providers?: Array<{
+            id?: string;
+            name?: string;
+            next?: string;
+        }>;
+    };
+};
+
+export type SelfRegisterSecondProofResponse = SelfRegisterSecondProofResponses[keyof SelfRegisterSecondProofResponses];
+
 export type SelfRegisterCompleteData = {
     body: {
         token: string;
