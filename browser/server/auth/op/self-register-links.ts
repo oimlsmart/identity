@@ -18,6 +18,10 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const REGISTRATION_TTL_MS = 24 * 60 * 60 * 1000
+/** The setup proof's own short window (the 2026-09-29 second
+ *  verification): the fresh sign-in's answer, never the emailed link
+ *  alone, unlocks the completion. */
+const SETUP_PROOF_TTL_MS = 15 * 60 * 1000
 
 function base64url(bytes: Uint8Array): string {
   let bin = ''
@@ -56,8 +60,30 @@ export interface RegistrationTokenPayload {
   /** The applicant's name (the start form's own claim, signed and
    *  carried to the setup step — no state between the legs). */
   n?: string
+  /** The upstream ATTRIBUTION binding: the salted hash of
+   *  (provider, upstream account id) — the second sign-in must
+   *  reproduce it, so a forwarded link is unwired and one upstream
+   *  account cannot complete an attribution it did not make. Never
+   *  the raw id. */
+  a?: string
+  /** The SECOND-PROOF mark: set only on the token the second sign-in
+   *  mints; the completion accepts nothing else. */
+  s?: boolean
+  /** The proof token's RAW upstream identity (the s-mark form only):
+   *  the completion links it as the account's own sign-in method (the
+   *  2026-09-29 ruling). The OP signed it; the browser held it for the
+   *  15-minute window at most. */
+  p?: string
+  u?: string
   iat: number
   exp: number
+}
+
+/** The attribution binding: HMAC(secret, provider \u0000 accountId) —
+ *  deterministic per (deployment, provider, upstream account), never
+ *  carrying the raw id in any artifact. */
+export async function attributionHash(secretMaterial: string, provider: string, accountId: string): Promise<string> {
+  return hmacSha256(secretMaterial, provider + '\u0000' + accountId)
 }
 
 /** Mint the registration token: the email + the 24-hour window, signed.
@@ -68,11 +94,71 @@ export async function mintRegistrationToken(
   now: number = Date.now(),
   ttlMs: number = REGISTRATION_TTL_MS,
   name?: string,
+  at?: string,
 ): Promise<string> {
-  const payload: RegistrationTokenPayload = { e: email, ...(name ? { n: name } : {}), iat: now, exp: now + ttlMs }
+  const payload: RegistrationTokenPayload = {
+    e: email,
+    ...(name ? { n: name } : {}),
+    ...(at ? { a: at } : {}),
+    iat: now,
+    exp: now + ttlMs,
+  }
   const body = base64url(new TextEncoder().encode(JSON.stringify(payload)))
   const sig = await hmacSha256(secretMaterial, body)
   return `${body}.${sig}`
+}
+
+/** Mint the setup PROOF token — the second sign-in's answer. Short-
+ *  lived, s-marked, bound to the same email + attribution hash; the
+ *  completion accepts nothing else. */
+export async function mintSetupProofToken(
+  secretMaterial: string,
+  email: string,
+  at: string,
+  now: number = Date.now(),
+  ttlMs: number = SETUP_PROOF_TTL_MS,
+  name?: string,
+  upstream?: { provider: string; accountId: string },
+): Promise<string> {
+  const payload: RegistrationTokenPayload = {
+    e: email, a: at, s: true,
+    ...(name ? { n: name } : {}),
+    ...(upstream ? { p: upstream.provider, u: upstream.accountId } : {}),
+    iat: now,
+    exp: now + ttlMs,
+  }
+  const body = base64url(new TextEncoder().encode(JSON.stringify(payload)))
+  const sig = await hmacSha256(secretMaterial, body)
+  return `${body}.${sig}`
+}
+
+/** Verify the setup proof: the s-mark REQUIRED (a link token never
+ *  completes), unexpired, constant-time. Answers { email, at }. */
+export async function verifySetupProof(
+  secretMaterial: string,
+  presented: string,
+  opts?: { now?: number },
+): Promise<{ email: string; at: string; name: string | null; upstream: { provider: string; accountId: string } | null } | null> {
+  const parts = presented.split('.')
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null
+  let payload: RegistrationTokenPayload
+  try {
+    payload = JSON.parse(base64urlDecode(parts[0]!)) as RegistrationTokenPayload
+  } catch {
+    return null
+  }
+  if (payload.s !== true || typeof payload.e !== 'string' || typeof payload.a !== 'string'
+    || typeof payload.iat !== 'number' || typeof payload.exp !== 'number') return null
+  const expected = await hmacSha256(secretMaterial, parts[0]!)
+  if (!timingSafeEqual(expected, parts[1]!)) return null
+  const now = opts?.now ?? Date.now()
+  if (now >= payload.exp) return null
+  return {
+    email: payload.e,
+    at: payload.a,
+    name: typeof payload.n === 'string' && payload.n.trim() ? payload.n.trim() : null,
+    upstream: typeof payload.p === 'string' && typeof payload.u === 'string' ? { provider: payload.p, accountId: payload.u } : null,
+  }
 }
 
 /** Verify a presented token: well-formed, unexpired, the signature
@@ -107,14 +193,19 @@ export async function verifyRegistrationPayload(
   secretMaterial: string,
   presented: string,
   opts?: { now?: number },
-): Promise<{ email: string; name: string | null } | null> {
+): Promise<{ email: string; name: string | null; at: string | null; secondProof: boolean } | null> {
   const email = await verifyRegistrationToken(secretMaterial, presented, opts)
   if (!email) return null
   const parts = presented.split('.')
   try {
     const payload = JSON.parse(base64urlDecode(parts[0]!)) as RegistrationTokenPayload
-    return { email, name: typeof payload.n === 'string' && payload.n.trim() ? payload.n.trim() : null }
+    return {
+      email,
+      name: typeof payload.n === 'string' && payload.n.trim() ? payload.n.trim() : null,
+      at: typeof payload.a === 'string' ? payload.a : null,
+      secondProof: payload.s === true,
+    }
   } catch {
-    return { email, name: null }
+    return { email, name: null, at: null, secondProof: false }
   }
 }

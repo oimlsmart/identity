@@ -77,6 +77,14 @@ export interface UpstreamStatePayload {
    *  verification email goes to THIS address; the upstream login is the
    *  human proof, not the identity. */
   e?: string
+  /** The applicant's name (mode 'attribute') — the start form's own
+   *  claim, signed through the state to the emailed link. (`nm`: `n`
+   *  is the OIDC nonce's.) */
+  nm?: string
+  /** The presented LINK token (mode 'attribute', the second proof):
+   *  the setup step's "verify once more" carries it through the
+   *  bounce; the callback re-proofs the SAME upstream identity. */
+  t?: string
   /** The OIDC nonce (kind 'oidc'). */
   n?: string
   /** The PKCE S256 verifier (kind 'oidc'). */

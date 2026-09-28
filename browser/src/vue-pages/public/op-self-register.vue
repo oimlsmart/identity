@@ -44,11 +44,21 @@ const email = ref('')
 const turnstileSiteKey = ref<string | null>(null)
 const turnstileField = ref<InstanceType<typeof TurnstileField> | null>(null)
 
-// The verified setup's state (the token leg).
+// The verified setup's state (the token leg). `token` = the emailed
+// LINK (the second proof still owed); `setup` = the SECOND sign-in's
+// proof (the password form's credential).
 const token = typeof route.query.token === 'string' ? route.query.token : ''
+const setup = typeof route.query.setup === 'string' ? route.query.setup : ''
+const activeToken = setup || token
+const secondRequired = ref(false)
+const secondProviders = ref<AttributionProvider[] | null>(null)
 const verifiedEmail = ref<string | null>(null)
 const verifiedOrg = ref<string | null>(null)
 const setupDone = ref(false)
+
+// The sent posture is a COMPLETION screen: the flow's own terminal —
+// the start form never re-renders beneath it (the 2026-09-29 ruling).
+const sentTerminal = ref(false)
 
 const orgs = computed<PickerOrg[]>(() =>
   countries.value.find(c => c.country === country.value)?.orgs ?? [])
@@ -156,6 +166,25 @@ async function start(): Promise<void> {
   }
 }
 
+async function verifySecond(): Promise<void> {
+  if (busy.value) return
+  busy.value = true
+  error.value = null
+  try {
+    const res = await fetch(`/api/op/self-register/second-proof?token=${encodeURIComponent(token)}`)
+    const body = await res.json() as { ok?: boolean; providers?: AttributionProvider[]; error?: string }
+    if (res.ok && body.providers?.length) {
+      secondProviders.value = body.providers
+    } else {
+      error.value = body.error ?? t('selfreg.failed')
+    }
+  } catch {
+    error.value = t('error.network')
+  } finally {
+    busy.value = false
+  }
+}
+
 async function complete(): Promise<void> {
   if (busy.value) return
   busy.value = true
@@ -164,7 +193,7 @@ async function complete(): Promise<void> {
     const res = await fetch('/api/op/self-register/complete', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token, password: password.value }),
+      body: JSON.stringify({ token: activeToken, password: password.value }),
     })
     const body = await res.json() as { ok?: boolean; error?: string }
     if (res.ok && body.ok) {
@@ -184,12 +213,13 @@ async function verifyToken(): Promise<void> {
   try {
     const res = await fetch('/api/op/self-register/verify', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token: activeToken }),
     })
-    const body = await res.json() as { ok?: boolean; email?: string; org?: string; error?: string }
+    const body = await res.json() as { ok?: boolean; email?: string; org?: string; secondProof?: boolean; error?: string }
     if (res.ok && body.ok) {
       verifiedEmail.value = body.email ?? null
       verifiedOrg.value = body.org ?? null
+      secondRequired.value = body.secondProof === true
     } else {
       error.value = body.error ?? t('selfreg.failed')
     }
@@ -205,7 +235,11 @@ onMounted(async () => {
   else if (queryError === 'queued') error.value = t('selfreg.queuedFallback')
 
   if (typeof route.query.link === 'string' && route.query.link) devLink.value = route.query.link
-  if (typeof route.query.sent === 'string') notice.value = t('selfreg.sent')
+  if (typeof route.query.sent === 'string') {
+    notice.value = t('selfreg.sent')
+    sentTerminal.value = true
+  }
+  if (route.query.error === 'second-proof') error.value = t('selfreg.errorSecondProof')
 
   try {
     const cfg = await fetch('/api/config').then(r => r.json()) as { turnstile?: { siteKey?: string | null } }
@@ -225,7 +259,7 @@ onMounted(async () => {
     error.value = t('error.network')
   }
 
-  if (token) await verifyToken()
+  if (activeToken) await verifyToken()
   loading.value = false
 })
 </script>
@@ -257,14 +291,48 @@ onMounted(async () => {
         <div class="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
       </div>
 
-      <!-- The verified setup: the password step (the name and the email
-           ride the link's own signature — displayed, never re-asked). -->
-      <div v-else-if="token" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+      <!-- The sent COMPLETION screen: terminal — the form never
+           re-renders beneath it. -->
+      <div v-else-if="sentTerminal" class="bg-white dark:bg-slate-800 rounded-xl border border-green-200 dark:border-green-800 p-6 text-center" data-testid="selfreg-sent-screen">
+        <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+          <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+        </div>
+        <h2 class="text-lg font-serif font-bold text-slate-900 dark:text-white" data-testid="selfreg-sent-title">{{ t('selfreg.sentTitle') }}</h2>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400" data-testid="selfreg-sent-body">{{ t('selfreg.sent') }}</p>
+        <p v-if="devLink" class="mt-4 text-xs break-all text-slate-600 dark:text-slate-400" data-testid="selfreg-dev-link">
+          <a :href="devLink" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('selfreg.devLink') }}</a>
+        </p>
+      </div>
+
+      <!-- The verified setup: the SECOND PROOF step, then the password
+           step (the name and the email ride the link's signature). -->
+      <div v-else-if="activeToken" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <template v-if="setupDone">
           <p class="text-sm text-green-700 dark:text-green-300" data-testid="selfreg-done">{{ t('selfreg.done') }}</p>
           <p class="mt-3 text-sm">
             <router-link to="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="selfreg-done-signin">{{ t('selfreg.doneSignin') }}</router-link>
           </p>
+        </template>
+        <template v-else-if="verifiedEmail && secondRequired && !setup">
+          <p class="text-sm text-slate-600 dark:text-slate-400 mb-4" data-testid="selfreg-verified">{{ t('selfreg.verifiedFor', { email: verifiedEmail, org: verifiedOrg ?? '' }) }}</p>
+          <h2 class="text-base font-serif font-bold text-slate-900 dark:text-white" data-testid="selfreg-second-title">{{ t('selfreg.second.title') }}</h2>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400" data-testid="selfreg-second-why">{{ t('selfreg.second.why') }}</p>
+          <div class="mt-4 space-y-2" v-if="secondProviders === null">
+            <button
+              type="button" :disabled="busy"
+              class="w-full px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+              data-testid="selfreg-second-begin"
+              @click="verifySecond"
+            >{{ busy ? t('selfreg.working') : t('selfreg.second.begin') }}</button>
+          </div>
+          <div class="mt-4 space-y-2" v-else>
+            <button
+              v-for="p in secondProviders" :key="p.id" type="button"
+              class="w-full px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-brand-50 dark:hover:bg-slate-600 transition-colors"
+              :data-testid="`selfreg-second-${p.id}`"
+              @click="continueAttribution(p)"
+            >{{ t('selfreg.continueWith', { provider: p.name }) }}</button>
+          </div>
         </template>
         <template v-else-if="verifiedEmail">
           <p class="text-sm text-slate-600 dark:text-slate-400 mb-4" data-testid="selfreg-verified">
