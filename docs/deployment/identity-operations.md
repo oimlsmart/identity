@@ -926,7 +926,12 @@ command-line clients `smart-cli` (The OIML SMART CLI) and
 Standards Assistant) are secretless application-class rows with no
 redirect and no launcher entry — their "entry" is the terminal's
 device code and the approval page at `/op/device` (the registrations
-are recorded in `notes/2026-09-26-smart-cli-registration.md`). The
+are recorded in `notes/2026-09-26-smart-cli-registration.md`). The member
+tier's self-enrollment (`/op/self-register`) admits a metrology
+authority's own people by their registered domain: the attribution
+upstream (Google/GitHub) proves a human before any email is sent, the
+time-bound link proves the mailbox, and nothing is stored before the
+verified click. The
 client ids name the documented registry rows; if the live registry's
 naming resolution (the wave-03 finding) lands differently, the same
 metadata applies to the resolved rows.
