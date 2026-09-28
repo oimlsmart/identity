@@ -23,6 +23,7 @@ import { env as runtimeEnv } from 'hono/adapter'
 import { createOpRouter } from './routes/op'
 import { createOpUpstreamRouter } from './routes/op-upstream'
 import { createOpAccountsRouter } from './routes/op-accounts'
+import { createSelfRegisterRouter } from './routes/op-self-register'
 import { createOpFactorsRouter } from './routes/op-factors'
 import { createOpTokensRouter } from './routes/op-tokens'
 import { createOpDeviceRouter } from './routes/op-device'
@@ -247,6 +248,11 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // The OP's account model: the password sign-in, the invite-only
   // enrollment, and the account self-service.
   app.route('/', createOpAccountsRouter())
+  // The Ommisa member tier's self-enrollment (the 2026-09-26 flow):
+  // the verified-first registration — the attribution gate + the
+  // emailed domain-bound link; nothing is written before the verified
+  // click.
+  app.route('/', createSelfRegisterRouter())
   // The factor registry (TODO.identity-sso/02+03): the console's
   // passkey/TOTP/recovery-code surface.
   app.route('/', createOpFactorsRouter())

@@ -540,6 +540,132 @@ export type ListOrganizationsResponses = {
 
 export type ListOrganizationsResponse = ListOrganizationsResponses[keyof ListOrganizationsResponses];
 
+export type SelfRegisterCatalogData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/self-register/catalog';
+};
+
+export type SelfRegisterCatalogResponses = {
+    /**
+     * The projection (countries + orgs + the matching rule + the registry vintage).
+     */
+    200: {
+        countries?: Array<{
+            [key: string]: unknown;
+        }>;
+        matchingRule?: string;
+        generatedAt?: string;
+    };
+};
+
+export type SelfRegisterCatalogResponse = SelfRegisterCatalogResponses[keyof SelfRegisterCatalogResponses];
+
+export type SelfRegisterStartData = {
+    body: {
+        country: string;
+        org: string;
+        name: string;
+        email: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/op/self-register/start';
+};
+
+export type SelfRegisterStartErrors = {
+    /**
+     * The tier closed, the bot check failed, the domain mismatch (the owning organization named), or the eligibility refusal.
+     */
+    403: Error;
+    /**
+     * The tier not configured, or the attribution provider missing.
+     */
+    503: Error;
+};
+
+export type SelfRegisterStartError = SelfRegisterStartErrors[keyof SelfRegisterStartErrors];
+
+export type SelfRegisterStartResponses = {
+    /**
+     * The bounce URL (ok) or the queue path (queued).
+     */
+    200: {
+        ok?: boolean;
+        next?: string;
+        queued?: boolean;
+        requestId?: string;
+        error?: string;
+    };
+};
+
+export type SelfRegisterStartResponse = SelfRegisterStartResponses[keyof SelfRegisterStartResponses];
+
+export type SelfRegisterVerifyData = {
+    body: {
+        token: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/op/self-register/verify';
+};
+
+export type SelfRegisterVerifyErrors = {
+    /**
+     * Expired, tampered, or already registered.
+     */
+    400: Error;
+};
+
+export type SelfRegisterVerifyError = SelfRegisterVerifyErrors[keyof SelfRegisterVerifyErrors];
+
+export type SelfRegisterVerifyResponses = {
+    /**
+     * The token proves the mailbox; the setup data answers.
+     */
+    200: {
+        ok?: boolean;
+        email?: string;
+        name?: string;
+        org?: string;
+        country?: string;
+        roles?: Array<string>;
+    };
+};
+
+export type SelfRegisterVerifyResponse = SelfRegisterVerifyResponses[keyof SelfRegisterVerifyResponses];
+
+export type SelfRegisterCompleteData = {
+    body: {
+        token: string;
+        password: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/op/self-register/complete';
+};
+
+export type SelfRegisterCompleteErrors = {
+    /**
+     * Expired, tampered, already registered, or the password refuses.
+     */
+    400: Error;
+};
+
+export type SelfRegisterCompleteError = SelfRegisterCompleteErrors[keyof SelfRegisterCompleteErrors];
+
+export type SelfRegisterCompleteResponses = {
+    /**
+     * The account exists (verified), the password is set — sign in.
+     */
+    200: {
+        ok?: boolean;
+    };
+};
+
+export type SelfRegisterCompleteResponse = SelfRegisterCompleteResponses[keyof SelfRegisterCompleteResponses];
+
 export type FileJoinRequestData = {
     body: {
         name: string;
