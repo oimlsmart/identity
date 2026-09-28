@@ -25,7 +25,7 @@ import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { t } from '../../i18n'
 
 interface PickerOrg { name: string; domains: string[]; website_domains?: string[]; web_domains?: string[]; verification: string; admin_queue: boolean }
-interface PickerCountry { country: string; country_fr: string; orgs: PickerOrg[] }
+interface PickerCountry { country: string; country_fr: string; iso?: string; orgs: PickerOrg[] }
 
 const route = useRoute()
 
