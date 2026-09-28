@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-28T10:20:23.087Z",
+  "generated_at": "2026-09-28T14:15:35.845Z",
   "version": 2,
   "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
   "domains": {
@@ -44,11 +44,12 @@
       "country_fr": "Japon",
       "iso": "JP",
       "status": "member-state",
-      "org": "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology",
+      "org": "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology (NMIJ/AIST)",
       "roles": [
         "ciml-member",
         "assignee",
-        "oiml-cs-issuing-authority"
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
       ],
       "verification": "inferred",
       "evidence": "email"
@@ -83,7 +84,7 @@
       "country_fr": "Bélarus",
       "iso": "BY",
       "status": "member-state",
-      "org": "Belarussian State Institute of Metrology (BELGIM) (BELGIM)",
+      "org": "Belarussian State Institute of Metrology (BELGIM)",
       "roles": [
         "assignee"
       ],
@@ -282,10 +283,11 @@
       "country_fr": "Kiribati",
       "iso": "KI",
       "status": "corresponding-member",
-      "org": "Ministry of Commerce Industry Co-operative",
+      "org": "Ministry of Commerce, Industry and Cooperatives",
       "roles": [
         "representative",
-        "oiml-cs-associate"
+        "oiml-cs-associate",
+        "oiml-cs-utilizer"
       ],
       "verification": "inferred",
       "evidence": "email"
@@ -819,9 +821,10 @@
       "country_fr": "France",
       "iso": "FR",
       "status": "member-state",
-      "org": "Laboratoire National de Metrologie et d Essais",
+      "org": "Laboratoire National de Métrologie et d’Essais (LNE)",
       "roles": [
-        "oiml-cs-issuing-authority"
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
       ],
       "verification": "inferred",
       "evidence": "email"
@@ -846,7 +849,8 @@
       "org": "MBIE - Ministry of Business, Innovation and Employment",
       "roles": [
         "ciml-member",
-        "oiml-cs-utilizer"
+        "oiml-cs-utilizer",
+        "assignee"
       ],
       "verification": "inferred",
       "evidence": "email"
@@ -1274,7 +1278,8 @@
       "org": "NRCS - National Regulator for Compulsory Specifications, Legal Metrology Department",
       "roles": [
         "ciml-member",
-        "oiml-cs-utilizer"
+        "oiml-cs-utilizer",
+        "assignee"
       ],
       "verification": "verified",
       "evidence": "email"
@@ -1336,7 +1341,8 @@
       "status": "member-state",
       "org": "Pakistan Standards and Quality Control Authority (PSQCA Complex)",
       "roles": [
-        "ciml-member"
+        "ciml-member",
+        "assignee"
       ],
       "verification": "inferred",
       "evidence": "web"
@@ -1386,9 +1392,10 @@
       "country_fr": "Suède",
       "iso": "SE",
       "status": "member-state",
-      "org": "Research Institutes of Sweden AB",
+      "org": "Research Institutes of Sweden (RISE)",
       "roles": [
-        "oiml-cs-issuing-authority"
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
       ],
       "verification": "inferred",
       "evidence": "email"
@@ -1565,7 +1572,8 @@
       "status": "member-state",
       "org": "Slovenská legálna metrológia, n. o.",
       "roles": [
-        "oiml-cs-issuing-authority"
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
       ],
       "verification": "inferred",
       "evidence": "email"
@@ -1626,6 +1634,7 @@
       "status": "corresponding-member",
       "org": "DGSM - Directorate General for Standards and Metrology",
       "roles": [
+        "oiml-cs-utilizer",
         "oiml-cs-associate"
       ],
       "verification": "inferred",
@@ -1638,7 +1647,8 @@
       "status": "member-state",
       "org": "Tifernogas s.r.l.",
       "roles": [
-        "oiml-cs-issuing-authority"
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
       ],
       "verification": "inferred",
       "evidence": "email"
@@ -1885,7 +1895,7 @@
           "admin_queue": false
         },
         {
-          "name": "Belarussian State Institute of Metrology (BELGIM) (BELGIM)",
+          "name": "Belarussian State Institute of Metrology (BELGIM)",
           "roles": [
             "assignee"
           ],
@@ -1936,18 +1946,6 @@
             "assignee"
           ],
           "website": "https://www.gov.br/inmetro",
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
-        },
-        {
-          "name": "Rio de Janeiro",
-          "roles": [
-            "assignee"
-          ],
-          "website": null,
           "domains": [],
           "website_domains": [],
           "web_domains": [],
@@ -2298,9 +2296,10 @@
           "admin_queue": false
         },
         {
-          "name": "Laboratoire National de Metrologie et d Essais",
+          "name": "Laboratoire National de Métrologie et d’Essais (LNE)",
           "roles": [
-            "oiml-cs-issuing-authority"
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
           ],
           "website": null,
           "domains": [
@@ -2310,19 +2309,6 @@
           "web_domains": [],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "Laboratoire National de Métrologie et d’Essais (LNE)",
-          "roles": [
-            "oiml-cs-issuing-authority",
-            "oiml-cs-utilizer"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -2529,20 +2515,6 @@
           "admin_queue": false
         },
         {
-          "name": "Tifernogas s.r.l.",
-          "roles": [
-            "oiml-cs-issuing-authority"
-          ],
-          "website": null,
-          "domains": [
-            "tifernogas.it"
-          ],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "inferred",
-          "admin_queue": false
-        },
-        {
           "name": "Istituto Giordano SPA",
           "roles": [
             "oiml-cs-utilizer"
@@ -2557,16 +2529,19 @@
           "admin_queue": false
         },
         {
-          "name": "Tifernogas",
+          "name": "Tifernogas s.r.l.",
           "roles": [
+            "oiml-cs-issuing-authority",
             "oiml-cs-utilizer"
           ],
           "website": null,
-          "domains": [],
+          "domains": [
+            "tifernogas.it"
+          ],
           "website_domains": [],
           "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
+          "verification": "inferred",
+          "admin_queue": false
         }
       ]
     },
@@ -2577,11 +2552,12 @@
       "status": "member-state",
       "orgs": [
         {
-          "name": "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology",
+          "name": "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology (NMIJ/AIST)",
           "roles": [
             "ciml-member",
             "assignee",
-            "oiml-cs-issuing-authority"
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
           ],
           "website": null,
           "domains": [
@@ -2591,19 +2567,6 @@
           "web_domains": [],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "NMIJ/AIST",
-          "roles": [
-            "oiml-cs-issuing-authority",
-            "oiml-cs-utilizer"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -2817,7 +2780,8 @@
           "name": "MBIE - Ministry of Business, Innovation and Employment",
           "roles": [
             "ciml-member",
-            "oiml-cs-utilizer"
+            "oiml-cs-utilizer",
+            "assignee"
           ],
           "website": null,
           "domains": [
@@ -2827,18 +2791,6 @@
           "web_domains": [],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "Ministry of Consumer Affairs",
-          "roles": [
-            "assignee"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -2896,7 +2848,8 @@
         {
           "name": "Pakistan Standards and Quality Control Authority (PSQCA Complex)",
           "roles": [
-            "ciml-member"
+            "ciml-member",
+            "assignee"
           ],
           "website": null,
           "domains": [],
@@ -2906,18 +2859,6 @@
           ],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "Gulistan-e-Juhar, Karachi",
-          "roles": [
-            "assignee"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -3108,7 +3049,8 @@
         {
           "name": "Slovenská legálna metrológia, n. o.",
           "roles": [
-            "oiml-cs-issuing-authority"
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
           ],
           "website": null,
           "domains": [
@@ -3118,18 +3060,6 @@
           "web_domains": [],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "Slovak Legal Metrology (SLM)",
-          "roles": [
-            "oiml-cs-utilizer"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -3166,7 +3096,8 @@
           "name": "NRCS - National Regulator for Compulsory Specifications, Legal Metrology Department",
           "roles": [
             "ciml-member",
-            "oiml-cs-utilizer"
+            "oiml-cs-utilizer",
+            "assignee"
           ],
           "website": "https://www.nrcs.org.za/",
           "domains": [
@@ -3176,18 +3107,6 @@
           "web_domains": [],
           "verification": "verified",
           "admin_queue": false
-        },
-        {
-          "name": "Groenkloof",
-          "roles": [
-            "assignee"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -3257,9 +3176,10 @@
           "admin_queue": false
         },
         {
-          "name": "Research Institutes of Sweden AB",
+          "name": "Research Institutes of Sweden (RISE)",
           "roles": [
-            "oiml-cs-issuing-authority"
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
           ],
           "website": null,
           "domains": [
@@ -3269,18 +3189,6 @@
           "web_domains": [],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "RISE Research Institutes of Sweden",
-          "roles": [
-            "oiml-cs-utilizer"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -3453,6 +3361,20 @@
       "status": "member-state",
       "orgs": [
         {
+          "name": "NCWM - National Council on Weights and Measures",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "ncwm.com"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
           "name": "National Institute of Standards and Technology (NIST)",
           "roles": [
             "ciml-member",
@@ -3464,44 +3386,6 @@
           "web_domains": [
             "nist.gov"
           ],
-          "verification": "inferred",
-          "admin_queue": false
-        },
-        {
-          "name": "Office of Weights and Measures",
-          "roles": [
-            "assignee"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
-        },
-        {
-          "name": "Weights and Measures Division",
-          "roles": [
-            "assignee"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
-        },
-        {
-          "name": "NCWM - National Council on Weights and Measures",
-          "roles": [
-            "oiml-cs-utilizer"
-          ],
-          "website": null,
-          "domains": [
-            "ncwm.com"
-          ],
-          "website_domains": [],
-          "web_domains": [],
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3595,18 +3479,6 @@
           "web_domains": [],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "Ministerio de Economia",
-          "roles": [
-            "representative"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -4187,10 +4059,11 @@
       "status": "corresponding-member",
       "orgs": [
         {
-          "name": "Ministry of Commerce Industry Co-operative",
+          "name": "Ministry of Commerce, Industry and Cooperatives",
           "roles": [
             "representative",
-            "oiml-cs-associate"
+            "oiml-cs-associate",
+            "oiml-cs-utilizer"
           ],
           "website": null,
           "domains": [
@@ -4200,18 +4073,6 @@
           "web_domains": [],
           "verification": "inferred",
           "admin_queue": false
-        },
-        {
-          "name": "Ministry of Commerce, Industry and Cooperatives",
-          "roles": [
-            "oiml-cs-utilizer"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
         }
       ]
     },
@@ -4623,20 +4484,9 @@
           "admin_queue": true
         },
         {
-          "name": "(DSGM) Directorate General for Standards and Metrology",
-          "roles": [
-            "oiml-cs-utilizer"
-          ],
-          "website": null,
-          "domains": [],
-          "website_domains": [],
-          "web_domains": [],
-          "verification": "unverified",
-          "admin_queue": true
-        },
-        {
           "name": "DGSM - Directorate General for Standards and Metrology",
           "roles": [
+            "oiml-cs-utilizer",
             "oiml-cs-associate"
           ],
           "website": null,
