@@ -1,0 +1,5068 @@
+{
+  "generated_at": "2026-09-28T06:58:34.410Z",
+  "version": 2,
+  "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
+  "domains": {
+    "abnorm.bf": {
+      "country": "Burkina Faso",
+      "country_fr": "Burkina Faso",
+      "iso": "BF",
+      "status": "corresponding-member",
+      "org": "Agence Burkinabé de Normalisation de la Métrologie et de la Qualité (ABNORM)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "adnq.org": {
+      "country": "Djibouti",
+      "country_fr": "Djibouti",
+      "iso": "DJ",
+      "status": "corresponding-member",
+      "org": "Agence Djiboutienne des Normes et de la Qualité (ADN)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "aganorgabon.com": {
+      "country": "Gabon",
+      "country_fr": "Gabon",
+      "iso": "GA",
+      "status": "corresponding-member",
+      "org": "Agence Gabonaise de Normalisation (AGANOR)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "aist.go.jp": {
+      "country": "Japan",
+      "country_fr": "Japon",
+      "iso": "JP",
+      "status": "member-state",
+      "org": "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-issuing-authority"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "anm.nat.tn": {
+      "country": "Tunisia",
+      "country_fr": "Tunisie",
+      "iso": "TN",
+      "status": "member-state",
+      "org": "ANM - National Agency of Metrology",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "armstandard.am": {
+      "country": "Armenia",
+      "country_fr": "Arménie",
+      "iso": "AM",
+      "status": "corresponding-member",
+      "org": "National Body for Standards and Metrology (ARMSTANDARD)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "belgim.by": {
+      "country": "Belarus",
+      "country_fr": "Bélarus",
+      "iso": "BY",
+      "status": "member-state",
+      "org": "Belarussian State Institute of Metrology (BELGIM) (BELGIM)",
+      "roles": [
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "bev.gv.at": {
+      "country": "Austria",
+      "country_fr": "Autriche",
+      "iso": "AT",
+      "status": "member-state",
+      "org": "Bundesamt fur Eich- und Vermessungswesen (BEV)",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "bim.government.bg": {
+      "country": "Bulgaria",
+      "country_fr": "Bulgarie",
+      "iso": "BG",
+      "status": "member-state",
+      "org": "Bulgarian Institute of Metrology (BIM)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "bnsibarbados.org": {
+      "country": "Barbados",
+      "country_fr": "Barbade",
+      "iso": "BB",
+      "status": "corresponding-member",
+      "org": "Barbados National Standards Institution",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "bobstandards.bw": {
+      "country": "Botswana",
+      "country_fr": "Botswana",
+      "iso": "BW",
+      "status": "corresponding-member",
+      "org": "Botswana Bureau of Standards",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "bom.gov.mk": {
+      "country": "North Macedonia",
+      "country_fr": "Macédoine du Nord",
+      "iso": "MK",
+      "status": "member-state",
+      "org": "Ministry of Energy, Mining and Mineral Resources (BOM)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "brml.ro": {
+      "country": "Romania",
+      "country_fr": "Roumanie",
+      "iso": "RO",
+      "status": "member-state",
+      "org": "Romanian Bureau of Legal Metrology (B.R.M.L.)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "bsmi.gov.tw": {
+      "country": "Chinese Taipei",
+      "country_fr": "Taipei Chinois",
+      "iso": "TW",
+      "status": "corresponding-member",
+      "org": "Bureau of Standards, Metrology and Inspection. (BSMI)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "bsti.gov.bd": {
+      "country": "Bangladesh",
+      "country_fr": "Bangladesh",
+      "iso": "BD",
+      "status": "corresponding-member",
+      "org": "Bangladesh Standards and Testing Institution",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "budapest.kormanyhivatalok.hu": {
+      "country": "Hungary",
+      "country_fr": "Hongrie",
+      "iso": "HU",
+      "status": "member-state",
+      "org": "Government Office of the Capital City Budapest (BFKH)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "businessandtrade.gov.uk": {
+      "country": "United Kingdom",
+      "country_fr": "Royaume-Uni",
+      "iso": "GB",
+      "status": "member-state",
+      "org": "OPSS - Office for Product Safety and Standards (OPSS)",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "cem.es": {
+      "country": "Spain",
+      "country_fr": "Espagne",
+      "iso": "ES",
+      "status": "member-state",
+      "org": "Centro Espanol de Metrologia (CEM)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "cenam.mx": {
+      "country": "Mexico",
+      "country_fr": "Mexique",
+      "iso": "MX",
+      "status": "corresponding-member",
+      "org": "Centro Nacional de Metrologica (CENAM)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "cenamep.org.pa": {
+      "country": "Panama",
+      "country_fr": "Panama",
+      "iso": "PA",
+      "status": "corresponding-member",
+      "org": "Centro Nacional de Metrologia de Panama AIP (CENAMEP AI)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "cmi.cz": {
+      "country": "Czechia",
+      "country_fr": "Tchéquie",
+      "iso": "CZ",
+      "status": "member-state",
+      "org": "Czech Metrology Institute",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "cmi.gov.cz": {
+      "country": "Czechia",
+      "country_fr": "Tchéquie",
+      "iso": "CZ",
+      "status": "member-state",
+      "org": "Czech Metrology Institute",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "commerce.gov.ki": {
+      "country": "Kiribati",
+      "country_fr": "Kiribati",
+      "iso": "KI",
+      "status": "corresponding-member",
+      "org": "Ministry of Commerce Industry Co-operative",
+      "roles": [
+        "representative",
+        "oiml-cs-associate"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "commerce.govmu.org": {
+      "country": "Mauritius",
+      "country_fr": "Île Maurice",
+      "iso": "MU",
+      "status": "corresponding-member",
+      "org": "Ministry of Commerce and Consumer Protectiom",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "competition.gov.az": {
+      "country": "Azerbaijan",
+      "country_fr": "Azerbaïdjan",
+      "iso": "AZ",
+      "status": "corresponding-member",
+      "org": "State Agency for Antimonopoly and Consumer Market Control",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "cosqc.gov.iq": {
+      "country": "Iraq",
+      "country_fr": "Irak",
+      "iso": "IQ",
+      "status": "corresponding-member",
+      "org": "COSQC",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "customs.gov.hk": {
+      "country": "Hong Kong",
+      "country_fr": "Hong Kong",
+      "iso": "HK",
+      "status": "corresponding-member",
+      "org": "Hong Kong Customs and Excise Department",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "damtn.government.bg": {
+      "country": "Bulgaria",
+      "country_fr": "Bulgarie",
+      "iso": "BG",
+      "status": "member-state",
+      "org": "State Agency for Metrology and Technical Surveillance (SAMTS)",
+      "roles": [
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "dit.go.th": {
+      "country": "Thailand",
+      "country_fr": "Thaïlande",
+      "iso": "TH",
+      "status": "member-state",
+      "org": "DIT - Department of Internal Trade",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "dmdm.rs": {
+      "country": "Serbia",
+      "country_fr": "Serbie",
+      "iso": "RS",
+      "status": "member-state",
+      "org": "Directorate of Measures and Precious Metals (DMDM)",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "dost.gov.ph": {
+      "country": "Philippines",
+      "country_fr": "Philippines",
+      "iso": "PH",
+      "status": "corresponding-member",
+      "org": "National Metrology Laboratory",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "dpm.gov.al": {
+      "country": "Albania",
+      "country_fr": "Albanie",
+      "iso": "AL",
+      "status": "member-state",
+      "org": "General Directorate of Metrology (DPM)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "dzm.hr": {
+      "country": "Croatia",
+      "country_fr": "Croatie",
+      "iso": "HR",
+      "status": "member-state",
+      "org": "State Office for Metrology",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "economy.gov.il": {
+      "country": "Israel",
+      "country_fr": "Israël",
+      "iso": "IL",
+      "status": "member-state",
+      "org": "Ministry of Economy and Industry",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "entreprises.gouv.fr": {
+      "country": "France",
+      "country_fr": "France",
+      "iso": "FR",
+      "status": "member-state",
+      "org": "Ministere de l Economie, des Finances et de la Souveraineté Industrielle et Numérique",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "fgov.be": {
+      "country": "Belgium",
+      "country_fr": "Belgique",
+      "iso": "BE",
+      "status": "member-state",
+      "org": "Federal Public Service Economy, S.M.E.s, Self-employed and Energy",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "force.dk": {
+      "country": "Denmark",
+      "country_fr": "Danemark",
+      "iso": "DK",
+      "status": "member-state",
+      "org": "FORCE Certification A/S",
+      "roles": [
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "giordano.it": {
+      "country": "Italy",
+      "country_fr": "Italie",
+      "iso": "IT",
+      "status": "member-state",
+      "org": "Istituto Giordano SPA",
+      "roles": [
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "gnbsgy.org": {
+      "country": "Guyana",
+      "country_fr": "Guyana",
+      "iso": "GY",
+      "status": "corresponding-member",
+      "org": "Guyana National Bureau of Standards",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "gnims.caucasus.net": {
+      "country": "Georgia",
+      "country_fr": "Géorgie",
+      "iso": "GE",
+      "status": "corresponding-member",
+      "org": "National Agency for Standards, Technical Regulations and Metrology",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "gosstandart.gov.by": {
+      "country": "Belarus",
+      "country_fr": "Bélarus",
+      "iso": "BY",
+      "status": "member-state",
+      "org": "State Committee for Standardization of the Republic of Belarus (Gosstandart)",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "gouv.mc": {
+      "country": "Monaco",
+      "country_fr": "Monaco",
+      "iso": "MC",
+      "status": "member-state",
+      "org": "Département de l?Equipement, de l'Environnement et de l'Urbanisme",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "gsa.gov.gh": {
+      "country": "Ghana",
+      "country_fr": "Ghana",
+      "iso": "GH",
+      "status": "corresponding-member",
+      "org": "Ghana Standards Authority (GSA)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "gum.gov.pl": {
+      "country": "Poland",
+      "country_fr": "Pologne",
+      "iso": "PL",
+      "status": "member-state",
+      "org": "Głowny Urzad Miar GUM Central Office of Measures",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ibmetro.gob.bo": {
+      "country": "Bolivia",
+      "country_fr": "Bolivie",
+      "iso": "BO",
+      "status": "corresponding-member",
+      "org": "Instituto Boliviano de Metrologia (IBMETRO)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "inacal.gob.pe": {
+      "country": "Peru",
+      "country_fr": "Pérou",
+      "iso": "PE",
+      "status": "corresponding-member",
+      "org": "Instituto Nacional de Calidad",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "indocal.gob.do": {
+      "country": "Dominican Republic",
+      "country_fr": "République Dominicaine",
+      "iso": "DO",
+      "status": "corresponding-member",
+      "org": "Instituto Dominicano para la Calidad (Indocal) (INDOCAL)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "iniq.gov.ao": {
+      "country": "Angola",
+      "country_fr": "Angola",
+      "iso": "AO",
+      "status": "corresponding-member",
+      "org": "INIQ - National Institute of Quality Infrastructure",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "inm.md": {
+      "country": "Moldova",
+      "country_fr": "Moldavie",
+      "iso": "MD",
+      "status": "corresponding-member",
+      "org": "National Institute of Metrology (INM-MD) (INM-MD)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "innoq.gov.mz": {
+      "country": "Mozambique",
+      "country_fr": "Mozambique",
+      "iso": "MZ",
+      "status": "corresponding-member",
+      "org": "INNOQ - Instituto Nacional de Normalização e Qualidade",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "inso.gov.ir": {
+      "country": "Iran",
+      "country_fr": "Iran",
+      "iso": "IR",
+      "status": "member-state",
+      "org": "INSO - Iran National Standards Organization",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "inti.gov.ar": {
+      "country": "Argentina",
+      "country_fr": "Argentine",
+      "iso": "AR",
+      "status": "corresponding-member",
+      "org": "Instituto Nacional de Tecnologia Industrial (INTI)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "intn.gov.py": {
+      "country": "Paraguay",
+      "country_fr": "Paraguay",
+      "iso": "PY",
+      "status": "corresponding-member",
+      "org": "Instituto Nacional de Tecnología, Normalización y Metrologia (INTN)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "ipq.pt": {
+      "country": "Portugal",
+      "country_fr": "Portugal",
+      "iso": "PT",
+      "status": "member-state",
+      "org": "Instituto Português da Qualidade (IPQ)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ised-isde.gc.ca": {
+      "country": "Canada",
+      "country_fr": "Canada",
+      "iso": "CA",
+      "status": "member-state",
+      "org": "MC - Measurement Canada",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "jsmo.gov.jo": {
+      "country": "Jordan",
+      "country_fr": "Jordanie",
+      "iso": "JO",
+      "status": "corresponding-member",
+      "org": "Jordan Standards and Metrology Organization (JSMO)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "justervesenet.no": {
+      "country": "Norway",
+      "country_fr": "Norvège",
+      "iso": "NO",
+      "status": "member-state",
+      "org": "The Norwegian Metrology Service (Justervesenet)",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "kats.go.kr": {
+      "country": "Korea (R.)",
+      "country_fr": "Rép. de Corée",
+      "iso": "KR",
+      "status": "member-state",
+      "org": "Korean Agency for Technology and Standards (KATS)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "kema.com": {
+      "country": "Netherlands",
+      "country_fr": "Pays-Bas",
+      "iso": "NL",
+      "status": "member-state",
+      "org": "KEMA B.V.",
+      "roles": [
+        "oiml-cs-issuing-authority"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "kemendag.go.id": {
+      "country": "Indonesia",
+      "country_fr": "Indonésie",
+      "iso": "ID",
+      "status": "member-state",
+      "org": "Directorate of Metrology, Ministry of Trade",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "ksm.kz": {
+      "country": "Kazakhstan",
+      "country_fr": "Kazakhstan",
+      "iso": "KZ",
+      "status": "member-state",
+      "org": "Committee for Technical Regulation and Metrology of the Ministry of Trade and Innovation (KAZINMETR)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ktc.re.kr": {
+      "country": "Korea (R.)",
+      "country_fr": "Rép. de Corée",
+      "iso": "KR",
+      "status": "member-state",
+      "org": "KTC - Korea Testing Certification",
+      "roles": [
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "lacomet.go.cr": {
+      "country": "Costa Rica",
+      "country_fr": "Costa Rica",
+      "iso": "CR",
+      "status": "corresponding-member",
+      "org": "Laboratorio Costarricense de Metrologia (LACOMET)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "latmb.lv": {
+      "country": "Latvia",
+      "country_fr": "Lettonie",
+      "iso": "LV",
+      "status": "corresponding-member",
+      "org": "LATMB - LNMC Metrology Bureau",
+      "roles": [
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "latu.org.uy": {
+      "country": "Uruguay",
+      "country_fr": "Uruguay",
+      "iso": "UY",
+      "status": "corresponding-member",
+      "org": "Laboratorio Tecnológico del Uruguay (LATU)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "lne.fr": {
+      "country": "France",
+      "country_fr": "France",
+      "iso": "FR",
+      "status": "member-state",
+      "org": "Laboratoire National de Metrologie et d Essais",
+      "roles": [
+        "oiml-cs-issuing-authority"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "lnmc.lv": {
+      "country": "Latvia",
+      "country_fr": "Lettonie",
+      "iso": "LV",
+      "status": "corresponding-member",
+      "org": "SIA \"Latvian national metrology centre\" Ltd (SIA)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "mbie.govt.nz": {
+      "country": "New Zealand",
+      "country_fr": "Nouvelle Zélande",
+      "iso": "NZ",
+      "status": "member-state",
+      "org": "MBIE - Ministry of Business, Innovation and Employment",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "mbsmw.org": {
+      "country": "Malawi",
+      "country_fr": "Malawi",
+      "iso": "MW",
+      "status": "corresponding-member",
+      "org": "MBS - Malawi Bureau of Standards",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "mc.ic.gc.ca": {
+      "country": "Canada",
+      "country_fr": "Canada",
+      "iso": "CA",
+      "status": "member-state",
+      "org": "MC - Measurement Canada",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "mccaa.org.mt": {
+      "country": "Malta",
+      "country_fr": "Malte",
+      "iso": "MT",
+      "status": "corresponding-member",
+      "org": "Malta Competition and Consumer Affairs Authority",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "mcinet.gov.ma": {
+      "country": "Morocco",
+      "country_fr": "Maroc",
+      "iso": "MA",
+      "status": "member-state",
+      "org": "Ministère de l'Industrie et du Commerce",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "mcit.gov.cy": {
+      "country": "Cyprus",
+      "country_fr": "Chypre",
+      "iso": "CY",
+      "status": "member-state",
+      "org": "Ministry of Energy, Commerce, Industry and Tourism",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "measurement.gov.au": {
+      "country": "Australia",
+      "country_fr": "Australie",
+      "iso": "AU",
+      "status": "member-state",
+      "org": "National Measurement Institute, Australia",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "measurementsdept.gov.lk": {
+      "country": "Sri Lanka",
+      "country_fr": "Sri Lanka",
+      "iso": "LK",
+      "status": "member-state",
+      "org": "Department of Measurement Units, Standards and Services",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "met.gov.ba": {
+      "country": "Bosnia and Herzegovina",
+      "country_fr": "Bosnie-Herzégovine",
+      "iso": "BA",
+      "status": "corresponding-member",
+      "org": "Institute of Metrology of Bosnia and Herzegovina (IMBiH)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "metas.ch": {
+      "country": "Switzerland",
+      "country_fr": "Suisse",
+      "iso": "CH",
+      "status": "member-state",
+      "org": "Federal Institute of Metrology",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "metrologija.me": {
+      "country": "Montenegro",
+      "country_fr": "Monténégro",
+      "iso": "ME",
+      "status": "member-state",
+      "org": "Bureau of Metrology",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "mic.gov.zw": {
+      "country": "Zimbabwe",
+      "country_fr": "Zimbabwe",
+      "iso": "ZW",
+      "status": "corresponding-member",
+      "org": "Ministry of Industry and Commerce - Trade Measures Department (MIC-TMD)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "mimit.gov.it": {
+      "country": "Italy",
+      "country_fr": "Italie",
+      "iso": "IT",
+      "status": "member-state",
+      "org": "Ministero dello Sviluppo Economico - Dir. Gen. per il Mercato, la Conc., i Cons., la Vigil. e la Norm. Tecnica",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "mindev.gov.gr": {
+      "country": "Greece",
+      "country_fr": "Grèce",
+      "iso": "GR",
+      "status": "member-state",
+      "org": "Ministry of Development and Investments",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "mineco.gob.gt": {
+      "country": "Guatemala",
+      "country_fr": "Guatemala",
+      "iso": "GT",
+      "status": "corresponding-member",
+      "org": "Ministerio de Economia (CENAME)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "mirs.gov.si": {
+      "country": "Slovenia",
+      "country_fr": "Slovénie",
+      "iso": "SI",
+      "status": "member-state",
+      "org": "Metrology Institute of the Republic of Slovenia (MIRS)",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "mit.gov.fj": {
+      "country": "Fiji",
+      "country_fr": "Fidji",
+      "iso": "FJ",
+      "status": "corresponding-member",
+      "org": "Ministry of Industry and Trade",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "mnstandard.com": {
+      "country": "Mongolia",
+      "country_fr": "Mongolie",
+      "iso": "MN",
+      "status": "corresponding-member",
+      "org": "Mongolian Agency for Standardization and Metrology (MASM)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "moiat.gov.ae": {
+      "country": "United Arab Emirates",
+      "country_fr": "Émirats Arabes Unis",
+      "iso": "AE",
+      "status": "corresponding-member",
+      "org": "MoIAT - UAE Ministry of Industry & Advanced Technology",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "moic.gov.bh": {
+      "country": "Bahrain",
+      "country_fr": "Bahreïn",
+      "iso": "BH",
+      "status": "corresponding-member",
+      "org": "Directorate of Testing and Metrology (BSMD)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "motri.gov.et": {
+      "country": "Ethiopia",
+      "country_fr": "Éthiopie",
+      "iso": "ET",
+      "status": "member-state",
+      "org": "MoTRI - Ministry of Trade and Regional Integration",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "msit.gov.eg": {
+      "country": "Egypt",
+      "country_fr": "Égypte",
+      "iso": "EG",
+      "status": "member-state",
+      "org": "Ministry of Supply and Internal Trade (MSIT)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "nbsm.gov.np": {
+      "country": "Nepal",
+      "country_fr": "Népal",
+      "iso": "NP",
+      "status": "corresponding-member",
+      "org": "Nepal Bureau of Standards and Metrology",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "ncwm.com": {
+      "country": "United States",
+      "country_fr": "États-Unis",
+      "iso": "US",
+      "status": "member-state",
+      "org": "NCWM - National Council on Weights and Measures",
+      "roles": [
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "neytendastofa.is": {
+      "country": "Iceland",
+      "country_fr": "Islande",
+      "iso": "IS",
+      "status": "corresponding-member",
+      "org": "Husnaedis-og mannvirkjastofnun (HMS) (HMS)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "nim.ac.cn": {
+      "country": "China",
+      "country_fr": "Chine",
+      "iso": "CN",
+      "status": "member-state",
+      "org": "National Institute of Metrology, China",
+      "roles": [
+        "oiml-cs-issuing-authority"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "nim.uz": {
+      "country": "Uzbekistan",
+      "country_fr": "Ouzbékistan",
+      "iso": "UZ",
+      "status": "corresponding-member",
+      "org": "Uzbek Agency for Technical Regulation under the Cabinet of Ministers of the Republic of Uzbekistan (O'zTTSA)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "nisit.gov.pg": {
+      "country": "Papua New Guinea",
+      "country_fr": "Papouasie Nouvelle Guinée",
+      "iso": "PG",
+      "status": "corresponding-member",
+      "org": "National Institute of Standards and Industrial Technology (NISIT)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "nism.gov.kg": {
+      "country": "Kyrgyzstan",
+      "country_fr": "Kirghizistan",
+      "iso": "KG",
+      "status": "corresponding-member",
+      "org": "Ministry of Trade and Integration of the Kyrgyz Republic",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "nist.gov": {
+      "country": "United States",
+      "country_fr": "États-Unis",
+      "iso": "US",
+      "status": "member-state",
+      "org": "National Institute of Standards and Technology (NIST)",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "nmc-misti.gov.kh": {
+      "country": "Cambodia",
+      "country_fr": "Cambodge",
+      "iso": "KH",
+      "status": "member-state",
+      "org": "NMC - National Metrology Center",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "nmi.nl": {
+      "country": "Netherlands",
+      "country_fr": "Pays-Bas",
+      "iso": "NL",
+      "status": "member-state",
+      "org": "NMi Certin B.V.",
+      "roles": [
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "normalizacion.gob.ec": {
+      "country": "Ecuador",
+      "country_fr": "Équateur",
+      "iso": "EC",
+      "status": "corresponding-member",
+      "org": "Servicio Ecuatoriano de Normalizacion INEN",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "normoff.gov.sk": {
+      "country": "Slovakia",
+      "country_fr": "Slovaquie",
+      "iso": "SK",
+      "status": "member-state",
+      "org": "Slovak Office of Standards, Metrology and Testing (UNMS)",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "nrcs.org.za": {
+      "country": "South Africa",
+      "country_fr": "Afrique du Sud",
+      "iso": "ZA",
+      "status": "member-state",
+      "org": "NRCS - National Regulator for Compulsory Specifications, Legal Metrology Department",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "nsai.ie": {
+      "country": "Ireland",
+      "country_fr": "Irlande",
+      "iso": "IE",
+      "status": "member-state",
+      "org": "NSAI Legal Metrology Service",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "nsi.com.na": {
+      "country": "Namibia",
+      "country_fr": "Namibie",
+      "iso": "NA",
+      "status": "corresponding-member",
+      "org": "NSI - Namibian Standards Institution",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "onml.dz": {
+      "country": "Algeria",
+      "country_fr": "Algérie",
+      "iso": "DZ",
+      "status": "member-state",
+      "org": "Office National de la Métrologie Légale (ONML)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "pic.commerce.mg": {
+      "country": "Madagascar",
+      "country_fr": "Madagascar",
+      "iso": "MG",
+      "status": "corresponding-member",
+      "org": "Ministère de l'Industrialisation, du Commerce et de l'Artisanat",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "psqca.com.pk": {
+      "country": "Pakistan",
+      "country_fr": "Pakistan",
+      "iso": "PK",
+      "status": "member-state",
+      "org": "Pakistan Standards and Quality Control Authority (PSQCA Complex)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "ptb.de": {
+      "country": "Germany",
+      "country_fr": "Allemagne",
+      "iso": "DE",
+      "status": "member-state",
+      "org": "Physikalisch-Technische Bundesanstalt",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-issuing-authority",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "qs.gov.qa": {
+      "country": "Qatar",
+      "country_fr": "Qatar",
+      "iso": "QA",
+      "status": "corresponding-member",
+      "org": "Qatar General Organization for Standardization",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "rdi.nl": {
+      "country": "Netherlands",
+      "country_fr": "Pays-Bas",
+      "iso": "NL",
+      "status": "member-state",
+      "org": "Authority for Digital Infrastructure",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ri.se": {
+      "country": "Sweden",
+      "country_fr": "Suède",
+      "iso": "SE",
+      "status": "member-state",
+      "org": "Research Institutes of Sweden AB",
+      "roles": [
+        "oiml-cs-issuing-authority"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "rostest.ru": {
+      "country": "Russian Federation",
+      "country_fr": "Fédération de Russie",
+      "iso": "RU",
+      "status": "member-state",
+      "org": "RCAM – Rostest - Federal Budgetary Institution “Research Centre for Applied Metrology\" (RCAM - Rostest)",
+      "roles": [
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "rsb.gov.rw": {
+      "country": "Rwanda",
+      "country_fr": "Rwanda",
+      "iso": "RW",
+      "status": "corresponding-member",
+      "org": "RSB - Rwanda Standards Board",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "rst.gov.ru": {
+      "country": "Russian Federation",
+      "country_fr": "Fédération de Russie",
+      "iso": "RU",
+      "status": "member-state",
+      "org": "Federal Agency on Technical Regulating and Metrology (Rosstandart )",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "samr.gov.cn": {
+      "country": "China",
+      "country_fr": "Chine",
+      "iso": "CN",
+      "status": "member-state",
+      "org": "SAMR - State Administration for Market Regulation",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "sanayi.gov.tr": {
+      "country": "Turkey",
+      "country_fr": "Türkiye",
+      "iso": "TR",
+      "status": "member-state",
+      "org": "Ministry of Industry and Technology",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "saso.gov.sa": {
+      "country": "Saudi Arabia",
+      "country_fr": "Arabie Saoudite",
+      "iso": "SA",
+      "status": "member-state",
+      "org": "SASO - Saudi Standards, Metrology and Quality Organization",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "sencamer.gob.ve": {
+      "country": "Venezuela",
+      "country_fr": "Venezuela",
+      "iso": "VE",
+      "status": "corresponding-member",
+      "org": "Servicio Desconcentrado de Normalización, Calidad, Metrología y Reglamentos Tecnicos (SENCAMER)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "seychelles.net": {
+      "country": "Seychelles",
+      "country_fr": "Seychelles",
+      "iso": "SC",
+      "status": "corresponding-member",
+      "org": "Seychelles Bureau of Standards (SBS)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "sic.gov.co": {
+      "country": "Colombia",
+      "country_fr": "Colombie",
+      "iso": "CO",
+      "status": "member-state",
+      "org": "SIC - Superintendencia de Industria y Comercio",
+      "roles": [
+        "ciml-member",
+        "assignee",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "sik.dk": {
+      "country": "Denmark",
+      "country_fr": "Danemark",
+      "iso": "DK",
+      "status": "member-state",
+      "org": "Danish Safety Technology Authority",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "sirim.my": {
+      "country": "Malaysia",
+      "country_fr": "Malaisie",
+      "iso": "MY",
+      "status": "corresponding-member",
+      "org": "National Metrology Laboratory (SIRIM Berhad)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "web"
+    },
+    "slbs.org": {
+      "country": "Saint Lucia",
+      "country_fr": "Sainte Lucie",
+      "iso": "LC",
+      "status": "corresponding-member",
+      "org": "Saint Lucia Bureau of Standards (SLBS) (SLBS)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "slm.sk": {
+      "country": "Slovakia",
+      "country_fr": "Slovaquie",
+      "iso": "SK",
+      "status": "member-state",
+      "org": "Slovenská legálna metrológia, n. o.",
+      "roles": [
+        "oiml-cs-issuing-authority"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "spring.gov.sg": {
+      "country": "Singapore",
+      "country_fr": "Singapour",
+      "iso": "SG",
+      "status": "corresponding-member",
+      "org": "Consumer Product Safety, Weights & Measures Office",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ssmo.gov.sd": {
+      "country": "Sudan",
+      "country_fr": "Soudan",
+      "iso": "SD",
+      "status": "corresponding-member",
+      "org": "Sudanese Standards & Metrology Organization (SSMO)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "swedac.se": {
+      "country": "Sweden",
+      "country_fr": "Suède",
+      "iso": "SE",
+      "status": "member-state",
+      "org": "Swedac",
+      "roles": [
+        "ciml-member",
+        "assignee"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "tcvn.gov.vn": {
+      "country": "Viet Nam",
+      "country_fr": "Viet Nam",
+      "iso": "VN",
+      "status": "member-state",
+      "org": "Commission for Standards, Metrology and Quality (STAMEQ)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "tejarah.gov.om": {
+      "country": "Oman",
+      "country_fr": "Oman",
+      "iso": "OM",
+      "status": "corresponding-member",
+      "org": "DGSM - Directorate General for Standards and Metrology",
+      "roles": [
+        "oiml-cs-associate"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "tifernogas.it": {
+      "country": "Italy",
+      "country_fr": "Italie",
+      "iso": "IT",
+      "status": "member-state",
+      "org": "Tifernogas s.r.l.",
+      "roles": [
+        "oiml-cs-issuing-authority"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    },
+    "tja.ee": {
+      "country": "Estonia",
+      "country_fr": "Estonie",
+      "iso": "EE",
+      "status": "corresponding-member",
+      "org": "Consumer Protection and Technical Surveillance Authority of Estonia (TTJA)",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "trade.go.ke": {
+      "country": "Kenya",
+      "country_fr": "Kenya",
+      "iso": "KE",
+      "status": "member-state",
+      "org": "W&M - Weights and Measures Department",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ttbs.org.tt": {
+      "country": "Trinidad and Tobago",
+      "country_fr": "Trinité et Tobago",
+      "iso": "TT",
+      "status": "corresponding-member",
+      "org": "Legal Metrology Inspectorate",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "tukes.fi": {
+      "country": "Finland",
+      "country_fr": "Finlande",
+      "iso": "FI",
+      "status": "member-state",
+      "org": "Finnish Safety and Chemicals Agency (TUKES)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ukmin.lt": {
+      "country": "Lithuania",
+      "country_fr": "Lituanie",
+      "iso": "LT",
+      "status": "corresponding-member",
+      "org": "Industry and Trade Department",
+      "roles": [
+        "representative"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ukrcsm.kiev.ua": {
+      "country": "Ukraine",
+      "country_fr": "Ukraine",
+      "iso": "UA",
+      "status": "member-state",
+      "org": "SE “Ukrmetrteststandart” (UKRCSM)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "unbs.go.ug": {
+      "country": "Uganda",
+      "country_fr": "Ouganda",
+      "iso": "UG",
+      "status": "corresponding-member",
+      "org": "UNBS - Uganda National Bureau of Standards",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "verified",
+      "evidence": "email"
+    },
+    "wma.go.tz": {
+      "country": "Tanzania",
+      "country_fr": "Tanzanie",
+      "iso": "TZ",
+      "status": "member-state",
+      "org": "Weights and Measures Agency (WMA)",
+      "roles": [
+        "ciml-member"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "ww.nml.gov.ph": {
+      "country": "Philippines",
+      "country_fr": "Philippines",
+      "iso": "PH",
+      "status": "corresponding-member",
+      "org": "National Metrology Laboratory",
+      "roles": [
+        "representative",
+        "oiml-cs-utilizer",
+        "oiml-cs-associate"
+      ],
+      "verification": "inferred",
+      "evidence": "website"
+    },
+    "zma.org.zm": {
+      "country": "Zambia",
+      "country_fr": "Zambie",
+      "iso": "ZM",
+      "status": "member-state",
+      "org": "ZMA - Zambia Metrology Agency",
+      "roles": [
+        "ciml-member",
+        "oiml-cs-utilizer"
+      ],
+      "verification": "inferred",
+      "evidence": "email"
+    }
+  },
+  "countries": [
+    {
+      "country": "Albania",
+      "country_fr": "Albanie",
+      "iso": "AL",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "General Directorate of Metrology (DPM)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.dpm.gov.al",
+          "domains": [],
+          "website_domains": [
+            "dpm.gov.al"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Algeria",
+      "country_fr": "Algérie",
+      "iso": "DZ",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Office National de la Métrologie Légale (ONML)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.onml.dz",
+          "domains": [],
+          "website_domains": [
+            "onml.dz"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Australia",
+      "country_fr": "Australie",
+      "iso": "AU",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "National Measurement Institute, Australia",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.measurement.gov.au/",
+          "domains": [
+            "measurement.gov.au"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Austria",
+      "country_fr": "Autriche",
+      "iso": "AT",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Bundesamt fur Eich- und Vermessungswesen (BEV)",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.bev.gv.at/",
+          "domains": [],
+          "website_domains": [
+            "bev.gv.at"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Belarus",
+      "country_fr": "Bélarus",
+      "iso": "BY",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "State Committee for Standardization of the Republic of Belarus (Gosstandart)",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.gosstandart.gov.by",
+          "domains": [],
+          "website_domains": [
+            "gosstandart.gov.by"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Belarussian State Institute of Metrology (BELGIM) (BELGIM)",
+          "roles": [
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "belgim.by"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Belgium",
+      "country_fr": "Belgique",
+      "iso": "BE",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Federal Public Service Economy, S.M.E.s, Self-employed and Energy",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "fgov.be"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Brazil",
+      "country_fr": "Brésil",
+      "iso": "BR",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "INMETRO, Instituto Nacional de Metrologia, Qualidade e tecnologia",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.gov.br/inmetro",
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        },
+        {
+          "name": "Rio de Janeiro",
+          "roles": [
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Bulgaria",
+      "country_fr": "Bulgarie",
+      "iso": "BG",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Bulgarian Institute of Metrology (BIM)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.bim.government.bg",
+          "domains": [],
+          "website_domains": [
+            "bim.government.bg"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "State Agency for Metrology and Technical Surveillance (SAMTS)",
+          "roles": [
+            "assignee"
+          ],
+          "website": "https://www.damtn.government.bg/",
+          "domains": [],
+          "website_domains": [
+            "damtn.government.bg"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Cambodia",
+      "country_fr": "Cambodge",
+      "iso": "KH",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "NMC - National Metrology Center",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "nmc-misti.gov.kh"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Canada",
+      "country_fr": "Canada",
+      "iso": "CA",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "MC - Measurement Canada",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.mc.ic.gc.ca",
+          "domains": [
+            "ised-isde.gc.ca"
+          ],
+          "website_domains": [
+            "mc.ic.gc.ca"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "China",
+      "country_fr": "Chine",
+      "iso": "CN",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "SAMR - State Administration for Market Regulation",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "samr.gov.cn"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "National Institute of Metrology, China",
+          "roles": [
+            "oiml-cs-issuing-authority"
+          ],
+          "website": null,
+          "domains": [
+            "nim.ac.cn"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Colombia",
+      "country_fr": "Colombie",
+      "iso": "CO",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "SIC - Superintendencia de Industria y Comercio",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.sic.gov.co",
+          "domains": [
+            "sic.gov.co"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Croatia",
+      "country_fr": "Croatie",
+      "iso": "HR",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "State Office for Metrology",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.dzm.hr",
+          "domains": [],
+          "website_domains": [
+            "dzm.hr"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Cyprus",
+      "country_fr": "Chypre",
+      "iso": "CY",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministry of Energy, Commerce, Industry and Tourism",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.mcit.gov.cy/",
+          "domains": [],
+          "website_domains": [
+            "mcit.gov.cy"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Czechia",
+      "country_fr": "Tchéquie",
+      "iso": "CZ",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Czech Metrology Institute",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.cmi.cz/",
+          "domains": [
+            "cmi.gov.cz"
+          ],
+          "website_domains": [
+            "cmi.cz"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Denmark",
+      "country_fr": "Danemark",
+      "iso": "DK",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Danish Safety Technology Authority",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.sik.dk",
+          "domains": [],
+          "website_domains": [
+            "sik.dk"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "FORCE Certification A/S",
+          "roles": [
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "force.dk"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Egypt",
+      "country_fr": "Égypte",
+      "iso": "EG",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministry of Supply and Internal Trade (MSIT)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "msit.gov.eg"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Ethiopia",
+      "country_fr": "Éthiopie",
+      "iso": "ET",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "MoTRI - Ministry of Trade and Regional Integration",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "motri.gov.et"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Finland",
+      "country_fr": "Finlande",
+      "iso": "FI",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Finnish Safety and Chemicals Agency (TUKES)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.tukes.fi",
+          "domains": [],
+          "website_domains": [
+            "tukes.fi"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "France",
+      "country_fr": "France",
+      "iso": "FR",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministere de l Economie, des Finances et de la Souveraineté Industrielle et Numérique",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.entreprises.gouv.fr",
+          "domains": [],
+          "website_domains": [
+            "entreprises.gouv.fr"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Laboratoire National de Metrologie et d Essais",
+          "roles": [
+            "oiml-cs-issuing-authority"
+          ],
+          "website": null,
+          "domains": [
+            "lne.fr"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Laboratoire National de Métrologie et d’Essais (LNE)",
+          "roles": [
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Germany",
+      "country_fr": "Allemagne",
+      "iso": "DE",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Physikalisch-Technische Bundesanstalt",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.ptb.de/",
+          "domains": [
+            "ptb.de"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Greece",
+      "country_fr": "Grèce",
+      "iso": "GR",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministry of Development and Investments",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "mindev.gov.gr"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Hungary",
+      "country_fr": "Hongrie",
+      "iso": "HU",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Government Office of the Capital City Budapest (BFKH)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "budapest.kormanyhivatalok.hu"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "India",
+      "country_fr": "Inde",
+      "iso": "IN",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Legal Metrology Division, Department of Consumer Affairs",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Indonesia",
+      "country_fr": "Indonésie",
+      "iso": "ID",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Directorate of Metrology, Ministry of Trade",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "kemendag.go.id"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Iran",
+      "country_fr": "Iran",
+      "iso": "IR",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "INSO - Iran National Standards Organization",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.inso.gov.ir/",
+          "domains": [
+            "inso.gov.ir"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Ireland",
+      "country_fr": "Irlande",
+      "iso": "IE",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "NSAI Legal Metrology Service",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.nsai.ie/",
+          "domains": [],
+          "website_domains": [
+            "nsai.ie"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Israel",
+      "country_fr": "Israël",
+      "iso": "IL",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministry of Economy and Industry",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.economy.gov.il",
+          "domains": [],
+          "website_domains": [
+            "economy.gov.il"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Italy",
+      "country_fr": "Italie",
+      "iso": "IT",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministero dello Sviluppo Economico - Dir. Gen. per il Mercato, la Conc., i Cons., la Vigil. e la Norm. Tecnica",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "mimit.gov.it"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Tifernogas s.r.l.",
+          "roles": [
+            "oiml-cs-issuing-authority"
+          ],
+          "website": null,
+          "domains": [
+            "tifernogas.it"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Istituto Giordano SPA",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "giordano.it"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Tifernogas",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Japan",
+      "country_fr": "Japon",
+      "iso": "JP",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "National Metrology Institute of Japan / National Institute of Advanced Industrial Science and Technology",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-issuing-authority"
+          ],
+          "website": null,
+          "domains": [
+            "aist.go.jp"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "NMIJ/AIST",
+          "roles": [
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Kazakhstan",
+      "country_fr": "Kazakhstan",
+      "iso": "KZ",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Committee for Technical Regulation and Metrology of the Ministry of Trade and Innovation (KAZINMETR)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.ksm.kz",
+          "domains": [],
+          "website_domains": [
+            "ksm.kz"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Kenya",
+      "country_fr": "Kenya",
+      "iso": "KE",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "W&M - Weights and Measures Department",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.trade.go.ke",
+          "domains": [],
+          "website_domains": [
+            "trade.go.ke"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Korea (R.)",
+      "country_fr": "Rép. de Corée",
+      "iso": "KR",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Korean Agency for Technology and Standards (KATS)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.kats.go.kr/",
+          "domains": [],
+          "website_domains": [
+            "kats.go.kr"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "KTC - Korea Testing Certification",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "ktc.re.kr"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Monaco",
+      "country_fr": "Monaco",
+      "iso": "MC",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Département de l?Equipement, de l'Environnement et de l'Urbanisme",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "gouv.mc"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Montenegro",
+      "country_fr": "Monténégro",
+      "iso": "ME",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Bureau of Metrology",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.metrologija.me",
+          "domains": [],
+          "website_domains": [
+            "metrologija.me"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Morocco",
+      "country_fr": "Maroc",
+      "iso": "MA",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministère de l'Industrie et du Commerce",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.mcinet.gov.ma",
+          "domains": [],
+          "website_domains": [
+            "mcinet.gov.ma"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Netherlands",
+      "country_fr": "Pays-Bas",
+      "iso": "NL",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Authority for Digital Infrastructure",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.rdi.nl",
+          "domains": [],
+          "website_domains": [
+            "rdi.nl"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "KEMA B.V.",
+          "roles": [
+            "oiml-cs-issuing-authority"
+          ],
+          "website": null,
+          "domains": [
+            "kema.com"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "NMi Certin B.V.",
+          "roles": [
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "nmi.nl"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "New Zealand",
+      "country_fr": "Nouvelle Zélande",
+      "iso": "NZ",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "MBIE - Ministry of Business, Innovation and Employment",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "mbie.govt.nz"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Ministry of Consumer Affairs",
+          "roles": [
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "North Macedonia",
+      "country_fr": "Macédoine du Nord",
+      "iso": "MK",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministry of Energy, Mining and Mineral Resources (BOM)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.bom.gov.mk",
+          "domains": [],
+          "website_domains": [
+            "bom.gov.mk"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Norway",
+      "country_fr": "Norvège",
+      "iso": "NO",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "The Norwegian Metrology Service (Justervesenet)",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.justervesenet.no",
+          "domains": [],
+          "website_domains": [
+            "justervesenet.no"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Pakistan",
+      "country_fr": "Pakistan",
+      "iso": "PK",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Pakistan Standards and Quality Control Authority (PSQCA Complex)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "psqca.com.pk"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Gulistan-e-Juhar, Karachi",
+          "roles": [
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Poland",
+      "country_fr": "Pologne",
+      "iso": "PL",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Głowny Urzad Miar GUM Central Office of Measures",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.gum.gov.pl/",
+          "domains": [],
+          "website_domains": [
+            "gum.gov.pl"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Portugal",
+      "country_fr": "Portugal",
+      "iso": "PT",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Instituto Português da Qualidade (IPQ)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.ipq.pt/",
+          "domains": [],
+          "website_domains": [
+            "ipq.pt"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Romania",
+      "country_fr": "Roumanie",
+      "iso": "RO",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Romanian Bureau of Legal Metrology (B.R.M.L.)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "brml.ro"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Russian Federation",
+      "country_fr": "Fédération de Russie",
+      "iso": "RU",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Federal Agency on Technical Regulating and Metrology (Rosstandart )",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "rst.gov.ru"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "RCAM – Rostest - Federal Budgetary Institution “Research Centre for Applied Metrology\" (RCAM - Rostest)",
+          "roles": [
+            "assignee",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.rostest.ru",
+          "domains": [
+            "rostest.ru"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        },
+        {
+          "name": "VNIIMS",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Saudi Arabia",
+      "country_fr": "Arabie Saoudite",
+      "iso": "SA",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "SASO - Saudi Standards, Metrology and Quality Organization",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.saso.gov.sa/",
+          "domains": [
+            "saso.gov.sa"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Serbia",
+      "country_fr": "Serbie",
+      "iso": "RS",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Directorate of Measures and Precious Metals (DMDM)",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.dmdm.rs",
+          "domains": [],
+          "website_domains": [
+            "dmdm.rs"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Slovakia",
+      "country_fr": "Slovaquie",
+      "iso": "SK",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Slovak Office of Standards, Metrology and Testing (UNMS)",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.normoff.gov.sk",
+          "domains": [],
+          "website_domains": [
+            "normoff.gov.sk"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Slovenská legálna metrológia, n. o.",
+          "roles": [
+            "oiml-cs-issuing-authority"
+          ],
+          "website": null,
+          "domains": [
+            "slm.sk"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Slovak Legal Metrology (SLM)",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Slovenia",
+      "country_fr": "Slovénie",
+      "iso": "SI",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Metrology Institute of the Republic of Slovenia (MIRS)",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.mirs.gov.si",
+          "domains": [],
+          "website_domains": [
+            "mirs.gov.si"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "South Africa",
+      "country_fr": "Afrique du Sud",
+      "iso": "ZA",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "NRCS - National Regulator for Compulsory Specifications, Legal Metrology Department",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.nrcs.org.za/",
+          "domains": [
+            "nrcs.org.za"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        },
+        {
+          "name": "Groenkloof",
+          "roles": [
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Spain",
+      "country_fr": "Espagne",
+      "iso": "ES",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Centro Espanol de Metrologia (CEM)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.cem.es/",
+          "domains": [],
+          "website_domains": [
+            "cem.es"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Sri Lanka",
+      "country_fr": "Sri Lanka",
+      "iso": "LK",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Department of Measurement Units, Standards and Services",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "measurementsdept.gov.lk"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Sweden",
+      "country_fr": "Suède",
+      "iso": "SE",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Swedac",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": "https://www.swedac.se/",
+          "domains": [],
+          "website_domains": [
+            "swedac.se"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Research Institutes of Sweden AB",
+          "roles": [
+            "oiml-cs-issuing-authority"
+          ],
+          "website": null,
+          "domains": [
+            "ri.se"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "RISE Research Institutes of Sweden",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Switzerland",
+      "country_fr": "Suisse",
+      "iso": "CH",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Federal Institute of Metrology",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-issuing-authority",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.metas.ch/",
+          "domains": [
+            "metas.ch"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Tanzania",
+      "country_fr": "Tanzanie",
+      "iso": "TZ",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Weights and Measures Agency (WMA)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.wma.go.tz/",
+          "domains": [],
+          "website_domains": [
+            "wma.go.tz"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Thailand",
+      "country_fr": "Thaïlande",
+      "iso": "TH",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "DIT - Department of Internal Trade",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "dit.go.th"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Tunisia",
+      "country_fr": "Tunisie",
+      "iso": "TN",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "ANM - National Agency of Metrology",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.anm.nat.tn/",
+          "domains": [
+            "anm.nat.tn"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Turkey",
+      "country_fr": "Türkiye",
+      "iso": "TR",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Ministry of Industry and Technology",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "sanayi.gov.tr"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Ukraine",
+      "country_fr": "Ukraine",
+      "iso": "UA",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "SE “Ukrmetrteststandart” (UKRCSM)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.ukrcsm.kiev.ua",
+          "domains": [],
+          "website_domains": [
+            "ukrcsm.kiev.ua"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "United Kingdom",
+      "country_fr": "Royaume-Uni",
+      "iso": "GB",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "OPSS - Office for Product Safety and Standards (OPSS)",
+          "roles": [
+            "ciml-member",
+            "assignee",
+            "oiml-cs-utilizer"
+          ],
+          "website": "https://www.gov.uk/",
+          "domains": [
+            "businessandtrade.gov.uk"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "United States",
+      "country_fr": "États-Unis",
+      "iso": "US",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "National Institute of Standards and Technology (NIST)",
+          "roles": [
+            "ciml-member",
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "nist.gov"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Office of Weights and Measures",
+          "roles": [
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        },
+        {
+          "name": "Weights and Measures Division",
+          "roles": [
+            "assignee"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        },
+        {
+          "name": "NCWM - National Council on Weights and Measures",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "ncwm.com"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Viet Nam",
+      "country_fr": "Viet Nam",
+      "iso": "VN",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "Commission for Standards, Metrology and Quality (STAMEQ)",
+          "roles": [
+            "ciml-member"
+          ],
+          "website": "https://www.tcvn.gov.vn/",
+          "domains": [],
+          "website_domains": [
+            "tcvn.gov.vn"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Zambia",
+      "country_fr": "Zambie",
+      "iso": "ZM",
+      "status": "member-state",
+      "orgs": [
+        {
+          "name": "ZMA - Zambia Metrology Agency",
+          "roles": [
+            "ciml-member",
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [
+            "zma.org.zm"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Angola",
+      "country_fr": "Angola",
+      "iso": "AO",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "INIQ - National Institute of Quality Infrastructure",
+          "roles": [
+            "representative",
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": "https://iniq.gov.ao",
+          "domains": [],
+          "website_domains": [
+            "iniq.gov.ao"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Argentina",
+      "country_fr": "Argentine",
+      "iso": "AR",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Instituto Nacional de Tecnologia Industrial (INTI)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.inti.gov.ar",
+          "domains": [],
+          "website_domains": [
+            "inti.gov.ar"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Ministerio de Economia",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Armenia",
+      "country_fr": "Arménie",
+      "iso": "AM",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "National Body for Standards and Metrology (ARMSTANDARD)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "armstandard.am"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Azerbaijan",
+      "country_fr": "Azerbaïdjan",
+      "iso": "AZ",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "State Agency for Antimonopoly and Consumer Market Control",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "competition.gov.az"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Bahrain",
+      "country_fr": "Bahreïn",
+      "iso": "BH",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Directorate of Testing and Metrology (BSMD)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "moic.gov.bh"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Bangladesh",
+      "country_fr": "Bangladesh",
+      "iso": "BD",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Bangladesh Standards and Testing Institution",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "bsti.gov.bd"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Barbados",
+      "country_fr": "Barbade",
+      "iso": "BB",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Barbados National Standards Institution",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "bnsibarbados.org"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Bolivia",
+      "country_fr": "Bolivie",
+      "iso": "BO",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Instituto Boliviano de Metrologia (IBMETRO)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "ibmetro.gob.bo"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Bosnia and Herzegovina",
+      "country_fr": "Bosnie-Herzégovine",
+      "iso": "BA",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Institute of Metrology of Bosnia and Herzegovina (IMBiH)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "met.gov.ba"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Botswana",
+      "country_fr": "Botswana",
+      "iso": "BW",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Botswana Bureau of Standards",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "bobstandards.bw"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Burkina Faso",
+      "country_fr": "Burkina Faso",
+      "iso": "BF",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Agence Burkinabé de Normalisation de la Métrologie et de la Qualité (ABNORM)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "abnorm.bf"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Chinese Taipei",
+      "country_fr": "Taipei Chinois",
+      "iso": "TW",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Bureau of Standards, Metrology and Inspection. (BSMI)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.bsmi.gov.tw",
+          "domains": [],
+          "website_domains": [
+            "bsmi.gov.tw"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Costa Rica",
+      "country_fr": "Costa Rica",
+      "iso": "CR",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Laboratorio Costarricense de Metrologia (LACOMET)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.lacomet.go.cr",
+          "domains": [],
+          "website_domains": [
+            "lacomet.go.cr"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Djibouti",
+      "country_fr": "Djibouti",
+      "iso": "DJ",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Agence Djiboutienne des Normes et de la Qualité (ADN)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "adnq.org"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Dominican Republic",
+      "country_fr": "République Dominicaine",
+      "iso": "DO",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Instituto Dominicano para la Calidad (Indocal) (INDOCAL)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "indocal.gob.do"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Ecuador",
+      "country_fr": "Équateur",
+      "iso": "EC",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Servicio Ecuatoriano de Normalizacion INEN",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.normalizacion.gob.ec",
+          "domains": [],
+          "website_domains": [
+            "normalizacion.gob.ec"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Estonia",
+      "country_fr": "Estonie",
+      "iso": "EE",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Consumer Protection and Technical Surveillance Authority of Estonia (TTJA)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.tja.ee",
+          "domains": [],
+          "website_domains": [
+            "tja.ee"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Fiji",
+      "country_fr": "Fidji",
+      "iso": "FJ",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministry of Industry and Trade",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.mit.gov.fj",
+          "domains": [],
+          "website_domains": [
+            "mit.gov.fj"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Gabon",
+      "country_fr": "Gabon",
+      "iso": "GA",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Agence Gabonaise de Normalisation (AGANOR)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://aganorgabon.com",
+          "domains": [],
+          "website_domains": [
+            "aganorgabon.com"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Georgia",
+      "country_fr": "Géorgie",
+      "iso": "GE",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "National Agency for Standards, Technical Regulations and Metrology",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://gnims.caucasus.net",
+          "domains": [],
+          "website_domains": [
+            "gnims.caucasus.net"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Ghana",
+      "country_fr": "Ghana",
+      "iso": "GH",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ghana Standards Authority (GSA)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.gsa.gov.gh",
+          "domains": [],
+          "website_domains": [
+            "gsa.gov.gh"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Guatemala",
+      "country_fr": "Guatemala",
+      "iso": "GT",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministerio de Economia (CENAME)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.mineco.gob.gt",
+          "domains": [],
+          "website_domains": [
+            "mineco.gob.gt"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Guinea",
+      "country_fr": "Guinée",
+      "iso": "GN",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Institut Guinéen de Normalisation et de Métrologie (IGNM)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Guyana",
+      "country_fr": "Guyana",
+      "iso": "GY",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Guyana National Bureau of Standards",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://gnbsgy.org/",
+          "domains": [],
+          "website_domains": [
+            "gnbsgy.org"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Hong Kong",
+      "country_fr": "Hong Kong",
+      "iso": "HK",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Hong Kong Customs and Excise Department",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "customs.gov.hk"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Iceland",
+      "country_fr": "Islande",
+      "iso": "IS",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Husnaedis-og mannvirkjastofnun (HMS) (HMS)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.neytendastofa.is/",
+          "domains": [],
+          "website_domains": [
+            "neytendastofa.is"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Iraq",
+      "country_fr": "Irak",
+      "iso": "IQ",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "COSQC",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "cosqc.gov.iq"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Jordan",
+      "country_fr": "Jordanie",
+      "iso": "JO",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Jordan Standards and Metrology Organization (JSMO)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.jsmo.gov.jo",
+          "domains": [],
+          "website_domains": [
+            "jsmo.gov.jo"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Kiribati",
+      "country_fr": "Kiribati",
+      "iso": "KI",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministry of Commerce Industry Co-operative",
+          "roles": [
+            "representative",
+            "oiml-cs-associate"
+          ],
+          "website": null,
+          "domains": [
+            "commerce.gov.ki"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "Ministry of Commerce, Industry and Cooperatives",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Kyrgyzstan",
+      "country_fr": "Kirghizistan",
+      "iso": "KG",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministry of Trade and Integration of the Kyrgyz Republic",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.nism.gov.kg/",
+          "domains": [],
+          "website_domains": [
+            "nism.gov.kg"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Latvia",
+      "country_fr": "Lettonie",
+      "iso": "LV",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "SIA \"Latvian national metrology centre\" Ltd (SIA)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "lnmc.lv"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        },
+        {
+          "name": "LATMB - LNMC Metrology Bureau",
+          "roles": [
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": null,
+          "domains": [
+            "latmb.lv"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Lithuania",
+      "country_fr": "Lituanie",
+      "iso": "LT",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Industry and Trade Department",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.ukmin.lt",
+          "domains": [],
+          "website_domains": [
+            "ukmin.lt"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Luxembourg",
+      "country_fr": "Luxembourg",
+      "iso": "LU",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Bureau Luxembourgeois de Métrologie",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Madagascar",
+      "country_fr": "Madagascar",
+      "iso": "MG",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministère de l'Industrialisation, du Commerce et de l'Artisanat",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "pic.commerce.mg"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Malawi",
+      "country_fr": "Malawi",
+      "iso": "MW",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "MBS - Malawi Bureau of Standards",
+          "roles": [
+            "representative",
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": "https://www.mbsmw.org",
+          "domains": [
+            "mbsmw.org"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Malaysia",
+      "country_fr": "Malaisie",
+      "iso": "MY",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "National Metrology Laboratory (SIRIM Berhad)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "sirim.my"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Mali",
+      "country_fr": "Mali",
+      "iso": "ML",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Agence Malienne de Métrologie (AMAM)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Malta",
+      "country_fr": "Malte",
+      "iso": "MT",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Malta Competition and Consumer Affairs Authority",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.mccaa.org.mt",
+          "domains": [],
+          "website_domains": [
+            "mccaa.org.mt"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Mauritius",
+      "country_fr": "Île Maurice",
+      "iso": "MU",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministry of Commerce and Consumer Protectiom",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "commerce.govmu.org"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Mexico",
+      "country_fr": "Mexique",
+      "iso": "MX",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Centro Nacional de Metrologica (CENAM)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.cenam.mx",
+          "domains": [],
+          "website_domains": [
+            "cenam.mx"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Moldova",
+      "country_fr": "Moldavie",
+      "iso": "MD",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "National Institute of Metrology (INM-MD) (INM-MD)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.inm.md",
+          "domains": [],
+          "website_domains": [
+            "inm.md"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Mongolia",
+      "country_fr": "Mongolie",
+      "iso": "MN",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Mongolian Agency for Standardization and Metrology (MASM)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.mnstandard.com",
+          "domains": [],
+          "website_domains": [
+            "mnstandard.com"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Mozambique",
+      "country_fr": "Mozambique",
+      "iso": "MZ",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "INNOQ - Instituto Nacional de Normalização e Qualidade",
+          "roles": [
+            "representative",
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "innoq.gov.mz"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Namibia",
+      "country_fr": "Namibie",
+      "iso": "NA",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "NSI - Namibian Standards Institution",
+          "roles": [
+            "representative",
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "nsi.com.na"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Nepal",
+      "country_fr": "Népal",
+      "iso": "NP",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Nepal Bureau of Standards and Metrology",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "nbsm.gov.np"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Nigeria",
+      "country_fr": "Nigeria",
+      "iso": "NG",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Legal Metrology Department (Weights and Measures) (LMD)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Oman",
+      "country_fr": "Oman",
+      "iso": "OM",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministry of Commerce, Industry and Investment Promotion",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        },
+        {
+          "name": "(DSGM) Directorate General for Standards and Metrology",
+          "roles": [
+            "oiml-cs-utilizer"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        },
+        {
+          "name": "DGSM - Directorate General for Standards and Metrology",
+          "roles": [
+            "oiml-cs-associate"
+          ],
+          "website": null,
+          "domains": [
+            "tejarah.gov.om"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Panama",
+      "country_fr": "Panama",
+      "iso": "PA",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Centro Nacional de Metrologia de Panama AIP (CENAMEP AI)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.cenamep.org.pa",
+          "domains": [],
+          "website_domains": [
+            "cenamep.org.pa"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Papua New Guinea",
+      "country_fr": "Papouasie Nouvelle Guinée",
+      "iso": "PG",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "National Institute of Standards and Industrial Technology (NISIT)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.nisit.gov.pg/",
+          "domains": [],
+          "website_domains": [
+            "nisit.gov.pg"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Paraguay",
+      "country_fr": "Paraguay",
+      "iso": "PY",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Instituto Nacional de Tecnología, Normalización y Metrologia (INTN)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "intn.gov.py"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Peru",
+      "country_fr": "Pérou",
+      "iso": "PE",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Instituto Nacional de Calidad",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.inacal.gob.pe",
+          "domains": [],
+          "website_domains": [
+            "inacal.gob.pe"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Philippines",
+      "country_fr": "Philippines",
+      "iso": "PH",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "National Metrology Laboratory",
+          "roles": [
+            "representative",
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": "https://ww.nml.gov.ph",
+          "domains": [
+            "dost.gov.ph"
+          ],
+          "website_domains": [
+            "ww.nml.gov.ph"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Qatar",
+      "country_fr": "Qatar",
+      "iso": "QA",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Qatar General Organization for Standardization",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "qs.gov.qa"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Rwanda",
+      "country_fr": "Rwanda",
+      "iso": "RW",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "RSB - Rwanda Standards Board",
+          "roles": [
+            "representative",
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": "https://www.rsb.gov.rw",
+          "domains": [
+            "rsb.gov.rw"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Saint Lucia",
+      "country_fr": "Sainte Lucie",
+      "iso": "LC",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Saint Lucia Bureau of Standards (SLBS) (SLBS)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.slbs.org",
+          "domains": [],
+          "website_domains": [
+            "slbs.org"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Seychelles",
+      "country_fr": "Seychelles",
+      "iso": "SC",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Seychelles Bureau of Standards (SBS)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.seychelles.net/sbsorg",
+          "domains": [],
+          "website_domains": [
+            "seychelles.net"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Sierra Leone",
+      "country_fr": "Sierra Leone",
+      "iso": "SL",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministry of Industry and Trade",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "unverified",
+          "admin_queue": true
+        }
+      ]
+    },
+    {
+      "country": "Singapore",
+      "country_fr": "Singapour",
+      "iso": "SG",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Consumer Product Safety, Weights & Measures Office",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.spring.gov.sg",
+          "domains": [],
+          "website_domains": [
+            "spring.gov.sg"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Sudan",
+      "country_fr": "Soudan",
+      "iso": "SD",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Sudanese Standards & Metrology Organization (SSMO)",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://www.ssmo.gov.sd/",
+          "domains": [],
+          "website_domains": [
+            "ssmo.gov.sd"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Trinidad and Tobago",
+      "country_fr": "Trinité et Tobago",
+      "iso": "TT",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Legal Metrology Inspectorate",
+          "roles": [
+            "representative"
+          ],
+          "website": "https://ttbs.org.tt/",
+          "domains": [],
+          "website_domains": [
+            "ttbs.org.tt"
+          ],
+          "web_domains": [],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Uganda",
+      "country_fr": "Ouganda",
+      "iso": "UG",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "UNBS - Uganda National Bureau of Standards",
+          "roles": [
+            "representative",
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": "https://www.unbs.go.ug",
+          "domains": [
+            "unbs.go.ug"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "United Arab Emirates",
+      "country_fr": "Émirats Arabes Unis",
+      "iso": "AE",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "MoIAT - UAE Ministry of Industry & Advanced Technology",
+          "roles": [
+            "representative",
+            "oiml-cs-utilizer",
+            "oiml-cs-associate"
+          ],
+          "website": "https://www.moiat.gov.ae",
+          "domains": [
+            "moiat.gov.ae"
+          ],
+          "website_domains": [],
+          "web_domains": [],
+          "verification": "verified",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Uruguay",
+      "country_fr": "Uruguay",
+      "iso": "UY",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Laboratorio Tecnológico del Uruguay (LATU)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "latu.org.uy"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Uzbekistan",
+      "country_fr": "Ouzbékistan",
+      "iso": "UZ",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Uzbek Agency for Technical Regulation under the Cabinet of Ministers of the Republic of Uzbekistan (O'zTTSA)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "nim.uz"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Venezuela",
+      "country_fr": "Venezuela",
+      "iso": "VE",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Servicio Desconcentrado de Normalización, Calidad, Metrología y Reglamentos Tecnicos (SENCAMER)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "sencamer.gob.ve"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    },
+    {
+      "country": "Zimbabwe",
+      "country_fr": "Zimbabwe",
+      "iso": "ZW",
+      "status": "corresponding-member",
+      "orgs": [
+        {
+          "name": "Ministry of Industry and Commerce - Trade Measures Department (MIC-TMD)",
+          "roles": [
+            "representative"
+          ],
+          "website": null,
+          "domains": [],
+          "website_domains": [],
+          "web_domains": [
+            "mic.gov.zw"
+          ],
+          "verification": "inferred",
+          "admin_queue": false
+        }
+      ]
+    }
+  ]
+}
