@@ -56,6 +56,9 @@ const ROUTE_PATHS: Array<{ path: string; name: string }> = [
   { path: '/op/admin/registry/orgs/:id', name: 'op-admin-registry-org' },
   // TODO.identity-features/05 — the organization registry's own surface.
   { path: '/op/admin/organizations', name: 'op-admin-organizations' },
+  // TODO.sota/02 — the org administrators' console (the delegated
+  // administration surface: their org's members, the queue, the audit).
+  { path: '/op/admin/organization', name: 'op-admin-organization' },
 ]
 
 export default function setup(app: App): void {

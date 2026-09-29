@@ -65,6 +65,18 @@ afterAll(() => {
   for (const key of ['DATABASE_PATH', 'OP_ISSUER', 'OP_ACCOUNT_SEED']) delete process.env[key]
 })
 
+describe('TODO.sota/02 — the org administrators\' console', () => {
+  it('roleHome seats the org admin at THEIR console; the route exists in the OP route table', async () => {
+    const { roleHome } = await import('../../server/vocab/roles')
+    expect(roleHome('org_admin')).toBe('/op/admin/organization')
+    const entrypoint = await import('../../src/astro/app-entrypoint')
+    void entrypoint
+    const { readFileSync } = await import('node:fs')
+    const source = readFileSync(new URL('../../src/astro/app-entrypoint.ts', import.meta.url), 'utf8')
+    expect(source).toContain("path: '/op/admin/organization'")
+  })
+})
+
 describe('the SYSTEM-ADMIN role (the 2026-09-29 ruling)', () => {
   it('VOCAB: the role is assignable; the system-authority predicate admits it and keeps the org admin out', async () => {
     const { APP_ROLES, isSystemAuthority } = await import('../../server/vocab/roles')

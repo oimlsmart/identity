@@ -81,7 +81,9 @@ export function roleHome(role: string | null | undefined): string {
     // TODO.identity/10 — the org admin's console lives on the identity
     // service (the account store); the page itself answers honestly on a
     // profile that does not serve organization administration.
-    case 'org_admin': return '/op/admin/users'
+    // TODO.sota/02 — the org admin's OWN console (the delegated
+    // administration surface: the members, the queue, the audit slice).
+    case 'org_admin': return '/op/admin/organization'
     // The system-admin's landing is the operator console (the full
     // access the 2026-09-29 ruling names).
     case 'system_admin': return '/op/admin'
