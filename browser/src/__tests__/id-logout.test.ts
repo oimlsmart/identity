@@ -236,9 +236,13 @@ demo_personas: true
   const { Hono } = await import('hono')
   const { createAuthLeanRouter } = await import('../../server/routes/auth-lean')
   const { createOpRouter } = await import('../../server/routes/op')
+  const { createOpAccountsRouter } = await import('../../server/routes/op-accounts')
   const root = new Hono()
   root.route('/api/auth', createAuthLeanRouter({ autoSeedDemo: true }))
   root.route('/', createOpRouter())
+  // TODO.sota/04's leg: the password-change route lives on the accounts
+  // router — the fan-out's last act needs it mounted.
+  root.route('/', createOpAccountsRouter())
   app = root
 
   // The bootstrap seed lands on the first REGISTRY request (the discovery
@@ -716,6 +720,22 @@ describe('the backchannel fan-out (OP-initiated logout)', () => {
     const grants = await store.listConsentGrants(user.id)
     await store.revokeConsentGrant(grants.find(g => g.clientId === HUB_ID)!.id, user.id)
     expect(await collectBackchannelTargets(store, user.id)).toEqual([])
+  })
+
+  it('the PASSWORD CHANGE fans out too (TODO.sota/04 — the other devices\' RPs learn the credential died)', async () => {
+    const { cookie, userId } = await signInAndIdToken('ia@oimlsmart.org')
+    await store.recordConsentGrant({ userId, clientId: HUB_ID, scope: 'openid' })
+    const before = received.length
+    const change = await app.request('/api/op/account/password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ current: 'demo2026', next: 'a fresh passphrase entirely 2026' }),
+    })
+    expect(change.status, await change.text()).toBe(200)
+    await awaitReceived(before + 1)
+    const claims = decodePayload(received[received.length - 1]!.body.split('=').pop()!)
+    expect(claims.events).toEqual({ 'http://schemas.openid.net/event/backchannel-logout': {} })
+    expect(claims.nonce).toBeUndefined()
   })
 
   it('a failed send never fails the act: the per-target outcomes answer honestly (500 → not-ok, unreachable → not-ok)', async () => {
