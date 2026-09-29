@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, DeviceAuthorizationData, DeviceAuthorizationErrors, DeviceAuthorizationResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetRobotsTxtData, GetRobotsTxtResponses, GetSecurityTxtData, GetSecurityTxtResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, GetWebfingerData, GetWebfingerErrors, GetWebfingerResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RedeliverDeadWebhooksData, RedeliverDeadWebhooksErrors, RedeliverDeadWebhooksResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, SelfRegisterCatalogData, SelfRegisterCatalogResponses, SelfRegisterCompleteData, SelfRegisterCompleteErrors, SelfRegisterCompleteResponses, SelfRegisterSecondProofData, SelfRegisterSecondProofErrors, SelfRegisterSecondProofResponses, SelfRegisterStartData, SelfRegisterStartErrors, SelfRegisterStartResponses, SelfRegisterVerifyData, SelfRegisterVerifyErrors, SelfRegisterVerifyResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
+import type { CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, DeviceAuthorizationData, DeviceAuthorizationErrors, DeviceAuthorizationResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetRobotsTxtData, GetRobotsTxtResponses, GetSecurityTxtData, GetSecurityTxtResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, GetWebfingerData, GetWebfingerErrors, GetWebfingerResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RedeliverDeadWebhooksData, RedeliverDeadWebhooksErrors, RedeliverDeadWebhooksResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateGroupData, ScimCreateGroupErrors, ScimCreateGroupResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteGroupData, ScimDeleteGroupErrors, ScimDeleteGroupResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetGroupData, ScimGetGroupErrors, ScimGetGroupResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListGroupsData, ScimListGroupsErrors, ScimListGroupsResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchGroupData, ScimPatchGroupErrors, ScimPatchGroupResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, ScimReplaceGroupData, ScimReplaceGroupErrors, ScimReplaceGroupResponses, SelfRegisterCatalogData, SelfRegisterCatalogResponses, SelfRegisterCompleteData, SelfRegisterCompleteErrors, SelfRegisterCompleteResponses, SelfRegisterSecondProofData, SelfRegisterSecondProofErrors, SelfRegisterSecondProofResponses, SelfRegisterStartData, SelfRegisterStartErrors, SelfRegisterStartResponses, SelfRegisterVerifyData, SelfRegisterVerifyErrors, SelfRegisterVerifyResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -361,6 +361,102 @@ export const scimCreateUser = <ThrowOnError extends boolean = false>(options: Op
             type: 'http'
         }],
     url: '/scim/v2/Users',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The group list (RFC 7644 §4.2)
+ *
+ * The connector-managed groups (never the organization registry's memberships — the MECE). The ONE supported filter: `filter=displayName eq "<name>"` — anything else refuses `400 scimType=invalid_filter`.
+ */
+export const scimListGroups = <ThrowOnError extends boolean = false>(options?: Options<ScimListGroupsData, ThrowOnError>): RequestResult<ScimListGroupsResponses, ScimListGroupsErrors, ThrowOnError> => (options?.client ?? client).get<ScimListGroupsResponses, ScimListGroupsErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Groups',
+    ...options
+});
+
+/**
+ * Create the group
+ *
+ * displayName required; members optional (each value = a standing SCIM user id — unknown values refuse 400, never a poisoned group).
+ */
+export const scimCreateGroup = <ThrowOnError extends boolean = false>(options: Options<ScimCreateGroupData, ThrowOnError>): RequestResult<ScimCreateGroupResponses, ScimCreateGroupErrors, ThrowOnError> => (options.client ?? client).post<ScimCreateGroupResponses, ScimCreateGroupErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Groups',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete the group (the tombstone keeps the history)
+ */
+export const scimDeleteGroup = <ThrowOnError extends boolean = false>(options: Options<ScimDeleteGroupData, ThrowOnError>): RequestResult<ScimDeleteGroupResponses, ScimDeleteGroupErrors, ThrowOnError> => (options.client ?? client).delete<ScimDeleteGroupResponses, ScimDeleteGroupErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Groups/{id}',
+    ...options
+});
+
+/**
+ * The group projection
+ */
+export const scimGetGroup = <ThrowOnError extends boolean = false>(options: Options<ScimGetGroupData, ThrowOnError>): RequestResult<ScimGetGroupResponses, ScimGetGroupErrors, ThrowOnError> => (options.client ?? client).get<ScimGetGroupResponses, ScimGetGroupErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Groups/{id}',
+    ...options
+});
+
+/**
+ * The incremental update (RFC 7644 §3.5.2)
+ *
+ * The supported operations: `replace displayName` (pathful or pathless), `add members`, `remove members` (the value arrays; idempotent set semantics).
+ */
+export const scimPatchGroup = <ThrowOnError extends boolean = false>(options: Options<ScimPatchGroupData, ThrowOnError>): RequestResult<ScimPatchGroupResponses, ScimPatchGroupErrors, ThrowOnError> => (options.client ?? client).patch<ScimPatchGroupResponses, ScimPatchGroupErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Groups/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Replace wholesale (displayName + members)
+ */
+export const scimReplaceGroup = <ThrowOnError extends boolean = false>(options: Options<ScimReplaceGroupData, ThrowOnError>): RequestResult<ScimReplaceGroupResponses, ScimReplaceGroupErrors, ThrowOnError> => (options.client ?? client).put<ScimReplaceGroupResponses, ScimReplaceGroupErrors, ThrowOnError>({
+    security: [{
+            key: 'scimBearer',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/scim/v2/Groups/{id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',

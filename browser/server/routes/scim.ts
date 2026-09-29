@@ -249,5 +249,168 @@ export function createScimRouter(): Hono {
     return c.body(null, 204)
   })
 
+  // ── Groups (TODO.sota/03, RFC 7644 §4.2) ──────────────────────────
+  // The RP-managed groups (the connector's own groups — the Bulletin's
+  // authors, the platform's reviewers), NEVER the org registry's
+  // memberships (the MECE: those are the REGISTER's truth; this is the
+  // RP's). The backing rides the entity seam (the audit-events pattern):
+  // store 'scimGroups', the data JSON carries displayName + members —
+  // no migration, one read per list (the scaling doctrine: ONE
+  // listEntities call, the member expansion in memory).
+
+  const GROUP_SCHEMA = 'urn:ietf:params:scim:schemas:core:2.0:Group'
+  const GROUP_STORE = 'scimGroups'
+
+  interface ScimGroupData { displayName: string; members: Array<{ value: string; display?: string }>; createdBy: string }
+  interface GroupRow { id: string; data: string }
+
+  /** The parsed data, or NULL for the tombstoned rows (a deleted
+   *  group's history keeps in the entity store; the reads answer the
+   *  404 taxonomy, never a half-projected shell). */
+  async function groupData(row: GroupRow): Promise<ScimGroupData | null> {
+    const parsed = JSON.parse(row.data) as Partial<ScimGroupData> & { deleted?: boolean }
+    if (parsed.deleted || typeof parsed.displayName !== 'string') return null
+    return { displayName: parsed.displayName, members: Array.isArray(parsed.members) ? parsed.members : [], createdBy: typeof parsed.createdBy === 'string' ? parsed.createdBy : 'scim' }
+  }
+
+  function toScimGroup(id: string, data: ScimGroupData): Record<string, unknown> {
+    return {
+      schemas: [GROUP_SCHEMA],
+      id,
+      displayName: data.displayName,
+      members: data.members.map(m => ({ value: m.value, display: m.display ?? m.value, $ref: `/scim/v2/Users/${m.value}` })),
+      meta: { resourceType: 'Group', location: `/scim/v2/Groups/${id}` },
+    }
+  }
+
+  /** The member ids must name EXISTING, standing accounts — a group
+   *  member that resolves to nobody poisons every downstream read. */
+  async function resolveMembers(raw: unknown): Promise<Array<{ value: string; display?: string }> | null> {
+    if (!Array.isArray(raw)) return null
+    const users = await getStore().listUsers()
+    const standing = new Map(users.filter(u => u.provider !== 'erased').map(u => [u.id, u]))
+    const out: Array<{ value: string; display?: string }> = []
+    for (const m of raw) {
+      const value = (m as { value?: unknown })?.value
+      if (typeof value !== 'string') return null
+      const user = standing.get(value)
+      if (!user) return null
+      if (out.some(x => x.value === value)) continue // idempotent set semantics
+      out.push({ value, display: user.name })
+    }
+    return out
+  }
+
+  scim.get('/scim/v2/Groups', async (c) => {
+    const filter = (c.req.query('filter') ?? '').trim()
+    let rows = await getStore().listEntities(GROUP_STORE)
+    const groups: Array<Record<string, unknown>> = []
+    for (const row of rows) {
+      try {
+        const data = await groupData(row)
+        if (!data) continue // the tombstone: the history keeps, the reads skip
+        // The supported filter grammar: displayName eq "…" (the Users
+        // list's own subset — anything else refuses invalid_filter).
+        const eq = filter.match(/^displayName\s+eq\s+"([^"]*)"$/)
+        if (filter && !eq) return scimError(c, 400, 'the supported filter is displayName eq "…"', 'invalidFilter')
+        if (eq && data.displayName !== eq[1]) continue
+        groups.push(toScimGroup(row.id, data))
+      } catch { /* a malformed row never breaks the feed */ }
+    }
+    return c.json({
+      schemas: [LIST_SCHEMA],
+      totalResults: groups.length,
+      startIndex: 1,
+      itemsPerPage: groups.length,
+      Resources: groups,
+    })
+  })
+
+  scim.post('/scim/v2/Groups', async (c) => {
+    const body = await c.req.json().catch(() => null) as { displayName?: unknown; members?: unknown } | null
+    if (!body || typeof body.displayName !== 'string' || !body.displayName.trim()) {
+      return scimError(c, 400, 'displayName is required')
+    }
+    const members = body.members === undefined ? [] : await resolveMembers(body.members)
+    if (members === null) return scimError(c, 400, 'members must name existing users (each value = a SCIM user id)')
+    const id = crypto.randomUUID()
+    const data: ScimGroupData = { displayName: body.displayName.trim(), members, createdBy: 'scim' }
+    await getStore().putEntity(GROUP_STORE, id, null, JSON.stringify(data))
+    return c.json(toScimGroup(id, data), 201)
+  })
+
+  scim.get('/scim/v2/Groups/:id', async (c) => {
+    const row = await getStore().getEntity(GROUP_STORE, c.req.param('id'))
+    if (!row) return scimError(c, 404, 'no such group')
+    const data = await groupData(row)
+    if (!data) return scimError(c, 404, 'no such group')
+    return c.json(toScimGroup(row.id, data))
+  })
+
+  scim.put('/scim/v2/Groups/:id', async (c) => {
+    const id = c.req.param('id')
+    const row = await getStore().getEntity(GROUP_STORE, id)
+    if (!row) return scimError(c, 404, 'no such group')
+    const current = await groupData(row)
+    if (!current) return scimError(c, 404, 'no such group')
+    const body = await c.req.json().catch(() => null) as { displayName?: unknown; members?: unknown } | null
+    if (!body || typeof body.displayName !== 'string' || !body.displayName.trim()) {
+      return scimError(c, 400, 'displayName is required')
+    }
+    const members = body.members === undefined ? current.members : await resolveMembers(body.members)
+    if (members === null) return scimError(c, 400, 'members must name existing users (each value = a SCIM user id)')
+    const next: ScimGroupData = { displayName: body.displayName.trim(), members, createdBy: current.createdBy }
+    await getStore().putEntity(GROUP_STORE, id, null, JSON.stringify(next))
+    return c.json(toScimGroup(id, next))
+  })
+
+  scim.patch('/scim/v2/Groups/:id', async (c) => {
+    const id = c.req.param('id')
+    const row = await getStore().getEntity(GROUP_STORE, id)
+    if (!row) return scimError(c, 404, 'no such group')
+    const data = await groupData(row)
+    if (!data) return scimError(c, 404, 'no such group')
+    const body = await c.req.json().catch(() => null) as {
+      Operations?: Array<{ op?: unknown; path?: unknown; value?: unknown }>
+    } | null
+    if (!body || !Array.isArray(body.Operations)) return scimError(c, 400, 'Operations is required')
+    let displayName = data.displayName
+    let members = data.members
+    for (const op of body.Operations) {
+      const kind = typeof op.op === 'string' ? op.op.toLowerCase() : ''
+      const path = typeof op.path === 'string' ? op.path : undefined
+      if (kind === 'replace' && (path === 'displayName' || path === undefined)) {
+        if (typeof op.value === 'string' && op.value.trim()) displayName = op.value.trim()
+        continue
+      }
+      if ((kind === 'add' || kind === 'remove') && path === 'members') {
+        const delta = await resolveMembers(op.value)
+        if (delta === null) return scimError(c, 400, 'members must name existing users (each value = a SCIM user id)')
+        if (kind === 'add') {
+          for (const m of delta) if (!members.some(x => x.value === m.value)) members.push(m)
+        } else {
+          const removing = new Set(delta.map(m => m.value))
+          members = members.filter(m => !removing.has(m.value))
+        }
+        continue
+      }
+      return scimError(c, 400, 'the supported operations: replace displayName, add/remove members', 'invalidPath')
+    }
+    const next: ScimGroupData = { displayName, members, createdBy: data.createdBy }
+    await getStore().putEntity(GROUP_STORE, id, null, JSON.stringify(next))
+    return c.json(toScimGroup(id, next))
+  })
+
+  scim.delete('/scim/v2/Groups/:id', async (c) => {
+    const id = c.req.param('id')
+    const row = await getStore().getEntity(GROUP_STORE, id)
+    if (!row) return scimError(c, 404, 'no such group')
+    await getStore().putEntity(GROUP_STORE, id, null, JSON.stringify({ deleted: true, deletedAt: new Date().toISOString() }))
+    // The tombstone (the audit doctrine — the group's history keeps);
+    // every read filters it by the missing displayName (a deleted row
+    // never projects: the reads demand the displayName string).
+    return c.body(null, 204)
+  })
+
   return scim
 }

@@ -763,6 +763,68 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/scim/v2/Groups': {
+      get: {
+        tags: ['SCIM'], operationId: 'scimListGroups', summary: 'The group list (RFC 7644 §4.2)',
+        description: 'The connector-managed groups (never the organization registry\'s memberships — the MECE). The ONE supported filter: '
+          + '`filter=displayName eq "<name>"` — anything else refuses `400 scimType=invalid_filter`.',
+        security: [{ scimBearer: [] }],
+        parameters: [{ name: 'filter', in: 'query', schema: { type: 'string' }, example: 'displayName eq "Bulletin Authors"' }],
+        responses: {
+          200: { description: 'The ListResponse (totalResults, Resources).', content: { 'application/json': { schema: { type: 'object', properties: { schemas: { type: 'array', items: { type: 'string' } }, totalResults: { type: 'integer' }, Resources: { type: 'array', items: { type: 'object' } } } } } } },
+          400: { description: 'An unsupported filter (scimType=invalid_filter).' },
+        },
+      },
+      post: {
+        tags: ['SCIM'], operationId: 'scimCreateGroup', summary: 'Create the group',
+        description: 'displayName required; members optional (each value = a standing SCIM user id — unknown values refuse 400, never a poisoned group).',
+        security: [{ scimBearer: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { displayName: { type: 'string' }, members: { type: 'array', items: { type: 'object', properties: { value: { type: 'string' } } } } } }, required: ['displayName'] } } },
+        responses: {
+          201: { description: 'The Group projection.' },
+          400: { description: 'A malformed body or an unknown member.' },
+        },
+      },
+    },
+    '/scim/v2/Groups/{id}': {
+      get: {
+        tags: ['SCIM'], operationId: 'scimGetGroup', summary: 'The group projection',
+        security: [{ scimBearer: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'The Group projection.' },
+          404: { description: 'No such group (the deleted tombstone answers 404 too).' },
+        },
+      },
+      put: {
+        tags: ['SCIM'], operationId: 'scimReplaceGroup', summary: 'Replace wholesale (displayName + members)',
+        security: [{ scimBearer: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { displayName: { type: 'string' }, members: { type: 'array', items: { type: 'object', properties: { value: { type: 'string' } } } } } }, required: ['displayName'] } } },
+        responses: {
+          200: { description: 'The replaced projection.' },
+          404: { description: 'No such group.' },
+        },
+      },
+      patch: {
+        tags: ['SCIM'], operationId: 'scimPatchGroup', summary: 'The incremental update (RFC 7644 §3.5.2)',
+        description: 'The supported operations: `replace displayName` (pathful or pathless), `add members`, `remove members` (the value arrays; idempotent set semantics).',
+        security: [{ scimBearer: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { Operations: { type: 'array', items: { type: 'object', properties: { op: { type: 'string', enum: ['add', 'remove', 'replace'] }, path: { type: 'string' }, value: {} } } } }, required: ['Operations'] } } } },
+        responses: {
+          200: { description: 'The patched projection.' },
+          400: { description: 'An unsupported operation (scimType=invalidPath) or an unknown member.' },
+          404: { description: 'No such group.' },
+        },
+      },
+      delete: {
+        tags: ['SCIM'], operationId: 'scimDeleteGroup', summary: 'Delete the group (the tombstone keeps the history)',
+        security: [{ scimBearer: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 204: { description: 'Deleted — every later read answers the 404 taxonomy.' }, 404: { description: 'No such group.' } },
+      },
+    },
     '/scim/v2/Users/{id}': {
       get: {
         tags: ['SCIM'], operationId: 'scimGetUser', summary: 'The projection (RFC 7644 §3.4.1)',
