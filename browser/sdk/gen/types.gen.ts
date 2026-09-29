@@ -921,6 +921,172 @@ export type ScimCreateUserResponses = {
     201: unknown;
 };
 
+export type ScimListGroupsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        filter?: string;
+    };
+    url: '/scim/v2/Groups';
+};
+
+export type ScimListGroupsErrors = {
+    /**
+     * An unsupported filter (scimType=invalid_filter).
+     */
+    400: unknown;
+};
+
+export type ScimListGroupsResponses = {
+    /**
+     * The ListResponse (totalResults, Resources).
+     */
+    200: {
+        schemas?: Array<string>;
+        totalResults?: number;
+        Resources?: Array<{
+            [key: string]: unknown;
+        }>;
+    };
+};
+
+export type ScimListGroupsResponse = ScimListGroupsResponses[keyof ScimListGroupsResponses];
+
+export type ScimCreateGroupData = {
+    body: {
+        displayName?: string;
+        members?: Array<{
+            value?: string;
+        }>;
+    };
+    path?: never;
+    query?: never;
+    url: '/scim/v2/Groups';
+};
+
+export type ScimCreateGroupErrors = {
+    /**
+     * A malformed body or an unknown member.
+     */
+    400: unknown;
+};
+
+export type ScimCreateGroupResponses = {
+    /**
+     * The Group projection.
+     */
+    201: unknown;
+};
+
+export type ScimDeleteGroupData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/scim/v2/Groups/{id}';
+};
+
+export type ScimDeleteGroupErrors = {
+    /**
+     * No such group.
+     */
+    404: unknown;
+};
+
+export type ScimDeleteGroupResponses = {
+    /**
+     * Deleted — every later read answers the 404 taxonomy.
+     */
+    204: void;
+};
+
+export type ScimDeleteGroupResponse = ScimDeleteGroupResponses[keyof ScimDeleteGroupResponses];
+
+export type ScimGetGroupData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/scim/v2/Groups/{id}';
+};
+
+export type ScimGetGroupErrors = {
+    /**
+     * No such group (the deleted tombstone answers 404 too).
+     */
+    404: unknown;
+};
+
+export type ScimGetGroupResponses = {
+    /**
+     * The Group projection.
+     */
+    200: unknown;
+};
+
+export type ScimPatchGroupData = {
+    body: {
+        Operations: Array<{
+            op?: 'add' | 'remove' | 'replace';
+            path?: string;
+            value?: unknown;
+        }>;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/scim/v2/Groups/{id}';
+};
+
+export type ScimPatchGroupErrors = {
+    /**
+     * An unsupported operation (scimType=invalidPath) or an unknown member.
+     */
+    400: unknown;
+    /**
+     * No such group.
+     */
+    404: unknown;
+};
+
+export type ScimPatchGroupResponses = {
+    /**
+     * The patched projection.
+     */
+    200: unknown;
+};
+
+export type ScimReplaceGroupData = {
+    body: {
+        displayName?: string;
+        members?: Array<{
+            value?: string;
+        }>;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/scim/v2/Groups/{id}';
+};
+
+export type ScimReplaceGroupErrors = {
+    /**
+     * No such group.
+     */
+    404: unknown;
+};
+
+export type ScimReplaceGroupResponses = {
+    /**
+     * The replaced projection.
+     */
+    200: unknown;
+};
+
 export type ScimDeleteUserData = {
     body?: never;
     path: {

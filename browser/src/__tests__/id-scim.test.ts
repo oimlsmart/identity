@@ -64,6 +64,109 @@ afterAll(() => {
   delete process.env.SCIM_BEARER_TOKEN
 })
 
+describe('Groups (TODO.sota/03, RFC 7644 §4.2)', () => {
+  let authorId: string
+  let reviewerId: string
+
+  beforeAll(async () => {
+    // The demo cast seeds LAZILY (the first credential-gated request)
+    // — prime it through the demo login, then resolve the member ids.
+    await app.request('/api/auth/demo', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'ia@oimlsmart.org', password: 'demo2026' }),
+    })
+    const users = await store.listUsers()
+    authorId = users.find(u => u.email.includes('ia@'))?.id ?? users[0]!.id
+    reviewerId = users.find(u => u.email.includes('tl@') || u.email.includes('viewer@'))?.id ?? users[1]!.id
+  })
+
+  it('the empty list answers the ListResponse shape', async () => {
+    const res = await app.request('/scim/v2/Groups', authed())
+    expect(res.status).toBe(200)
+    const body = await res.json() as { totalResults: number; Resources: unknown[] }
+    expect(body.totalResults).toBe(0)
+    expect(body.Resources).toEqual([])
+  })
+
+  it('CREATE: the group with members; the members resolve to standing accounts', async () => {
+    const res = await app.request('/scim/v2/Groups', authed({
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ displayName: 'Bulletin Authors', members: [{ value: authorId }, { value: reviewerId }] }),
+    }))
+    expect(res.status).toBe(201)
+    const group = await res.json() as { id: string; displayName: string; members: Array<{ value: string; display: string }> }
+    expect(group.displayName).toBe('Bulletin Authors')
+    expect(group.members.map(m => m.value).sort()).toEqual([authorId, reviewerId].sort())
+    expect(group.members[0]!.display).toBeTruthy()
+  })
+
+  it('CREATE: an UNKNOWN member refuses 400 (never a poisoned group)', async () => {
+    const res = await app.request('/scim/v2/Groups', authed({
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ displayName: 'Broken', members: [{ value: 'nobody' }] }),
+    }))
+    expect(res.status).toBe(400)
+  })
+
+  it('LIST + FILTER: the groups list; displayName eq narrows; the bad grammar refuses', async () => {
+    const listed = await app.request('/scim/v2/Groups', authed())
+    const body = await listed.json() as { totalResults: number; Resources: Array<{ displayName: string }> }
+    expect(body.totalResults).toBeGreaterThanOrEqual(1)
+    const filtered = await app.request(`/scim/v2/Groups?filter=${encodeURIComponent('displayName eq "Bulletin Authors"')}`, authed())
+    const fbody = await filtered.json() as { totalResults: number; Resources: Array<{ displayName: string }> }
+    expect(fbody.totalResults).toBe(1)
+    expect(fbody.Resources[0]!.displayName).toBe('Bulletin Authors')
+    const bad = await app.request(`/scim/v2/Groups?filter=${encodeURIComponent('userName eq "x"')}`, authed())
+    expect(bad.status).toBe(400)
+  })
+
+  it('PATCH add/remove members + replace displayName; PUT replaces wholesale; DELETE tombstones (the 404 taxonomy)', async () => {
+    const created = await app.request('/scim/v2/Groups', authed({
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ displayName: 'Reviewers' }),
+    }))
+    const { id } = await created.json() as { id: string }
+
+    const added = await app.request(`/scim/v2/Groups/${id}`, authed({
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ Operations: [{ op: 'add', path: 'members', value: [{ value: authorId }] }] }),
+    }))
+    expect(added.status).toBe(200)
+    expect(((await added.json()) as { members: unknown[] }).members).toHaveLength(1)
+
+    const addedAgain = await app.request(`/scim/v2/Groups/${id}`, authed({
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ Operations: [{ op: 'add', path: 'members', value: [{ value: authorId }, { value: reviewerId }] }] }),
+    }))
+    expect(((await addedAgain.json()) as { members: unknown[] }).members).toHaveLength(2) // idempotent set semantics
+
+    const removed = await app.request(`/scim/v2/Groups/${id}`, authed({
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ Operations: [{ op: 'remove', path: 'members', value: [{ value: authorId }] }] }),
+    }))
+    expect(((await removed.json()) as { members: Array<{ value: string }> }).members.map(m => m.value)).toEqual([reviewerId])
+
+    const renamed = await app.request(`/scim/v2/Groups/${id}`, authed({
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ Operations: [{ op: 'replace', path: 'displayName', value: 'Peer Reviewers' }] }),
+    }))
+    expect(((await renamed.json()) as { displayName: string }).displayName).toBe('Peer Reviewers')
+
+    const replaced = await app.request(`/scim/v2/Groups/${id}`, authed({
+      method: 'PUT', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ displayName: 'Peer Reviewers', members: [{ value: authorId }] }),
+    }))
+    expect(((await replaced.json()) as { members: unknown[] }).members).toHaveLength(1)
+
+    const gone = await app.request(`/scim/v2/Groups/${id}`, authed({ method: 'DELETE' }))
+    expect(gone.status).toBe(204)
+    const after = await app.request(`/scim/v2/Groups/${id}`, authed())
+    expect(after.status).toBe(404)
+    const listed = await app.request('/scim/v2/Groups', authed())
+    expect(((await listed.json()) as { Resources: Array<{ id: string }> }).Resources.some(g => g.id === id)).toBe(false)
+  })
+})
+
 describe('the surface exists only when armed', () => {
   it('UNSET = 404 everywhere under /scim (the Turnstile pattern)', async () => {
     delete process.env.SCIM_BEARER_TOKEN
