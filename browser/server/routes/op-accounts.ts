@@ -1851,6 +1851,11 @@ export function createOpAccountsRouter(): Hono {
     }
     await store.setPasswordHash(user.id, await hashPassword(body.next), user.email)
     const revoked = await store.deleteOtherSessions(user.id, getCookie(c, SESSION_COOKIE) ?? '')
+    // TODO.sota/04 — the fan-out's last unwired act: the OTHER sessions
+    // just died; their RPs learn it through the backchannel logout, or
+    // their sessions outlive the credential that created them.
+    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, user.id)
+    floatBackchannel()
     await audit('account.password', user.id, { userId: user.id, userName: user.name }, {
       otherSessionsRevoked: revoked,
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
