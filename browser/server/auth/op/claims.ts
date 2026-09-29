@@ -70,6 +70,24 @@ export function rolesForClient(
  *  userinfo + consent paths share): the claim gate decides WHICH claim
  *  keys appear; rolesForClient decides their VALUES. `org` rides the
  *  account's org binding when the policy carries it. */
+/**
+ * The ORCID claim for this client (TODO.sota/05): the account's LINKED
+ * ORCID iD — the (provider='orcid') identity link's provider_account_id,
+ * verified by ORCID's own login at link time. Present ONLY when BOTH
+ * hold: the client's claims policy names the 'orcid' family (the same
+ * per-client privilege gate as the role claims), AND the account holds
+ * the link. Absent otherwise — never a placeholder.
+ */
+export async function orcidClaimForClient(
+  store: { listIdentityLinks(userId: string): Promise<Array<{ provider: string; providerAccountId: string }>> },
+  userId: string,
+  policy: OidcClientClaimsPolicy | null,
+): Promise<string | null> {
+  if (!policy?.claims?.includes('orcid')) return null
+  const links = await store.listIdentityLinks(userId)
+  return links.find(l => l.provider === 'orcid')?.providerAccountId ?? null
+}
+
 export function roleClaimsForClient(
   assigned: string[] | null,
   user: { role: string; roles?: string[] | null; orgId: string | null },

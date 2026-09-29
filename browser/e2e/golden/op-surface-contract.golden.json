@@ -92,6 +92,7 @@
       "roles",
       "groups",
       "org",
+      "orcid",
       "amr"
     ],
     "code_challenge_methods_supported": [
