@@ -10,7 +10,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { loadDomains as loadMemberCatalog } from '../../server/auth/op/member-domains'
 
 const TMP = mkdtempSync(join(tmpdir(), 'oiml-selfreg-'))
@@ -122,6 +122,53 @@ describe('the link token binds the upstream identity + the second proof (the 202
     void payload
   })
 })
+
+describe('the complete leg\'s breach check (the 07 cross-pollination — the last unwired password path)', () => {
+  const realFetch = globalThis.fetch
+  const realRange = process.env.HIBP_RANGE_URL
+  afterEach(() => {
+    globalThis.fetch = realFetch
+    if (realRange === undefined) delete process.env.HIBP_RANGE_URL
+    else process.env.HIBP_RANGE_URL = realRange
+  })
+
+  it('a BREACHED password refuses BEFORE the account lands', async () => {
+    delete process.env.HIBP_RANGE_URL // unset → the module's default corpus; THIS test's stub answers it
+    const sha1 = async (text: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text)))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+    const breached = 'the breached specimen passphrase'
+    const suffix = (await sha1(breached)).slice(5)
+    globalThis.fetch = (async () => new Response(`${suffix}:7\n`, { status: 200 })) as typeof fetch
+    const mod = await import('../../server/auth/op/self-register-links')
+    const at = await mod.attributionHash(linkKeyMaterial, 'github', 'sub-breach@nist.gov')
+    const proof = await mod.mintSetupProofToken(linkKeyMaterial, 'breach@nist.gov', at, Date.now(), undefined, 'Breached Applicant', { provider: 'github', accountId: 'sub-breach@nist.gov' })
+    const res = await START_COMPLETE({ token: proof, password: breached })
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error: string }).error).toContain('known data breach')
+    expect(await store.findUserByEmail('breach@nist.gov')).toBeNull()
+  })
+
+  it('a CLEAN password completes; an UNREACHABLE corpus accepts and arms the re-check marker', async () => {
+    // The unreachable corpus, declared: the connection refuses fast —
+    // the honest 'unknown' path (accept + arm the re-check).
+    process.env.HIBP_RANGE_URL = 'http://127.0.0.1:1/range'
+    globalThis.fetch = realFetch // the REAL transport: 127.0.0.1:1 refuses
+    const mod = await import('../../server/auth/op/self-register-links')
+    const at = await mod.attributionHash(linkKeyMaterial, 'github', 'sub-clean@nist.gov')
+    const proof = await mod.mintSetupProofToken(linkKeyMaterial, 'clean@nist.gov', at, Date.now(), undefined, 'Clean Applicant', { provider: 'github', accountId: 'sub-clean@nist.gov' })
+    const res = await START_COMPLETE({ token: proof, password: 'a clean passphrase entirely 2026' })
+    expect(res.status, await res.text()).toBe(200)
+    const created = await store.findUserByEmail('clean@nist.gov')
+    expect(created).toBeTruthy()
+    const pending = await (await import('../../server/auth/op/hibp')).breachRecheckPending(store, created!.id)
+    expect(pending).toBe(true)
+  })
+})
+
+function START_COMPLETE(body: Record<string, unknown>) {
+  return app.request('/api/op/self-register/complete', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  })
+}
 
 describe('the start leg\'s Turnstile (the body-carried token — the 2026-09-28 production finding)', () => {
   const ELIGIBLE = { country: 'United States', org: 'National Institute of Standards and Technology (NIST)', name: 'Bot Probe', email: 'bot-probe@nist.gov' }
