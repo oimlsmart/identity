@@ -35,6 +35,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { isSystemAuthority } from '../vocab/roles'
 import { setCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type AuthUserPayload, type IdentityProvider } from '../store'
@@ -559,7 +560,7 @@ export function createOpUpstreamRouter(): Hono {
   async function requireAdmin(c: Context): Promise<{ user: AuthUserPayload | null; error: Response | null }> {
     const user = await sessionUser(c)
     if (!user) return { user: null, error: c.json({ error: 'authentication required' }, 401) }
-    if (user.role !== 'admin' && user.role !== 'cs_admin') {
+    if (!isSystemAuthority(user.role)) {
       return { user: null, error: c.json({ error: 'administrator role required' }, 403) }
     }
     return { user, error: null }

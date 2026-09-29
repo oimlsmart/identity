@@ -41,6 +41,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { isSystemAuthority } from '../vocab/roles'
 import { getStore, type AuthUserPayload, type OidcClient } from '../store'
 import { getInstanceProfile } from '../profile'
 import { sessionUser } from '../session'
@@ -173,7 +174,7 @@ export function createOpHomeRouter(): Hono {
     services.sort((a, b) => a.name.localeCompare(b.name))
     return c.json({
       account: { id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl ?? null, role: user.role },
-      admin: user.role === 'admin' || user.role === 'cs_admin',
+      admin: isSystemAuthority(user.role),
       services,
     })
   })

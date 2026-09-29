@@ -95,6 +95,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { isSystemAuthority } from '../vocab/roles'
 import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, normalizeOidcScopeSet, normalizePatScopes, type AuthUserPayload, type OidcClient, type OidcClientLaunch, type PatScope } from '../store'
 import { getInstanceProfile } from '../profile'
@@ -2315,7 +2316,7 @@ export function createOpRouter(): Hono {
   async function requireAdmin(c: Context): Promise<{ user: AuthUserPayload | null; error: Response | null }> {
     const user = await sessionUser(c)
     if (!user) return { user: null, error: c.json({ error: 'authentication required' }, 401) }
-    if (user.role !== 'admin' && user.role !== 'cs_admin') {
+    if (!isSystemAuthority(user.role)) {
       return { user: null, error: c.json({ error: 'administrator role required' }, 403) }
     }
     return { user, error: null }

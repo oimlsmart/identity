@@ -14,6 +14,11 @@ export const APP_ROLES = [
   'rc_member',
   'executive_secretary',
   'admin',
+  // The 2026-09-29 owner ruling — the SYSTEM-ADMIN: a named, grantable
+  // role whose holders hold full access to EVERY organization and the
+  // operator consoles (the estate's four; grantable onward through the
+  // identity system by its holders and the scheme operator).
+  'system_admin',
   'viewer',
   // TODO.federation/12 — the NMI split-role vocabulary (the RBAC default
   // map, auth/rbac.ts, grants them their permission sets; section gating
@@ -37,6 +42,13 @@ export const APP_ROLES = [
   'market_surveillance',
 ] as const
 export type AppRole = (typeof APP_ROLES)[number]
+
+/** The system-authority predicate (the 2026-09-29 ruling): the roles
+ *  admitted at the operator consoles and the wide grants — the scheme
+ *  operator's own (admin, cs_admin) and the named system-admin. */
+export function isSystemAuthority(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'cs_admin' || role === 'system_admin'
+}
 
 /** The IA-desk role family (TODO.federation/12): the roles seated at the
  *  IA console, org-bound to their issuing authority — ia_officer and the
@@ -70,6 +82,9 @@ export function roleHome(role: string | null | undefined): string {
     // service (the account store); the page itself answers honestly on a
     // profile that does not serve organization administration.
     case 'org_admin': return '/op/admin/users'
+    // The system-admin's landing is the operator console (the full
+    // access the 2026-09-29 ruling names).
+    case 'system_admin': return '/op/admin'
     default: return '/app'
   }
 }
@@ -157,6 +172,6 @@ export function sectionRuleFor(path: string): RoleSectionRule | undefined {
 export function canAccessPath(role: string | null | undefined, path: string): boolean {
   const rule = sectionRuleFor(path)
   if (!rule) return true
-  if (role === 'admin') return true
+  if (isSystemAuthority(role)) return true
   return !!role && (rule.roles as string[]).includes(role)
 }
