@@ -103,7 +103,7 @@ import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/conf
 import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, verifyOpJwt, type OpSigningKey } from '../auth/op/keys'
 import { hashClientSecret, verifyClientSecret } from '../auth/op/secrets'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
-import { roleClaimsForContext, pictureClaimForClient } from '../auth/op/claims'
+import { roleClaimsForContext, pictureClaimForClient, orcidClaimForClient } from '../auth/op/claims'
 import { claimsContextFor } from '../auth/op/memberships'
 import { avatarKeys, AVATAR_PUBLIC_CACHE, initialsAvatarSvg } from '../auth/op/avatars'
 import { getBlobStore } from '../blobs'
@@ -299,7 +299,7 @@ export function createOpRouter(): Hono {
       pushed_authorization_request_endpoint: `${issuer}/op/par`,
       // RFC 9150 (TODO.modern/12): the JWT-secured response mode.
       response_modes_supported: ['query', 'jwt'],
-      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'amr'],
+      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'orcid', 'amr'],
     })
   })
 
@@ -1888,6 +1888,10 @@ export function createOpRouter(): Hono {
     // has an uploaded avatar — absent otherwise, never a broken URL.
     const picture = pictureClaimForClient(user, client!.claimsPolicy, config.issuer)
     if (picture) claims.picture = picture
+    // TODO.sota/05: the linked ORCID iD per the client's policy (the
+    // same privilege gate; the link's verification is ORCID's own).
+    const orcid = await orcidClaimForClient(store, user.id, client!.claimsPolicy)
+    if (orcid) claims.orcid = orcid
     // TODO.identity-sso/02+03: the authorizing authentication's amr
     // provenance (the consenting session's, carried by the code) — the
     // RP-visible claim matches the session's truth. Absent when no
@@ -1999,6 +2003,8 @@ export function createOpRouter(): Hono {
     Object.assign(claims, roleClaimsForContext(assigned, context, client?.claimsPolicy ?? null))
     const picture = pictureClaimForClient(user, client?.claimsPolicy ?? null, configFor(c).issuer)
     if (picture) claims.picture = picture
+    const orcid = await orcidClaimForClient(store, user.id, client?.claimsPolicy ?? null)
+    if (orcid) claims.orcid = orcid
     // TODO.identity-sso/02+03: userinfo answers the same amr the ID
     // token carried (the authorizing authentication's provenance).
     if (access.amr?.length) claims.amr = access.amr
@@ -2554,7 +2560,7 @@ export function createOpRouter(): Hono {
       logoutWrite = logout && (logout.post_logout_redirect_uris.length || logout.backchannel_logout_uri) ? logout : null
     }
     if (body.claims_policy != null && (!Array.isArray(body.claims_policy?.claims) || body.claims_policy.claims.some(x => typeof x !== 'string'))) {
-      return c.json({ error: 'claims_policy.claims must be a list of claim names (roles, groups, org, picture)' }, 400)
+      return c.json({ error: 'claims_policy.claims must be a list of claim names (roles, groups, org, picture, orcid)' }, 400)
     }
     // TODO.identity/03 — the optional role allowlist: the closed set of
     // roles the ID token may carry for this client. A role outside the
