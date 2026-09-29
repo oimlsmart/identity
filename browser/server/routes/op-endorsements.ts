@@ -29,6 +29,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { isSystemAuthority } from '../vocab/roles'
 import { getStore, type AuthUserPayload } from '../store'
 import { getInstanceProfile } from '../profile'
 import { effectiveRolesOf } from '../vocab'
@@ -76,7 +77,7 @@ export function createOpEndorsementsRouter(): Hono {
         }, 400),
       }
     }
-    if (user.role === 'admin' || user.role === 'cs_admin') return { user, iaOrg }
+    if (isSystemAuthority(user.role)) return { user, iaOrg }
     const held = new Set(effectiveRolesOf(user))
     if (user.orgId === iaOrgId && [...held].some(r => IA_CONFIRM_ROLES.has(r))) return { user, iaOrg }
     return {

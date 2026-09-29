@@ -148,6 +148,10 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMap = {
   // non-org-bound cs_admin writes anything; keep it explicit).
   cs_admin: [...ACTION_PERMISSIONS],
   admin: [...ACTION_PERMISSIONS],
+  // The 2026-09-29 ruling: the named system-admin holds everything —
+  // users.manage gives the WIDE console grant (the org-console refusal
+  // cannot fire for its holders).
+  system_admin: [...ACTION_PERMISSIONS],
   // TODO.identity/10 — delegated organization administration: the
   // organization administrator (ONE per registered participant org,
   // created by BIML after verification) manages its own org's people —

@@ -37,6 +37,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { isSystemAuthority } from '../vocab/roles'
 import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type ServerStore } from '../store'
 import { getInstanceProfile } from '../profile'
@@ -125,7 +126,7 @@ export function createOpWhoamiRouter(): Hono {
       picture: user.avatarUrl ? `${config.issuer}/op/avatar/${user.id}` : null,
       // The home feed's ONE admin rule (op-home.ts) — the chip may offer
       // the administration console's entry.
-      admin: user.role === 'admin' || user.role === 'cs_admin',
+      admin: isSystemAuthority(user.role),
     }, 200, {
       ...cors,
       // The per-account projection is never cached anywhere.

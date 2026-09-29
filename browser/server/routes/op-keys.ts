@@ -35,6 +35,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { isSystemAuthority } from '../vocab/roles'
 import { getStore, type AuthUserPayload } from '../store'
 import { getInstanceProfile } from '../profile'
 import { effectiveRolesOf } from '../vocab'
@@ -111,7 +112,7 @@ export function createOpKeysRouter(): Hono {
   async function keyActGrant(c: Context, orgId: string): Promise<{ user: AuthUserPayload } | { error: Response }> {
     const user = await sessionUser(c)
     if (!user) return { error: c.json({ error: 'authentication required' }, 401) }
-    if (user.role === 'admin' || user.role === 'cs_admin') return { user }
+    if (isSystemAuthority(user.role)) return { user }
     const held = new Set(effectiveRolesOf(user))
     if (user.orgId === orgId && held.has('org_admin')) return { user }
     return {
