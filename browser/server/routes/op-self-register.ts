@@ -44,6 +44,7 @@ import { loadDomains, resolveOrgDomain } from '../auth/op/member-domains'
 import { eligibilityFor, resolveEligibilityOrg, resolveSelfRegisterConfig } from '../auth/op/self-register'
 import { isRegistryOrgKind } from '../auth/org-registry'
 import { attributionHash, mintRegistrationToken, mintSetupProofToken, verifyRegistrationPayload, verifySetupProof } from '../auth/op/self-register-links'
+import { HIBP_BREACHED_REFUSAL, hibpPasswordVerdict, markBreachRecheck } from '../auth/op/hibp'
 import { hashPassword } from '../auth/passwords'
 import { sendOpMail } from '../auth/op/mail'
 
@@ -262,6 +263,14 @@ export function createSelfRegisterRouter(): Hono {
     }
 
     const env = runtimeEnv<EnvLike>(c)
+    // The breach check (TODO.sota/07 — the sibling's discipline, ours
+    // since identity-sso/04 slice B): a BREACHED password refuses
+    // before the account lands; an unreachable corpus accepts and arms
+    // the sign-in re-check marker (the enrollment's own posture).
+    const breach = await hibpPasswordVerdict(password, env as Record<string, string | undefined>)
+    if (breach === 'breached') {
+      return selfRegisterError(c, 400, HIBP_BREACHED_REFUSAL)
+    }
     const key = await resolveOpSigningKey(env)
     // THE SETUP PROOF ONLY: the second upstream sign-in's short-lived
     // answer — never the emailed link alone (the 2026-09-29 ruling).
@@ -334,6 +343,7 @@ export function createSelfRegisterRouter(): Hono {
     await store.setUserRoles(account.id, 'user', ['user'])
     await store.setOpClientRoles(account.id, config.client, owner.roles, 'self-register')
     await store.setPasswordHash(account.id, await hashPassword(password), 'self-register')
+    if (breach === 'unknown') await markBreachRecheck(store, account.id)
     await store.markPrimaryEmailVerified(account.id)
     await store.updateUserRoleOrg(account.id, 'user', domain)
     // The twice-proven upstream identity lands as the account's own
