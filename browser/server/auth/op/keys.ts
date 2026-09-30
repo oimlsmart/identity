@@ -47,6 +47,9 @@ export interface OpSigningKey {
   declared: boolean
   /** The WebCrypto private key (sign usage). */
   privateKey: CryptoKey
+  /** The WebCrypto public key (verify usage — the OP's own-token
+   *  checks, verifyOpJwtWithKey). */
+  publicKey: CryptoKey
   /** The public half as a JWK (kid/alg/use stamped). */
   publicJwk: OpJwk
   /** Symmetric secret material for the OP's own HMAC duties
@@ -116,10 +119,17 @@ export async function resolveOpSigningKey(env: EnvLike): Promise<OpSigningKey> {
       false,
       ['sign'],
     )
+    const publicKey = await crypto.subtle.importKey(
+      'jwk',
+      { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y },
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['verify'],
+    )
     const publicJwk: OpJwk = { kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y }
     const declaredKid = (jwk as OpJwk).kid
     const kid = typeof declaredKid === 'string' && declaredKid ? declaredKid : await kidFor(publicJwk)
-    key = { kid, declared: true, privateKey, publicJwk: { ...publicJwk, kid, alg: 'ES256', use: 'sig' }, secretMaterial: raw }
+    key = { kid, declared: true, privateKey, publicKey, publicJwk: { ...publicJwk, kid, alg: 'ES256', use: 'sig' }, secretMaterial: raw }
   } else {
     const pair = await crypto.subtle.generateKey(
       { name: 'ECDSA', namedCurve: 'P-256' },
@@ -134,6 +144,7 @@ export async function resolveOpSigningKey(env: EnvLike): Promise<OpSigningKey> {
       kid,
       declared: false,
       privateKey: pair.privateKey,
+      publicKey: pair.publicKey,
       publicJwk: { ...publicJwk, kid, alg: 'ES256', use: 'sig' },
       secretMaterial: `dev:${exportedPrivate.d ?? kid}`,
     }
@@ -199,6 +210,44 @@ export async function signOpIdToken(key: OpSigningKey, claims: Record<string, un
  *  bad signature all read the same (the caller answers inactive; the
  *  claim-level standing — issuer, expiry, the client's status — is the
  *  CALLER's re-judgment, deliberately never folded in here). */
+/** The key-direct verify: the OP's OWN tokens (the console's step-up
+ *  stamps, the logout tokens) verify against THE KEY THE OP SIGNS WITH
+ *  (resolveOpSigningKey's in-memory declared/instantiated pair) — never
+ *  the oidc_keys table, which serves the EXTERNAL RPs and may be empty
+ *  on flows that never registered (TODO.sota/06's finding). */
+function base64urlDecodeBuffer(s: string): ArrayBuffer {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/')
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out.buffer
+}
+
+export async function verifyOpJwtWithKey(key: OpSigningKey, token: string): Promise<Record<string, unknown> | null> {
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+  let header: { alg?: string; kid?: string }
+  let claims: Record<string, unknown>
+  try {
+    header = JSON.parse(new TextDecoder().decode(base64urlDecode(parts[0]!))) as { alg?: string; kid?: string }
+    claims = JSON.parse(new TextDecoder().decode(base64urlDecode(parts[1]!))) as Record<string, unknown>
+  } catch {
+    return null
+  }
+  if (header.alg !== 'ES256' || header.kid !== key.kid) return null
+  try {
+    const verified = await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      key.publicKey,
+      base64urlDecodeBuffer(parts[2]!),
+      new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
+    )
+    return verified ? claims : null
+  } catch {
+    return null
+  }
+}
+
 export async function verifyOpJwt(store: ServerStore, token: string): Promise<Record<string, unknown> | null> {
   const parts = token.split('.')
   if (parts.length !== 3) return null

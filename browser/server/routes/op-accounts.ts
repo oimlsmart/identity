@@ -1849,7 +1849,10 @@ export function createOpAccountsRouter(): Hono {
       ...(opRequestOrigin(c.req.raw).startsWith('https://') ? { secure: true } : {}),
     })
     await audit('account.step_up', user.id, { userId: user.id, userName: user.name }, { amr: 'pwd' })
-    return c.json({ ok: true, expiresInSec: Math.floor(STEP_UP_TTL_MS / 1000) })
+    // The stamp rides the BODY too (the island's retry carries it as the
+    // x-op-step-up header — no Set-Cookie dependency through any proxy;
+    // the cookie remains the same-origin fallback).
+    return c.json({ ok: true, stamp, expiresInSec: Math.floor(STEP_UP_TTL_MS / 1000) })
   })
 
   // POST /api/op/account/password — set/change the password. When the
