@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import { describe, expect, it } from 'vitest'
-import { loadDomains, resolveOrg, assertVersion } from '../../server/auth/op/member-domains'
+import { loadDomains, resolveOrg, assertVersion, rorFor } from '../../server/auth/op/member-domains'
 
 describe('loadDomains (the vendored dist/domains.json)', () => {
   it('loads the version-2 artifact with both projections', () => {
@@ -56,5 +56,21 @@ describe('resolveOrg (the member-domains contract, dot-boundary mandatory)', () 
   it('answers null for a malformed address', () => {
     expect(resolveOrg('not-an-address')).toBeNull()
     expect(resolveOrg('')).toBeNull()
+  })
+})
+
+describe('rorFor (TODO.sota/05 — the ROR enrichment, the iso+name join)', () => {
+  it('answers the matched org\'s ROR id (NIST, the domain-anchored hit)', () => {
+    expect(rorFor(resolveOrg('someone@nist.gov')!)).toBe('https://ror.org/05xpvk416')
+  })
+
+  it('answers null for an unmatched org — never a guess', () => {
+    const unmatched = [...loadDomains().domains.entries()].find(([, v]) => rorFor(v) === null)
+    expect(unmatched).toBeTruthy()
+    expect(rorFor(unmatched![1])).toBeNull()
+  })
+
+  it('answers null outside the catalog (an org the artifact does not name)', () => {
+    expect(rorFor({ country: 'x', country_fr: 'x', iso: 'XX', status: 'associate', org: 'No Such Org', roles: [], verification: 'inferred', evidence: '' })).toBeNull()
   })
 })

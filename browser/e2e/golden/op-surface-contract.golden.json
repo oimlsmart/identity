@@ -93,6 +93,7 @@
       "groups",
       "org",
       "orcid",
+      "org_ror",
       "amr"
     ],
     "code_challenge_methods_supported": [

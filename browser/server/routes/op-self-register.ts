@@ -40,7 +40,7 @@ import { getInstanceProfile } from '../profile'
 import { resolveOpConfig, opRequestOrigin } from '../auth/op/config'
 import { resolveOpSigningKey } from '../auth/op/keys'
 import { turnstileEnabled, turnstileVerify } from '../auth/op/turnstile'
-import { loadDomains, resolveOrgDomain } from '../auth/op/member-domains'
+import { loadDomains, resolveOrgDomain, rorFor } from '../auth/op/member-domains'
 import { eligibilityFor, resolveEligibilityOrg, resolveSelfRegisterConfig } from '../auth/op/self-register'
 import { isRegistryOrgKind } from '../auth/org-registry'
 import { attributionHash, mintRegistrationToken, mintSetupProofToken, verifyRegistrationPayload, verifySetupProof } from '../auth/op/self-register-links'
@@ -309,6 +309,10 @@ export function createSelfRegisterRouter(): Hono {
         name: owner.org,
         kind: orgKind,
         country: owner.country,
+        // TODO.sota/05 — the enrichment rides the materialization: the
+        // registry row is born with its ROR id when the pipeline
+        // matched one (the org_ror claim's source).
+        rorId: rorFor(owner),
         createdBy: 'self-register',
       })
       await store.setOrgRegistryOrgState(domain, 'active', 'self-register')

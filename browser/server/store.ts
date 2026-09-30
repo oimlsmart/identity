@@ -1448,6 +1448,10 @@ export interface OrgRegistryOrg {
    *  ('signed-active' | 'suspended' | 'withdrawn'); NULL = not
    *  recorded. */
   csStatus: string | null
+  /** TODO.sota/05 — the Research Organization Registry id
+   *  (ror.org/…), matched by the website-domain anchor in the
+   *  member-domains pipeline; NULL when unmatched. */
+  rorId: string | null
   state: OrgRegistryState
   createdAt: string
   createdBy: string | null
@@ -2560,6 +2564,7 @@ export interface ServerStore {
     designatedBy?: string | null
     proposedBy?: string | null
     csStatus?: string | null
+    rorId?: string | null
     createdBy?: string | null
   }): Promise<OrgRegistryOrg | null>
   /** Edit the display data (the id is the stable slug — never editable);

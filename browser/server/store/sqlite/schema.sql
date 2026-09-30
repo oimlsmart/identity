@@ -798,6 +798,10 @@ CREATE TABLE IF NOT EXISTS org_registry (
   designated_by TEXT,
   proposed_by TEXT,
   cs_status TEXT,
+  -- The ROR id (0038_org_registry_ror_id.sql, TODO.sota/05): the
+  -- Research Organization Registry id matched by the website-domain
+  -- anchor in the member-domains pipeline. NULL = unmatched.
+  ror_id TEXT,
   state TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   created_by TEXT,

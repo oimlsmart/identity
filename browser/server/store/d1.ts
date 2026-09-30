@@ -791,6 +791,8 @@ export class D1ServerStore implements ServerStore {
       if (!names.has('designated_by')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN designated_by TEXT').run()
       if (!names.has('proposed_by')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN proposed_by TEXT').run()
       if (!names.has('cs_status')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN cs_status TEXT').run()
+      // The ROR id (0038, TODO.sota/05's enrichment).
+      if (!names.has('ror_id')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN ror_id TEXT').run()
     })
   }
 
@@ -3673,6 +3675,7 @@ export class D1ServerStore implements ServerStore {
       designatedBy: (row.designated_by as string | null) ?? null,
       proposedBy: (row.proposed_by as string | null) ?? null,
       csStatus: (row.cs_status as string | null) ?? null,
+      rorId: (row.ror_id as string | null) ?? null,
       state: row.state as OrgRegistryState,
       createdAt: row.created_at as string,
       createdBy: (row.created_by as string | null) ?? null,
@@ -3723,15 +3726,16 @@ export class D1ServerStore implements ServerStore {
     designatedBy?: string | null
     proposedBy?: string | null
     csStatus?: string | null
+    rorId?: string | null
     createdBy?: string | null
   }): Promise<OrgRegistryOrg | null> {
     await this.ensureOrgRegistrySupport()
     const res = await this.stmt(
-      `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, ror_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       input.id, input.name, input.shortName ?? null, input.kind ?? null, input.country ?? null,
       JSON.stringify(input.contacts ?? []), input.participantRef ?? null,
-      input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.createdBy ?? null,
+      input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.rorId ?? null, input.createdBy ?? null,
     ).run()
     if ((res.meta.changes ?? 0) === 0) return null
     return this.getOrgRegistryOrg(input.id)
