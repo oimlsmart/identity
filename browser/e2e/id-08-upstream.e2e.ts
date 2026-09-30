@@ -377,6 +377,11 @@ describe('TODO.identity/08 — the OP’s upstream providers (the identity profi
     )
 
     await page.evaluate(() => (document.querySelector('[data-testid="op-account-unlink-fixture-idp"]') as HTMLElement).click())
+    // TODO.sota/06: the unlink is a step-up act — the modal demands the
+    // fresh proof (the account holds a password NOW); the act retries.
+    await page.waitForSelector('[data-testid="step-up-modal"]', { timeout: SETTLE, polling: 500 })
+    await page.type('[data-testid="step-up-password"]', 'the ia officer passphrase')
+    await page.evaluate(() => (document.querySelector('[data-testid="step-up-submit"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="op-account-no-links"]', { timeout: SETTLE, polling: 500 })
 
     await signOut(page)
