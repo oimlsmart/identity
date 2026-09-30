@@ -413,7 +413,16 @@ describe('TODO.identity-sso/04 slice D — the security notices fire on their tr
     expectResetPointer(added[0]!.text)
 
     stub.reset()
-    const unlink = await app.request(`${ISSUER}/api/op/account/links/fixture-idp`, { method: 'DELETE', headers: { cookie } })
+    // TODO.sota/06: the unlink is a step-up act — the stamp stands.
+    const { ensureOpKeyRegistered, resolveOpSigningKey } = await import('../../server/auth/op/keys')
+    await ensureOpKeyRegistered(store, await resolveOpSigningKey(process.env as Record<string, string | undefined>))
+    const step = await app.request(`${ISSUER}/api/op/step-up`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ password: 'lena has a proper passphrase' }),
+    })
+    expect(step.status).toBe(200)
+    const stamp = step.headers.get('set-cookie')!.split(';')[0]!
+    const unlink = await app.request(`${ISSUER}/api/op/account/links/fixture-idp`, { method: 'DELETE', headers: { cookie: `${cookie}; ${stamp}` } })
     expect(unlink.status).toBe(200)
     const removed = mailsWithSubject(`A sign-in method was removed from your ${PRODUCT} account`)
     expect(removed).toHaveLength(1)

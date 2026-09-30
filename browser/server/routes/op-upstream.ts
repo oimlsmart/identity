@@ -57,6 +57,8 @@ import {
 import { seedWithReadBack } from './op-seed-guard'
 import { safeLocalRedirect, signUpstreamState, verifyUpstreamState, type UpstreamStatePayload } from '../auth/upstream/state'
 import { continueSelfRegisterAttribution, continueSelfRegisterSecondProof } from './op-self-register'
+import { getCookie } from 'hono/cookie'
+import { stepUpSatisfied, STEP_UP_COOKIE } from '../auth/op/step-up-stamp'
 import {
   buildUpstreamAuthorizationUrl,
   discoverIssuer,
@@ -678,6 +680,18 @@ export function createOpUpstreamRouter(): Hono {
     if (gate.error || !gate.user) return gate.error!
     const providerId = c.req.param('provider')
     const store = getStore()
+    // TODO.sota/06 — the step-up gate: removing a sign-in identity is
+    // a sensitive act; the fresh-proof stamp must stand. ONLY where the
+    // account holds a password (the step-up's v1 factor) — a link-only
+    // account cannot mint one, and the only-method guard below still
+    // protects it (the upstream re-auth factor follows in 06's tail).
+    const cred = await store.getPasswordLogin(gate.user.email)
+    if (cred) {
+      const stamp = getCookie(c, STEP_UP_COOKIE) ?? ''
+      if (!stamp || !(await stepUpSatisfied(store, stamp, gate.user.id))) {
+        return c.json({ error: 'verify once more before removing a linked sign-in — re-enter your current password', stepUp: true }, 403)
+      }
+    }
     const methods = await store.countSignInMethods(gate.user.id)
     if (methods.links <= 1 && !methods.password) {
       return c.json({

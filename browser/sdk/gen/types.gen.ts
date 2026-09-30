@@ -764,6 +764,34 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
+export type AccountStepUpData = {
+    body: {
+        password: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/op/step-up';
+};
+
+export type AccountStepUpErrors = {
+    /**
+     * The password does not match (or the account holds none).
+     */
+    403: unknown;
+};
+
+export type AccountStepUpResponses = {
+    /**
+     * The stamp cookie stands (op_step_up, five minutes).
+     */
+    200: {
+        ok?: boolean;
+        expiresInSec?: number;
+    };
+};
+
+export type AccountStepUpResponse = AccountStepUpResponses[keyof AccountStepUpResponses];
+
 export type GetAccountData = {
     body?: never;
     path?: never;

@@ -155,6 +155,7 @@ import {
 } from '../auth/op/accounts'
 import { opRandomToken } from '../auth/op/keys'
 import { prepareBackchannelLogout } from '../auth/op/logout'
+import { mintStepUpStamp, STEP_UP_COOKIE, STEP_UP_TTL_MS, stepUpKey } from '../auth/op/step-up-stamp'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
 import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
@@ -1815,6 +1816,40 @@ export function createOpAccountsRouter(): Hono {
     }
     await audit('account.email_removed', user.id, { userId: user.id, userName: user.name }, { email })
     return c.json({ ok: true })
+  })
+
+  // POST /api/op/step-up — TODO.sota/06: mint the fresh-proof stamp.
+  // The current password re-entered (the universal factor every
+  // password account holds) buys a five-minute act window. The
+  // full-cost comparison runs either way (the timing rule); the wrong
+  // password mints NOTHING.
+  accounts.post('/api/op/step-up', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const body = await c.req.json<{ password?: unknown }>().catch(() => null)
+    if (!body || typeof body.password !== 'string' || !body.password) {
+      return c.json({ error: 'the current password is required' }, 400)
+    }
+    const cred = await getStore().getPasswordLogin(user.email)
+    if (!cred) {
+      return c.json({ error: 'this account holds no password — use a linked sign-in method, or ask for a reset' }, 403)
+    }
+    const ok = await verifyPasswordLogin(body.password, cred.hash ?? null)
+    if (!ok) {
+      await audit('account.step_up_refused', user.id, { userId: user.id, userName: user.name }, {})
+      return c.json({ error: 'the current password does not match' }, 403)
+    }
+    const key = await stepUpKey(runtimeEnv<EnvLike>(c) as Record<string, string | undefined>)
+    const stamp = await mintStepUpStamp(key, user.id, 'pwd')
+    setCookie(c, STEP_UP_COOKIE, stamp, {
+      httpOnly: true,
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: Math.floor(STEP_UP_TTL_MS / 1000),
+      ...(opRequestOrigin(c.req.raw).startsWith('https://') ? { secure: true } : {}),
+    })
+    await audit('account.step_up', user.id, { userId: user.id, userName: user.name }, { amr: 'pwd' })
+    return c.json({ ok: true, expiresInSec: Math.floor(STEP_UP_TTL_MS / 1000) })
   })
 
   // POST /api/op/account/password — set/change the password. When the

@@ -84,6 +84,10 @@ async function runFlow(startUrl: string, user: string, cookie?: string, method: 
 }
 
 beforeAll(async () => {
+  // The step-up stamp verifies against the REGISTERED keyset (the #7
+  // gate): the declared key + the direct registration.
+  const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
+  process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
   const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
   const profileMod = await import('../../server/profile')
@@ -111,9 +115,11 @@ demo_personas: true
   const { Hono } = await import('hono')
   const { createAuthLeanRouter } = await import('../../server/routes/auth-lean')
   const { createOpUpstreamRouter } = await import('../../server/routes/op-upstream')
+  const { createOpAccountsRouter } = await import('../../server/routes/op-accounts')
   const root = new Hono()
   root.route('/api/auth', createAuthLeanRouter({ autoSeedDemo: true }))
   root.route('/', createOpUpstreamRouter())
+  root.route('/', createOpAccountsRouter())
   app = root
 
   // The registry rows (the admin API is proven below; these ride the
@@ -134,7 +140,7 @@ afterAll(async () => {
   const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
   rmSync(TMP, { recursive: true, force: true })
-  for (const name of ['FIXTURE_IDP_SECRET', 'GITHUB_UPSTREAM_SECRET', 'GITHUB_OAUTH_BASE_URL', 'GITHUB_API_BASE_URL', 'DATABASE_PATH']) {
+  for (const name of ['FIXTURE_IDP_SECRET', 'OP_SIGNING_KEY', 'GITHUB_UPSTREAM_SECRET', 'GITHUB_OAUTH_BASE_URL', 'GITHUB_API_BASE_URL', 'DATABASE_PATH']) {
     delete process.env[name]
   }
 })
@@ -485,7 +491,16 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     const viewer = (await store.findUserByEmail('viewer@oimlsmart.org'))!
     await store.setPasswordHash(viewer.id, await hashPassword('the viewer test passphrase'), 'test')
     const cookie = await demoLogin('viewer@oimlsmart.org')
-    const unlink = await app.request(`${ISSUER}/api/op/account/links/fixture-idp`, { method: 'DELETE', headers: { cookie } })
+    // TODO.sota/06: the unlink is a step-up act — the fresh-proof stamp.
+    const { ensureOpKeyRegistered, resolveOpSigningKey } = await import('../../server/auth/op/keys')
+    await ensureOpKeyRegistered(store, await resolveOpSigningKey(process.env as Record<string, string | undefined>))
+    const step = await app.request(`${ISSUER}/api/op/step-up`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ password: 'the viewer test passphrase' }),
+    })
+    expect(step.status).toBe(200)
+    const stamp = step.headers.get('set-cookie')!.split(';')[0]!
+    const unlink = await app.request(`${ISSUER}/api/op/account/links/fixture-idp`, { method: 'DELETE', headers: { cookie: `${cookie}; ${stamp}` } })
     expect(unlink.status).toBe(200)
     expect(await store.findIdentityLink('fixture-idp', 'stub-bob')).toBeNull()
 

@@ -41,6 +41,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { Hono, type Context } from 'hono'
+import { getCookie } from 'hono/cookie'
+import { stepUpSatisfied, STEP_UP_COOKIE } from '../auth/op/step-up-stamp'
+import { isSystemAuthority } from '../vocab/roles'
 import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type AuthUserPayload } from '../store'
 import { effectiveRbacMap } from '../rbac'
@@ -273,6 +276,19 @@ export function createUsersRouter(): Hono<{ Variables: { user: AuthUserPayload; 
     const scope = c.get('scope') as UserScope
     const targetId = c.req.param('id')
     const body = await c.req.json().catch(() => null) as { role?: string; roles?: string[] } | null
+    // TODO.sota/06 — the step-up gate, RISK-BASED: an ESCALATION (any
+    // privileged role in the grant — the system authorities or
+    // org_admin) demands the FRESH proof stamp (the current password
+    // re-entered within the five-minute window); an ordinary
+    // adjustment never inconveniences the operator.
+    const user = c.get('user')
+    const escalation = [body?.role, ...(body?.roles ?? [])].some(r => typeof r === 'string' && (isSystemAuthority(r) || r === 'org_admin'))
+    if (escalation) {
+      const stamp = getCookie(c, STEP_UP_COOKIE) ?? ''
+      if (!stamp || !(await stepUpSatisfied(getStore(), stamp, user.id))) {
+        return c.json({ error: 'verify once more before granting a privileged role — re-enter your current password', stepUp: true }, 403)
+      }
+    }
     if (!body || typeof body.role !== 'string' || !body.role) {
       return c.json({ error: 'role is required' }, 400)
     }
