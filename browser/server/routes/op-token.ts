@@ -53,7 +53,7 @@ import {
   DEVICE_CODE_GRANT, deviceGrantPatName, hashDeviceCode, judgeDevicePoll,
 } from '../auth/op/device-grant'
 import { auditGrant } from '../auth/op/grants'
-import { dpopJtiExpiry, verifyDpopProof } from '../auth/op/dpop'
+import { dpopJtiExpiry, mintDpopNonce, verifyDpopProof } from '../auth/op/dpop'
 import { acrOf, sessionMeetsMaxAge } from '../auth/op/step-up'
 import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
@@ -117,17 +117,36 @@ function configFor(c: Context) {
   // POST /op/token — the code exchange.
 /** TODO.sota/09 (RFC 9449): the token request's DPoP binding. NULL =
  *  no proof rode the request (the ordinary Bearer posture). An error
- *  answers the 400 invalid_dpop_proof. A fresh proof's jti burns at
- *  verification — a replayed proof refuses even if the grant would
- *  have succeeded. */
-async function dpopBindingFor(c: Context, config: { issuer: string }): Promise<{ jkt: string } | { error: string } | null> {
+ *  answers the 400 invalid_dpop_proof; { challenge } answers the 400
+ *  use_dpop_nonce (§8's STRICT posture — the fresh nonce rides the
+ *  DPoP-Nonce header, the client retries with it). A fresh proof's jti
+ *  burns at verification — a replayed proof refuses even if the grant
+ *  would have succeeded. The success answer carries a refreshed nonce
+ *  (the client keeps riding without re-challenging). */
+async function dpopBindingFor(
+  c: Context,
+  config: { issuer: string },
+): Promise<{ jkt: string; nonce: string } | { error: string } | { challenge: string } | null> {
   const proof = c.req.header('dpop')
   if (!proof) return null
-  const res = await verifyDpopProof(proof, { method: 'POST', uri: `${config.issuer}/op/token` })
+  const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+  const res = await verifyDpopProof(proof, { method: 'POST', uri: `${config.issuer}/op/token`, nonceSecret: key.secretMaterial })
   if ('error' in res) return res
+  if ('challenge' in res) return res
   const fresh = await getStore().rememberDpopJti(res.jti, dpopJtiExpiry(res.iat))
   if (!fresh) return { error: 'the proof\u2019s jti was already used' }
-  return { jkt: res.jkt }
+  return { jkt: res.jkt, nonce: await mintDpopNonce(key.secretMaterial) }
+}
+
+/** The binding's two uniform answers: the challenge (§8) and the
+ *  refreshed-nonce success stamp. The arms call these right after
+ *  dpopBindingFor. */
+function dpopChallenged(c: Context, challenge: string): Response {
+  c.header('dpop-nonce', challenge)
+  return c.json({
+    error: 'use_dpop_nonce',
+    error_description: 'the proof must carry the server-issued nonce (the DPoP-Nonce response header) — retry with it',
+  }, 400)
 }
 
 export function createOpTokenRouter(deps: {
@@ -229,9 +248,11 @@ export function createOpTokenRouter(deps: {
       // consumers (introspection here, the external RSes) read the
       // binding; our own 8693 verifies enforce it.
       const machineDpop = await dpopBindingFor(c, config)
+      if (machineDpop && 'challenge' in machineDpop) return dpopChallenged(c, machineDpop.challenge)
       if (machineDpop && 'error' in machineDpop) {
         return refuseToken(400, 'invalid_dpop_proof', machineDpop.error, machineClient.clientId)
       }
+      if (machineDpop && 'nonce' in machineDpop) c.header('dpop-nonce', machineDpop.nonce)
       const machineJkt = machineDpop && 'jkt' in machineDpop ? machineDpop.jkt : null
       const machineToken = await signOpIdToken(machineKey, device
         ? deviceTokenClaims(machineClient.clientId, device, config, machineJkt)
@@ -422,9 +443,14 @@ export function createOpTokenRouter(deps: {
         // the subject). A stolen bound token refuses here.
         if (subject.dpopJkt) {
           const subjectProof = c.req.header('dpop')
+          const subjectKey = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
           const subjectRes = subjectProof
-            ? await verifyDpopProof(subjectProof, { method: 'POST', uri: `${config.issuer}/op/token`, accessToken: presentedDelegation })
+            ? await verifyDpopProof(subjectProof, { method: 'POST', uri: `${config.issuer}/op/token`, accessToken: presentedDelegation, nonceSecret: subjectKey.secretMaterial })
             : { error: 'the subject token is DPoP-bound — a proof is required' }
+          if ('challenge' in subjectRes) {
+            c.header('dpop-nonce', subjectRes.challenge)
+            return c.json({ error: 'use_dpop_nonce', error_description: 'the proof must carry the server-issued nonce — retry with it' }, 400)
+          }
           if (!('jkt' in subjectRes) || subjectRes.jkt !== subject.dpopJkt) {
             return refuseDelegation('dpop_proof', subject.userId)
           }
@@ -716,9 +742,11 @@ export function createOpTokenRouter(deps: {
       // The DPoP arm (TODO.sota/09): a proof on the refresh re-binds the
       // ROTATED access token to its key (each request proves fresh).
       const refreshDpop = await dpopBindingFor(c, config)
+      if (refreshDpop && 'challenge' in refreshDpop) return dpopChallenged(c, refreshDpop.challenge)
       if (refreshDpop && 'error' in refreshDpop) {
         return refuseToken(400, 'invalid_dpop_proof', refreshDpop.error, client!.clientId)
       }
+      if (refreshDpop && 'nonce' in refreshDpop) c.header('dpop-nonce', refreshDpop.nonce)
       const refreshedAccess = opRandomToken()
       await store.createOidcAccessToken({
         token: refreshedAccess,
@@ -887,9 +915,11 @@ export function createOpTokenRouter(deps: {
     // minted access token to the proof key's JKT — the response answers
     // token_type DPoP and userinfo enforces the same key thereafter.
     const dpop = await dpopBindingFor(c, config)
+    if (dpop && 'challenge' in dpop) return dpopChallenged(c, dpop.challenge)
     if (dpop && 'error' in dpop) {
       return refuseToken(400, 'invalid_dpop_proof', dpop.error, client!.clientId)
     }
+    if (dpop && 'nonce' in dpop) c.header('dpop-nonce', dpop.nonce)
     const accessToken = opRandomToken()
     await store.createOidcAccessToken({
       token: accessToken,

@@ -21,6 +21,40 @@
  *  protection rides the jti cache anyway. */
 const DPOP_IAT_WINDOW_SEC = 300
 
+/** The server-issued nonce's life (RFC 9449 §8): a value the client
+ *  must echo in its proofs; a fresh one rides every challenge. */
+const DPOP_NONCE_TTL_SEC = 600
+
+async function hmacB64url(secret: string, data: string): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  return bytesToB64url(new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data))))
+}
+
+/** A constant-time string compare (the nonce's signature leg). */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
+/** Mint a nonce: `<exp>.<HMAC>` over the OP's secret material —
+ *  stateless (no table, no sweep; every isolate validates), the same
+ *  HMAC doctrine as the self-registration links. */
+export async function mintDpopNonce(secretMaterial: string, nowSec: number = Math.floor(Date.now() / 1000)): Promise<string> {
+  const exp = nowSec + DPOP_NONCE_TTL_SEC
+  return `${exp}.${await hmacB64url(secretMaterial, String(exp))}`
+}
+
+async function dpopNonceOk(secretMaterial: string, nonce: string): Promise<boolean> {
+  const dot = nonce.indexOf('.')
+  if (dot <= 0) return false
+  const exp = nonce.slice(0, dot)
+  const sig = nonce.slice(dot + 1)
+  if (!/^\d+$/.test(exp) || Number(exp) * 1000 <= Date.now()) return false
+  return timingSafeEqual(sig, await hmacB64url(secretMaterial, exp))
+}
+
 function b64urlToBytes(v: string): Uint8Array<ArrayBuffer> {
   const b64 = v.replace(/-/g, '+').replace(/_/g, '/')
   const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))
@@ -46,6 +80,11 @@ export interface DpopExpectation {
    *  carry ath = its SHA-256. Absent = a token-endpoint request (no
    *  ath expected). */
   accessToken?: string
+  /** RFC 9449 §8, the STRICT nonce posture (FAPI-2's checklist): when
+   *  set, the proof MUST carry a valid server-issued nonce — an absent
+   *  or stale one answers { challenge } with a FRESH value for the
+   *  client's retry. */
+  nonceSecret?: string
 }
 
 /** The RFC 7638 thumbprint of an EC P-256 public JWK — the JKT
@@ -61,7 +100,7 @@ export async function jktOf(jwk: { kty: string; crv: string; x: string; y: strin
 export async function verifyDpopProof(
   proof: string,
   expected: DpopExpectation,
-): Promise<{ jkt: string; jti: string; iat: number } | { error: string }> {
+): Promise<{ jkt: string; jti: string; iat: number } | { error: string } | { challenge: string }> {
   const parts = proof.split('.')
   if (parts.length !== 3) return { error: 'malformed proof' }
   let header: Record<string, unknown>
@@ -79,6 +118,15 @@ export async function verifyDpopProof(
     return { error: 'jwk must be a public EC P-256 key' }
   }
   if (jwk.d !== undefined) return { error: 'jwk must not carry private key material' }
+  // The nonce leg (§8): ABSENT or STALE challenges — never a hard fail,
+  // the client retries with the issued value (the fresh mint rides the
+  // challenge). Checked before the expensive signature verify.
+  if (expected.nonceSecret !== undefined) {
+    const presented = typeof payload.nonce === 'string' ? payload.nonce : ''
+    if (!presented || !(await dpopNonceOk(expected.nonceSecret, presented))) {
+      return { challenge: await mintDpopNonce(expected.nonceSecret) }
+    }
+  }
   if (payload.htm !== expected.method.toUpperCase()) return { error: 'htm mismatch' }
   if (payload.htu !== expected.uri) return { error: 'htu mismatch' }
   const iat = typeof payload.iat === 'number' ? payload.iat : Number.NaN

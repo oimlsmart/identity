@@ -33,6 +33,8 @@ export async function mintDpopProof(input: {
   accessToken?: string
   iat?: number
   keys?: CryptoKeyPair
+  /** RFC 9449 §8: the server-issued challenge value. */
+  nonce?: string
 }): Promise<MintedProof> {
   const pair = input.keys ?? await mintDpopKeys()
   const jwk = await crypto.subtle.exportKey('jwk', pair.publicKey)
@@ -48,6 +50,7 @@ export async function mintDpopProof(input: {
   if (input.accessToken) {
     payload.ath = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input.accessToken))))
   }
+  if (input.nonce) payload.nonce = input.nonce
   const header = { typ: 'dpop+jwt', alg: 'ES256', jwk: pub }
   const unsigned = `${b64url(new TextEncoder().encode(JSON.stringify(header)))}.${b64url(new TextEncoder().encode(JSON.stringify(payload)))}`
   const sig = await crypto.subtle.sign(

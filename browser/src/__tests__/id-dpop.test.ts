@@ -39,6 +39,8 @@ let store: ReturnType<typeof import('../../server/store').getStore>
 let app: import('hono').Hono
 let mint: typeof import('./helpers/dpop-proof').mintDpopProof
 let userId: string
+let dpopSecret: string
+let freshNonce: () => Promise<string>
 
 async function plantCode(): Promise<string> {
   const { pkceS256 } = await import('../../server/auth/op/keys')
@@ -92,6 +94,10 @@ demo_personas: true
   const account = await store.createOpAccount({ email: 'dpop@oimlsmart.org', name: 'DPoP Test', role: 'user', roles: ['user'], createdBy: 'test', emailVerified: true })
   userId = account!.id
 
+  const { resolveOpSigningKey } = await import('../../server/auth/op/keys')
+  const { mintDpopNonce } = await import('../../server/auth/op/dpop')
+  dpopSecret = (await resolveOpSigningKey(process.env as Record<string, string | undefined>)).secretMaterial
+  freshNonce = () => mintDpopNonce(dpopSecret)
   const { Hono } = await import('hono')
   const { createOpTokenRouter } = await import('../../server/routes/op-token')
   const { createOpTokenManagementRouter, } = await import('../../server/routes/op-token-management')
@@ -151,7 +157,7 @@ describe('the token endpoint\'s DPoP arm', () => {
   it('a proof-bound exchange answers token_type DPoP; the bound token enforces at userinfo; a replayed jti refuses', async () => {
     const keys = await (await import('./helpers/dpop-proof')).mintDpopKeys()
     const code = await plantCode()
-    const p = await mint({ method: 'POST', uri: TOKEN_URL, keys })
+    const p = await mint({ method: 'POST', uri: TOKEN_URL, keys, nonce: await freshNonce() })
     const res = await exchange(grantBody(code), p.proof)
     expect(res.status).toBe(200)
     const body = await res.json() as { token_type: string; access_token: string }
@@ -161,10 +167,10 @@ describe('the token endpoint\'s DPoP arm', () => {
     // WRONG key; the RIGHT key answers the claims.
     const bare = await app.request('/op/userinfo', { headers: { authorization: `Bearer ${body.access_token}` } })
     expect(bare.status).toBe(401)
-    const wrong = await mint({ method: 'GET', uri: USERINFO_URL, accessToken: body.access_token })
+    const wrong = await mint({ method: 'GET', uri: USERINFO_URL, accessToken: body.access_token, nonce: await freshNonce() })
     const wrongKey = await app.request('/op/userinfo', { headers: { authorization: `DPoP ${body.access_token}`, dpop: wrong.proof } })
     expect(wrongKey.status).toBe(401)
-    const right = await mint({ method: 'GET', uri: USERINFO_URL, accessToken: body.access_token, keys })
+    const right = await mint({ method: 'GET', uri: USERINFO_URL, accessToken: body.access_token, keys, nonce: await freshNonce() })
     const ok = await app.request('/op/userinfo', { headers: { authorization: `DPoP ${body.access_token}`, dpop: right.proof } })
     expect(ok.status).toBe(200)
     expect(((await ok.json()) as { sub: string }).sub).toBe(userId)
@@ -220,7 +226,7 @@ describe('the machine cone\u2019s DPoP arm (the self-contained JWTs)', () => {
 
   it('a proof-bound mint carries cnf.jkt inside the JWT and answers token_type DPoP', async () => {
     const keys = await mint({ method: 'POST', uri: TOKEN_URL }).then(() => import('./helpers/dpop-proof')).then(async m => m.mintDpopKeys())
-    const p = await mint({ method: 'POST', uri: TOKEN_URL, keys })
+    const p = await mint({ method: 'POST', uri: TOKEN_URL, keys, nonce: await freshNonce() })
     const res = await machineExchange(p.proof)
     expect(res.status).toBe(200)
     const body = await res.json() as { token_type: string; access_token: string }
@@ -239,7 +245,7 @@ describe('the machine cone\u2019s DPoP arm (the self-contained JWTs)', () => {
 
   it('introspection discloses the binding on BOTH halves (the machine JWT and the opaque row)', async () => {
     const keys = await (await import('./helpers/dpop-proof')).mintDpopKeys()
-    const p = await mint({ method: 'POST', uri: TOKEN_URL, keys })
+    const p = await mint({ method: 'POST', uri: TOKEN_URL, keys, nonce: await freshNonce() })
     const bound = await machineExchange(p.proof)
     const jwt = ((await bound.json()) as { access_token: string }).access_token
 
@@ -256,7 +262,7 @@ describe('the machine cone\u2019s DPoP arm (the self-contained JWTs)', () => {
     // The opaque half: the earlier round-trip's binding reads through
     // the same disclosure.
     const code = await plantCode()
-    const userProof = await mint({ method: 'POST', uri: TOKEN_URL })
+    const userProof = await mint({ method: 'POST', uri: TOKEN_URL, nonce: await freshNonce() })
     const exchanged = await exchange(grantBody(code), userProof.proof)
     const opaque = ((await exchanged.json()) as { access_token: string }).access_token
     const opaqueAnswer = await (await probe(opaque)).json() as { active: boolean; cnf?: { jkt: string }; token_type: string }
@@ -270,7 +276,7 @@ describe('the machine cone\u2019s DPoP arm (the self-contained JWTs)', () => {
 describe('the delegation exchange\u2019s DPoP enforcement (RFC 9449 \u00a77 — the endpoint consumes the bound subject)', () => {
   it('a bound subject token delegates ONLY with a possession proof from the bound key', async () => {
     const keys = await (await import('./helpers/dpop-proof')).mintDpopKeys()
-    const minted = await mint({ method: 'POST', uri: TOKEN_URL, keys })
+    const minted = await mint({ method: 'POST', uri: TOKEN_URL, keys, nonce: await freshNonce() })
     const code = await plantCode()
     const res = await exchange(grantBody(code), minted.proof)
     const subject = ((await res.json()) as { access_token: string }).access_token
@@ -300,7 +306,7 @@ describe('the delegation exchange\u2019s DPoP enforcement (RFC 9449 \u00a77 — 
     expect(bare.status).toBe(400)
     expect((await journal()).slice(before)).toContain('dpop_proof')
 
-    const wrongKeyProof = await mint({ method: 'POST', uri: TOKEN_URL, accessToken: subject })
+    const wrongKeyProof = await mint({ method: 'POST', uri: TOKEN_URL, accessToken: subject, nonce: await freshNonce() })
     const wrong = await attempt(wrongKeyProof.proof)
     expect(wrong.status).toBe(400)
     expect((await journal()).slice(before)).toEqual(['dpop_proof', 'dpop_proof'])
@@ -308,10 +314,59 @@ describe('the delegation exchange\u2019s DPoP enforcement (RFC 9449 \u00a77 — 
     // The bound key's proof (ath over the subject) passes the DPoP leg —
     // the journal names the LATER leg (the scope standing), never
     // dpop_proof again.
-    const rightProof = await mint({ method: 'POST', uri: TOKEN_URL, keys, accessToken: subject })
+    const rightProof = await mint({ method: 'POST', uri: TOKEN_URL, keys, accessToken: subject, nonce: await freshNonce() })
     const right = await attempt(rightProof.proof)
     expect(right.status).toBe(400)
     const reasons = (await journal()).slice(before)
     expect(reasons[reasons.length - 1]).not.toBe('dpop_proof')
+  })
+})
+
+
+describe('the DPoP nonce (RFC 9449 \u00a78 — the challenge dance, FAPI-2\u2019s checklist item)', () => {
+  it('a nonceless proof is CHALLENGED at the token endpoint (400 use_dpop_nonce + the header); the retry with the issued value succeeds', async () => {
+    const code = await plantCode()
+    const keys = await (await import('./helpers/dpop-proof')).mintDpopKeys()
+    const bare = await mint({ method: 'POST', uri: TOKEN_URL, keys })
+    const challenged = await exchange(grantBody(code), bare.proof)
+    expect(challenged.status).toBe(400)
+    expect(((await challenged.json()) as { error: string }).error).toBe('use_dpop_nonce')
+    const issued = challenged.headers.get('dpop-nonce')
+    expect(issued).toBeTruthy()
+
+    const code2 = await plantCode()
+    const retry = await mint({ method: 'POST', uri: TOKEN_URL, keys, nonce: issued! })
+    const res = await exchange(grantBody(code2), retry.proof)
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { token_type: string }).token_type).toBe('DPoP')
+  })
+
+  it('a stale nonce re-challenges with a fresh value (never a hard fail)', async () => {
+    const { mintDpopNonce } = await import('../../server/auth/op/dpop')
+    const stale = await mintDpopNonce(dpopSecret, Math.floor(Date.now() / 1000) - 3600)
+    const code = await plantCode()
+    const p = await mint({ method: 'POST', uri: TOKEN_URL, nonce: stale })
+    const challenged = await exchange(grantBody(code), p.proof)
+    expect(challenged.status).toBe(400)
+    expect(((await challenged.json()) as { error: string }).error).toBe('use_dpop_nonce')
+    expect(challenged.headers.get('dpop-nonce')).not.toBe(stale)
+  })
+
+  it('userinfo challenges the bound token\u2019s nonceless proof (401 + WWW-Authenticate + the header)', async () => {
+    const keys = await (await import('./helpers/dpop-proof')).mintDpopKeys()
+    const minted = await mint({ method: 'POST', uri: TOKEN_URL, keys, nonce: await freshNonce() })
+    const code = await plantCode()
+    const bound = ((await (await exchange(grantBody(code), minted.proof)).json()) as { access_token: string }).access_token
+
+    const proofless = await mint({ method: 'GET', uri: USERINFO_URL, accessToken: bound, keys })
+    const challenged = await app.request('/op/userinfo', { headers: { authorization: `DPoP ${bound}`, dpop: proofless.proof } })
+    expect(challenged.status).toBe(401)
+    expect(challenged.headers.get('www-authenticate')).toContain('use_dpop_nonce')
+    const issued = challenged.headers.get('dpop-nonce')
+    expect(issued).toBeTruthy()
+
+    const retry = await mint({ method: 'GET', uri: USERINFO_URL, accessToken: bound, keys, nonce: issued! })
+    const ok = await app.request('/op/userinfo', { headers: { authorization: `DPoP ${bound}`, dpop: retry.proof } })
+    expect(ok.status).toBe(200)
   })
 })

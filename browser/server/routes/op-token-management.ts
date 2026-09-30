@@ -23,9 +23,9 @@ import { Hono, type Context } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, normalizePatScopes, type PatScope } from '../store'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
-import { verifyOpJwt } from '../auth/op/keys'
+import { resolveOpSigningKey, verifyOpJwt } from '../auth/op/keys'
 import { oidcError } from '../auth/op/oidc-error'
-import { verifyDpopProof } from '../auth/op/dpop'
+import { mintDpopNonce, verifyDpopProof } from '../auth/op/dpop'
 import { roleClaimsForContext, pictureClaimForClient, orcidClaimForClient, orgRorClaimForClient } from '../auth/op/claims'
 import { claimsContextFor } from '../auth/op/memberships'
 import {
@@ -76,13 +76,20 @@ export function createOpTokenManagementRouter(deps: {
     // ath bound — a stolen token replayed from elsewhere refuses.
     if (access.dpopJkt) {
       const proof = c.req.header('dpop')
+      const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
       const res = proof
-        ? await verifyDpopProof(proof, { method: 'GET', uri: `${configFor(c).issuer}/op/userinfo`, accessToken: token })
+        ? await verifyDpopProof(proof, { method: 'GET', uri: `${configFor(c).issuer}/op/userinfo`, accessToken: token, nonceSecret: key.secretMaterial })
         : { error: 'the DPoP proof is required for this token' }
+      if ('challenge' in res) {
+        c.header('www-authenticate', 'DPoP error="use_dpop_nonce"')
+        c.header('dpop-nonce', res.challenge)
+        return c.json({ error: 'use_dpop_nonce', error_description: 'the proof must carry the server-issued nonce — retry with it' }, 401)
+      }
       if (!('jkt' in res) || res.jkt !== access.dpopJkt) {
         c.header('www-authenticate', 'DPoP error="invalid_dpop_proof"')
         return c.json({ error: 'invalid_dpop_proof', error_description: 'error' in res ? res.error : 'the proof key does not match the token’s binding' }, 401)
       }
+      c.header('dpop-nonce', await mintDpopNonce(key.secretMaterial))
     }
     const user = await store.getUserById(access.userId)
     if (!user) return c.json({ error: 'invalid_token', error_description: 'the token’s account no longer exists' }, 401)
