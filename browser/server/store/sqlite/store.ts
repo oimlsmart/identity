@@ -1029,6 +1029,7 @@ export function updateOrgRegistryOrg(db: Database.Database,
     designatedBy?: string | null
     proposedBy?: string | null
     csStatus?: string | null
+    rorId?: string | null
   },
   actor?: string | null,
 ): OrgRegistryOrg | null {
@@ -1043,6 +1044,7 @@ export function updateOrgRegistryOrg(db: Database.Database,
   if (patch.designatedBy !== undefined) { sets.push('designated_by = ?'); params.push(patch.designatedBy) }
   if (patch.proposedBy !== undefined) { sets.push('proposed_by = ?'); params.push(patch.proposedBy) }
   if (patch.csStatus !== undefined) { sets.push('cs_status = ?'); params.push(patch.csStatus) }
+  if (patch.rorId !== undefined) { sets.push('ror_id = ?'); params.push(patch.rorId) }
   sets.push("updated_at = datetime('now')", 'updated_by = ?')
   params.push(actor ?? null)
   const res = db.prepare(`UPDATE org_registry SET ${sets.join(', ')} WHERE id = ?`).run(...params, id)

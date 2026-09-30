@@ -39,6 +39,8 @@ interface OrgInfo {
   designatedBy: string | null
   proposedBy: string | null
   csStatus: 'signed-active' | 'suspended' | 'withdrawn' | null
+  /** TODO.sota/05 — the ROR id (the curation loop). */
+  rorId: string | null
   state: 'active' | 'disabled'
   registered: boolean
   /** The per-kind standing (TODO.register/01 + the member category). */
@@ -206,6 +208,7 @@ const editContacts = ref<Array<{ name: string; email: string }>>([])
 const editDesignatedBy = ref('')
 const editProposedBy = ref('')
 const editCsStatus = ref('')
+const editRorId = ref('')
 // A kind change drops the links that kind cannot carry (the form never
 // sends a stale link; the server re-checks regardless).
 watch(editKind, kind => {
@@ -575,6 +578,7 @@ function openEdit() {
   editDesignatedBy.value = org.designatedBy ?? ''
   editProposedBy.value = org.proposedBy ?? ''
   editCsStatus.value = org.csStatus ?? ''
+  editRorId.value = org.rorId ?? ''
   editContacts.value = org.contacts.length
     ? org.contacts.map(ct => ({ name: ct.name ?? '', email: ct.email }))
     : [{ name: '', email: '' }]
@@ -600,6 +604,7 @@ async function saveEdit() {
         designated_by: editDesignatedBy.value || null,
         proposed_by: editProposedBy.value || null,
         cs_status: editCsStatus.value || null,
+        ror_id: editRorId.value.trim() || null,
         contacts,
       }),
     })
@@ -788,6 +793,10 @@ onMounted(async () => {
             <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.participantRefLabel') }}</dt>
             <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-participant">{{ view.org.participantRef ?? t('admin.org.details.participantRefNone') }}</dd>
           </div>
+          <div class="flex gap-2 sm:col-span-2">
+            <dt class="text-slate-400 dark:text-slate-500 shrink-0">{{ t('admin.org.details.rorIdLabel') }}</dt>
+            <dd class="text-slate-700 dark:text-slate-300" data-testid="op-reg-org-ror">{{ view.org.rorId ?? t('admin.org.details.rorIdNone') }}</dd>
+          </div>
           <!-- The designation links + the CS status facet
                (TODO.identity-features/10): the row's OWN chain position,
                honestly — the "not recorded" read for a linkless
@@ -835,6 +844,7 @@ onMounted(async () => {
             </select>
             <input v-model="editCountry" type="text" data-testid="op-reg-org-edit-country" :placeholder="t('admin.orgs.field.country')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500" />
             <input v-model="editParticipantRef" type="text" data-testid="op-reg-org-edit-participant-ref" :placeholder="t('admin.orgs.field.participantRef')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 sm:col-span-2" />
+            <input v-model="editRorId" type="text" data-testid="op-reg-org-edit-ror" :placeholder="t('admin.orgs.field.rorId')" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 sm:col-span-2" />
             <!-- The designation link (TODO.identity-features/10): the
                  selector's options are the rule's eligible targets (a
                  utilizer's designator is a member state, an associate's

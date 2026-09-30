@@ -2582,6 +2582,7 @@ export interface ServerStore {
       designatedBy?: string | null
       proposedBy?: string | null
       csStatus?: string | null
+      rorId?: string | null
     },
     actor?: string | null,
   ): Promise<OrgRegistryOrg | null>

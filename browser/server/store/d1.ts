@@ -3754,6 +3754,7 @@ export class D1ServerStore implements ServerStore {
       designatedBy?: string | null
       proposedBy?: string | null
       csStatus?: string | null
+      rorId?: string | null
     },
     actor?: string | null,
   ): Promise<OrgRegistryOrg | null> {
@@ -3769,6 +3770,7 @@ export class D1ServerStore implements ServerStore {
     if (patch.designatedBy !== undefined) { sets.push('designated_by = ?'); params.push(patch.designatedBy) }
     if (patch.proposedBy !== undefined) { sets.push('proposed_by = ?'); params.push(patch.proposedBy) }
     if (patch.csStatus !== undefined) { sets.push('cs_status = ?'); params.push(patch.csStatus) }
+    if (patch.rorId !== undefined) { sets.push('ror_id = ?'); params.push(patch.rorId) }
     sets.push("updated_at = datetime('now')", 'updated_by = ?')
     params.push(actor ?? null)
     const res = await this.stmt(`UPDATE org_registry SET ${sets.join(', ')} WHERE id = ?`, ...params, id).run()
