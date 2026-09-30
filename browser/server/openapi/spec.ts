@@ -677,6 +677,18 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/api/op/step-up': {
+      post: {
+        tags: ['Account'], operationId: 'accountStepUp', summary: 'Mint the fresh-proof stamp (TODO.sota/06)',
+        description: 'The sensitive acts (privileged role grants, identity-link removals) demand a FRESH proof inside the session: the current password re-entered buys a five-minute, user-bound, OP-signed stamp cookie. Stateless — nothing is stored; the wrong password mints nothing.',
+        security: [{ opSession: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { password: { type: 'string' } }, required: ['password'] } } } },
+        responses: {
+          200: { description: 'The stamp cookie stands (op_step_up, five minutes).', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, expiresInSec: { type: 'integer' } } } } } },
+          403: { description: 'The password does not match (or the account holds none).' },
+        },
+      },
+    },
     '/api/op/account': {
       get: {
         tags: ['Session'], operationId: 'getAccount', summary: 'The account profile',

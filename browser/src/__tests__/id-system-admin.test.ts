@@ -38,6 +38,10 @@ let app: import('hono').Hono
 let cookie: string
 
 beforeAll(async () => {
+  // The step-up stamp verifies against the REGISTERED keyset (the #7
+  // gate): declare the signing key, then prime the JWKS registration.
+  const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
+  process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
   const { installSqliteStore } = await import('../../server/store/sqlite')
   installSqliteStore()
   const profileMod = await import('../../server/profile')
@@ -58,11 +62,13 @@ branding: { name: OIML SMART Identity }
   })
   expect(res.status).toBe(200)
   cookie = res.headers.get('set-cookie')!.split(';')[0]!
+
+  await app.request(`${ISSUER}/jwks.json`)
 })
 
 afterAll(() => {
   rmSync(TMP, { recursive: true, force: true })
-  for (const key of ['DATABASE_PATH', 'OP_ISSUER', 'OP_ACCOUNT_SEED']) delete process.env[key]
+  for (const key of ['DATABASE_PATH', 'OP_ISSUER', 'OP_ACCOUNT_SEED', 'OP_SIGNING_KEY']) delete process.env[key]
 })
 
 describe('TODO.sota/02 — the org administrators\' console', () => {
@@ -99,12 +105,18 @@ describe('the SYSTEM-ADMIN role (the 2026-09-29 ruling)', () => {
     expect(envelope.grant).toBe('wide')
   })
 
-  it('GRANT: the system-admin assigns the role onward through the roles editor', async () => {
+  it('GRANT: the system-admin assigns the role onward (the step-up stands — a privileged grant demands the fresh proof)', async () => {
     const { getStore } = await import('../../server/store')
     const target = await getStore().findUserByEmail('target@oimlsmart.org')
     expect(target).toBeTruthy()
+    const step = await app.request(`${ISSUER}/api/op/step-up`, {
+      method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'the system admin passphrase' }),
+    })
+    expect(step.status).toBe(200)
+    const stamp = step.headers.get('set-cookie')!.split(';')[0]!
     const res = await app.request(`${ISSUER}/api/users/${target!.id}/roles`, {
-      method: 'PUT', headers: { cookie, 'content-type': 'application/json' },
+      method: 'PUT', headers: { cookie: `${cookie}; ${stamp}`, 'content-type': 'application/json' },
       body: JSON.stringify({ role: 'system_admin', roles: ['system_admin', 'viewer'] }),
     })
     expect(res.status, await res.text()).toBe(200)

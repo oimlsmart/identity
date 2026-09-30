@@ -69,6 +69,8 @@ async function json(res: Response, status: number): Promise<any> {
 }
 
 beforeAll(async () => {
+  const { generateSuccessorPair } = await import('../../scripts/op-key-rotate')
+  process.env.OP_SIGNING_KEY = (await generateSuccessorPair()).privateJwkJson
   const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
   const profileMod = await import('../../server/profile')
@@ -85,12 +87,19 @@ demo_personas: true
   const { Hono } = await import('hono')
   const { createAuthLeanRouter } = await import('../../server/routes/auth-lean')
   const { createUsersRouter } = await import('../../server/routes/users')
+  const { createOpAccountsRouter } = await import('../../server/routes/op-accounts')
   const { createOpJoinRouter } = await import('../../server/routes/op-join')
   const root = new Hono()
   root.route('/api/auth', createAuthLeanRouter({ autoSeedDemo: true }))
   root.route('/api/users', createUsersRouter())
   root.route('/', createOpJoinRouter())
+  root.route('/', createOpAccountsRouter())
   app = root
+  // The step-up stamp verifies against the REGISTERED keyset (the #7
+  // gate): the declared key registers directly (this harness mounts no
+  // OP router for the JWKS leg to ride).
+  const { ensureOpKeyRegistered, resolveOpSigningKey } = await import('../../server/auth/op/keys')
+  await ensureOpKeyRegistered(store, await resolveOpSigningKey(process.env as Record<string, string | undefined>))
 
   // The organization registry (TODO.identity-features/05 — the identity
   // service's OWN rows; XX1 disabled, the mid-pipeline posture).
@@ -319,17 +328,29 @@ describe('the eligibility rule (users.manage assigning org_admin)', () => {
 
   it('the roles reassignment applies the rule too (org_admin onto an unregistered org’s account is refused)', async () => {
     const cookie = await demoLogin('admin@oimlsmart.org')
+    // TODO.sota/06: org_admin is a privileged grant — the step-up
+    // stamp stands for the sitting. The demo admin carries no password
+    // hash in this harness — set one for the act (the store's setter).
+    const adminRow = (await store.listUsers()).find(u => u.email === 'admin@oimlsmart.org')!
+    const { hashPassword } = await import('../../server/auth/passwords')
+    await store.setPasswordHash(adminRow.id, await hashPassword('demo2026'), 'test')
+    const step = await app.request(`${ORIGIN}/api/op/step-up`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ password: 'demo2026' }),
+    })
+    expect(step.status, await step.text()).toBe(200)
+    const stamp = step.headers.get('set-cookie')!.split(';')[0]!
     // officer@eia.example.org sits in EX1 (registered) — fine…
     const iaTarget = (await store.listUsers()).find(u => u.email === 'officer@eia.example.org')!
     const ok = await app.request(`${ORIGIN}/api/users/${iaTarget.id}/roles`, {
-      method: 'PUT', headers: { 'content-type': 'application/json', cookie },
+      method: 'PUT', headers: { 'content-type': 'application/json', cookie: `${cookie}; ${stamp}` },
       body: JSON.stringify({ role: 'ia_officer', roles: ['ia_officer', 'org_admin'] }),
     })
     expect(ok.status).toBe(200)
     // …but the demo cast's biml@oimlsmart.org has NO org — org_admin there is refused.
     const noOrg = (await store.listUsers()).find(u => u.email === 'biml@oimlsmart.org')!
     const refused = await app.request(`${ORIGIN}/api/users/${noOrg.id}/roles`, {
-      method: 'PUT', headers: { 'content-type': 'application/json', cookie },
+      method: 'PUT', headers: { 'content-type': 'application/json', cookie: `${cookie}; ${stamp}` },
       body: JSON.stringify({ role: 'biml_officer', roles: ['biml_officer', 'org_admin'] }),
     })
     expect(refused.status).toBe(400)
