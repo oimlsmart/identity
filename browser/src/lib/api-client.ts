@@ -8,9 +8,13 @@
 // abort-timeout bound is that page's own ceremony.
 // ═══════════════════════════════════════════════════════════════════
 export async function api(path: string, init?: RequestInit): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...(init?.body ? { 'content-type': 'application/json' } : {}),
+    ...(init?.headers as Record<string, string> | undefined),
+  }
   return fetch(path, {
     credentials: 'include',
-    ...(init?.body ? { headers: { 'content-type': 'application/json' } } : {}),
     ...init,
+    headers,
   })
 }

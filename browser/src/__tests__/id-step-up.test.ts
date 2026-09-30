@@ -138,13 +138,14 @@ describe('TODO.sota/06 — step-up auth', () => {
     const mod = await import('../../server/auth/op/step-up-stamp')
     const { resolveOpSigningKey } = await import('../../server/auth/op/keys')
     const key = await resolveOpSigningKey(process.env as Record<string, string>)
+    const env = process.env as Record<string, string | undefined>
     const stamp = await mod.mintStepUpStamp(key, 'u-1', 'pwd')
-    expect(await mod.stepUpSatisfied(store, stamp, 'u-1')).toBe(true)
-    expect(await mod.stepUpSatisfied(store, stamp, 'u-2')).toBe(false) // the binding
-    expect(await mod.stepUpSatisfied(store, stamp.slice(0, -2) + 'xx', 'u-1')).toBe(false) // the tamper
+    expect(await mod.stepUpSatisfied(env, stamp, 'u-1')).toBe(true)
+    expect(await mod.stepUpSatisfied(env, stamp, 'u-2')).toBe(false) // the binding
+    expect(await mod.stepUpSatisfied(env, stamp.slice(0, -2) + 'xx', 'u-1')).toBe(false) // the tamper
     const expired = await mod.mintStepUpStamp(key, 'u-1', 'pwd', Date.now() - mod.STEP_UP_TTL_MS - 1000)
-    expect(await mod.stepUpSatisfied(store, expired, 'u-1')).toBe(false) // the TTL
+    expect(await mod.stepUpSatisfied(env, expired, 'u-1')).toBe(false) // the TTL
     // A PLAIN OP token (an ID token) never satisfies: the stamp claim gates.
-    expect(await mod.stepUpSatisfied(store, 'not-a-jwt', 'u-1')).toBe(false)
+    expect(await mod.stepUpSatisfied(env, 'not-a-jwt', 'u-1')).toBe(false)
   })
 })

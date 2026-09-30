@@ -564,8 +564,13 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
       await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="op-account-unlink-github"]', { timeout: APP_COLD, polling: 500 })
       await page.evaluate(() => (document.querySelector('[data-testid="op-account-unlink-github"]') as HTMLElement).click())
+      // TODO.sota/06: the unlink is a step-up act — the modal demands
+      // the fresh proof (Willa holds a password); the act retries.
+      await page.waitForSelector('[data-testid="step-up-modal"]', { timeout: 60_000, polling: 500 })
+      await page.type('[data-testid="step-up-password"]', WILLA.password)
+      await page.evaluate(() => (document.querySelector('[data-testid="step-up-submit"]') as HTMLElement).click())
       await page.waitForSelector('[data-testid="op-account-no-links"]', { timeout: 60_000, polling: 500 })
-      flog(page, 'leg6: unlinked')
+      flog(page, 'leg6: unlinked (through the step-up)')
 
       // The next GitHub sign-in is refused honestly.
       await browserSignOut(page, stack.base)
