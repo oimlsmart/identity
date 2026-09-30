@@ -225,6 +225,46 @@ const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
 const acting = ref<string | null>(null)
 
+// TODO.sota/06 — the step-up surface: a privileged act's 403 opens the
+// modal; the password mints the stamp; the act retries.
+const stepUpOpen = ref(false)
+const stepUpPassword = ref('')
+const stepUpBusy = ref(false)
+const stepUpError = ref<string | null>(null)
+const stepUpRetry = ref<(() => Promise<void>) | null>(null)
+async function demandStepUp(retry: () => Promise<void>): Promise<void> {
+  stepUpRetry.value = retry
+  stepUpError.value = null
+  stepUpOpen.value = true
+}
+async function submitStepUp(password: string): Promise<void> {
+  stepUpBusy.value = true
+  stepUpError.value = null
+  try {
+    const res = await fetch('/api/op/step-up', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ password }),
+    })
+    if (!res.ok) {
+      stepUpError.value = t('stepup.wrong')
+      return
+    }
+    const body = await res.json().catch(() => null) as { stamp?: string; expiresInSec?: number } | null
+    if (body?.stamp) {
+      try { sessionStorage.setItem('op_step_up', body.stamp) } catch { /* private mode: the cookie fallback */ }
+      if (body.expiresInSec) {
+        try { setTimeout(() => sessionStorage.removeItem('op_step_up'), body.expiresInSec * 1000) } catch { /* same */ }
+      }
+    }
+    stepUpOpen.value = false
+    await stepUpRetry.value?.()
+  } catch {
+    stepUpError.value = t('error.network')
+  } finally {
+    stepUpBusy.value = false
+  }
+}
+
 const detail = ref<Detail | null>(null)
 const roleMap = ref<Record<string, string[]>>({})
 const providers = ref<ProviderRow[]>([])
@@ -321,7 +361,11 @@ async function saveMemberRoles(m: MembershipRow) {
       body: JSON.stringify({ roles: memberRoleDrafts.value[m.orgId] ?? [] }),
     })
     if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as { error?: string }
+      const body = await res.json().catch(() => ({})) as { error?: string; stepUp?: boolean }
+      if (body.stepUp) {
+        await demandStepUp(() => saveRoles())
+        return
+      }
       error.value = body.error ?? t('admin.user.failed', { status: res.status })
       return
     }
@@ -516,6 +560,7 @@ async function saveRoles() {
     const primary = checkedRoles.value.includes(primaryRole.value) ? primaryRole.value : checkedRoles.value[0]!
     const res = await api(`/api/users/${encodeURIComponent(userId.value)}/roles`, {
       method: 'PUT',
+      headers: (() => { try { const st = sessionStorage.getItem('op_step_up'); return st ? { 'x-op-step-up': st } : undefined } catch { return undefined } })(),
       body: JSON.stringify({ role: primary, roles: checkedRoles.value }),
     })
     if (!res.ok) {
@@ -1067,7 +1112,7 @@ onMounted(async () => {
       <PageHeader :title="detail.account.name">
         <template #description>
           <span data-testid="op-reg-user-context">{{ detail.account.email }} · {{ branding.productName }}</span>
-        </template>
+      </template>
       </PageHeader>
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
@@ -1933,6 +1978,37 @@ onMounted(async () => {
           </div>
         </template>
       </section>
+    </div>
+  </div>
+  <!-- TODO.sota/06 — the step-up modal, INLINED (the page's own
+       template; the estate's modal pattern): the password mints the
+       stamp; the blocked act retries. -->
+  <div v-if="stepUpOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4" data-testid="step-up-modal">
+    <div class="w-full max-w-sm bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+      <h2 class="text-base font-serif font-bold text-slate-900 dark:text-white" data-testid="step-up-title">{{ t('stepup.title') }}</h2>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-400" data-testid="step-up-why">{{ t('stepup.why') }}</p>
+      <form class="mt-4" @submit.prevent="submitStepUp(stepUpPassword)">
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="step-up-password">{{ t('stepup.passwordLabel') }}</label>
+        <input
+          id="step-up-password" v-model="stepUpPassword" type="password" required
+          class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          data-testid="step-up-password"
+        />
+        <p v-if="stepUpError" class="mt-2 text-sm text-red-600 dark:text-red-400" data-testid="step-up-error">{{ stepUpError }}</p>
+        <div class="mt-4 flex gap-2">
+          <button
+            type="submit" :disabled="stepUpBusy"
+            class="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+            data-testid="step-up-submit"
+          >{{ stepUpBusy ? t('stepup.working') : t('stepup.submit') }}</button>
+          <button
+            type="button" :disabled="stepUpBusy"
+            class="px-4 py-2 rounded-lg text-sm border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+            data-testid="step-up-cancel"
+            @click="stepUpOpen = false"
+          >{{ t('stepup.cancel') }}</button>
+        </div>
+      </form>
     </div>
   </div>
 </template>

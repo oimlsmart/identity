@@ -577,8 +577,27 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
         { timeout: 60_000, polling: 500 },
       )
       await page.evaluate(() => (document.querySelector('[data-testid="op-account-unlink-github"]') as HTMLElement).click())
-      await page.waitForSelector('[data-testid="op-account-no-links"]', { timeout: 60_000, polling: 500 })
-      flog(page, 'leg3: unlinked, the console honest throughout')
+      // TODO.sota/06: the unlink is a step-up act — the modal demands
+      // the fresh proof; the password mints the stamp; the act retries.
+      await page.waitForSelector('[data-testid="step-up-modal"]', { timeout: 60_000, polling: 500 }).catch(async () => {
+        const state = await page.evaluate(() => ({
+          modal: !!document.querySelector('[data-testid="step-up-modal"]'),
+          err: document.querySelector('[data-testid="account-error"]')?.textContent?.slice(0, 120)
+            ?? document.querySelector('[class*="red"]')?.textContent?.slice(0, 120) ?? 'no error box',
+          unlinkBtn: !!document.querySelector('[data-testid="op-account-unlink-github"]'),
+        }))
+        console.log(`[leg] MODAL ABSENT: ${JSON.stringify(state)}`)
+        throw new Error('the step-up modal never opened')
+      })
+      await page.waitForSelector('[data-testid="step-up-modal"]', { timeout: 5_000, polling: 500 })
+      await page.type('[data-testid="step-up-password"]', CASEY_PASSWORD_2)
+      await page.evaluate(() => (document.querySelector('[data-testid="step-up-submit"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="op-account-no-links"]', { timeout: 60_000, polling: 500 }).catch(async () => {
+        const serverGate = stack.logs.join('').split('\n').filter(l => l.includes('UNLINK GATE')).slice(-2)
+        console.log(`[leg] STEP-UP RETRY FAILED: the server says ${serverGate.join(' | ') || 'nothing'}`)
+        throw new Error('the unlink after the step-up never landed')
+      })
+      flog(page, 'leg3: unlinked (through the step-up), the console honest throughout')
     })
   })
 
