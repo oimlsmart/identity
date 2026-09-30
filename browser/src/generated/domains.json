@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-28T14:15:35.845Z",
+  "generated_at": "2026-09-30T06:38:02.616Z",
   "version": 2,
   "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
   "domains": {
@@ -1798,6 +1798,8 @@
             "dpm.gov.al"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/05tz9r773",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -1868,6 +1870,8 @@
             "bev.gv.at"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/038680g19",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -1891,6 +1895,8 @@
             "gosstandart.gov.by"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/05nkper64",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         },
@@ -1905,6 +1911,8 @@
           "web_domains": [
             "belgim.by"
           ],
+          "ror_id": "https://ror.org/01akz7g58",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -1971,6 +1979,8 @@
             "bim.government.bg"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/002pvtp37",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         },
@@ -1985,6 +1995,8 @@
             "damtn.government.bg"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/02xq4xp48",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2008,6 +2020,8 @@
           "web_domains": [
             "nmc-misti.gov.kh"
           ],
+          "ror_id": "https://ror.org/00gdv5j66",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2058,6 +2072,8 @@
           "web_domains": [
             "samr.gov.cn"
           ],
+          "ror_id": "https://ror.org/00aaqtw69",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         },
@@ -2140,6 +2156,8 @@
             "mcit.gov.cy"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/016bxe465",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2248,6 +2266,8 @@
           "web_domains": [
             "motri.gov.et"
           ],
+          "ror_id": "https://ror.org/03e04wz24",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2270,6 +2290,8 @@
             "tukes.fi"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/00eggnv95",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2467,6 +2489,8 @@
             "nsai.ie"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/04h30wa73",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2489,6 +2513,8 @@
             "economy.gov.il"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/02fn8ac40",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2587,6 +2613,8 @@
             "ksm.kz"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/04d2nkq36",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2632,6 +2660,8 @@
             "kats.go.kr"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/05cfy3e91",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         },
@@ -2690,6 +2720,8 @@
             "metrologija.me"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/05cxcv046",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2713,6 +2745,8 @@
             "mcinet.gov.ma"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/04s51wj45",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2811,6 +2845,8 @@
             "bom.gov.mk"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/00errak20",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2834,6 +2870,8 @@
             "justervesenet.no"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/010jktr86",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2880,6 +2918,8 @@
             "gum.gov.pl"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/039f8sh24",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2902,6 +2942,8 @@
             "ipq.pt"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/01pe22k85",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3020,6 +3062,8 @@
             "dmdm.rs"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/011s44m53",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3081,6 +3125,8 @@
             "mirs.gov.si"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/01eaav933",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3127,6 +3173,8 @@
             "cem.es"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/022r8xe61",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3149,6 +3197,8 @@
           "web_domains": [
             "measurementsdept.gov.lk"
           ],
+          "ror_id": "https://ror.org/02jhg8z64",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3303,6 +3353,8 @@
           "web_domains": [
             "sanayi.gov.tr"
           ],
+          "ror_id": "https://ror.org/01xspp494",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3325,6 +3377,8 @@
             "ukrcsm.kiev.ua"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/00c7kqb82",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3386,6 +3440,8 @@
           "web_domains": [
             "nist.gov"
           ],
+          "ror_id": "https://ror.org/05xpvk416",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3455,6 +3511,8 @@
             "iniq.gov.ao"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/03b93v721",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3565,6 +3623,8 @@
           "web_domains": [
             "bsti.gov.bd"
           ],
+          "ror_id": "https://ror.org/01e9d9c48",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3609,6 +3669,8 @@
           "web_domains": [
             "ibmetro.gob.bo"
           ],
+          "ror_id": "https://ror.org/00q7xcm69",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3631,6 +3693,8 @@
           "web_domains": [
             "met.gov.ba"
           ],
+          "ror_id": "https://ror.org/00h90tt32",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3653,6 +3717,8 @@
           "web_domains": [
             "bobstandards.bw"
           ],
+          "ror_id": "https://ror.org/05p9py079",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3697,6 +3763,8 @@
             "bsmi.gov.tw"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/05wjmdd46",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3785,6 +3853,8 @@
             "normalizacion.gob.ec"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/02apzkd53",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3895,6 +3965,8 @@
             "gsa.gov.gh"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/0084fbz83",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3959,6 +4031,8 @@
             "gnbsgy.org"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/0318da180",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4025,6 +4099,8 @@
           "web_domains": [
             "cosqc.gov.iq"
           ],
+          "ror_id": "https://ror.org/036c7vy41",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4240,6 +4316,8 @@
           "web_domains": [
             "sirim.my"
           ],
+          "ror_id": "https://ror.org/008g13a47",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4282,6 +4360,8 @@
             "mccaa.org.mt"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/01ag9w134",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4348,6 +4428,8 @@
             "inm.md"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/04bz60n78",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4418,6 +4500,8 @@
           "web_domains": [
             "nsi.com.na"
           ],
+          "ror_id": "https://ror.org/02mgk0s80",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4440,6 +4524,8 @@
           "web_domains": [
             "nbsm.gov.np"
           ],
+          "ror_id": "https://ror.org/02emx6223",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4517,6 +4603,8 @@
             "cenamep.org.pa"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/05spn1g36",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4539,6 +4627,8 @@
             "nisit.gov.pg"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/03s51y289",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4561,6 +4651,8 @@
           "web_domains": [
             "intn.gov.py"
           ],
+          "ror_id": "https://ror.org/05n0dzw16",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4583,6 +4675,8 @@
             "inacal.gob.pe"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/03ks20z28",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4677,6 +4771,8 @@
             "slbs.org"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/01h6x4375",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4855,6 +4951,8 @@
           "web_domains": [
             "latu.org.uy"
           ],
+          "ror_id": "https://ror.org/05gaped89",
+          "ror_match": "domain-anchored",
           "verification": "inferred",
           "admin_queue": false
         }
