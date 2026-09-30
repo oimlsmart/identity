@@ -53,6 +53,7 @@ import {
   DEVICE_CODE_GRANT, deviceGrantPatName, hashDeviceCode, judgeDevicePoll,
 } from '../auth/op/device-grant'
 import { auditGrant } from '../auth/op/grants'
+import { dpopJtiExpiry, verifyDpopProof } from '../auth/op/dpop'
 import { acrOf, sessionMeetsMaxAge } from '../auth/op/step-up'
 import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
@@ -114,6 +115,21 @@ function configFor(c: Context) {
 
 
   // POST /op/token — the code exchange.
+/** TODO.sota/09 (RFC 9449): the token request's DPoP binding. NULL =
+ *  no proof rode the request (the ordinary Bearer posture). An error
+ *  answers the 400 invalid_dpop_proof. A fresh proof's jti burns at
+ *  verification — a replayed proof refuses even if the grant would
+ *  have succeeded. */
+async function dpopBindingFor(c: Context, config: { issuer: string }): Promise<{ jkt: string } | { error: string } | null> {
+  const proof = c.req.header('dpop')
+  if (!proof) return null
+  const res = await verifyDpopProof(proof, { method: 'POST', uri: `${config.issuer}/op/token` })
+  if ('error' in res) return res
+  const fresh = await getStore().rememberDpopJti(res.jti, dpopJtiExpiry(res.iat))
+  if (!fresh) return { error: 'the proof\u2019s jti was already used' }
+  return { jkt: res.jkt }
+}
+
 export function createOpTokenRouter(deps: {
   ensureSeeded: (c: Context) => Promise<void>
   audit: (
@@ -675,6 +691,12 @@ export function createOpTokenRouter(deps: {
       }
       const refreshedIdToken = await signOpIdToken(refreshKey, refreshClaims)
 
+      // The DPoP arm (TODO.sota/09): a proof on the refresh re-binds the
+      // ROTATED access token to its key (each request proves fresh).
+      const refreshDpop = await dpopBindingFor(c, config)
+      if (refreshDpop && 'error' in refreshDpop) {
+        return refuseToken(400, 'invalid_dpop_proof', refreshDpop.error, client!.clientId)
+      }
       const refreshedAccess = opRandomToken()
       await store.createOidcAccessToken({
         token: refreshedAccess,
@@ -683,6 +705,7 @@ export function createOpTokenRouter(deps: {
         scope: effectiveScope,
         contextOrg: grant.contextOrg,
         amr: grant.amr,
+        dpopJkt: refreshDpop && 'jkt' in refreshDpop ? refreshDpop.jkt : null,
         ttlMs: config.accessTokenTtlMs,
       })
       // The rotation: the successor inherits the family + the provenance
@@ -705,7 +728,7 @@ export function createOpTokenRouter(deps: {
       await audit('client.token_refreshed', client!.clientId, {}, { account: grantUser.id, scope: effectiveScope, family: grant.familyId })
       return c.json({
         access_token: refreshedAccess,
-        token_type: 'Bearer',
+        token_type: refreshDpop && 'jkt' in refreshDpop ? 'DPoP' : 'Bearer',
         expires_in: config.accessTokenTtlMs / 1000,
         id_token: refreshedIdToken,
         refresh_token: rotated,
@@ -838,6 +861,13 @@ export function createOpTokenRouter(deps: {
     }
     const idToken = await signOpIdToken(key, claims)
 
+    // The DPoP arm (TODO.sota/09, RFC 9449 §5): a valid proof binds the
+    // minted access token to the proof key's JKT — the response answers
+    // token_type DPoP and userinfo enforces the same key thereafter.
+    const dpop = await dpopBindingFor(c, config)
+    if (dpop && 'error' in dpop) {
+      return refuseToken(400, 'invalid_dpop_proof', dpop.error, client!.clientId)
+    }
     const accessToken = opRandomToken()
     await store.createOidcAccessToken({
       token: accessToken,
@@ -848,6 +878,7 @@ export function createOpTokenRouter(deps: {
       // The same provenance rides the access token — userinfo answers
       // the amr the ID token carried.
       amr: code.amr,
+      dpopJkt: dpop && 'jkt' in dpop ? dpop.jkt : null,
       ttlMs: config.accessTokenTtlMs,
     })
 
@@ -880,7 +911,7 @@ export function createOpTokenRouter(deps: {
 
     return c.json({
       access_token: accessToken,
-      token_type: 'Bearer',
+      token_type: dpop && 'jkt' in dpop ? 'DPoP' : 'Bearer',
       expires_in: config.accessTokenTtlMs / 1000,
       id_token: idToken,
       ...(refreshToken ? { refresh_token: refreshToken } : {}),

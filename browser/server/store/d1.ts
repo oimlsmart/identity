@@ -1475,16 +1475,38 @@ export class D1ServerStore implements ServerStore {
     /** TODO.identity-sso/02+03: the authorizing authentication's amr —
      *  userinfo answers the same truth the ID token carried. */
     amr?: string[] | null
+    dpopJkt?: string | null
     ttlMs: number
   }): Promise<void> {
     await this.ensureMembershipSupport()
     const expiresAt = new Date(Date.now() + input.ttlMs).toISOString()
     await this.ensureOidcColumns()
+    await this.ensureDpopSupport()
     await this.stmt(
-      'INSERT INTO oidc_access_tokens (token, user_id, client_id, scope, context_org, amr, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO oidc_access_tokens (token, user_id, client_id, scope, context_org, amr, dpop_jkt, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       input.token, input.userId, input.clientId, input.scope, input.contextOrg ?? null,
-      input.amr?.length ? JSON.stringify(input.amr) : null, expiresAt,
+      input.amr?.length ? JSON.stringify(input.amr) : null, input.dpopJkt ?? null, expiresAt,
     ).run()
+  }
+
+  /** TODO.sota/09 (RFC 9449 §4.3): the DPoP proof-replay cache. INSERT
+   *  OR IGNORE; FALSE = the jti already stands (the replay). */
+  async rememberDpopJti(jti: string, expiresAtIso: string): Promise<boolean> {
+    await this.ensureDpopSupport()
+    const res = await this.stmt('INSERT OR IGNORE INTO dpop_jtis (jti, expires_at) VALUES (?, ?)', jti, expiresAtIso).run()
+    return (res.meta.changes ?? 0) > 0
+  }
+
+  /** The DPoP surfaces (0039): a dev D1 predating them grows here. */
+  private dpopReady: boolean = false
+  private async ensureDpopSupport(): Promise<void> {
+    if (this.dpopReady) return
+    const cols = await this.db.prepare('PRAGMA table_info(oidc_access_tokens)').all<{ name: string }>()
+    if (cols.results.length && !cols.results.some(c => c.name === 'dpop_jkt')) {
+      await this.db.prepare('ALTER TABLE oidc_access_tokens ADD COLUMN dpop_jkt TEXT').run()
+    }
+    await this.db.prepare('CREATE TABLE IF NOT EXISTS dpop_jtis (jti TEXT PRIMARY KEY, expires_at TEXT NOT NULL)').run()
+    this.dpopReady = true
   }
 
   async getOidcAccessToken(token: string): Promise<OidcAccessToken | null> {
@@ -1500,6 +1522,7 @@ export class D1ServerStore implements ServerStore {
       scope: row.scope as string,
       contextOrg: (row.context_org as string | null) ?? null,
       amr: parseRoles((row.amr as string | null) ?? null) ?? null,
+      dpopJkt: (row.dpop_jkt as string | null) ?? null,
       expiresAt: row.expires_at as string,
     }
   }

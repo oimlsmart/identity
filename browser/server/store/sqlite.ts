@@ -81,6 +81,7 @@ import {
   deleteOidcRefreshTokensForUserClient,
   getOidcAccessToken,
   getOidcAuthorization,
+  rememberDpopJti,
   getOidcClient,
   listOidcClients,
   listOidcKeys,
@@ -523,12 +524,16 @@ export class SqliteServerStore implements ServerStore {
     scope: string
     contextOrg?: string | null
     amr?: string[] | null
+    dpopJkt?: string | null
     ttlMs: number
   }): Promise<void> {
     createOidcAccessToken(this.db, input)
   }
   async getOidcAccessToken(token: string): Promise<OidcAccessToken | null> {
     return getOidcAccessToken(this.db, token)
+  }
+  async rememberDpopJti(jti: string, expiresAtIso: string): Promise<boolean> {
+    return rememberDpopJti(this.db, jti, expiresAtIso)
   }
   async deleteOidcAccessToken(token: string, clientId: string): Promise<boolean> {
     return deleteOidcAccessToken(this.db, token, clientId)

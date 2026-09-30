@@ -25,6 +25,7 @@ import { getStore, normalizePatScopes, type PatScope } from '../store'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { verifyOpJwt } from '../auth/op/keys'
 import { oidcError } from '../auth/op/oidc-error'
+import { verifyDpopProof } from '../auth/op/dpop'
 import { roleClaimsForContext, pictureClaimForClient, orcidClaimForClient, orgRorClaimForClient } from '../auth/op/claims'
 import { claimsContextFor } from '../auth/op/memberships'
 import {
@@ -54,7 +55,14 @@ export function createOpTokenManagementRouter(deps: {
 
   op.get('/op/userinfo', async (c) => {
     const header = c.req.header('authorization') ?? ''
-    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+    // The DPoP scheme rides the SAME header (RFC 9449 §7.1): a
+    // DPoP-bound token arrives as "DPoP <token>" with the proof in the
+    // DPoP header; the Bearer posture is unchanged.
+    const token = header.startsWith('Bearer ')
+      ? header.slice(7).trim()
+      : header.startsWith('DPoP ')
+        ? header.slice(5).trim()
+        : ''
     if (!token) {
       return c.json({ error: 'invalid_token', error_description: 'a Bearer access token is required' }, 401)
     }
@@ -62,6 +70,19 @@ export function createOpTokenManagementRouter(deps: {
     const access = await store.getOidcAccessToken(token)
     if (!access) {
       return c.json({ error: 'invalid_token', error_description: 'the access token is unknown or expired' }, 401)
+    }
+    // The DPoP enforcement (TODO.sota/09, RFC 9449 §7): a bound token
+    // admits ONLY a fresh proof from the SAME key, with the token's
+    // ath bound — a stolen token replayed from elsewhere refuses.
+    if (access.dpopJkt) {
+      const proof = c.req.header('dpop')
+      const res = proof
+        ? await verifyDpopProof(proof, { method: 'GET', uri: `${configFor(c).issuer}/op/userinfo`, accessToken: token })
+        : { error: 'the DPoP proof is required for this token' }
+      if (!('jkt' in res) || res.jkt !== access.dpopJkt) {
+        c.header('www-authenticate', 'DPoP error="invalid_dpop_proof"')
+        return c.json({ error: 'invalid_dpop_proof', error_description: 'error' in res ? res.error : 'the proof key does not match the token’s binding' }, 401)
+      }
     }
     const user = await store.getUserById(access.userId)
     if (!user) return c.json({ error: 'invalid_token', error_description: 'the token’s account no longer exists' }, 401)

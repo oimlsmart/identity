@@ -193,6 +193,14 @@ function migrateAuthTables(db: Database.Database): void {
   if (!amrCodeCols.some(c => c.name === 'amr')) {
     db.exec('ALTER TABLE oidc_codes ADD COLUMN amr TEXT')
   }
+  // TODO.sota/09 (RFC 9449): the DPoP binding on the access tokens +
+  // the proof-replay cache (0039) — a dev file predating them grows
+  // here.
+  const dpopAccessCols = db.prepare('PRAGMA table_info(oidc_access_tokens)').all() as Array<{ name: string }>
+  if (dpopAccessCols.length && !dpopAccessCols.some(c => c.name === 'dpop_jkt')) {
+    db.exec('ALTER TABLE oidc_access_tokens ADD COLUMN dpop_jkt TEXT')
+  }
+  db.exec('CREATE TABLE IF NOT EXISTS dpop_jtis (jti TEXT PRIMARY KEY, expires_at TEXT NOT NULL)')
   const amrTokenCols = db.prepare('PRAGMA table_info(oidc_access_tokens)').all() as Array<{ name: string }>
   if (!amrTokenCols.some(c => c.name === 'amr')) {
     db.exec('ALTER TABLE oidc_access_tokens ADD COLUMN amr TEXT')

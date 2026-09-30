@@ -395,8 +395,19 @@ CREATE TABLE IF NOT EXISTS oidc_access_tokens (
   -- TODO.identity-sso/02+03: the authorizing authentication's amr
   -- provenance — userinfo answers the same truth the ID token carried.
   amr TEXT,
+  -- TODO.sota/09 (RFC 9449): the DPoP binding — the proof key's JKT
+  -- the token was minted under; NULL = the ordinary Bearer posture
+  -- (0039).
+  dpop_jkt TEXT,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- The DPoP proof-replay cache (0039, TODO.sota/09): one row per seen
+-- jti, expiring at the proof's freshness window; the TTL sweep reaps.
+CREATE TABLE IF NOT EXISTS dpop_jtis (
+  jti TEXT PRIMARY KEY,
+  expires_at TEXT NOT NULL
 );
 
 -- The refresh tokens (migration 0025 — the SSO wave-C token surface): the
