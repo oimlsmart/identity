@@ -17,8 +17,7 @@
 // WORKER-SAFE: the keys module's own WebCrypto; no node built-ins.
 // ═══════════════════════════════════════════════════════════════════
 
-import type { ServerStore } from '../../store'
-import { resolveOpSigningKey, signOpJwt, verifyOpJwt, type OpSigningKey } from './keys'
+import { resolveOpSigningKey, signOpJwt, verifyOpJwtWithKey, type OpSigningKey } from './keys'
 
 export const STEP_UP_TTL_MS = 5 * 60 * 1000
 export const STEP_UP_COOKIE = 'op_step_up'
@@ -35,18 +34,30 @@ export async function mintStepUpStamp(
 }
 
 /** Whether the presented stamp satisfies the step-up demand for THIS
- *  user: the signature verifies against the OP's live keyset, the
- *  claim marks it a step-up stamp, the user binds, the window lives. */
+ *  user: the signature verifies against THE KEY THE OP SIGNS WITH (the
+ *  in-memory declared/instantiated pair — the oidc_keys table serves
+ *  the external RPs and may be empty), the claim marks it a step-up
+ *  stamp, the user binds, the window lives. */
 export async function stepUpSatisfied(
-  store: ServerStore,
+  env: Record<string, string | undefined>,
   presented: string,
   userId: string,
   opts?: { now?: number },
 ): Promise<boolean> {
-  const claims = await verifyOpJwt(store, presented)
+  const key = await resolveOpSigningKey(env)
+  const claims = await verifyOpJwtWithKey(key, presented)
   if (!claims || claims.stp !== STEP_UP_CLAIM || claims.u !== userId) return false
   const now = opts?.now ?? Date.now()
   return typeof claims.exp === 'number' && claims.exp > now
+}
+
+/** The presented stamp's carrier-agnostic read: the RETRY carries it
+ *  as the x-op-step-up header (the island's sessionStorage copy — no
+ *  Set-Cookie dependency through any proxy), the cookie the fallback
+ *  (same-origin page flows). Either satisfies; both are the same
+ *  signed stamp. */
+export function presentedStepUpStamp(headerValue: string | undefined, cookieValue: string | undefined): string {
+  return (headerValue ?? '').trim() || (cookieValue ?? '').trim()
 }
 
 /** The step-up route's own key resolution (the OP signing key). */
