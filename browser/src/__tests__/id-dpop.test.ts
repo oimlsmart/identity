@@ -63,6 +63,10 @@ async function exchange(body: URLSearchParams, dpop?: string): Promise<Response>
 }
 
 beforeAll(async () => {
+  // A declared signing key (the contract gate's fixture): the declared-
+  // issuer posture registers it, so the machine JWTs verify against the
+  // keyset (identity#7 — the generated dev key never enters it).
+  process.env.OP_SIGNING_KEY = await (await import('../../e2e/fixtures/op-signing-key')).fixtureOpSigningKey()
   const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
   const profileMod = await import('../../server/profile')
@@ -103,6 +107,7 @@ demo_personas: true
 
 afterAll(async () => {
   rmSync(TMP, { recursive: true, force: true })
+  delete process.env.OP_SIGNING_KEY
   delete process.env.OP_ISSUER
   delete process.env.DATABASE_PATH
   delete process.env.INSTANCE_PROFILE
@@ -176,5 +181,137 @@ describe('the token endpoint\'s DPoP arm', () => {
     const res = await exchange(grantBody(code))
     expect(res.status).toBe(200)
     expect(((await res.json()) as { token_type: string }).token_type).toBe('Bearer')
+  })
+})
+
+
+function decodeJwt(jwt: string): Record<string, unknown> {
+  return JSON.parse(atob(jwt.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')))
+}
+
+describe('the machine cone\u2019s DPoP arm (the self-contained JWTs)', () => {
+  const DEVICE_CLIENT = 'device-rig-01'
+  const DEVICE_SECRET = 'the-device-secret'
+  const ORG = 'nist.gov'
+
+  beforeAll(async () => {
+    await store.createOrgRegistryOrg({ id: ORG, name: 'National Institute of Standards and Technology (NIST)', country: 'United States', createdBy: 'test' })
+    await store.upsertOidcClient({
+      clientId: DEVICE_CLIENT,
+      name: 'The DPoP fixture device',
+      secretHash: await (await import('../../server/auth/op/secrets')).hashClientSecret(DEVICE_SECRET),
+      redirectUris: [],
+      claimsPolicy: { claims: [], class: 'device', device: { id: 'rig-01', org: ORG, instrument_model: 'acme-lc500@2021' } } as never,
+      createdBy: 'test',
+    })
+  })
+
+  async function machineExchange(dpop?: string): Promise<Response> {
+    return app.request('/op/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: 'Basic ' + btoa(`${DEVICE_CLIENT}:${DEVICE_SECRET}`),
+        ...(dpop ? { dpop } : {}),
+      },
+      body: new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
+    })
+  }
+
+  it('a proof-bound mint carries cnf.jkt inside the JWT and answers token_type DPoP', async () => {
+    const keys = await mint({ method: 'POST', uri: TOKEN_URL }).then(() => import('./helpers/dpop-proof')).then(async m => m.mintDpopKeys())
+    const p = await mint({ method: 'POST', uri: TOKEN_URL, keys })
+    const res = await machineExchange(p.proof)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { token_type: string; access_token: string }
+    expect(body.token_type).toBe('DPoP')
+    const claims = decodeJwt(body.access_token)
+    expect(claims.cnf).toEqual({ jkt: p.jkt })
+  })
+
+  it('a proofless mint stays Bearer with no cnf — the machine default is untouched', async () => {
+    const res = await machineExchange()
+    expect(res.status).toBe(200)
+    const body = await res.json() as { token_type: string; access_token: string }
+    expect(body.token_type).toBe('Bearer')
+    expect(decodeJwt(body.access_token).cnf).toBeUndefined()
+  })
+
+  it('introspection discloses the binding on BOTH halves (the machine JWT and the opaque row)', async () => {
+    const keys = await (await import('./helpers/dpop-proof')).mintDpopKeys()
+    const p = await mint({ method: 'POST', uri: TOKEN_URL, keys })
+    const bound = await machineExchange(p.proof)
+    const jwt = ((await bound.json()) as { access_token: string }).access_token
+
+    const probe = (token: string) => app.request('/op/introspect', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: 'Basic ' + btoa(`${DEVICE_CLIENT}:${DEVICE_SECRET}`) },
+      body: new URLSearchParams({ token }).toString(),
+    })
+    const machineAnswer = await (await probe(jwt)).json() as { active: boolean; cnf?: { jkt: string }; token_type: string }
+    expect(machineAnswer.active).toBe(true)
+    expect(machineAnswer.cnf).toEqual({ jkt: p.jkt })
+    expect(machineAnswer.token_type).toBe('DPoP')
+
+    // The opaque half: the earlier round-trip's binding reads through
+    // the same disclosure.
+    const code = await plantCode()
+    const userProof = await mint({ method: 'POST', uri: TOKEN_URL })
+    const exchanged = await exchange(grantBody(code), userProof.proof)
+    const opaque = ((await exchanged.json()) as { access_token: string }).access_token
+    const opaqueAnswer = await (await probe(opaque)).json() as { active: boolean; cnf?: { jkt: string }; token_type: string }
+    expect(opaqueAnswer.active).toBe(true)
+    expect(opaqueAnswer.cnf).toEqual({ jkt: userProof.jkt })
+    expect(opaqueAnswer.token_type).toBe('DPoP')
+  })
+})
+
+
+describe('the delegation exchange\u2019s DPoP enforcement (RFC 9449 \u00a77 — the endpoint consumes the bound subject)', () => {
+  it('a bound subject token delegates ONLY with a possession proof from the bound key', async () => {
+    const keys = await (await import('./helpers/dpop-proof')).mintDpopKeys()
+    const minted = await mint({ method: 'POST', uri: TOKEN_URL, keys })
+    const code = await plantCode()
+    const res = await exchange(grantBody(code), minted.proof)
+    const subject = ((await res.json()) as { access_token: string }).access_token
+
+    const attempt = (dpop?: string) => app.request('/op/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: 'Basic ' + btoa(`${CLIENT_ID}:${CLIENT_SECRET}`),
+        ...(dpop ? { dpop } : {}),
+      },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+        subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        subject_token: subject,
+        scope: 'assist:read',
+      }).toString(),
+    })
+
+    const journal = async () => (await store.listEntities('auditEvents'))
+      .map(row => JSON.parse(row.data) as { action: string; metadata?: { reason?: string } })
+      .filter(e => e.action === 'account.delegation_exchange_refused')
+      .map(e => e.metadata?.reason)
+
+    const before = (await journal()).length
+    const bare = await attempt()
+    expect(bare.status).toBe(400)
+    expect((await journal()).slice(before)).toContain('dpop_proof')
+
+    const wrongKeyProof = await mint({ method: 'POST', uri: TOKEN_URL, accessToken: subject })
+    const wrong = await attempt(wrongKeyProof.proof)
+    expect(wrong.status).toBe(400)
+    expect((await journal()).slice(before)).toEqual(['dpop_proof', 'dpop_proof'])
+
+    // The bound key's proof (ath over the subject) passes the DPoP leg —
+    // the journal names the LATER leg (the scope standing), never
+    // dpop_proof again.
+    const rightProof = await mint({ method: 'POST', uri: TOKEN_URL, keys, accessToken: subject })
+    const right = await attempt(rightProof.proof)
+    expect(right.status).toBe(400)
+    const reasons = (await journal()).slice(before)
+    expect(reasons[reasons.length - 1]).not.toBe('dpop_proof')
   })
 })

@@ -200,7 +200,9 @@ export function createOpTokenManagementRouter(deps: {
         aud: access.clientId,
         client_id: access.clientId,
         scope: access.scope,
-        token_type: 'Bearer',
+        // RFC 9449 §8: a DPoP-bound token introspects with its cnf
+        // (the RS reads the binding) and token_type DPoP.
+        ...(access.dpopJkt ? { cnf: { jkt: access.dpopJkt }, token_type: 'DPoP' } : { token_type: 'Bearer' }),
         exp: Math.floor(new Date(access.expiresAt).getTime() / 1000),
         ...(access.amr?.length ? { amr: access.amr } : {}),
       })
@@ -222,6 +224,7 @@ export function createOpTokenManagementRouter(deps: {
           && claims.iss === config.issuer
           && typeof claims.exp === 'number' && claims.exp * 1000 > Date.now()
         if (standing) {
+          const jkt = (claims.cnf as { jkt?: unknown } | undefined)?.jkt
           return c.json({
             active: true,
             iss: claims.iss,
@@ -229,7 +232,8 @@ export function createOpTokenManagementRouter(deps: {
             aud: claims.aud,
             ...(typeof claims.client_id === 'string' ? { client_id: claims.client_id } : {}),
             ...(typeof claims.scope === 'string' ? { scope: claims.scope } : {}),
-            token_type: 'Bearer',
+            // RFC 9449 §8: the machine JWT's cnf reads through.
+            ...(typeof jkt === 'string' ? { cnf: { jkt }, token_type: 'DPoP' } : { token_type: 'Bearer' }),
             ...(typeof claims.iat === 'number' ? { iat: claims.iat } : {}),
             exp: claims.exp,
           })

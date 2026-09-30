@@ -224,9 +224,18 @@ export function createOpTokenRouter(deps: {
       } else {
         warnDevKeyRegistrationSkipped('/op/token', machineKey)
       }
+      // The DPoP arm (TODO.sota/09, RFC 9449 §6.1): a valid proof binds
+      // the SELF-CONTAINED machine JWT through the cnf claim — the
+      // consumers (introspection here, the external RSes) read the
+      // binding; our own 8693 verifies enforce it.
+      const machineDpop = await dpopBindingFor(c, config)
+      if (machineDpop && 'error' in machineDpop) {
+        return refuseToken(400, 'invalid_dpop_proof', machineDpop.error, machineClient.clientId)
+      }
+      const machineJkt = machineDpop && 'jkt' in machineDpop ? machineDpop.jkt : null
       const machineToken = await signOpIdToken(machineKey, device
-        ? deviceTokenClaims(machineClient.clientId, device, config)
-        : serviceTokenClaims(machineClient.clientId, service!, serviceScopes, config))
+        ? deviceTokenClaims(machineClient.clientId, device, config, machineJkt)
+        : serviceTokenClaims(machineClient.clientId, service!, serviceScopes, config, machineJkt))
       // The issuance lands on the audit chain, naming the MACHINE CALLER
       // (never the token value, never the secret).
       await audit('client.token_issued', machineClient.clientId, {}, device
@@ -234,7 +243,7 @@ export function createOpTokenRouter(deps: {
         : { class: SERVICE_CLASS, service: service!.id, org: service!.org, audience: service!.audience, scopes: serviceScopes })
       return c.json({
         access_token: machineToken,
-        token_type: 'Bearer',
+        token_type: machineJkt ? 'DPoP' : 'Bearer',
         expires_in: config.accessTokenTtlMs / 1000,
         // The effective scopes ride the service class's answer (RFC 6749
         // §5.1's explicitness — the caller reads what it actually got).
@@ -407,6 +416,19 @@ export function createOpTokenRouter(deps: {
         const subject = presentedDelegation ? await store.getOidcAccessToken(presentedDelegation) : null
         if (!subject) return refuseDelegation('unknown')
         if (subject.clientId !== actor.clientId) return refuseDelegation('foreign_token', subject.userId)
+        // The DPoP enforcement (TODO.sota/09, RFC 9449 \u00a77): this
+        // endpoint CONSUMES the subject token \u2014 a bound token delegates
+        // only with a possession proof from the bound key (the ath over
+        // the subject). A stolen bound token refuses here.
+        if (subject.dpopJkt) {
+          const subjectProof = c.req.header('dpop')
+          const subjectRes = subjectProof
+            ? await verifyDpopProof(subjectProof, { method: 'POST', uri: `${config.issuer}/op/token`, accessToken: presentedDelegation })
+            : { error: 'the subject token is DPoP-bound — a proof is required' }
+          if (!('jkt' in subjectRes) || subjectRes.jkt !== subject.dpopJkt) {
+            return refuseDelegation('dpop_proof', subject.userId)
+          }
+        }
         // The account's standing (a deactivated or erased account's
         // sessions die with it) — the PAT cone's lattice leg.
         const subjectAccountRow = (await store.listUsers()).find(u => u.id === subject.userId)
