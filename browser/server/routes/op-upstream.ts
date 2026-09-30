@@ -58,7 +58,7 @@ import { seedWithReadBack } from './op-seed-guard'
 import { safeLocalRedirect, signUpstreamState, verifyUpstreamState, type UpstreamStatePayload } from '../auth/upstream/state'
 import { continueSelfRegisterAttribution, continueSelfRegisterSecondProof } from './op-self-register'
 import { getCookie } from 'hono/cookie'
-import { stepUpSatisfied, STEP_UP_COOKIE } from '../auth/op/step-up-stamp'
+import { presentedStepUpStamp, stepUpSatisfied, STEP_UP_COOKIE } from '../auth/op/step-up-stamp'
 import {
   buildUpstreamAuthorizationUrl,
   discoverIssuer,
@@ -687,9 +687,12 @@ export function createOpUpstreamRouter(): Hono {
     // protects it (the upstream re-auth factor follows in 06's tail).
     const cred = await store.getPasswordLogin(gate.user.email)
     if (cred) {
-      const stamp = getCookie(c, STEP_UP_COOKIE) ?? ''
-      if (!stamp || !(await stepUpSatisfied(store, stamp, gate.user.id))) {
-        return c.json({ error: 'verify once more before removing a linked sign-in — re-enter your current password', stepUp: true }, 403)
+      const stamp = presentedStepUpStamp(c.req.header('x-op-step-up'), getCookie(c, STEP_UP_COOKIE))
+      const satisfied = stamp ? await stepUpSatisfied(runtimeEnv<Record<string, string | undefined>>(c), stamp, gate.user.id) : false
+      if (!satisfied) {
+        const reason = stamp ? 'stamp_invalid' : 'no_stamp'
+        console.warn(`[op] UNLINK STEP-UP REFUSED: ${reason} (stamp len ${stamp.length}, user ${gate.user.id})`)
+        return c.json({ error: 'verify once more before removing a linked sign-in — re-enter your current password', stepUp: true, reason }, 403)
       }
     }
     const methods = await store.countSignInMethods(gate.user.id)
