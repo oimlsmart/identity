@@ -100,13 +100,22 @@ import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, normalizeOidcScopeSet, normalizePatScopes, type AuthUserPayload, type OidcClient, type OidcClientLaunch, type PatScope } from '../store'
 import { getInstanceProfile } from '../profile'
 import { opRequestOrigin, resolveOpConfig, type OpConfig } from '../auth/op/config'
-import { ensureOpKeyRegistered, opJwks, opRandomToken, pkceS256, resolveOpSigningKey, signOpIdToken, verifyOpJwt, type OpSigningKey } from '../auth/op/keys'
+import {
+  ensureOpKeyRegistered,
+  maySelfRegisterOpKey,
+  opJwks,
+  opRandomToken,
+  pkceS256,
+  resolveOpSigningKey,
+  signOpIdToken,
+  verifyOpJwt,
+  warnDevKeyRegistrationSkipped,
+  type OpSigningKey,
+} from '../auth/op/keys'
 import { hashClientSecret, verifyClientSecret } from '../auth/op/secrets'
 import { seedOidcClientsFromEnv } from '../auth/op/registry'
 import { roleClaimsForContext, pictureClaimForClient, orcidClaimForClient, orgRorClaimForClient } from '../auth/op/claims'
 import { claimsContextFor } from '../auth/op/memberships'
-import { avatarKeys, AVATAR_PUBLIC_CACHE, initialsAvatarSvg } from '../auth/op/avatars'
-import { getBlobStore } from '../blobs'
 import { validateLaunch, type LaunchInput } from '../auth/op/launch'
 import {
   DEVICE_CLASS, deviceClassOf, deviceTokenClaims, validateDeviceBlock,
@@ -152,36 +161,13 @@ import { parseOpAccountSeed, type OpAccountSeedEntry } from '../auth/op/accounts
 import { clientInfo } from '../client-info'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { createOpAvatarServeRouter } from './op-avatar-serve'
+import { createOpDiscoveryRouter } from './op-discovery'
 
 type EnvLike = Record<string, string | undefined>
 
 /** The OAuth/OIDC error body (RFC 6749 §5.2), never a stack trace. */
 function oidcError(c: Context, status: 400 | 401, error: string, description: string): Response {
   return c.json({ error, error_description: description }, status)
-}
-
-/** The oidc_keys self-registration gate (oimlsmart/identity#7): the
- *  DECLARED secret's key always registers (the fresh-deployment answer
- *  and the rotation ceremony's overlap poll ride it); a GENERATED
- *  development key registers ONLY in the dev posture — the issuer
- *  derived from the request origin (OP_ISSUER unset, config.ts's
- *  documented dev fallback; a deployment declares it, wrangler.toml).
- *  On the production identity service a mid-propagation secret read
- *  that falls to the dev generation must never mint + register an
- *  ephemeral per-isolate key into the keyset the RPs validate against:
- *  the table stays exactly as the declared deployments left it. */
-function maySelfRegisterOpKey(key: OpSigningKey, config: OpConfig): boolean {
-  return key.declared || config.issuerFromRequest
-}
-
-/** The gate's loud skip: the registration refused, the reason named. */
-function warnDevKeyRegistrationSkipped(path: string, key: OpSigningKey): void {
-  console.warn(
-    `[op] ${path}: the resolved signing key is a GENERATED development key (kid ${key.kid}), but this deployment `
-    + 'declares OP_ISSUER (the production posture) — refusing to register the ephemeral key into oidc_keys. '
-    + 'The OP_SIGNING_KEY secret is undeclared or unreadable on this isolate (a secret put mid-propagation?); '
-    + 'the registered table is served as it stands.',
-  )
 }
 
 /** The session iframe's poll script (TODO.modern/03, verbatim): the
@@ -245,96 +231,9 @@ export function createOpRouter(): Hono {
   }
 
   // ── discovery + keys ─────────────────────────────────────────────
-
-  // GET /.well-known/openid-configuration — the discovery document. The
-  // RP side (auth/oidc.ts) requires issuer/authorization_endpoint/
-  // token_endpoint/jwks_uri and an exact issuer match. Public,
-  // deploy-stable, fetched by every RP on every flow: the edge carries
-  // the repeat load (5-minute freshness — the document changes only on
-  // deploys).
-  op.get('/.well-known/openid-configuration', async (c) => {
-    const { issuer } = configFor(c)
-    c.header('Cache-Control', 'public, max-age=300')
-    return c.json({
-      issuer,
-      authorization_endpoint: `${issuer}/op/authorize`,
-      token_endpoint: `${issuer}/op/token`,
-      userinfo_endpoint: `${issuer}/op/userinfo`,
-      // TODO.identity-sso (the wave-A tail): the RP-initiated logout's
-      // endpoint — the kernel's RP side (buildEndSessionUrl) already
-      // consumes it.
-      end_session_endpoint: `${issuer}/op/endsession`,
-      // TODO.identity-sso (the wave-C token surface): RFC 7009 + RFC
-      // 7662 — the client-bound revocation and the token-standing read.
-      revocation_endpoint: `${issuer}/op/revoke`,
-      introspection_endpoint: `${issuer}/op/introspect`,
-      jwks_uri: `${issuer}/jwks.json`,
-      // RFC 8628 (TODO.ai-platform/10): the device authorization grant —
-      // the CLI cone's user-attended bootstrap (the public client, the
-      // PAT-grammar scope ask, the poll mints the personal access token).
-      device_authorization_endpoint: `${issuer}/op/device/authorization`,
-      response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
-      subject_types_supported: ['public'],
-      id_token_signing_alg_values_supported: ['ES256'],
-      // offline_access (the wave-C token surface): the refresh grant's
-      // ask — admitted for the application class (public and confidential
-      // alike; the rotation + the reuse-kill are the compensating
-      // controls), never for the machine classes.
-      scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
-      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
-      code_challenge_methods_supported: ['S256'],
-      // The session management surface (TODO.modern/03): the RP's
-      // session observation — the OIDC Session Management poll (the
-      // iframe + the authorize answer's session_state). Front-channel
-      // logout is DELIBERATELY absent (backchannel logout already
-      // ships — the newer posture).
-      check_session_iframe: `${issuer}/op/session/check`,
-      // auth_time joins: the prompt=login freshness proof the RP verifies
-      // (the wave-A tail — the code carries the session's authentication
-      // instant, kernel 0.2.5).
-      // The step-up ladder (TODO.modern/06): the achieved-acr
-      // vocabulary — derived from the session's amr, never asserted.
-      acr_values_supported: [...ACR_LEVELS],
-      // RFC 9126 (TODO.modern/11): the pushed authorization request.
-      pushed_authorization_request_endpoint: `${issuer}/op/par`,
-      // RFC 9150 (TODO.modern/12): the JWT-secured response mode.
-      response_modes_supported: ['query', 'jwt'],
-      claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'orcid', 'org_ror', 'amr'],
-    })
-  })
-
-  // GET /jwks.json — the public halves of the key history. The answer
-  // is the REGISTERED TABLE, never gated on the signing secret's
-  // availability: a Worker secret mid-propagation (a fresh isolate whose
-  // OP_SIGNING_KEY binding reads malformed or rejects the key material
-  // while the rollout settles) must never 500 the public key set. The
-  // secret matters for SIGNING, not for serving public keys. The active
-  // key's self-registration stays (a fresh deployment answers its own
-  // key before the first token issuance, and the rotation ceremony's
-  // overlap poll rides it) but is best-effort AND GATED
-  // (maySelfRegisterOpKey, identity#7): a failed resolve serves the
-  // table as it stands, a genuinely empty table answers an honest empty
-  // JWKS, and a generated development key registers only in the dev
-  // posture — never into the production keyset.
-  op.get('/jwks.json', async (c) => {
-    const store = getStore()
-    try {
-      const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
-      if (maySelfRegisterOpKey(key, configFor(c))) {
-        await ensureOpKeyRegistered(store, key)
-      } else {
-        warnDevKeyRegistrationSkipped('/jwks.json', key)
-      }
-    } catch (err) {
-      console.warn('[op] jwks.json: the signing key is unavailable on this isolate; serving the registered table:', (err as Error).message)
-    }
-    // Edge-cacheable: the table changes only on the rotation ceremony,
-    // whose 24 h retirement margin (1 h tokens + 1 h RP caches) sits
-    // two orders above a 5-minute freshness.
-    c.header('Cache-Control', 'public, max-age=300')
-    return c.json(await opJwks(store))
-  })
+  // The metadata module (TODO.sota/07.4): routes/op-discovery.ts —
+  // the discovery document + the JWKS (the RPs' first fetches).
+  op.route('/', createOpDiscoveryRouter())
 
   // ── session management (TODO.modern/03) ────────────────────────────
   // The RP's session observation (the OIDC Session Management poll):

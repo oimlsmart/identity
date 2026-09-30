@@ -20,7 +20,7 @@
 // registration above is the DECLARED secret's privilege. A generated
 // development key (declared: false) registers only in the dev posture —
 // the issuer derived from the request origin, OP_ISSUER unset
-// (routes/op.ts's maySelfRegisterOpKey reads the two). On a
+// (maySelfRegisterOpKey, below, reads the two). On a
 // declared-issuer deployment (the production identity service) a
 // mid-propagation secret read that falls to the dev generation never
 // pollutes the keyset the RPs validate against: the JWKS serves the
@@ -30,6 +30,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import type { ServerStore } from '../../store'
+import type { OpConfig } from './config'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -41,7 +42,7 @@ export interface OpSigningKey {
   kid: string
   /** TRUE when the key came from the DECLARED OP_SIGNING_KEY secret;
    *  FALSE for the generated development pair. The registration gate
-   *  (routes/op.ts's maySelfRegisterOpKey) reads it: oidc_keys never
+   *  (maySelfRegisterOpKey, below) reads it: oidc_keys never
    *  accepts a generated key on a declared-issuer deployment
    *  (identity#7). */
   declared: boolean
@@ -59,6 +60,30 @@ export interface OpSigningKey {
    *  posture's caveat, documented with the dev key). NEVER exposed
    *  outside the server. */
   secretMaterial: string
+}
+
+/** The oidc_keys self-registration gate (oimlsmart/identity#7): the
+ *  DECLARED secret's key always registers (the fresh-deployment answer
+ *  and the rotation ceremony's overlap poll ride it); a GENERATED
+ *  development key registers ONLY in the dev posture — the issuer
+ *  derived from the request origin (OP_ISSUER unset, config.ts's
+ *  documented dev fallback; a deployment declares it, wrangler.toml).
+ *  On the production identity service a mid-propagation secret read
+ *  that falls to the dev generation must never mint + register an
+ *  ephemeral per-isolate key into the keyset the RPs validate against:
+ *  the table stays exactly as the declared deployments left it. */
+export function maySelfRegisterOpKey(key: OpSigningKey, config: OpConfig): boolean {
+  return key.declared || config.issuerFromRequest
+}
+
+/** The gate's loud skip: the registration refused, the reason named. */
+export function warnDevKeyRegistrationSkipped(path: string, key: OpSigningKey): void {
+  console.warn(
+    `[op] ${path}: the resolved signing key is a GENERATED development key (kid ${key.kid}), but this deployment `
+    + 'declares OP_ISSUER (the production posture) — refusing to register the ephemeral key into oidc_keys. '
+    + 'The OP_SIGNING_KEY secret is undeclared or unreadable on this isolate (a secret put mid-propagation?); '
+    + 'the registered table is served as it stands.',
+  )
 }
 
 function base64url(bytes: Uint8Array): string {
