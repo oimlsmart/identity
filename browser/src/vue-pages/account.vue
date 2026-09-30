@@ -953,8 +953,12 @@ async function unlink(providerId: string) {
       ...(stamp ? { headers: { 'x-op-step-up': stamp } } : {}),
     })
     if (!res.ok) {
-      const body = await res.json().catch(() => null) as { error?: string; stepUp?: boolean } | null
+      const body = await res.json().catch(() => null) as { error?: string; stepUp?: boolean; reason?: string } | null
       if (body?.stepUp) {
+        if (sessionStorage.getItem('op_step_up')) {
+          error.value = (body.error ?? t('stepup.wrong')) + ' (' + String(body.reason ?? 'unknown') + ')'
+          return
+        }
         await demandStepUp(() => unlink(providerId))
       } else {
         error.value = body?.error ?? t('account.linkError.generic')

@@ -42,7 +42,7 @@
 
 import { Hono, type Context } from 'hono'
 import { getCookie } from 'hono/cookie'
-import { stepUpSatisfied, STEP_UP_COOKIE } from '../auth/op/step-up-stamp'
+import { presentedStepUpStamp, stepUpSatisfied, STEP_UP_COOKIE } from '../auth/op/step-up-stamp'
 import { isSystemAuthority } from '../vocab/roles'
 import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type AuthUserPayload } from '../store'
@@ -284,9 +284,12 @@ export function createUsersRouter(): Hono<{ Variables: { user: AuthUserPayload; 
     const user = c.get('user')
     const escalation = [body?.role, ...(body?.roles ?? [])].some(r => typeof r === 'string' && (isSystemAuthority(r) || r === 'org_admin'))
     if (escalation) {
-      const stamp = getCookie(c, STEP_UP_COOKIE) ?? ''
-      if (!stamp || !(await stepUpSatisfied(getStore(), stamp, user.id))) {
-        return c.json({ error: 'verify once more before granting a privileged role — re-enter your current password', stepUp: true }, 403)
+      const stamp = presentedStepUpStamp(c.req.header('x-op-step-up'), getCookie(c, STEP_UP_COOKIE))
+      const satisfied = stamp ? await stepUpSatisfied(runtimeEnv(c) as Record<string, string | undefined>, stamp, user.id) : false
+      if (!satisfied) {
+        const reason = stamp ? 'stamp_invalid' : 'no_stamp'
+        console.warn(`[op] ROLES STEP-UP REFUSED: ${reason} (stamp len ${stamp.length})`)
+        return c.json({ error: 'verify once more before granting a privileged role — re-enter your current password', stepUp: true, reason }, 403)
       }
     }
     if (!body || typeof body.role !== 'string' || !body.role) {
