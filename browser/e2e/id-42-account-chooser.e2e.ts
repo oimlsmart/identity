@@ -161,38 +161,38 @@ async function bootIdentityStack(): Promise<Stack> {
       // credentials that exist in no repository.
       OP_ACCOUNT_SEED: JSON.stringify([
         {
-          email: 'persona-applicant@oimlsmart.org', name: 'ACME Applicant (Demonstration)', role: 'user',
+          email: 'persona-applicant@oimlsmart.org', name: 'Applicant', role: 'user',
           orgId: 'mfr-acme', emailVerified: true, password: 'e2e-persona-credential-1',
           clientRoles: { [RP_CLIENT_ID]: ['applicant'] },
         },
         {
-          email: 'persona-ia@oimlsmart.org', name: 'IA Officer (Demonstration)', role: 'user',
+          email: 'persona-ia@oimlsmart.org', name: 'Issuing Authority', role: 'user',
           orgId: 'EX1', emailVerified: true, password: 'e2e-persona-credential-3',
           clientRoles: { [RP_CLIENT_ID]: ['ia_officer'] },
         },
         {
-          email: 'persona-tl@oimlsmart.org', name: 'TL Operator (Demonstration)', role: 'user',
+          email: 'persona-tl@oimlsmart.org', name: 'Test Laboratory', role: 'user',
           orgId: '21', emailVerified: true, password: 'e2e-persona-credential-4',
           clientRoles: { [RP_CLIENT_ID]: ['tl_operator'] },
         },
         {
-          email: 'persona-utilizer@oimlsmart.org', name: 'Utilizer Officer (NL) (Demonstration)', role: 'user',
-          orgId: 'ut-nmi-nl', emailVerified: true, password: 'e2e-persona-credential-5',
+          email: 'persona-utilizer@oimlsmart.org', name: 'Utilizer Officer (XG)', role: 'user',
+          orgId: 'ut-lmi-xg', emailVerified: true, password: 'e2e-persona-credential-5',
           clientRoles: { [RP_CLIENT_ID]: ['scheme_participant'] },
         },
         {
-          email: 'persona-cs@oimlsmart.org', name: 'CS Administrator (Demonstration)', role: 'user',
+          email: 'persona-cs@oimlsmart.org', name: 'OIML-CS Administrator', role: 'user',
           orgId: 'oiml-cs-demo', emailVerified: true, password: 'e2e-persona-credential-2',
           clientRoles: { [RP_CLIENT_ID]: ['cs_admin'] },
         },
         {
-          email: 'persona-admin@oimlsmart.org', name: 'System Administrator (Demonstration)', role: 'user',
+          email: 'persona-admin@oimlsmart.org', name: 'Admin', role: 'user',
           emailVerified: true, password: 'e2e-persona-credential-6',
           clientRoles: { [RP_CLIENT_ID]: ['admin'] },
         },
         {
-          email: 'persona-surveillance@oimlsmart.org', name: 'Market Surveillance (NL) (Demonstration)', role: 'user',
-          orgId: 'ut-nmi-nl', emailVerified: true, password: 'e2e-persona-credential-7',
+          email: 'persona-surveillance@oimlsmart.org', name: 'Market Surveillance (XG)', role: 'user',
+          orgId: 'ut-lmi-xg', emailVerified: true, password: 'e2e-persona-credential-7',
           clientRoles: { [RP_CLIENT_ID]: ['market_surveillance'] },
         },
       ]),

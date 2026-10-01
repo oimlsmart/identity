@@ -452,7 +452,7 @@ describe('the org inventory + the erasure', () => {
     const view = await res.json() as { tokens: Array<{ id: string; name: string; holder: { name: string; email: string }; state: string; prefix: string }> }
     const row = view.tokens.find(t => t.id === minted.token.id)!
     expect(row, 'the member’s token is on the org’s inventory').toBeTruthy()
-    expect(row.holder).toMatchObject({ name: 'IA Officer', email: 'ia@oimlsmart.org' })
+    expect(row.holder).toMatchObject({ name: 'Issuing Authority', email: 'ia@oimlsmart.org' })
     expect(row.state).toBe('active')
     // The FULL plaintext is the leak vector — a fixed prefix would
     // flake against the row's own random display prefix (the 1/64).

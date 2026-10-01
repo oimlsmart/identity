@@ -264,7 +264,7 @@ describe('the administrator’s link on behalf', () => {
     const rows = (await journal()).filter(e => e.action === 'account.link_on_behalf' && e.entity_id === id)
     expect(rows).toHaveLength(1)
     expect(rows[0]!.metadata?.justification).toContain('video call')
-    expect(rows[0]!.user_name).toBe('OIML Admin')
+    expect(rows[0]!.user_name).toBe('Admin')
   })
 
   it('refuses the unknown provider and the conflict honestly', async () => {
@@ -738,7 +738,7 @@ describe('the administrator’s end-all-sessions', () => {
     const rows = (await journal()).filter(e => e.action === 'account.sessions_revoked' && e.entity_id === id)
     expect(rows).toHaveLength(1)
     expect(rows[0]!.metadata).toMatchObject({ by: 'administrator', count: before.sessions.length })
-    expect(rows[0]!.user_name).toBe('OIML Admin')
+    expect(rows[0]!.user_name).toBe('Admin')
   })
 
   it('holds the gates: anonymous 401, non-admin 403, unknown account 404', async () => {

@@ -18,7 +18,7 @@
 //   leg 4  THE CLAIMS PROOF (fetch-level against the stack): the OIDC
 //          round trip's ID token + userinfo carry the ACTIVE org's role
 //          set — before the switch (EX1 + ia_officer), after it
-//          (ut-nmi-nl + viewer), and the other membership never leaks;
+//          (ut-lmi-xg + viewer), and the other membership never leaks;
 //   leg 5  the identity admin's per-org registry view (the members, the
 //          per-org roles, the org_admin mark, the queue) and the
 //          officer's registry page's memberships section;
@@ -53,8 +53,8 @@ const ID_WEB = 9994
 // The cast: the Utilizer's org admin (created in leg 2 — a real OP
 // password account, the 02 enrollment seam) and the IA officer (the demo
 // cast's ia@oimlsmart.org — primary EX1, the account that joins the Utilizer).
-const UTILIZER_ID = 'ut-nmi-nl'
-const UTILIZER_NAME = 'Example Metrology Authority (Netherlands)'
+const UTILIZER_ID = 'ut-lmi-xg'
+const UTILIZER_NAME = 'Luggnagg Metrology Institute'
 const IA_ID = 'EX1'
 const ORG_ADMIN_EMAIL = 'sanne.devries@nmi.example.org'
 const ORG_ADMIN_PASSWORD = 'sanne de vries admin passphrase'
@@ -456,7 +456,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     // The people slice lists the officer as a member with the per-org role.
     await page.waitForFunction(() => {
       const list = document.querySelector('[data-testid="org-users-list"]')
-      return list && list.textContent?.includes('IA Officer')
+      return list && list.textContent?.includes('Issuing Authority')
     }, { timeout: SETTLE, polling: 500 })
     const slice = await page.$eval('[data-testid="org-users-list"]', el => el.textContent ?? '')
     expect(slice).toContain('Sanne de Vries')
@@ -541,7 +541,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     await page.waitForSelector('[data-testid="op-reg-org-members-list"]', { timeout: SETTLE, polling: 500 })
     const members = await page.$eval('[data-testid="op-reg-org-members-list"]', el => el.textContent ?? '')
     expect(members).toContain('Sanne de Vries')
-    expect(members).toContain('IA Officer')
+    expect(members).toContain('Issuing Authority')
     const admins = await page.$eval('[data-testid="op-reg-org-admins"]', el => el.textContent ?? '')
     expect(admins).toContain('Sanne de Vries')
     const queue = await page.$eval('[data-testid="op-reg-org-requests"]', el => el.textContent ?? '')

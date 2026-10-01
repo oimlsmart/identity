@@ -177,8 +177,8 @@ demo_personas: true
   // identity service's own registry (the seed-org-register.ts shape).
   await store.createOrgRegistryOrg({
     id: 'mfr-acme',
-    name: 'ACME (the demonstration manufacturer)',
-    shortName: 'ACME',
+    name: 'Steelyard Instruments Ltd.',
+    shortName: 'Steelyard',
     kind: 'manufacturer',
     country: 'Example Member State',
     contacts: [],

@@ -38,7 +38,7 @@ let store: ReturnType<typeof import('../../server/store').getStore>
 
 // ── the seeded organization registry ────────────────────────────────
 // TODO.identity-features/05: the identity service's OWN registry (the
-// org_registry store rows) — EX1 an ACTIVE IA, 21 an ACTIVE TL, ut-nmi-nl
+// org_registry store rows) — EX1 an ACTIVE IA, 21 an ACTIVE TL, ut-lmi-xg
 // an ACTIVE Utilizer; XX1 the mid-pipeline IA seeded DISABLED (on the
 // registry, never joinable — the lifecycle's demonstration).
 const ORGS = [
@@ -47,7 +47,7 @@ const ORGS = [
   { id: 'XX1', kind: 'issuing-authority', name: 'Demo Issuing Authority', short_name: 'DIA', contact: { email: 'office@dia.example.org' } },
 ]
 const UTILIZERS = [
-  { id: 'ut-nmi-nl', name: 'Example Metrology Authority (Netherlands)', short_name: 'EMA-NL', country: 'Netherlands', contact: { email: 'oiml-cs@nmi.example.org' } },
+  { id: 'ut-lmi-xg', name: 'Luggnagg Metrology Institute', short_name: 'LMI', country: 'Luggnagg', contact: { email: 'oiml-cs@lmi.example.org' } },
 ]
 /** The orgs the registry carries DISABLED (the mid-pipeline posture). */
 const DISABLED_ORGS = new Set(['XX1'])
@@ -118,11 +118,11 @@ demo_personas: true
 
   // The Utilizer's org admin (BIML created it — the eligibility rule's
   // positive leg) and a second org's admin for the cross-org proofs.
-  await store.createLocalUser({ email: 'admin@nmi.example.org', name: 'NL Admin', role: 'org_admin', roles: ['org_admin'], orgId: 'ut-nmi-nl' })
+  await store.createLocalUser({ email: 'admin@lmi.example.org', name: 'NL Admin', role: 'org_admin', roles: ['org_admin'], orgId: 'ut-lmi-xg' })
   await store.createLocalUser({ email: 'admin@eia.example.org', name: 'IA Admin', role: 'org_admin', roles: ['org_admin'], orgId: 'EX1' })
   // The Utilizer's staff member (the org slice's content) + another
   // org's user (the cross-org target).
-  await store.createLocalUser({ email: 'reviewer@nmi.example.org', name: 'NL Reviewer', role: 'viewer', roles: ['viewer'], orgId: 'ut-nmi-nl' })
+  await store.createLocalUser({ email: 'reviewer@lmi.example.org', name: 'NL Reviewer', role: 'viewer', roles: ['viewer'], orgId: 'ut-lmi-xg' })
   await store.createLocalUser({ email: 'officer@eia.example.org', name: 'IA Officer', role: 'ia_officer', roles: ['ia_officer'], orgId: 'EX1' })
 })
 
@@ -143,8 +143,8 @@ describe('the organization-registry resolver', () => {
     expect(byId.get('EX1')?.registered).toBe(true)
     expect(byId.get('EX1')?.kind).toBe('issuing-authority')
     expect(byId.get('21')?.registered).toBe(true)
-    expect(byId.get('ut-nmi-nl')?.registered).toBe(true)
-    expect(byId.get('ut-nmi-nl')?.kind).toBe('utilizer')
+    expect(byId.get('ut-lmi-xg')?.registered).toBe(true)
+    expect(byId.get('ut-lmi-xg')?.kind).toBe('utilizer')
     expect(byId.get('XX1')?.state).toBe('disabled') // mid-pipeline
     expect(byId.get('XX1')?.registered).toBe(false)
     expect(await isRegisteredParticipant(store, 'no-such-org')).toBe(false)
@@ -167,8 +167,8 @@ describe('the organization-registry resolver', () => {
 
   it('the email-domain hint matches, mismatches, and abstains honestly', async () => {
     const { emailDomainHint, resolveRegistryOrg } = await import('../../server/auth/org-registry')
-    const nl = (await resolveRegistryOrg(store, 'ut-nmi-nl'))!
-    expect(emailDomainHint(nl, 'jane@nmi.example.org')).toBe(true)
+    const nl = (await resolveRegistryOrg(store, 'ut-lmi-xg'))!
+    expect(emailDomainHint(nl, 'jane@lmi.example.org')).toBe(true)
     expect(emailDomainHint(nl, 'jane@elsewhere.example.org')).toBe(false)
     const tl = (await resolveRegistryOrg(store, '21'))!
     expect(tl.emailDomain).toBe('etl.example.org')
@@ -180,16 +180,17 @@ describe('the organization-registry resolver', () => {
 
 describe('the org-scoped users API (org.users.manage)', () => {
   it('lists ONLY the org’s own users — the demo cast and every other org stay invisible', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const rows = await json(await app.request(`${ORIGIN}/api/users`, { headers: { cookie } }), 200)
-    // The demo Utilizer officer (utilizer@oimlsmart.org) is BOUND to the NL
-    // Utilizer org (TODO.adoption/10 — the register link), so the org
-    // admin's slice carries it.
-    expect(rows.map((u: any) => u.email).sort()).toEqual(['admin@nmi.example.org', 'reviewer@nmi.example.org', 'utilizer@oimlsmart.org'])
+    // The demo Utilizer officer (utilizer@oimlsmart.org) and the
+    // market-surveillance officer (surveillance@oimlsmart.org) are BOUND
+    // to the XG Utilizer org (TODO.adoption/10 — the register link), so
+    // the org admin's slice carries both.
+    expect(rows.map((u: any) => u.email).sort()).toEqual(['admin@lmi.example.org', 'reviewer@lmi.example.org', 'surveillance@oimlsmart.org', 'utilizer@oimlsmart.org'])
   })
 
   it('answers ONLY the roles the org’s kind bounds (a Utilizer’s staff: viewer + scheme_participant)', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const map = await json(await app.request(`${ORIGIN}/api/users/roles`, { headers: { cookie } }), 200)
     expect(Object.keys(map)).toEqual(['viewer', 'scheme_participant'])
     // The IA admin's bounded map is the IA desk family.
@@ -199,7 +200,7 @@ describe('the org-scoped users API (org.users.manage)', () => {
   })
 
   it('refuses a cross-org role write (404 — the other org’s account is not in the slice)', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const target = (await store.listUsers()).find(u => u.email === 'officer@eia.example.org')!
     const res = await app.request(`${ORIGIN}/api/users/${target.id}/roles`, {
       method: 'PUT', headers: { 'content-type': 'application/json', cookie },
@@ -211,7 +212,7 @@ describe('the org-scoped users API (org.users.manage)', () => {
   })
 
   it('refuses a cross-org deactivation the same way', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const target = (await store.listUsers()).find(u => u.email === 'officer@eia.example.org')!
     const res = await app.request(`${ORIGIN}/api/users/${target.id}/active`, {
       method: 'PUT', headers: { 'content-type': 'application/json', cookie },
@@ -221,42 +222,42 @@ describe('the org-scoped users API (org.users.manage)', () => {
   })
 
   it('pins creates to the org — a body naming another org is refused; a role outside the kind is refused', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     // Another org's id in the body → 403, no account.
     const cross = await app.request(`${ORIGIN}/api/users`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ email: 'mole@nmi.example.org', name: 'Mole', role: 'viewer', orgId: 'EX1' }),
+      body: JSON.stringify({ email: 'mole@lmi.example.org', name: 'Mole', role: 'viewer', orgId: 'EX1' }),
     })
     expect(cross.status).toBe(403)
-    expect(await store.findUserByEmail('mole@nmi.example.org')).toBeNull()
+    expect(await store.findUserByEmail('mole@lmi.example.org')).toBeNull()
     // A role the Utilizer kind does not carry → 403 naming the bound.
     const role = await app.request(`${ORIGIN}/api/users`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ email: 'officer@nmi.example.org', name: 'NL Officer', role: 'ia_officer' }),
+      body: JSON.stringify({ email: 'officer@lmi.example.org', name: 'NL Officer', role: 'ia_officer' }),
     })
     expect(role.status).toBe(403)
     expect(await json(role.clone(), 403)).toMatchObject({})
     // The valid create lands IN the org.
     const ok = await app.request(`${ORIGIN}/api/users`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ email: 'colleague@nmi.example.org', name: 'NL Colleague', role: 'viewer' }),
+      body: JSON.stringify({ email: 'colleague@lmi.example.org', name: 'NL Colleague', role: 'viewer' }),
     })
     const created = await json(ok, 201)
-    expect(created.orgId).toBe('ut-nmi-nl')
+    expect(created.orgId).toBe('ut-lmi-xg')
     expect(created.roles).toEqual(['viewer'])
   })
 
   it('never assigns org_admin through the scoped grant, and never touches the org’s administrator account', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const create = await app.request(`${ORIGIN}/api/users`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ email: 'second-admin@nmi.example.org', name: 'Second Admin', role: 'org_admin' }),
+      body: JSON.stringify({ email: 'second-admin@lmi.example.org', name: 'Second Admin', role: 'org_admin' }),
     })
     expect(create.status).toBe(403)
     expect((await create.json()).error).toContain('BIML')
     // The org's own administrator account is the scheme operator's —
     // the scoped grant cannot re-role or deactivate it.
-    const self = (await store.listUsers()).find(u => u.email === 'admin@nmi.example.org')!
+    const self = (await store.listUsers()).find(u => u.email === 'admin@lmi.example.org')!
     const roles = await app.request(`${ORIGIN}/api/users/${self.id}/roles`, {
       method: 'PUT', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ role: 'viewer' }),
@@ -281,7 +282,7 @@ describe('the org-scoped users API (org.users.manage)', () => {
   })
 
   it('a staff account without the grant is refused (the missing permission, named)', async () => {
-    const cookie = await demoLogin('reviewer@nmi.example.org')
+    const cookie = await demoLogin('reviewer@lmi.example.org')
     const res = await app.request(`${ORIGIN}/api/users`, { headers: { cookie } })
     expect(res.status).toBe(403)
     expect((await res.json()).error).toContain('users.manage')
@@ -367,27 +368,27 @@ describe('the join flow (the org selector + the queues)', () => {
     const byId = new Map(orgs.map((o: any) => [o.id, o]))
     expect(byId.has('EX1')).toBe(true)
     expect(byId.has('21')).toBe(true)
-    expect(byId.has('ut-nmi-nl')).toBe(true)
+    expect(byId.has('ut-lmi-xg')).toBe(true)
     expect(byId.has('XX1')).toBe(false) // mid-pipeline — never offered
-    expect((byId.get('ut-nmi-nl') as any).roles).toEqual(['viewer', 'scheme_participant'])
+    expect((byId.get('ut-lmi-xg') as any).roles).toEqual(['viewer', 'scheme_participant'])
     expect((byId.get('EX1') as any).roles).toContain('ia_officer')
   })
 
   it('a request naming a REGISTERED org lands in ITS queue; the domain hint rides along', async () => {
     const res = await app.request(`${ORIGIN}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Sanne Reviewer', email: 'sanne@nmi.example.org', org_id: 'ut-nmi-nl', requested_role: 'viewer', note: 'I review R 60 certificates.' }),
+      body: JSON.stringify({ name: 'Sanne Reviewer', email: 'sanne@lmi.example.org', org_id: 'ut-lmi-xg', requested_role: 'viewer', note: 'I review R 60 certificates.' }),
     })
     const created = await json(res, 201)
-    expect(created.orgId).toBe('ut-nmi-nl')
+    expect(created.orgId).toBe('ut-lmi-xg')
     expect(created.requestedRole).toBe('viewer')
     expect(created.status).toBe('pending')
 
     // The org admin's queue carries it — with the domain hint true.
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const queue = await json(await app.request(`${ORIGIN}/api/op/join-requests`, { headers: { cookie } }), 200)
     expect(queue.grant).toBe('org')
-    expect(queue.orgId).toBe('ut-nmi-nl')
+    expect(queue.orgId).toBe('ut-lmi-xg')
     const row = queue.requests.find((r: any) => r.id === created.id)
     expect(row).toBeTruthy()
     expect(row.emailDomainMatch).toBe(true)
@@ -404,13 +405,13 @@ describe('the join flow (the org selector + the queues)', () => {
     // A role the Utilizer kind does not carry.
     const role = await app.request(`${ORIGIN}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Ambitious', email: 'ambitious@nmi.example.org', org_id: 'ut-nmi-nl', requested_role: 'ia_officer' }),
+      body: JSON.stringify({ name: 'Ambitious', email: 'ambitious@lmi.example.org', org_id: 'ut-lmi-xg', requested_role: 'ia_officer' }),
     })
     expect(role.status).toBe(400)
     // The duplicate guard: sanne@ has a pending request from the leg above.
     const dup = await app.request(`${ORIGIN}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Sanne Again', email: 'sanne@nmi.example.org', org_id: 'ut-nmi-nl', requested_role: 'viewer' }),
+      body: JSON.stringify({ name: 'Sanne Again', email: 'sanne@lmi.example.org', org_id: 'ut-lmi-xg', requested_role: 'viewer' }),
     })
     expect(dup.status).toBe(409)
   })
@@ -418,7 +419,7 @@ describe('the join flow (the org selector + the queues)', () => {
   it('the not-listed path lands in BIML’s queue (requested_role is honestly org_admin)', async () => {
     const res = await app.request(`${ORIGIN}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'New Org Contact', email: 'contact@new-nmi.example.org', org_name_text: 'Metrology Institute of Nowhere' }),
+      body: JSON.stringify({ name: 'New Org Contact', email: 'contact@new-lmi.example.org', org_name_text: 'Metrology Institute of Nowhere' }),
     })
     const created = await json(res, 201)
     expect(created.orgId).toBeNull()
@@ -426,9 +427,9 @@ describe('the join flow (the org selector + the queues)', () => {
     expect(created.requestedRole).toBe('org_admin')
 
     // The org admin's queue does NOT carry it (the org slice only)…
-    const orgCookie = await demoLogin('admin@nmi.example.org')
+    const orgCookie = await demoLogin('admin@lmi.example.org')
     const orgQueue = await json(await app.request(`${ORIGIN}/api/op/join-requests?scope=unregistered`, { headers: { cookie: orgCookie } }), 200)
-    expect(orgQueue.requests.every((r: any) => r.orgId === 'ut-nmi-nl')).toBe(true)
+    expect(orgQueue.requests.every((r: any) => r.orgId === 'ut-lmi-xg')).toBe(true)
     // …and BIML's unregistered queue does.
     const bimlCookie = await demoLogin('admin@oimlsmart.org')
     const bimlQueue = await json(await app.request(`${ORIGIN}/api/op/join-requests?scope=unregistered`, { headers: { cookie: bimlCookie } }), 200)
@@ -437,9 +438,9 @@ describe('the join flow (the org selector + the queues)', () => {
   })
 
   it('the org admin approves → the invite is issued (the account created with the org binding); the double decide loses', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const queue = await json(await app.request(`${ORIGIN}/api/op/join-requests`, { headers: { cookie } }), 200)
-    const row = queue.requests.find((r: any) => r.email === 'sanne@nmi.example.org')
+    const row = queue.requests.find((r: any) => r.email === 'sanne@lmi.example.org')
     const res = await app.request(`${ORIGIN}/api/op/join-requests/${row.id}/approve`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}',
     })
@@ -450,9 +451,9 @@ describe('the join flow (the org selector + the queues)', () => {
     // bound to its machinery when it merged).
     expect(decided.invite.delivery).toBe('enrollment-link')
     expect(decided.invite.setupUrl).toContain('/op/setup?token=')
-    const account = await store.findUserByEmail('sanne@nmi.example.org')
+    const account = await store.findUserByEmail('sanne@lmi.example.org')
     expect(account).toBeTruthy()
-    expect(account!.orgId).toBe('ut-nmi-nl')
+    expect(account!.orgId).toBe('ut-lmi-xg')
     expect(account!.role).toBe('viewer')
     // The enrollment token exists, is unused, and the account has no
     // password yet (the setup link sets it — one-time).
@@ -472,9 +473,9 @@ describe('the join flow (the org selector + the queues)', () => {
   it('the org admin refuses with a reason (a reasonless refusal is a 400)', async () => {
     await app.request(`${ORIGIN}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Stranger', email: 'stranger@elsewhere.example.org', org_id: 'ut-nmi-nl', requested_role: 'viewer' }),
+      body: JSON.stringify({ name: 'Stranger', email: 'stranger@elsewhere.example.org', org_id: 'ut-lmi-xg', requested_role: 'viewer' }),
     })
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const queue = await json(await app.request(`${ORIGIN}/api/op/join-requests`, { headers: { cookie } }), 200)
     const row = queue.requests.find((r: any) => r.email === 'stranger@elsewhere.example.org')
     expect(row.emailDomainMatch).toBe(false) // the hint: the domain is not the org's
@@ -498,7 +499,7 @@ describe('the join flow (the org selector + the queues)', () => {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'IA Joiner', email: 'joiner@eia.example.org', org_id: 'EX1', requested_role: 'ia_officer' }),
     })
-    const nlCookie = await demoLogin('admin@nmi.example.org')
+    const nlCookie = await demoLogin('admin@lmi.example.org')
     const iaRequest = (await store.listOrgJoinRequests({ scope: 'org', orgId: 'EX1' }))[0]!
     const res = await app.request(`${ORIGIN}/api/op/join-requests/${iaRequest.id}/approve`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: nlCookie }, body: '{}',
@@ -510,7 +511,7 @@ describe('the join flow (the org selector + the queues)', () => {
   it('BIML approves the not-listed request onto the NOW-REGISTERED org — the org admin is created; an unregistered target is refused', async () => {
     const cookie = await demoLogin('admin@oimlsmart.org')
     const queue = await json(await app.request(`${ORIGIN}/api/op/join-requests?scope=unregistered`, { headers: { cookie } }), 200)
-    const row = queue.requests.find((r: any) => r.email === 'contact@new-nmi.example.org')
+    const row = queue.requests.find((r: any) => r.email === 'contact@new-lmi.example.org')
 
     // The eligibility rule fires on the approval too: an org the register
     // still does not carry is refused.
@@ -528,13 +529,13 @@ describe('the join flow (the org selector + the queues)', () => {
     })
     const decided = await json(res, 200)
     expect(decided.status).toBe('approved')
-    const account = await store.findUserByEmail('contact@new-nmi.example.org')
+    const account = await store.findUserByEmail('contact@new-lmi.example.org')
     expect(account!.role).toBe('org_admin')
     expect(account!.orgId).toBe('EX1')
   })
 
   it('the queues refuse a plain staff account (no grant)', async () => {
-    const cookie = await demoLogin('reviewer@nmi.example.org')
+    const cookie = await demoLogin('reviewer@lmi.example.org')
     const res = await app.request(`${ORIGIN}/api/op/join-requests`, { headers: { cookie } })
     expect(res.status).toBe(403)
   })
@@ -544,40 +545,40 @@ describe('the join flow (the org selector + the queues)', () => {
 
 describe('the org invites (POST /api/op/org-invites)', () => {
   it('the org admin invites a colleague inside its org — the enrollment link is issued once', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const res = await app.request(`${ORIGIN}/api/op/org-invites`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ name: 'NL Colleague Two', email: 'colleague-two@nmi.example.org', role: 'viewer' }),
+      body: JSON.stringify({ name: 'NL Colleague Two', email: 'colleague-two@lmi.example.org', role: 'viewer' }),
     })
     const created = await json(res, 201)
-    expect(created.user.orgId).toBe('ut-nmi-nl')
+    expect(created.user.orgId).toBe('ut-lmi-xg')
     expect(created.user.provider).toBe('password') // the OP account, never the demo provider
     expect(created.invite.delivery).toBe('enrollment-link')
     expect(created.invite.setupUrl).toContain('/op/setup?token=')
-    const account = await store.findUserByEmail('colleague-two@nmi.example.org')
-    expect(account!.orgId).toBe('ut-nmi-nl')
+    const account = await store.findUserByEmail('colleague-two@lmi.example.org')
+    expect(account!.orgId).toBe('ut-lmi-xg')
   })
 
   it('the org admin cannot invite into another org, nor with a role outside the kind, nor org_admin', async () => {
-    const cookie = await demoLogin('admin@nmi.example.org')
+    const cookie = await demoLogin('admin@lmi.example.org')
     const crossOrg = await app.request(`${ORIGIN}/api/op/org-invites`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ name: 'Mole', email: 'mole@nmi.example.org', role: 'viewer', org_id: 'EX1' }),
+      body: JSON.stringify({ name: 'Mole', email: 'mole@lmi.example.org', role: 'viewer', org_id: 'EX1' }),
     })
     expect(crossOrg.status).toBe(403)
     const outsideKind = await app.request(`${ORIGIN}/api/op/org-invites`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ name: 'Ambitious Two', email: 'ambitious2@nmi.example.org', role: 'ia_officer' }),
+      body: JSON.stringify({ name: 'Ambitious Two', email: 'ambitious2@lmi.example.org', role: 'ia_officer' }),
     })
     expect(outsideKind.status).toBe(400)
     const admin = await app.request(`${ORIGIN}/api/op/org-invites`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ name: 'Self Made', email: 'selfmade@nmi.example.org', role: 'org_admin' }),
+      body: JSON.stringify({ name: 'Self Made', email: 'selfmade@lmi.example.org', role: 'org_admin' }),
     })
     expect(admin.status).toBe(403)
-    expect(await store.findUserByEmail('mole@nmi.example.org')).toBeNull()
-    expect(await store.findUserByEmail('ambitious2@nmi.example.org')).toBeNull()
-    expect(await store.findUserByEmail('selfmade@nmi.example.org')).toBeNull()
+    expect(await store.findUserByEmail('mole@lmi.example.org')).toBeNull()
+    expect(await store.findUserByEmail('ambitious2@lmi.example.org')).toBeNull()
+    expect(await store.findUserByEmail('selfmade@lmi.example.org')).toBeNull()
   })
 
   it('BIML creates the org admin for a REGISTERED org through the same seam (the eligibility rule holds)', async () => {
@@ -607,10 +608,10 @@ describe('the org invites (POST /api/op/org-invites)', () => {
   })
 
   it('a staff account holds no invite grant', async () => {
-    const cookie = await demoLogin('reviewer@nmi.example.org')
+    const cookie = await demoLogin('reviewer@lmi.example.org')
     const res = await app.request(`${ORIGIN}/api/op/org-invites`, {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ name: 'Nobody', email: 'nobody@nmi.example.org', role: 'viewer' }),
+      body: JSON.stringify({ name: 'Nobody', email: 'nobody@lmi.example.org', role: 'viewer' }),
     })
     expect(res.status).toBe(403)
   })

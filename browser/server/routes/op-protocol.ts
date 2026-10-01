@@ -150,8 +150,8 @@ export function createOpProtocolRouter(deps: {
     await ensureSeeded(c)
     const config = configFor(c)
     const q = (name: string) => c.req.query(name)?.trim() || undefined
-    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam, loginHintParam] =
-      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode', 'login_hint'].map(q)
+    let [responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam, loginHintParam, personaParam] =
+      ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode', 'login_hint', 'persona'].map(q)
     // RFC 9126 (TODO.modern/11): the PUSHED request — the pushed
     // parameters REPLACE the query's (any other query parameter is
     // ignored, never merged); the consume is single-use, expiry-bound,
@@ -177,8 +177,8 @@ export function createOpProtocolRouter(deps: {
         const value = pushedParams[name]
         return typeof value === 'string' ? (value.trim() || undefined) : undefined
       }
-      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam, loginHintParam] =
-        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode', 'login_hint'].map(g)
+      ;[responseType, clientId, redirectUri, scope, state, nonce, challenge, challengeMethod, prompt, maxAgeParam, responseModeParam, loginHintParam, personaParam] =
+        ['response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'nonce', 'code_challenge', 'code_challenge_method', 'prompt', 'max_age', 'response_mode', 'login_hint', 'persona'].map(g)
       clientId = clientId ?? pushed.clientId
     }
 
@@ -192,10 +192,14 @@ export function createOpProtocolRouter(deps: {
     // hottest path, every RP sign-in pays it). The validation order
     // below is unchanged; a refused client just also paid the session
     // read, never an observable difference (a read, no state).
-    const [client, user] = await Promise.all([
+    const [client, initialUser] = await Promise.all([
       getStore().getOidcClient(clientId),
       sessionUser(c),
     ])
+    // The flow's user REBINDS when the persona= parameter mints the
+    // assumption below (the session flips mid-flow; the consent + code
+    // mints then read the persona's row).
+    let user = initialUser
     if (!client || client.status !== 'active') {
       return authorizeRefusal(c, 'Cannot authorize this request', `The client <code>${escapeHtml(clientId)}</code> is not registered on this identity provider (or is disabled).`)
     }
@@ -250,6 +254,50 @@ export function createOpProtocolRouter(deps: {
       }
     }
 
+    // persona=<email> (the persona-assumption streamline — the RP's
+    // account switcher names the DECLARED demo persona directly): a
+    // signed-in request the grant covers mints the assumption HERE — the
+    // session flips to the persona, the chooser never paints, and the
+    // flow continues as the persona's own (the personas' consent is
+    // pre-seeded per client, so the remembered-grant skip mints the code
+    // with no further stop). Every verdict re-reads the declaration and
+    // the store, identically to the chooser POST's — never the RP's
+    // claim. A refusal is the redirect-shaped access_denied (the
+    // redirect_uri is already validated above). A signed-OUT request
+    // falls through to the login redirect with the parameter riding the
+    // re-entry — the presenter signs in as THEMSELVES (the hint prefill
+    // suppresses), the persona applies on the re-entry.
+    let personaApplied = false
+    if (personaParam && user) {
+      const personaPosture = personaGrantsFor(c)
+      const persona = personaPosture
+        ? declaredPersonaByEmail(personaPosture.personas, personaParam.trim().toLowerCase())
+        : null
+      if (!persona) {
+        return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'access_denied', 'the persona is not declared for this client', responseMode, clientId))
+      }
+      // The verdict judges the PRINCIPAL — the presenting account, or the
+      // original grantee behind an assumed session (the chaining rule).
+      const principal = await assumptionPrincipalFor({ user })
+      const personaEmails = new Set(personaPosture!.personas.map(p => p.email))
+      if (!principal || !grantsAllowEmail(personaPosture!.grants, principal.email, personaEmails)) {
+        return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'access_denied', 'the presenting account is not granted the persona assumption', responseMode, clientId))
+      }
+      const personaAccount = await getStore().findUserByEmail(persona.email)
+      if (!personaAccount) {
+        return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'access_denied', 'the persona account is not provisioned', responseMode, clientId))
+      }
+      const personaToken = await mintPersonaAssumption(c, personaPosture!.grants.clientId, principal, personaAccount)
+      // Rebind from the NEW session row — the exact session-projected
+      // payload (id, amr, sessionCreatedAt) the consent + code mints read.
+      const assumedUser = await getStore().getSessionUser(personaToken)
+      if (!assumedUser) {
+        return c.redirect(await authorizeErrorRedirect(c, redirectUri, state, 'server_error', 'the persona session did not take', responseMode, clientId))
+      }
+      user = assumedUser
+      personaApplied = true
+    }
+
     // 4. The sign-in surface: no session → the instance's own login
     //    page, with this very request as the post-login destination (the
     //    flow re-enters /op/authorize, now signed in). NOTHING is stored
@@ -275,7 +323,7 @@ export function createOpProtocolRouter(deps: {
     // values (login, consent) ride on so their semantics re-apply on the
     // re-entry. The chooser itself decides between the remembered
     // accounts, a fresh sign-in, and (no jar) the plain login form.
-    if (prompts.includes('select_account')) {
+    if (prompts.includes('select_account') && !personaApplied) {
       const carried = new URLSearchParams()
       const params: Array<[string, string | undefined]> = [
         ['response_type', responseType], ['client_id', clientId], ['redirect_uri', redirectUri],
@@ -285,6 +333,9 @@ export function createOpProtocolRouter(deps: {
         // The hint stays in the carried request (the re-entry IS the
         // original authorize)…
         ['login_hint', loginHintParam],
+        // …and so does the persona= streamline — a signed-out chooser
+        // visit ends in a fresh sign-in whose re-entry applies it.
+        ['persona', personaParam],
       ]
       for (const [name, value] of params) if (value !== undefined) carried.set(name, value)
       const rest = prompts.filter(p => p !== 'select_account')
@@ -292,9 +343,11 @@ export function createOpProtocolRouter(deps: {
       // …and rides the chooser URL itself: a jar entry whose address
       // matches is PRE-SELECTED on the chooser page (the Google shape);
       // a hint nothing matches lands on the fresh sign-in form as the
-      // prefill. The re-entry sheds nothing else — the carried request
-      // is the RP's, verbatim.
-      const hintParam = loginHintParam ? `&login_hint=${encodeURIComponent(loginHintParam)}` : ''
+      // prefill. A persona= request suppresses the ride-along — the
+      // persona's address never prefills a credential form (the presenter
+      // signs in as themselves). The re-entry sheds nothing else — the
+      // carried request is the RP's, verbatim.
+      const hintParam = loginHintParam && !personaParam ? `&login_hint=${encodeURIComponent(loginHintParam)}` : ''
       return c.redirect(`/op/choose-account?continue=${encodeURIComponent(`/op/authorize?${carried}`)}${hintParam}`)
     }
     // The freshness gate (TODO.modern/06): a max_age ask judges the
@@ -324,8 +377,11 @@ export function createOpProtocolRouter(deps: {
       const target = `${here.pathname}${here.search}`
       const flag = forceLogin ? '&prompt=login' : ''
       // TODO.modern/17: the login_hint rides the sign-in page (the
-      // address field prefills — a hint, the human corrects).
-      const hintSuffix = loginHintParam ? `&login_hint=${encodeURIComponent(loginHintParam)}` : ''
+      // address field prefills — a hint, the human corrects). A persona=
+      // request suppresses the prefill: the persona's address never
+      // fills a credential form — the presenter signs in as THEMSELVES,
+      // the persona applies on the re-entry.
+      const hintSuffix = loginHintParam && !personaParam ? `&login_hint=${encodeURIComponent(loginHintParam)}` : ''
       return c.redirect(`/?redirect=${encodeURIComponent(target)}${flag}${hintSuffix}`)
     }
 
@@ -653,11 +709,50 @@ export function createOpProtocolRouter(deps: {
    *  persona rows and a 403 on the attempt, and the jar's ordinary swap
    *  back to the personal account stays the way out. One bounded read,
    *  only for an assumed session. */
-  async function assumptionPrincipalFor(active: { token: string; user: AuthUserPayload } | null): Promise<AuthUserPayload | null> {
+  async function assumptionPrincipalFor(active: { user: AuthUserPayload } | null): Promise<AuthUserPayload | null> {
     if (!active) return null
     if (!active.user.amr?.includes('assumed')) return active.user
     if (!active.user.assumedBy) return null
     return getStore().getUserById(active.user.assumedBy)
+  }
+
+  /** The persona-assumption mint — the ONE shared path (the chooser
+   *  POST's click and the authorize persona= parameter alike): the
+   *  session mints AS the persona, same shape as a completed sign-in
+   *  minus the credential — writes SERIAL (the store seam's own
+   *  discipline), amr carries the OP-private 'assumed' marker,
+   *  assumed_by stamps the PRINCIPAL (a direct hop's grantee, a chain
+   *  hop's ORIGINAL actor — carried verbatim). The journal records who
+   *  assumed which persona for which client (the grant-holder of record,
+   *  identically for a direct hop and a chained one) and never blocks
+   *  the answer; the persona joins the caller's jar (one entry per
+   *  account), so the next switch to it rides the ordinary live-session
+   *  swap. Sets the session cookie and answers the token. */
+  async function mintPersonaAssumption(c: Context, clientId: string, principal: AuthUserPayload, account: AuthUserPayload): Promise<string> {
+    await getStore().touchLastLogin(account.id)
+    const token = await getStore().createSession(account.id, { ...clientInfo(c), amr: ['assumed'], assumedBy: principal.id })
+    try {
+      await getStore().recordOpAssumption({
+        id: crypto.randomUUID(),
+        actorUserId: principal.id,
+        actorEmail: principal.email,
+        personaUserId: account.id,
+        personaEmail: account.email,
+        clientId,
+        createdAt: new Date().toISOString(),
+      })
+    } catch (err) {
+      console.error(`[op] the assumption journal write failed:`, (err as Error).message)
+    }
+    await audit('account.assumed', account.id, { userId: principal.id, userName: principal.name }, {
+      actorEmail: principal.email,
+      personaEmail: account.email,
+      clientId,
+      method: 'assumed',
+    })
+    setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    touchAccountJar(c, token, account)
+    return token
   }
 
   // GET /api/op/choose-account — the chooser page's context: the jar's
@@ -697,24 +792,42 @@ export function createOpProtocolRouter(deps: {
     const personaEmails = new Set(posture?.personas.map(p => p.email) ?? [])
     // The grant verdict judges the PRINCIPAL — the presenting account,
     // or the original grantee behind an assumed session (the chaining).
-    const principal = await assumptionPrincipalFor(active)
+    const principal = await assumptionPrincipalFor(active ? { user: active.user } : null)
     const granted = !!posture && !!principal && grantsAllowEmail(posture.grants, principal.email, personaEmails)
     const personas = granted ? posture!.personas : []
+    // The persona row's display truth is the LIVE account row — one
+    // admin rename fixes every surface the persona appears on; the seed
+    // declaration is the fallback for a persona whose account is not
+    // provisioned yet. One read per persona: the declaration bounds the
+    // set, never the row count.
+    const personaAccounts = new Map<string, AuthUserPayload | null>()
+    for (const p of personas) {
+      personaAccounts.set(p.email, await getStore().findUserByEmail(p.email))
+    }
+    const personaOrgId = (p: DeclaredPersona) => personaAccounts.get(p.email)?.orgId ?? p.orgId
     const orgIds = [...new Set([
       ...resolved.map(r => r.entry.orgId),
-      ...personas.map(p => p.orgId),
+      ...personas.map(p => personaOrgId(p)),
     ].filter((id): id is string => !!id))]
     const orgNames = new Map<string, string | null>()
     for (const id of orgIds) {
       orgNames.set(id, (await getStore().getOrgRegistryOrg(id))?.name ?? null)
     }
+    // The jar never duplicates a RENDERED persona: a past assumption
+    // joined the persona to the jar, and the assumable row IS the same
+    // account — the persona row (the grant's own surface) wins, the jar
+    // row drops. The filter keys on the RENDERED set only: an ungranted
+    // posture lists no personas and hides nothing.
+    const renderedPersonaEmails = new Set(personas.map(p => p.email))
+    const jarRows = resolved.filter(r =>
+      !renderedPersonaEmails.has((r.live && r.user ? r.user.email : r.entry.email).trim().toLowerCase()))
     return c.json({
       continue: continueTarget,
       loginHint,
       client: clientName ? { name: clientName } : null,
       currentUserId: active?.user.id ?? null,
       accounts: [
-        ...resolved.map(({ entry, live, user }) => ({
+        ...jarRows.map(({ entry, live, user }) => ({
           userId: entry.userId,
           name: live && user ? user.name : entry.displayName,
           email: live && user ? user.email : entry.email,
@@ -731,17 +844,23 @@ export function createOpProtocolRouter(deps: {
           hinted: loginHint !== null && (live && user ? user.email : entry.email).trim().toLowerCase() === loginHint,
           assumable: false,
         })),
-        ...personas.map(p => ({
-          userId: null as string | null,
-          name: p.name,
-          email: p.email,
-          avatarUrl: null,
-          org: p.orgId ? (orgNames.get(p.orgId) ?? p.orgId) : null,
-          live: true,
-          current: false,
-          hinted: loginHint !== null && p.email === loginHint,
-          assumable: true,
-        })),
+        ...personas.map(p => {
+          const account = personaAccounts.get(p.email) ?? null
+          const orgId = personaOrgId(p)
+          return {
+            userId: null as string | null,
+            name: account?.name ?? p.name,
+            email: p.email,
+            // The same public-photo doctrine as the jar rows: the account
+            // row's own photo wins, else the avatar route's serve.
+            avatarUrl: account ? (account.avatarUrl || `/op/avatar/${account.id}`) : null,
+            org: orgId ? (orgNames.get(orgId) ?? orgId) : null,
+            live: true,
+            current: !!active && active.user.email.trim().toLowerCase() === p.email,
+            hinted: loginHint !== null && p.email === loginHint,
+            assumable: true,
+          }
+        }),
       ],
     })
   })
@@ -799,39 +918,9 @@ export function createOpProtocolRouter(deps: {
           // landed yet): the honest fallback, never a guess.
           return c.json({ ok: false, login: loginUrlForContinue(continueTarget, bodyEmail) })
         }
-        // The session mints AS the persona — same shape as a completed
-        // sign-in, minus the credential: writes SERIAL (the store seam's
-        // own discipline), amr carries the OP-private 'assumed' marker,
-        // assumed_by stamps the PRINCIPAL (a direct hop's grantee, a
-        // chain hop's ORIGINAL actor — carried verbatim).
-        await getStore().touchLastLogin(account.id)
-        const token = await getStore().createSession(account.id, { ...clientInfo(c), amr: ['assumed'], assumedBy: principal.id })
-        // The journal (the audit trail): who assumed which persona, for
-        // which client — the grant-holder of record, identically for a
-        // direct hop and a chained one. Never blocks the answer.
-        try {
-          await getStore().recordOpAssumption({
-            id: crypto.randomUUID(),
-            actorUserId: principal.id,
-            actorEmail: principal.email,
-            personaUserId: account.id,
-            personaEmail: account.email,
-            clientId: posture!.grants.clientId,
-            createdAt: new Date().toISOString(),
-          })
-        } catch (err) {
-          console.error(`[op] the assumption journal write failed:`, (err as Error).message)
-        }
-        await audit('account.assumed', account.id, { userId: principal.id, userName: principal.name }, {
-          actorEmail: principal.email,
-          personaEmail: account.email,
-          clientId: posture!.grants.clientId,
-          method: 'assumed',
-        })
-        setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
-        // The persona joins the jar (one entry per account): the next
-        // switch to it rides the ordinary live-session swap.
-        touchAccountJar(c, token, account)
+        // The mint is the ONE shared path (mintPersonaAssumption — the
+        // authorize persona= parameter takes it identically).
+        await mintPersonaAssumption(c, posture!.grants.clientId, principal, account)
         return c.json({ ok: true, redirect: continueTarget ?? '/op/account' })
       }
       // The honest fallback: the remembered entry (if the jar still

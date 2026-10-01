@@ -724,7 +724,7 @@ describe('the account erasure (DELETE /api/op/accounts/:id)', () => {
     // The audit event names the act + the actor (the journal stands).
     const audits = (await store.listEntities('auditEvents')).map(r => JSON.parse(r.data) as { action: string; entity_id: string; user_name?: string })
     const del = audits.find(e => e.action === 'account.deleted' && e.entity_id === id)!
-    expect(del.user_name).toBe('OIML Admin')
+    expect(del.user_name).toBe('Admin')
   })
 })
 

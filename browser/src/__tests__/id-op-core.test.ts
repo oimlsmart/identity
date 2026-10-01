@@ -267,7 +267,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
     expect(claims.iss).toBe(ISSUER)
     expect(claims.aud).toBe(CONFIDENTIAL.client_id)
     expect(claims.email).toBe('ia@oimlsmart.org')
-    expect(claims.name).toBe('IA Officer')
+    expect(claims.name).toBe('Issuing Authority')
     // The client's claims policy drives the role claims.
     expect(claims.roles).toEqual(['ia_officer'])
     expect(claims.groups).toEqual(['ia_officer'])
@@ -281,7 +281,7 @@ describe('the full round trip (the RP validator consumes the OP token)', () => {
     expect(await userinfo.json()).toMatchObject({
       sub: claims.sub,
       email: 'ia@oimlsmart.org',
-      name: 'IA Officer',
+      name: 'Issuing Authority',
       roles: ['ia_officer'],
       org: 'EX1',
     })
@@ -604,7 +604,7 @@ describe('the public avatar route (GET /op/avatar/:id)', () => {
     expect(res.headers.get('content-security-policy')).toBe("default-src 'none'")
     expect(res.headers.get('cache-control')).toBe('public, max-age=300')
     const svg = await res.text()
-    expect(svg).toContain('>IO</text>') // IA Officer's initials, the console's own fallback
+    expect(svg).toContain('>IA</text>') // Issuing Authority's initials, the console's own fallback
   })
 
   it('an unknown or erased account answers the plain 404 (never an error page, never a tombstone picture)', async () => {
