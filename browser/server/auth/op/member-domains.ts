@@ -30,6 +30,11 @@ export interface PickerOrg {
   domains: string[]
   website_domains: string[]
   web_domains: string[]
+  /** TODO.sota/05 — the ROR enrichment (the member-domains pipeline's
+   *  website-domain anchor): the full https://ror.org/… id, present
+   *  only on a matched org; ror_match names the matching posture. */
+  ror_id?: string
+  ror_match?: string
   verification: string
   admin_queue: boolean
 }
@@ -48,6 +53,9 @@ export interface DomainsCatalog {
   generatedAt: string
   domains: Map<string, DomainOwner>
   countries: PickerCountry[]
+  /** TODO.sota/05 — the enrichment index: `${iso}|${name}` → the ROR
+   *  id (only the matched orgs carry an entry). */
+  rorByOrg: Map<string, string>
 }
 
 /** The artifact's shape gate: a foreign version fails loudly, never
@@ -76,6 +84,11 @@ export function loadDomains(): DomainsCatalog {
       generatedAt: source.generated_at,
       domains: new Map(Object.entries(source.domains)),
       countries: source.countries,
+      rorByOrg: new Map(
+        source.countries.flatMap(c =>
+          c.orgs.filter(o => o.ror_id).map(o => [`${c.iso}|${o.name}`, o.ror_id!] as const),
+        ),
+      ),
     }
   }
   return catalog
@@ -101,4 +114,14 @@ export function resolveOrgDomain(email: string): { domain: string; owner: Domain
     if (domains.has(candidate)) return { domain: candidate, owner: domains.get(candidate)! }
   }
   return null
+}
+
+/** TODO.sota/05 — the owner's ROR id, joined from the countries'
+ *  enriched org entries by the (iso, name) key both projections share
+ *  (the pipeline derives them from one source; the probe proves 141/141
+ *  coverage). NULL when the org carries no matched ROR id — never a
+ *  guess. */
+export function rorFor(owner: DomainOwner): string | null {
+  const { rorByOrg } = loadDomains()
+  return rorByOrg.get(`${owner.iso}|${owner.org}`) ?? null
 }

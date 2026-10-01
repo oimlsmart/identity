@@ -228,13 +228,14 @@ export function createOidcAccessToken(db: Database.Database, input: {
   /** TODO.identity-sso/02+03: the authorizing authentication's amr —
    *  userinfo answers the same truth the ID token carried. */
   amr?: string[] | null
+  dpopJkt?: string | null
   ttlMs: number
 }): void {
   const expiresAt = new Date(Date.now() + input.ttlMs).toISOString()
   db.prepare(
-    'INSERT INTO oidc_access_tokens (token, user_id, client_id, scope, context_org, amr, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO oidc_access_tokens (token, user_id, client_id, scope, context_org, amr, dpop_jkt, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
   ).run(input.token, input.userId, input.clientId, input.scope, input.contextOrg ?? null,
-    input.amr?.length ? JSON.stringify(input.amr) : null, expiresAt)
+    input.amr?.length ? JSON.stringify(input.amr) : null, input.dpopJkt ?? null, expiresAt)
 }
 
 export function getOidcAccessToken(db: Database.Database, token: string): OidcAccessToken | null {
@@ -249,8 +250,16 @@ export function getOidcAccessToken(db: Database.Database, token: string): OidcAc
     scope: row.scope as string,
     contextOrg: (row.context_org as string | null) ?? null,
     amr: parseJsonStringList(row.amr),
+    dpopJkt: (row.dpop_jkt as string | null) ?? null,
     expiresAt: row.expires_at as string,
   }
+}
+
+/** TODO.sota/09 (RFC 9449 §4.3): the DPoP proof-replay cache. INSERT OR
+ *  IGNORE; FALSE = the jti already stands (the replay). */
+export function rememberDpopJti(db: Database.Database, jti: string, expiresAtIso: string): boolean {
+  const res = db.prepare('INSERT OR IGNORE INTO dpop_jtis (jti, expires_at) VALUES (?, ?)').run(jti, expiresAtIso)
+  return res.changes > 0
 }
 
 /** The RFC 7009 access-token revocation: the row goes, client-bound. */
@@ -384,4 +393,22 @@ export function upsertOidcKey(db: Database.Database, input: { kid: string; publi
   db.prepare(
     'INSERT OR IGNORE INTO oidc_keys (kid, public_jwk) VALUES (?, ?)',
   ).run(input.kid, input.publicJwk)
+}
+
+/** TODO.sota/08 (RFC 9157): the status-list rows — the rowid IS the
+ *  index (the allocator is the table's own; unique by construction). */
+export function allocateCredentialStatusIdx(db: Database.Database): number {
+  const res = db.prepare('INSERT INTO credential_status (revoked_at) VALUES (NULL)').run()
+  return Number(res.lastInsertRowid)
+}
+
+export function setCredentialStatusRevoked(db: Database.Database, idx: number, atIso: string): boolean {
+  const res = db.prepare('UPDATE credential_status SET revoked_at = ? WHERE idx = ? AND revoked_at IS NULL').run(atIso, idx)
+  return res.changes > 0
+}
+
+export function readCredentialStatus(db: Database.Database): { maxIdx: number; revoked: number[] } {
+  const max = db.prepare('SELECT COALESCE(MAX(idx), 0) AS m FROM credential_status').get() as { m: number }
+  const rows = db.prepare('SELECT idx FROM credential_status WHERE revoked_at IS NOT NULL').all() as Array<{ idx: number }>
+  return { maxIdx: max.m, revoked: rows.map(r => r.idx) }
 }

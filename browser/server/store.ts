@@ -646,6 +646,9 @@ export interface OidcAccessToken {
   /** TODO.identity-sso/02+03: the authorizing authentication's amr
    *  provenance — userinfo answers the same truth the ID token carried. */
   amr: string[] | null
+  /** TODO.sota/09 (RFC 9449): the DPoP binding — the proof key's JKT
+   *  the token was minted under. NULL = the ordinary Bearer posture. */
+  dpopJkt: string | null
   expiresAt: string
 }
 
@@ -1448,6 +1451,10 @@ export interface OrgRegistryOrg {
    *  ('signed-active' | 'suspended' | 'withdrawn'); NULL = not
    *  recorded. */
   csStatus: string | null
+  /** TODO.sota/05 — the Research Organization Registry id
+   *  (ror.org/…), matched by the website-domain anchor in the
+   *  member-domains pipeline; NULL when unmatched. */
+  rorId: string | null
   state: OrgRegistryState
   createdAt: string
   createdBy: string | null
@@ -1758,6 +1765,8 @@ export const TTL_TABLES = [
   // expiry is stamped at insert (0034 + the backfill); the PAR pool's
   // 90-second TTLs otherwise linger on a low-traffic OP.
   'webhook_deliveries', 'pushed_authorization_requests',
+  // TODO.sota/09: the DPoP proof-replay cache (0039).
+  'dpop_jtis',
 ] as const
 
 /** The delivery journal's retention (0034's policy). */
@@ -1898,9 +1907,22 @@ export interface ServerStore {
     /** TODO.identity-sso/02+03: the authorizing authentication's amr —
      *  userinfo answers the same truth the ID token carried. */
     amr?: string[] | null
+    dpopJkt?: string | null
     ttlMs: number
   }): Promise<void>
   getOidcAccessToken(token: string): Promise<OidcAccessToken | null>
+  /** TODO.sota/09 (RFC 9449 §4.3): the proof-replay cache — INSERT OR
+   *  IGNORE on the jti; answers FALSE when it already stands (the
+   *  replay). The TTL sweep reaps the rows (dpop_jtis). */
+  rememberDpopJti(jti: string, expiresAtIso: string): Promise<boolean>
+  /** TODO.sota/08 (RFC 9157): allocate the next status-list index
+   *  (the table's rowid — unique by construction). */
+  allocateCredentialStatusIdx(): Promise<number>
+  /** Flip the credential's status bit (stamps the revocation instant).
+   *  FALSE when the index was never issued — or already revoked. */
+  setCredentialStatusRevoked(idx: number, atIso: string): Promise<boolean>
+  /** The list build's read: the high-water index + the revoked set. */
+  readCredentialStatus(): Promise<{ maxIdx: number; revoked: number[] }>
   /** The RFC 7009 access-token revocation: delete the row, client-bound —
    *  a client revokes only its OWN tokens (a token minted for another
    *  client answers false). An absent row answers false too (the endpoint
@@ -2569,6 +2591,7 @@ export interface ServerStore {
     designatedBy?: string | null
     proposedBy?: string | null
     csStatus?: string | null
+    rorId?: string | null
     createdBy?: string | null
   }): Promise<OrgRegistryOrg | null>
   /** Edit the display data (the id is the stable slug — never editable);
@@ -2586,6 +2609,7 @@ export interface ServerStore {
       designatedBy?: string | null
       proposedBy?: string | null
       csStatus?: string | null
+      rorId?: string | null
     },
     actor?: string | null,
   ): Promise<OrgRegistryOrg | null>

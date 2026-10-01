@@ -11,8 +11,8 @@ import httpx
 class IdentityClient:
     """The typed client for the OIML SMART Identity service."""
 
-    def __init__(self, base_url: str = "https://id.oimlsmart.org", timeout: float = 30.0):
-        self._client = httpx.Client(base_url=base_url, timeout=timeout)
+    def __init__(self, base_url: str = "https://id.oimlsmart.org", timeout: float = 30.0, transport: httpx.BaseTransport | None = None):
+        self._client = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
 
     def _request(self, method: str, path: str, **kwargs) -> dict:
         resp = self._client.request(method, path, **kwargs)

@@ -88,6 +88,25 @@ export async function orcidClaimForClient(
   return links.find(l => l.provider === 'orcid')?.providerAccountId ?? null
 }
 
+/**
+ * The org_ror claim for this client (TODO.sota/05): the ACTIVE org's
+ * ROR id — the organization registry row's enrichment (the
+ * member-domains pipeline's website-domain anchor). Present ONLY when
+ * BOTH hold: the client's claims policy names the 'org_ror' family
+ * (the same per-client privilege gate as the role claims), AND the
+ * resolved context carries an org whose registry row holds a matched
+ * id. Absent otherwise — never a placeholder, never a guessed id.
+ */
+export async function orgRorClaimForClient(
+  store: { getOrgRegistryOrg(id: string): Promise<{ rorId: string | null } | null> },
+  orgId: string | null,
+  policy: OidcClientClaimsPolicy | null,
+): Promise<string | null> {
+  if (!orgId || !policy?.claims?.includes('org_ror')) return null
+  const org = await store.getOrgRegistryOrg(orgId)
+  return org?.rorId ?? null
+}
+
 export function roleClaimsForClient(
   assigned: string[] | null,
   user: { role: string; roles?: string[] | null; orgId: string | null },

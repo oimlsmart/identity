@@ -173,6 +173,11 @@ function migrateAuthTables(db: Database.Database): void {
     if (!registryCols.some(c => c.name === 'cs_status')) {
       db.exec('ALTER TABLE org_registry ADD COLUMN cs_status TEXT')
     }
+    // The ROR id (0038, TODO.sota/05's enrichment) — a dev file
+    // predating it grows the column here.
+    if (!registryCols.some(c => c.name === 'ror_id')) {
+      db.exec('ALTER TABLE org_registry ADD COLUMN ror_id TEXT')
+    }
   }
   // TODO.identity-sso/02+03 (the strong-authentication wave): the amr
   // provenance columns on sessions → codes → access tokens.
@@ -188,6 +193,14 @@ function migrateAuthTables(db: Database.Database): void {
   if (!amrCodeCols.some(c => c.name === 'amr')) {
     db.exec('ALTER TABLE oidc_codes ADD COLUMN amr TEXT')
   }
+  // TODO.sota/09 (RFC 9449): the DPoP binding on the access tokens +
+  // the proof-replay cache (0039) — a dev file predating them grows
+  // here.
+  const dpopAccessCols = db.prepare('PRAGMA table_info(oidc_access_tokens)').all() as Array<{ name: string }>
+  if (dpopAccessCols.length && !dpopAccessCols.some(c => c.name === 'dpop_jkt')) {
+    db.exec('ALTER TABLE oidc_access_tokens ADD COLUMN dpop_jkt TEXT')
+  }
+  db.exec('CREATE TABLE IF NOT EXISTS dpop_jtis (jti TEXT PRIMARY KEY, expires_at TEXT NOT NULL)')
   const amrTokenCols = db.prepare('PRAGMA table_info(oidc_access_tokens)').all() as Array<{ name: string }>
   if (!amrTokenCols.some(c => c.name === 'amr')) {
     db.exec('ALTER TABLE oidc_access_tokens ADD COLUMN amr TEXT')
@@ -924,6 +937,7 @@ interface OrgRegistryRow {
   designated_by: string | null
   proposed_by: string | null
   cs_status: string | null
+  ror_id: string | null
   state: OrgRegistryState
   created_at: string
   created_by: string | null
@@ -961,6 +975,7 @@ function orgRegistryPayload(row: OrgRegistryRow): OrgRegistryOrg {
     designatedBy: row.designated_by ?? null,
     proposedBy: row.proposed_by ?? null,
     csStatus: row.cs_status ?? null,
+    rorId: row.ror_id ?? null,
     state: row.state,
     createdAt: row.created_at,
     createdBy: row.created_by,
@@ -993,15 +1008,16 @@ export function createOrgRegistryOrg(db: Database.Database, input: {
   designatedBy?: string | null
   proposedBy?: string | null
   csStatus?: string | null
+  rorId?: string | null
   createdBy?: string | null
 }): OrgRegistryOrg | null {
   const res = db.prepare(
-    `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, ror_id, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.id, input.name, input.shortName ?? null, input.kind ?? null, input.country ?? null,
     JSON.stringify(input.contacts ?? []), input.participantRef ?? null,
-    input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.createdBy ?? null,
+    input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.rorId ?? null, input.createdBy ?? null,
   )
   if (res.changes === 0) return null
   return getOrgRegistryOrg(db, input.id)
@@ -1021,6 +1037,7 @@ export function updateOrgRegistryOrg(db: Database.Database,
     designatedBy?: string | null
     proposedBy?: string | null
     csStatus?: string | null
+    rorId?: string | null
   },
   actor?: string | null,
 ): OrgRegistryOrg | null {
@@ -1035,6 +1052,7 @@ export function updateOrgRegistryOrg(db: Database.Database,
   if (patch.designatedBy !== undefined) { sets.push('designated_by = ?'); params.push(patch.designatedBy) }
   if (patch.proposedBy !== undefined) { sets.push('proposed_by = ?'); params.push(patch.proposedBy) }
   if (patch.csStatus !== undefined) { sets.push('cs_status = ?'); params.push(patch.csStatus) }
+  if (patch.rorId !== undefined) { sets.push('ror_id = ?'); params.push(patch.rorId) }
   sets.push("updated_at = datetime('now')", 'updated_by = ?')
   params.push(actor ?? null)
   const res = db.prepare(`UPDATE org_registry SET ${sets.join(', ')} WHERE id = ?`).run(...params, id)

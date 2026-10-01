@@ -799,6 +799,7 @@ export function createOpRegistryRouter(): Hono {
     designatedBy?: string | null
     proposedBy?: string | null
     csStatus?: string | null
+    rorId?: string | null
   }
 
   /** The add/edit payloads' shared validation: answers the validated
@@ -837,6 +838,19 @@ export function createOpRegistryRouter(): Hono {
       }
       const value = typeof body[key] === 'string' ? (body[key] as string).trim() : ''
       fields[target] = value || null
+    }
+    // TODO.sota/05 — the ROR id (the curation loop's write): the
+    // canonical https://ror.org/<id> form only (the enrichment's own
+    // spelling); null clears.
+    if (body.ror_id !== undefined) {
+      if (body.ror_id !== null && typeof body.ror_id !== 'string') {
+        return { error: c.json({ error: 'ror_id must be a string (or null to clear)' }, 400) }
+      }
+      const value = typeof body.ror_id === 'string' ? body.ror_id.trim() : ''
+      if (value && !/^https:\/\/ror\.org\/0[0-9a-hjkmnp-tv-z]{8}$/i.test(value)) {
+        return { error: c.json({ error: 'ror_id must be the canonical ROR id (https://ror.org/0…, nine characters) or null' }, 400) }
+      }
+      fields.rorId = value || null
     }
     if (body.kind !== undefined) {
       if (body.kind !== null && !isRegistryOrgKind(body.kind)) {
@@ -899,6 +913,7 @@ export function createOpRegistryRouter(): Hono {
         designatedBy: org.designatedBy,
         proposedBy: org.proposedBy,
         csStatus: org.csStatus,
+        rorId: org.rorId,
         state: org.state,
         standing: org.standing,
         endorsedBy: org.endorsedBy,
@@ -1209,6 +1224,7 @@ export function createOpRegistryRouter(): Hono {
         designatedBy: org.designatedBy,
         proposedBy: org.proposedBy,
         csStatus: org.csStatus,
+        rorId: org.rorId,
         state: org.state,
         registered: org.registered,
         standing: org.standing,

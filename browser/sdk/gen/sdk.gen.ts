@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { AccountStepUpData, AccountStepUpErrors, AccountStepUpResponses, CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, DeviceAuthorizationData, DeviceAuthorizationErrors, DeviceAuthorizationResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetDiscoveryData, GetDiscoveryResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetRobotsTxtData, GetRobotsTxtResponses, GetSecurityTxtData, GetSecurityTxtResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, GetWebfingerData, GetWebfingerErrors, GetWebfingerResponses, IntrospectTokenData, IntrospectTokenResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RedeliverDeadWebhooksData, RedeliverDeadWebhooksErrors, RedeliverDeadWebhooksResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateGroupData, ScimCreateGroupErrors, ScimCreateGroupResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteGroupData, ScimDeleteGroupErrors, ScimDeleteGroupResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetGroupData, ScimGetGroupErrors, ScimGetGroupResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListGroupsData, ScimListGroupsErrors, ScimListGroupsResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchGroupData, ScimPatchGroupErrors, ScimPatchGroupResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, ScimReplaceGroupData, ScimReplaceGroupErrors, ScimReplaceGroupResponses, SelfRegisterCatalogData, SelfRegisterCatalogResponses, SelfRegisterCompleteData, SelfRegisterCompleteErrors, SelfRegisterCompleteResponses, SelfRegisterSecondProofData, SelfRegisterSecondProofErrors, SelfRegisterSecondProofResponses, SelfRegisterStartData, SelfRegisterStartErrors, SelfRegisterStartResponses, SelfRegisterVerifyData, SelfRegisterVerifyErrors, SelfRegisterVerifyResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
+import type { AccountStepUpData, AccountStepUpErrors, AccountStepUpResponses, CreateWebhookSubscriptionData, CreateWebhookSubscriptionErrors, CreateWebhookSubscriptionResponses, DeviceAuthorizationData, DeviceAuthorizationErrors, DeviceAuthorizationResponses, ExchangeTokenData, ExchangeTokenErrors, ExchangeTokenResponses, FileJoinRequestData, FileJoinRequestErrors, FileJoinRequestResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetConfigData, GetConfigResponses, GetCredentialIssuerData, GetCredentialIssuerResponses, GetCredentialStatusListData, GetCredentialStatusListResponses, GetDiscoveryData, GetDiscoveryResponses, GetEntityConfigurationData, GetEntityConfigurationErrors, GetEntityConfigurationResponses, GetHealthData, GetHealthResponses, GetJwksData, GetJwksResponses, GetOpenApiData, GetOpenApiResponses, GetOrgKeysData, GetOrgKeysErrors, GetOrgKeysResponses, GetRobotsTxtData, GetRobotsTxtResponses, GetSecurityTxtData, GetSecurityTxtResponses, GetSessionCheckData, GetSessionCheckErrors, GetSessionCheckResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetSessionStateData, GetSessionStateErrors, GetSessionStateResponses, GetTokenPermissionsCatalogData, GetTokenPermissionsCatalogErrors, GetTokenPermissionsCatalogResponses, GetUserinfoData, GetUserinfoErrors, GetUserinfoResponses, GetWebfingerData, GetWebfingerErrors, GetWebfingerResponses, IntrospectTokenData, IntrospectTokenResponses, ListCredentialConfigurationsData, ListCredentialConfigurationsErrors, ListCredentialConfigurationsResponses, ListKnownDevicesData, ListKnownDevicesErrors, ListKnownDevicesResponses, ListOrganizationsData, ListOrganizationsResponses, ListTokensData, ListTokensErrors, ListTokensResponses, ListWebhookDeliveriesData, ListWebhookDeliveriesErrors, ListWebhookDeliveriesResponses, ListWebhookSubscriptionsData, ListWebhookSubscriptionsErrors, ListWebhookSubscriptionsResponses, ManageTokenData, ManageTokenErrors, ManageTokenResponses, MintOrgMembershipCredentialData, MintOrgMembershipCredentialErrors, MintOrgMembershipCredentialResponses, MintTokenData, MintTokenErrors, MintTokenResponses, PushAuthorizationRequestData, PushAuthorizationRequestErrors, PushAuthorizationRequestResponses, RedeliverDeadWebhooksData, RedeliverDeadWebhooksErrors, RedeliverDeadWebhooksResponses, RequestCredentialData, RequestCredentialErrors, RequestCredentialResponses, RevokeCredentialStatusData, RevokeCredentialStatusErrors, RevokeCredentialStatusResponses, RevokeToken2Data, RevokeToken2Errors, RevokeToken2Responses, RevokeTokenData, RevokeTokenResponses, RevokeWebhookSubscriptionData, RevokeWebhookSubscriptionErrors, RevokeWebhookSubscriptionResponses, ScimCreateGroupData, ScimCreateGroupErrors, ScimCreateGroupResponses, ScimCreateUserData, ScimCreateUserErrors, ScimCreateUserResponses, ScimDeleteGroupData, ScimDeleteGroupErrors, ScimDeleteGroupResponses, ScimDeleteUserData, ScimDeleteUserErrors, ScimDeleteUserResponses, ScimGetGroupData, ScimGetGroupErrors, ScimGetGroupResponses, ScimGetUserData, ScimGetUserErrors, ScimGetUserResponses, ScimListGroupsData, ScimListGroupsErrors, ScimListGroupsResponses, ScimListUsersData, ScimListUsersErrors, ScimListUsersResponses, ScimPatchGroupData, ScimPatchGroupErrors, ScimPatchGroupResponses, ScimPatchUserData, ScimPatchUserErrors, ScimPatchUserResponses, ScimReplaceGroupData, ScimReplaceGroupErrors, ScimReplaceGroupResponses, SelfRegisterCatalogData, SelfRegisterCatalogResponses, SelfRegisterCompleteData, SelfRegisterCompleteErrors, SelfRegisterCompleteResponses, SelfRegisterSecondProofData, SelfRegisterSecondProofErrors, SelfRegisterSecondProofResponses, SelfRegisterStartData, SelfRegisterStartErrors, SelfRegisterStartResponses, SelfRegisterVerifyData, SelfRegisterVerifyErrors, SelfRegisterVerifyResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -130,6 +130,95 @@ export const getUserinfo = <ThrowOnError extends boolean = false>(options?: Opti
  * An RP holding an email address discovers the issuer with zero configuration: `resource=acct:<local>@<this host>` (or the mailto form) answers the JRD with the `http://openid.net/specs/connect/1.0/issuer` link. The DOMAIN decides — any local part answers (the mailbox is never probed; enumeration-safe by construction); a foreign domain answers 404 (never a proxy, never an open resolver).
  */
 export const getWebfinger = <ThrowOnError extends boolean = false>(options: Options<GetWebfingerData, ThrowOnError>): RequestResult<GetWebfingerResponses, GetWebfingerErrors, ThrowOnError> => (options.client ?? client).get<GetWebfingerResponses, GetWebfingerErrors, ThrowOnError>({ url: '/.well-known/webfinger', ...options });
+
+/**
+ * The OIDC Federation entity configuration
+ *
+ * TODO.sota/09 — the self-published entity statement (iss = sub = the entity identifier): the OP’s jwks and the openid_provider metadata mirroring the discovery document (the ONE builder — the two public documents can never drift). The federation member’s first document; the trust-chain intermediates are the named next slice. application/entity-statement+jwt, edge-cached 5 minutes, a 24 h life.
+ */
+export const getEntityConfiguration = <ThrowOnError extends boolean = false>(options?: Options<GetEntityConfigurationData, ThrowOnError>): RequestResult<GetEntityConfigurationResponses, GetEntityConfigurationErrors, ThrowOnError> => (options?.client ?? client).get<GetEntityConfigurationResponses, GetEntityConfigurationErrors, ThrowOnError>({ url: '/.well-known/openid-federation', ...options });
+
+/**
+ * The credential-issuer metadata (OIDC4VCI discovery)
+ *
+ * TODO.sota/08 — the SD-JWT membership credential issuer document: the credential_configurations_supported (the org-membership type, its vc+sd-jwt format, the selectively-disclosable claim set). Public, edge-cached 5 minutes (it changes only on deploys).
+ */
+export const getCredentialIssuer = <ThrowOnError extends boolean = false>(options?: Options<GetCredentialIssuerData, ThrowOnError>): RequestResult<GetCredentialIssuerResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetCredentialIssuerResponses, unknown, ThrowOnError>({ url: '/.well-known/openid-credential-issuer', ...options });
+
+/**
+ * The OIDC4VCI credential endpoint
+ *
+ * TODO.sota/08 slice 3 — the wallet-driven issuance: the org-membership grant’s access token (the wallet’s OWN authorization, the token answer’s c_nonce) + the wallet’s key proof (openid4vci-proof+jwt: ES256, the public jwk in the header, aud = the issuer, the c_nonce echoed) mint the HOLDER-BOUND credential — cnf.jkt = the wallet key, the same mint, truth, and status anchor as the session flow.
+ */
+export const requestCredential = <ThrowOnError extends boolean = false>(options: Options<RequestCredentialData, ThrowOnError>): RequestResult<RequestCredentialResponses, RequestCredentialErrors, ThrowOnError> => (options.client ?? client).post<RequestCredentialResponses, RequestCredentialErrors, ThrowOnError>({
+    security: [{
+            key: 'bearerToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/op/credential',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The credential status list (RFC 9157)
+ *
+ * TODO.sota/08 slice 2 — the revocation story: a statuslist+jwt (ES256 by the OP key, typ in the header) whose payload carries status_list.lst — the base64url(gzip(bitstring)), one bit per issued index, a revoked credential’s bit set. A verifier fetches, verifies, decompresses, and reads the bit at the credential’s status.status_list.idx.
+ */
+export const getCredentialStatusList = <ThrowOnError extends boolean = false>(options?: Options<GetCredentialStatusListData, ThrowOnError>): RequestResult<GetCredentialStatusListResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetCredentialStatusListResponses, unknown, ThrowOnError>({ url: '/op/credentials/statuslist', ...options });
+
+/**
+ * Revoke a credential (flip its status bit)
+ *
+ * The administrator’s revocation act: the bit at the index flips in the served list (within its 60-second cache). Idempotent-refusing — an already revoked index answers 409.
+ */
+export const revokeCredentialStatus = <ThrowOnError extends boolean = false>(options: Options<RevokeCredentialStatusData, ThrowOnError>): RequestResult<RevokeCredentialStatusResponses, RevokeCredentialStatusErrors, ThrowOnError> => (options.client ?? client).post<RevokeCredentialStatusResponses, RevokeCredentialStatusErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'oiml-session',
+            type: 'apiKey'
+        }],
+    url: '/api/op/credentials/statuslist/{idx}/revoke',
+    ...options
+});
+
+/**
+ * The account’s issuable credentials
+ *
+ * The configurations this OP issues + the account’s issuable set (an org-bound account can mint the membership credential).
+ */
+export const listCredentialConfigurations = <ThrowOnError extends boolean = false>(options?: Options<ListCredentialConfigurationsData, ThrowOnError>): RequestResult<ListCredentialConfigurationsResponses, ListCredentialConfigurationsErrors, ThrowOnError> => (options?.client ?? client).get<ListCredentialConfigurationsResponses, ListCredentialConfigurationsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'oiml-session',
+            type: 'apiKey'
+        }],
+    url: '/api/op/credentials',
+    ...options
+});
+
+/**
+ * Mint the OrgMembership SD-JWT credential
+ *
+ * TODO.sota/08 — the selectively-disclosable membership credential (SD-JWT): the payload carries only the _SD hashes; the combined presentation hands every disclosure, the HOLDER selects what to reveal to a verifier. The credential’s truth is the same truth the tokens carry (the org context + the registry row’s ROR id). An optional holder_jwk (a public EC P-256 key) binds the credential to the wallet (cnf.jkt; the holder proves possession with the KB-JWT at presentation).
+ */
+export const mintOrgMembershipCredential = <ThrowOnError extends boolean = false>(options?: Options<MintOrgMembershipCredentialData, ThrowOnError>): RequestResult<MintOrgMembershipCredentialResponses, MintOrgMembershipCredentialErrors, ThrowOnError> => (options?.client ?? client).post<MintOrgMembershipCredentialResponses, MintOrgMembershipCredentialErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'oiml-session',
+            type: 'apiKey'
+        }],
+    url: '/api/op/credentials/membership',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
 
 /**
  * The vulnerability disclosure pointer (RFC 9116)

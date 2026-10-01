@@ -791,6 +791,8 @@ export class D1ServerStore implements ServerStore {
       if (!names.has('designated_by')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN designated_by TEXT').run()
       if (!names.has('proposed_by')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN proposed_by TEXT').run()
       if (!names.has('cs_status')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN cs_status TEXT').run()
+      // The ROR id (0038, TODO.sota/05's enrichment).
+      if (!names.has('ror_id')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN ror_id TEXT').run()
     })
   }
 
@@ -1473,16 +1475,65 @@ export class D1ServerStore implements ServerStore {
     /** TODO.identity-sso/02+03: the authorizing authentication's amr —
      *  userinfo answers the same truth the ID token carried. */
     amr?: string[] | null
+    dpopJkt?: string | null
     ttlMs: number
   }): Promise<void> {
     await this.ensureMembershipSupport()
     const expiresAt = new Date(Date.now() + input.ttlMs).toISOString()
     await this.ensureOidcColumns()
+    await this.ensureDpopSupport()
     await this.stmt(
-      'INSERT INTO oidc_access_tokens (token, user_id, client_id, scope, context_org, amr, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO oidc_access_tokens (token, user_id, client_id, scope, context_org, amr, dpop_jkt, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       input.token, input.userId, input.clientId, input.scope, input.contextOrg ?? null,
-      input.amr?.length ? JSON.stringify(input.amr) : null, expiresAt,
+      input.amr?.length ? JSON.stringify(input.amr) : null, input.dpopJkt ?? null, expiresAt,
     ).run()
+  }
+
+  /** TODO.sota/09 (RFC 9449 §4.3): the DPoP proof-replay cache. INSERT
+   *  OR IGNORE; FALSE = the jti already stands (the replay). */
+  async rememberDpopJti(jti: string, expiresAtIso: string): Promise<boolean> {
+    await this.ensureDpopSupport()
+    const res = await this.stmt('INSERT OR IGNORE INTO dpop_jtis (jti, expires_at) VALUES (?, ?)', jti, expiresAtIso).run()
+    return (res.meta.changes ?? 0) > 0
+  }
+
+  /** TODO.sota/08 (RFC 9157): the status-list rows (0040). */
+  async allocateCredentialStatusIdx(): Promise<number> {
+    await this.ensureCredentialStatusSupport()
+    const res = await this.stmt('INSERT INTO credential_status (revoked_at) VALUES (NULL)').run()
+    return Number(res.meta.last_row_id ?? 0)
+  }
+
+  async setCredentialStatusRevoked(idx: number, atIso: string): Promise<boolean> {
+    await this.ensureCredentialStatusSupport()
+    const res = await this.stmt('UPDATE credential_status SET revoked_at = ? WHERE idx = ? AND revoked_at IS NULL', atIso, idx).run()
+    return (res.meta.changes ?? 0) > 0
+  }
+
+  async readCredentialStatus(): Promise<{ maxIdx: number; revoked: number[] }> {
+    await this.ensureCredentialStatusSupport()
+    const max = await this.stmt('SELECT COALESCE(MAX(idx), 0) AS m FROM credential_status').first<{ m: number }>()
+    const rows = await this.stmt('SELECT idx FROM credential_status WHERE revoked_at IS NOT NULL').all<{ idx: number }>()
+    return { maxIdx: max?.m ?? 0, revoked: rows.results.map(r => r.idx) }
+  }
+
+  private credentialStatusReady: boolean = false
+  private async ensureCredentialStatusSupport(): Promise<void> {
+    if (this.credentialStatusReady) return
+    await this.db.prepare('CREATE TABLE IF NOT EXISTS credential_status (idx INTEGER PRIMARY KEY AUTOINCREMENT, revoked_at TEXT)').run()
+    this.credentialStatusReady = true
+  }
+
+  /** The DPoP surfaces (0039): a dev D1 predating them grows here. */
+  private dpopReady: boolean = false
+  private async ensureDpopSupport(): Promise<void> {
+    if (this.dpopReady) return
+    const cols = await this.db.prepare('PRAGMA table_info(oidc_access_tokens)').all<{ name: string }>()
+    if (cols.results.length && !cols.results.some(c => c.name === 'dpop_jkt')) {
+      await this.db.prepare('ALTER TABLE oidc_access_tokens ADD COLUMN dpop_jkt TEXT').run()
+    }
+    await this.db.prepare('CREATE TABLE IF NOT EXISTS dpop_jtis (jti TEXT PRIMARY KEY, expires_at TEXT NOT NULL)').run()
+    this.dpopReady = true
   }
 
   async getOidcAccessToken(token: string): Promise<OidcAccessToken | null> {
@@ -1498,6 +1549,7 @@ export class D1ServerStore implements ServerStore {
       scope: row.scope as string,
       contextOrg: (row.context_org as string | null) ?? null,
       amr: parseRoles((row.amr as string | null) ?? null) ?? null,
+      dpopJkt: (row.dpop_jkt as string | null) ?? null,
       expiresAt: row.expires_at as string,
     }
   }
@@ -3673,6 +3725,7 @@ export class D1ServerStore implements ServerStore {
       designatedBy: (row.designated_by as string | null) ?? null,
       proposedBy: (row.proposed_by as string | null) ?? null,
       csStatus: (row.cs_status as string | null) ?? null,
+      rorId: (row.ror_id as string | null) ?? null,
       state: row.state as OrgRegistryState,
       createdAt: row.created_at as string,
       createdBy: (row.created_by as string | null) ?? null,
@@ -3723,15 +3776,16 @@ export class D1ServerStore implements ServerStore {
     designatedBy?: string | null
     proposedBy?: string | null
     csStatus?: string | null
+    rorId?: string | null
     createdBy?: string | null
   }): Promise<OrgRegistryOrg | null> {
     await this.ensureOrgRegistrySupport()
     const res = await this.stmt(
-      `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, ror_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       input.id, input.name, input.shortName ?? null, input.kind ?? null, input.country ?? null,
       JSON.stringify(input.contacts ?? []), input.participantRef ?? null,
-      input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.createdBy ?? null,
+      input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.rorId ?? null, input.createdBy ?? null,
     ).run()
     if ((res.meta.changes ?? 0) === 0) return null
     return this.getOrgRegistryOrg(input.id)
@@ -3750,6 +3804,7 @@ export class D1ServerStore implements ServerStore {
       designatedBy?: string | null
       proposedBy?: string | null
       csStatus?: string | null
+      rorId?: string | null
     },
     actor?: string | null,
   ): Promise<OrgRegistryOrg | null> {
@@ -3765,6 +3820,7 @@ export class D1ServerStore implements ServerStore {
     if (patch.designatedBy !== undefined) { sets.push('designated_by = ?'); params.push(patch.designatedBy) }
     if (patch.proposedBy !== undefined) { sets.push('proposed_by = ?'); params.push(patch.proposedBy) }
     if (patch.csStatus !== undefined) { sets.push('cs_status = ?'); params.push(patch.csStatus) }
+    if (patch.rorId !== undefined) { sets.push('ror_id = ?'); params.push(patch.rorId) }
     sets.push("updated_at = datetime('now')", 'updated_by = ?')
     params.push(actor ?? null)
     const res = await this.stmt(`UPDATE org_registry SET ${sets.join(', ')} WHERE id = ?`, ...params, id).run()

@@ -395,8 +395,27 @@ CREATE TABLE IF NOT EXISTS oidc_access_tokens (
   -- TODO.identity-sso/02+03: the authorizing authentication's amr
   -- provenance — userinfo answers the same truth the ID token carried.
   amr TEXT,
+  -- TODO.sota/09 (RFC 9449): the DPoP binding — the proof key's JKT
+  -- the token was minted under; NULL = the ordinary Bearer posture
+  -- (0039).
+  dpop_jkt TEXT,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- The DPoP proof-replay cache (0039, TODO.sota/09): one row per seen
+-- jti, expiring at the proof's freshness window; the TTL sweep reaps.
+CREATE TABLE IF NOT EXISTS dpop_jtis (
+  jti TEXT PRIMARY KEY,
+  expires_at TEXT NOT NULL
+);
+
+-- The credential status list's rows (0040, TODO.sota/08): one row per
+-- issued credential — the rowid IS the list index; the revocation act
+-- stamps revoked_at (the bit flips in the served list).
+CREATE TABLE IF NOT EXISTS credential_status (
+  idx INTEGER PRIMARY KEY AUTOINCREMENT,
+  revoked_at TEXT
 );
 
 -- The refresh tokens (migration 0025 — the SSO wave-C token surface): the
@@ -798,6 +817,10 @@ CREATE TABLE IF NOT EXISTS org_registry (
   designated_by TEXT,
   proposed_by TEXT,
   cs_status TEXT,
+  -- The ROR id (0038_org_registry_ror_id.sql, TODO.sota/05): the
+  -- Research Organization Registry id matched by the website-domain
+  -- anchor in the member-domains pipeline. NULL = unmatched.
+  ror_id TEXT,
   state TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   created_by TEXT,

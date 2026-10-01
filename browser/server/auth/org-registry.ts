@@ -250,6 +250,9 @@ export interface RegistryOrg {
   /** The Declaration's standing on the designated bodies (the CS status
    *  facet); NULL = not recorded. */
   csStatus: RegistryOrgCsStatus | null
+  /** TODO.sota/05 — the ROR id (the curation loop): the canonical
+   *  https://ror.org/… form; NULL = unmatched. */
+  rorId: string | null
   state: 'active' | 'disabled'
   /** The PARTICIPANT posture the join flow gates on: an active org that
    *  carries a PARTICIPANT kind (a manufacturer or a non-participant org
@@ -427,6 +430,7 @@ function projectOrg(row: OrgRegistryOrg, endorsedBy: string[] = []): RegistryOrg
     designatedBy: row.designatedBy ?? null,
     proposedBy: row.proposedBy ?? null,
     csStatus: row.csStatus && CS_STATUSES.has(row.csStatus) ? row.csStatus as RegistryOrgCsStatus : null,
+    rorId: row.rorId ?? null,
     state: row.state,
     registered: row.state === 'active' && kind !== null && PARTICIPANT_KINDS.has(kind),
     standing: standingOf(kind, endorsedBy),

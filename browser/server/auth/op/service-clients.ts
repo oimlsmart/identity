@@ -168,6 +168,9 @@ export function serviceTokenClaims(
   service: ServiceClientClaims,
   scopes: string[],
   config: { issuer: string; accessTokenTtlMs: number },
+  /** TODO.sota/09 (RFC 9449 §6.1): the DPoP binding — the proof key's
+   *  JKT rides the JWT as the cnf claim; absent = the Bearer posture. */
+  dpopJkt?: string | null,
 ): Record<string, unknown> {
   const nowSec = Math.floor(Date.now() / 1000)
   return {
@@ -179,5 +182,6 @@ export function serviceTokenClaims(
     exp: nowSec + Math.floor(config.accessTokenTtlMs / 1000),
     org: service.org,
     scope: scopes.join(' '),
+    ...(dpopJkt ? { cnf: { jkt: dpopJkt } } : {}),
   }
 }

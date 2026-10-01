@@ -49,6 +49,7 @@ export const OPENAPI_SPEC = {
     { name: 'Tokens', description: 'The personal access tokens a account mints, manages and revokes — the machine credential for the register\'s services.' },
     { name: 'Webhooks', description: 'The account\'s outbound event subscriptions — HMAC-signed deliveries (TODO.modern/08).' },
     { name: 'SCIM', description: 'The SCIM 2.0 provisioning surface (RFC 7644) — the enterprise lifecycle on the existing account model (TODO.modern/05; the SCIM_BEARER_TOKEN arms it).' },
+    { name: 'Credentials', description: 'The SD-JWT membership credentials (TODO.sota/08): the selectively-disclosable OrgMembership credential — issuance, the OIDC4VCI discovery document, the holder key binding.' },
   ],
   components: {
     securitySchemes: {
@@ -402,6 +403,112 @@ export const OPENAPI_SPEC = {
           200: { description: 'The JRD (application/jrd+json), edge-cached 5 minutes.', content: { 'application/jrd+json': { schema: { type: 'object', properties: { subject: { type: 'string' }, links: { type: 'array', items: { type: 'object' } } }, required: ['subject', 'links'] } } } },
           400: { description: 'The resource parameter is absent.' },
           404: { description: 'The resource names another domain.' },
+        },
+      },
+    },
+    '/.well-known/openid-federation': {
+      get: {
+        tags: ['OIDC'], operationId: 'getEntityConfiguration', summary: 'The OIDC Federation entity configuration',
+        description:
+          'TODO.sota/09 — the self-published entity statement (iss = sub = the entity identifier): the OP’s jwks '
+          + 'and the openid_provider metadata mirroring the discovery document (the ONE builder — the two public '
+          + 'documents can never drift). The federation member’s first document; the trust-chain intermediates '
+          + 'are the named next slice. application/entity-statement+jwt, edge-cached 5 minutes, a 24 h life.',
+        security: [],
+        responses: {
+          200: { description: 'The signed entity configuration.', content: { 'application/entity-statement+jwt': { schema: { type: 'string' } } } },
+          503: { description: 'The signing key is unavailable on this isolate — retry.' },
+        },
+      },
+    },
+    '/.well-known/openid-credential-issuer': {
+      get: {
+        tags: ['Credentials'], operationId: 'getCredentialIssuer', summary: 'The credential-issuer metadata (OIDC4VCI discovery)',
+        description:
+          'TODO.sota/08 — the SD-JWT membership credential issuer document: the credential_configurations_supported '
+          + '(the org-membership type, its vc+sd-jwt format, the selectively-disclosable claim set). Public, '
+          + 'edge-cached 5 minutes (it changes only on deploys).',
+        security: [],
+        responses: {
+          200: { description: 'The credential-issuer metadata document.', content: { 'application/json': { schema: { type: 'object', properties: { credential_issuer: { type: 'string', format: 'uri' }, credential_configurations_supported: { type: 'object' } }, required: ['credential_issuer', 'credential_configurations_supported'] } } } },
+        },
+      },
+    },
+    '/op/credential': {
+      post: {
+        tags: ['Credentials'], operationId: 'requestCredential', summary: 'The OIDC4VCI credential endpoint',
+        description:
+          'TODO.sota/08 slice 3 — the wallet-driven issuance: the org-membership grant’s access token (the '
+          + 'wallet’s OWN authorization, the token answer’s c_nonce) + the wallet’s key proof '
+          + '(openid4vci-proof+jwt: ES256, the public jwk in the header, aud = the issuer, the c_nonce echoed) mint '
+          + 'the HOLDER-BOUND credential — cnf.jkt = the wallet key, the same mint, truth, and status anchor as the '
+          + 'session flow.',
+        security: [{ bearerToken: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { format: { type: 'string', example: 'vc+sd-jwt' }, vct: { type: 'string', example: 'org-membership' }, proof: { type: 'object', properties: { proof_type: { type: 'string', example: 'jwt' }, jwt: { type: 'string' } }, required: ['proof_type', 'jwt'] } }, required: ['format', 'vct', 'proof'] } } } },
+        responses: {
+          200: { description: 'The holder-bound credential.', content: { 'application/json': { schema: { type: 'object', properties: { format: { type: 'string', example: 'vc+sd-jwt' }, credential: { type: 'string' } }, required: ['format', 'credential'] } } } },
+          400: { description: 'The format/vct is wrong, or the proof does not verify.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'No or unknown access token.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          403: { description: 'The token was not granted the org-membership scope.' },
+        },
+      },
+    },
+    '/op/credentials/statuslist': {
+      get: {
+        tags: ['Credentials'], operationId: 'getCredentialStatusList', summary: 'The credential status list (RFC 9157)',
+        description:
+          'TODO.sota/08 slice 2 — the revocation story: a statuslist+jwt (ES256 by the OP key, typ in the header) '
+          + 'whose payload carries status_list.lst — the base64url(gzip(bitstring)), one bit per issued index, a '
+          + 'revoked credential’s bit set. A verifier fetches, verifies, decompresses, and reads the bit at the '
+          + 'credential’s status.status_list.idx.',
+        security: [],
+        responses: {
+          200: { description: 'The status list JWT (application/statuslist+jwt).', content: { 'application/statuslist+jwt': { schema: { type: 'string' } } } },
+        },
+      },
+    },
+    '/api/op/credentials/statuslist/{idx}/revoke': {
+      post: {
+        tags: ['Credentials'], operationId: 'revokeCredentialStatus', summary: 'Revoke a credential (flip its status bit)',
+        description: 'The administrator’s revocation act: the bit at the index flips in the served list (within its 60-second cache). Idempotent-refusing — an already revoked index answers 409.',
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: 'idx', in: 'path', required: true, schema: { type: 'integer', minimum: 1 }, description: 'The credential’s status-list index.' }],
+        responses: {
+          200: { description: 'The bit flipped.', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, idx: { type: 'number' }, revoked: { type: 'boolean' } }, required: ['ok', 'idx', 'revoked'] } } } },
+          400: { description: 'The index is not a positive integer.' },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          403: { description: 'The administrator role is required.' },
+          409: { description: 'The index was never issued, or is already revoked.' },
+        },
+      },
+    },
+    '/api/op/credentials': {
+      get: {
+        tags: ['Credentials'], operationId: 'listCredentialConfigurations', summary: 'The account’s issuable credentials',
+        description: 'The configurations this OP issues + the account’s issuable set (an org-bound account can mint the membership credential).',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: { description: 'The configurations + the issuable ids.', content: { 'application/json': { schema: { type: 'object', properties: { configurations: { type: 'object' }, issuable: { type: 'array', items: { type: 'string' } } }, required: ['configurations', 'issuable'] } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/credentials/membership': {
+      post: {
+        tags: ['Credentials'], operationId: 'mintOrgMembershipCredential', summary: 'Mint the OrgMembership SD-JWT credential',
+        description:
+          'TODO.sota/08 — the selectively-disclosable membership credential (SD-JWT): the payload carries only the '
+          + '_SD hashes; the combined presentation hands every disclosure, the HOLDER selects what to reveal to a '
+          + 'verifier. The credential’s truth is the same truth the tokens carry (the org context + the registry '
+          + 'row’s ROR id). An optional holder_jwk (a public EC P-256 key) binds the credential to the wallet '
+          + '(cnf.jkt; the holder proves possession with the KB-JWT at presentation).',
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: false, content: { 'application/json': { schema: { type: 'object', properties: { holder_jwk: { type: 'object', description: 'The wallet’s public EC P-256 key ({ kty, crv, x, y })' } } } } } },
+        responses: {
+          200: { description: 'The minted credential (the combined SD-JWT presentation, all disclosures).', content: { 'application/json': { schema: { type: 'object', properties: { format: { type: 'string', example: 'vc+sd-jwt' }, credential: { type: 'string' }, expires_in: { type: 'number' } }, required: ['format', 'credential', 'expires_in'] } } } },
+          400: { description: 'The holder_jwk is malformed.' },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          409: { description: 'The account carries no organization membership — nothing to credential.' },
         },
       },
     },

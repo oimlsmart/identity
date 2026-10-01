@@ -93,6 +93,7 @@
       "groups",
       "org",
       "orcid",
+      "org_ror",
       "amr"
     ],
     "code_challenge_methods_supported": [
@@ -124,7 +125,8 @@
       "openid",
       "profile",
       "email",
-      "offline_access"
+      "offline_access",
+      "org-membership"
     ],
     "subject_types_supported": [
       "public"
