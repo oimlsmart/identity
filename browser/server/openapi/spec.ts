@@ -406,6 +406,21 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/.well-known/openid-federation': {
+      get: {
+        tags: ['OIDC'], operationId: 'getEntityConfiguration', summary: 'The OIDC Federation entity configuration',
+        description:
+          'TODO.sota/09 — the self-published entity statement (iss = sub = the entity identifier): the OP’s jwks '
+          + 'and the openid_provider metadata mirroring the discovery document (the ONE builder — the two public '
+          + 'documents can never drift). The federation member’s first document; the trust-chain intermediates '
+          + 'are the named next slice. application/entity-statement+jwt, edge-cached 5 minutes, a 24 h life.',
+        security: [],
+        responses: {
+          200: { description: 'The signed entity configuration.', content: { 'application/entity-statement+jwt': { schema: { type: 'string' } } } },
+          503: { description: 'The signing key is unavailable on this isolate — retry.' },
+        },
+      },
+    },
     '/.well-known/openid-credential-issuer': {
       get: {
         tags: ['Credentials'], operationId: 'getCredentialIssuer', summary: 'The credential-issuer metadata (OIDC4VCI discovery)',

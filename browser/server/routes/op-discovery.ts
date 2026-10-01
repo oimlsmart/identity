@@ -40,16 +40,12 @@ function configFor(c: Context): OpConfig {
   return resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw))
 }
 
-export function createOpDiscoveryRouter(): Hono {
-  const router = new Hono()
-
-  // GET /.well-known/openid-configuration — the discovery document. The
-  // RP side (auth/oidc.ts) requires issuer/authorization_endpoint/
-  // token_endpoint/jwks_uri and an exact issuer match.
-  router.get('/.well-known/openid-configuration', async (c) => {
-    const { issuer } = configFor(c)
-    c.header('Cache-Control', 'public, max-age=300')
-    return c.json({
+/** The discovery document's ONE builder (TODO.sota/09's federation
+ *  slice extracts it): the federation entity statement's
+ *  openid_provider metadata mirrors THIS object — the two public
+ *  documents can never drift. */
+export function buildDiscoveryDocument(issuer: string): Record<string, unknown> {
+  return {
       issuer,
       authorization_endpoint: `${issuer}/op/authorize`,
       token_endpoint: `${issuer}/op/token`,
@@ -97,7 +93,18 @@ export function createOpDiscoveryRouter(): Hono {
       // RFC 9150 (TODO.modern/12): the JWT-secured response mode.
       response_modes_supported: ['query', 'jwt'],
       claims_supported: ['iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'name', 'email', 'email_verified', 'picture', 'roles', 'groups', 'org', 'orcid', 'org_ror', 'amr'],
-    })
+  }
+}
+
+export function createOpDiscoveryRouter(): Hono {
+  const router = new Hono()
+
+  // GET /.well-known/openid-configuration — the discovery document. The
+  // RP side (auth/oidc.ts) requires issuer/authorization_endpoint/
+  // token_endpoint/jwks_uri and an exact issuer match.
+  router.get('/.well-known/openid-configuration', async (c) => {
+    c.header('Cache-Control', 'public, max-age=300')
+    return c.json(buildDiscoveryDocument(configFor(c).issuer))
   })
 
   // GET /jwks.json — the public halves of the key history. The answer

@@ -110,6 +110,7 @@ import { createOpProtocolRouter } from './op-protocol'
 import { createOpTokenManagementRouter } from './op-token-management'
 import { authenticateClient, createOpTokenRouter } from './op-token'
 import { createOpCredentialsRouter } from './op-credentials'
+import { createOpFederationRouter } from './op-federation'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -130,6 +131,7 @@ export function createOpRouter(): Hono {
   }
   op.use('/.well-known/openid-configuration', profileGate)
   op.use('/.well-known/openid-credential-issuer', profileGate)
+  op.use('/.well-known/openid-federation', profileGate)
   op.use('/jwks.json', profileGate)
   op.use('/op/*', profileGate)
   op.use('/api/op/*', profileGate)
@@ -217,6 +219,11 @@ export function createOpRouter(): Hono {
   // The avatar serve (TODO.sota/07.4's first extracted module):
   // routes/op-avatar-serve.ts.
   op.route('/', createOpAvatarServeRouter())
+
+  // ── the federation (TODO.sota/09) ─────────────────────────────────
+  // routes/op-federation.ts: the leaf entity configuration (the
+  // OIDC Federation member's first document).
+  op.route('/', createOpFederationRouter())
 
   // ── the credentials (TODO.sota/08) ────────────────────────────────
   // routes/op-credentials.ts: the OrgMembership SD-JWT VC's issuing
