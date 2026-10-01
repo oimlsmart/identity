@@ -419,6 +419,25 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/op/credential': {
+      post: {
+        tags: ['Credentials'], operationId: 'requestCredential', summary: 'The OIDC4VCI credential endpoint',
+        description:
+          'TODO.sota/08 slice 3 — the wallet-driven issuance: the org-membership grant’s access token (the '
+          + 'wallet’s OWN authorization, the token answer’s c_nonce) + the wallet’s key proof '
+          + '(openid4vci-proof+jwt: ES256, the public jwk in the header, aud = the issuer, the c_nonce echoed) mint '
+          + 'the HOLDER-BOUND credential — cnf.jkt = the wallet key, the same mint, truth, and status anchor as the '
+          + 'session flow.',
+        security: [{ bearerToken: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { format: { type: 'string', example: 'vc+sd-jwt' }, vct: { type: 'string', example: 'org-membership' }, proof: { type: 'object', properties: { proof_type: { type: 'string', example: 'jwt' }, jwt: { type: 'string' } }, required: ['proof_type', 'jwt'] } }, required: ['format', 'vct', 'proof'] } } } },
+        responses: {
+          200: { description: 'The holder-bound credential.', content: { 'application/json': { schema: { type: 'object', properties: { format: { type: 'string', example: 'vc+sd-jwt' }, credential: { type: 'string' } }, required: ['format', 'credential'] } } } },
+          400: { description: 'The format/vct is wrong, or the proof does not verify.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          401: { description: 'No or unknown access token.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          403: { description: 'The token was not granted the org-membership scope.' },
+        },
+      },
+    },
     '/op/credentials/statuslist': {
       get: {
         tags: ['Credentials'], operationId: 'getCredentialStatusList', summary: 'The credential status list (RFC 9157)',

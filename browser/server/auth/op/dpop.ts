@@ -46,6 +46,12 @@ export async function mintDpopNonce(secretMaterial: string, nowSec: number = Mat
   return `${exp}.${await hmacB64url(secretMaterial, String(exp))}`
 }
 
+/** The server-challenge nonce validator (generic — the DPoP §8 leg
+ *  and the OIDC4VCI c_nonce leg share it): a stateless <exp>.<HMAC>. */
+export async function verifyChallengeNonce(secretMaterial: string, nonce: string): Promise<boolean> {
+  return dpopNonceOk(secretMaterial, nonce)
+}
+
 async function dpopNonceOk(secretMaterial: string, nonce: string): Promise<boolean> {
   const dot = nonce.indexOf('.')
   if (dot <= 0) return false

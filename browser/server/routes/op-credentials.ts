@@ -61,8 +61,77 @@ export function createOpCredentialsRouter(): Hono {
     c.header('Cache-Control', 'public, max-age=300')
     return c.json({
       credential_issuer: configFor(c).issuer,
+      credential_endpoint: `${configFor(c).issuer}/op/credential`,
+      grant_types_supported: ['authorization_code'],
       credential_configurations_supported: CONFIGURATIONS,
     })
+  })
+
+  // POST /op/credential — the OIDC4VCI credential endpoint (slice 3):
+  // the wallet's own authorization (the org-membership scope's access
+  // token) + its key proof (openid4vci-proof+jwt over the c_nonce the
+  // token answer issued) mints the HOLDER-BOUND credential — the same
+  // mint, the same truth, the same status anchor, cnf.jkt = the
+  // wallet's key.
+  router.post('/op/credential', async (c) => {
+    const header = c.req.header('authorization') ?? ''
+    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+    if (!token) return c.json({ error: 'invalid_token', error_description: 'the credential request requires the org-membership access token' }, 401)
+    const store = getStore()
+    const access = await store.getOidcAccessToken(token)
+    if (!access) return c.json({ error: 'invalid_token', error_description: 'the access token is unknown or expired' }, 401)
+    if (!access.scope.split(/\s+/).includes('org-membership')) {
+      return c.json({ error: 'insufficient_scope', error_description: 'the access token was not granted the org-membership scope' }, 403)
+    }
+    const raw = await store.getUserById(access.userId)
+    if (!raw || !raw.orgId) {
+      return c.json({ error: 'invalid_request', error_description: 'the account carries no organization membership — nothing to credential' }, 400)
+    }
+    const body = await c.req.json<{ format?: string; vct?: string; proof?: { proof_type?: string; jwt?: string } }>().catch(() => null)
+    if (!body || body.format !== 'vc+sd-jwt' || body.vct !== 'org-membership') {
+      return c.json({ error: 'invalid_request', error_description: 'format must be vc+sd-jwt and vct must be org-membership' }, 400)
+    }
+    if (!body.proof || body.proof.proof_type !== 'jwt' || typeof body.proof.jwt !== 'string' || !body.proof.jwt) {
+      return c.json({ error: 'invalid_proof', error_description: 'the wallet key proof is required (openid4vci-proof+jwt over the issued c_nonce)' }, 400)
+    }
+    const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+    if (maySelfRegisterOpKey(key, configFor(c))) {
+      await ensureOpKeyRegistered(store, key)
+    } else {
+      warnDevKeyRegistrationSkipped('/op/credential', key)
+    }
+    const { verifyWalletProof } = await import('../auth/op/sd-jwt')
+    const proof = await verifyWalletProof(body.proof.jwt, { issuer: configFor(c).issuer, nonceSecret: key.secretMaterial })
+    if (!proof) {
+      return c.json({ error: 'invalid_proof', error_description: 'the proof does not verify (the typ, the key, the audience, or the c_nonce)' }, 400)
+    }
+    // The credential's truth — the SAME read the session mint performs.
+    const context = await claimsContextFor(store, raw, null)
+    const orgId = context.orgId ?? raw.orgId
+    const orgRow = await store.getOrgRegistryOrg(orgId)
+    const roles = context.roles.length ? context.roles : [raw.role]
+    const statusListIdx = await store.allocateCredentialStatusIdx()
+    const { mintSdJwt, combinedPresentation } = await import('../auth/op/sd-jwt')
+    const minted = await mintSdJwt(key, {
+      issuer: configFor(c).issuer,
+      subject: raw.id,
+      audience: access.clientId,
+      ttlSec: CREDENTIAL_TTL_SEC,
+      plain: { vct: 'org-membership' },
+      disclosable: {
+        name: raw.name,
+        email: raw.email,
+        org: orgId,
+        ...(orgRow ? { org_name: orgRow.name } : {}),
+        ...(orgRow?.rorId ? { org_ror: orgRow.rorId } : {}),
+        ...(orgRow?.country ? { country: orgRow.country } : {}),
+        ...(roles.length ? { roles } : {}),
+      },
+      holderJkt: proof.jkt,
+      statusListUri: `${configFor(c).issuer}/op/credentials/statuslist`,
+      statusListIdx,
+    })
+    return c.json({ format: 'vc+sd-jwt', credential: combinedPresentation(minted.sdJwt, minted.disclosures) })
   })
 
   // GET /op/credentials/statuslist — RFC 9157's list: the compressed

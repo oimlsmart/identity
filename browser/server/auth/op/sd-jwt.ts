@@ -320,3 +320,35 @@ export async function credentialRevoked(
   const byte = bytes[Math.floor(idx / 8)]
   return byte !== undefined && (byte & (1 << (idx % 8))) !== 0
 }
+
+
+/** The OIDC4VCI wallet proof (TODO.sota/08 slice 3): typ
+ * openid4vci-proof+jwt, ES256 with the WALLET's key (the public jwk in
+ * the header — no private material), aud = the issuer, a valid
+ * server-issued c_nonce, a fresh iat. Answers the key's JKT (the
+ * holder binding the mint stamps), or null. */
+export async function verifyWalletProof(
+  proofJwt: string,
+  expect: { issuer: string; nonceSecret: string },
+): Promise<{ jkt: string } | null> {
+  const parts = proofJwt.split('.')
+  if (parts.length !== 3) return null
+  try {
+    const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0]!))) as { typ?: string; alg?: string; jwk?: { kty?: string; crv?: string; x?: string; y?: string; d?: string } }
+    const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1]!))) as { aud?: unknown; nonce?: unknown; iat?: unknown }
+    if (header.typ !== 'openid4vci-proof+jwt' || header.alg !== 'ES256') return null
+    const jwk = header.jwk
+    if (!jwk || jwk.kty !== 'EC' || jwk.crv !== 'P-256' || !jwk.x || !jwk.y || jwk.d !== undefined) return null
+    if (payload.aud !== expect.issuer) return null
+    const iat = typeof payload.iat === 'number' ? payload.iat : Number.NaN
+    if (!Number.isFinite(iat) || Math.abs(Math.floor(Date.now() / 1000) - iat) > 300) return null
+    const { verifyChallengeNonce } = await import('./dpop')
+    if (typeof payload.nonce !== 'string' || !(await verifyChallengeNonce(expect.nonceSecret, payload.nonce))) return null
+    const key = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y }, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+    const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, b64urlToBytes(parts[2]!), new TextEncoder().encode(`${parts[0]}.${parts[1]}`))
+    if (!ok) return null
+    return { jkt: await jktOf({ kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y }) }
+  } catch {
+    return null
+  }
+}

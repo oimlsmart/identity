@@ -961,6 +961,22 @@ export function createOpTokenRouter(deps: {
     // account, the scope. NEVER the token values.
     await audit('client.token_issued', client!.clientId, {}, { account: user.id, scope: code.scope })
 
+    // TODO.sota/08 slice 3 (OIDC4VCI): the credential grant answers
+    // the c_nonce the wallet's key proof must echo at the credential
+    // endpoint (the same stateless HMAC challenge as DPoP's nonce).
+    if (scopes.includes('org-membership')) {
+      const dpopKey = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+      c.header('content-type', 'application/json')
+      return c.json({
+        access_token: accessToken,
+        token_type: dpop && 'jkt' in dpop ? 'DPoP' : 'Bearer',
+        expires_in: config.accessTokenTtlMs / 1000,
+        id_token: idToken,
+        ...(refreshToken ? { refresh_token: refreshToken } : {}),
+        c_nonce: await mintDpopNonce(dpopKey.secretMaterial),
+        c_nonce_expires_in: 600,
+      })
+    }
     return c.json({
       access_token: accessToken,
       token_type: dpop && 'jkt' in dpop ? 'DPoP' : 'Bearer',

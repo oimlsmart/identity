@@ -75,7 +75,9 @@ export function createOpDiscoveryRouter(): Hono {
       // ask — admitted for the application class (public and confidential
       // alike; the rotation + the reuse-kill are the compensating
       // controls), never for the machine classes.
-      scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
+      // org-membership (TODO.sota/08): the OIDC4VCI credential grant —
+      // the wallet's authorization for the membership credential.
+      scopes_supported: ['openid', 'profile', 'email', 'offline_access', 'org-membership'],
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       code_challenge_methods_supported: ['S256'],
       // The session management surface (TODO.modern/03): the RP's
