@@ -64,3 +64,47 @@ describe('the routing guard (TODO.sota/07.3)', () => {
     expect(missing, `role landings without pages: ${missing.join(', ')}`).toEqual([])
   })
 })
+
+describe("the routing guard server half (TODO.sota/07.3 extension — the 2026-10-02 production 404s)", () => {
+  it('every mounted API route OUTSIDE the catch-all-covered prefixes has a production shim (an Astro page)', async () => {
+    // The production Worker serves the OP API through the catch-alls
+    // (/op/[...path] + /api/[...path]) — every OTHER mounted route path
+    // must exist as an Astro page/shim or the front door 404s where the
+    // API answers in dev (the id-v2026.10.02-1 lesson: the two new
+    // .well-known endpoints shipped without shims).
+    process.env.DATABASE_PATH = ':memory:'
+    const { installSqliteStore } = await import('../../server/store/sqlite')
+    installSqliteStore()
+    const profileMod = await import('../../server/profile')
+    profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
+identity:
+  org_id: oimlsmart-id
+  org_name: Guard
+  role_codes: [identity]
+roles: [identity]
+branding: { name: Guard }
+`))
+    const { createOpRouter } = await import('../../server/routes/op')
+    const op = createOpRouter()
+    const paths = new Set<string>()
+    for (const r of op.routes as Array<{ path: string }>) {
+      const p = r.path
+      if (p === '/*') continue
+      if (p.startsWith('/op/') || p === '/op' || p.startsWith('/api/') || p === '/api') continue
+      paths.add(p)
+    }
+    expect(paths.size).toBeGreaterThan(3)
+    const missing: string[] = []
+    for (const p of paths) {
+      const raw = p.replace(/^\//, '').split('/')
+      const candidates = [
+        join(ROOT, 'src', 'pages', ...raw.map((s, i) => (i === raw.length - 1 ? `${s}.ts` : s))),
+        join(ROOT, 'src', 'pages', ...raw.map((s, i) => (i === raw.length - 1 ? `${s}.astro` : s))),
+      ]
+      if (!candidates.some(f => existsSync(f))) missing.push(p)
+    }
+    expect(missing, `these API routes 404 in production (no Astro shim): ${missing.join(', ')}`).toEqual([])
+    profileMod.resetInstanceProfileForTest()
+    delete process.env.DATABASE_PATH
+  })
+})
