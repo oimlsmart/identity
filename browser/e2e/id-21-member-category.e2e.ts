@@ -409,7 +409,7 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     // layered member lands.
     await page.goto(`${stack.base}/op/admin/registry/orgs/ut-new`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-reg-org-designated-by"]', { timeout: SETTLE, polling: 500 })
-    expect(await page.$eval('[data-testid="op-reg-org-designated-by"]', el => el.textContent ?? '')).toContain('Member Body of the Netherlands')
+    expect(await page.$eval('[data-testid="op-reg-org-designated-by"]', el => el.textContent ?? '')).toContain('Member Body of Luggnagg')
     await page.evaluate(() => (document.querySelector('[data-testid="op-reg-org-edit"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="op-reg-org-edit-designated-by"]', { timeout: SETTLE, polling: 500 })
     const options = await page.$$eval('[data-testid="op-reg-org-edit-designated-by"] option', els => els.map(el => ({ value: (el as HTMLOptionElement).value, text: el.textContent ?? '' })))

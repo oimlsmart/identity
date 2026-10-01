@@ -56,7 +56,7 @@ const ID_WEB = 9994
 const UTILIZER_ID = 'ut-lmi-xg'
 const UTILIZER_NAME = 'Luggnagg Metrology Institute'
 const IA_ID = 'EX1'
-const ORG_ADMIN_EMAIL = 'sanne.devries@nmi.example.org'
+const ORG_ADMIN_EMAIL = 'sanne.devries@lmi.example.org'
 const ORG_ADMIN_PASSWORD = 'sanne de vries admin passphrase'
 const OFFICER_EMAIL = 'ia@oimlsmart.org'
 
