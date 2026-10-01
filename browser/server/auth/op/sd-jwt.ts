@@ -99,6 +99,50 @@ export interface SdJwtMintInput {
   statusListIdx?: number
 }
 
+/** The nested-object marker (RFC 9445's recursive disclosures): the
+ *  object's PLAIN members ride inside its disclosure; its DISCLOSABLE
+ *  members hide behind the object's own _SD — revealable only after
+ *  the parent itself is presented. */
+export interface SdObject {
+  readonly __sdObject: {
+    plain: Record<string, unknown>
+    disclosable: Record<string, unknown>
+  }
+}
+
+export function sdObject(plain: Record<string, unknown>, disclosable: Record<string, unknown>): SdObject {
+  return { __sdObject: { plain, disclosable } }
+}
+
+function isSdObject(value: unknown): value is SdObject {
+  return typeof value === 'object' && value !== null && '__sdObject' in value
+}
+
+/** Build one object level: the plain members + the _SD hashes of its
+ *  disclosable members (nested sdObjects recurse, their disclosures
+ *  joining the flat list). */
+async function buildObjectLevel(
+  plain: Record<string, unknown>,
+  disclosable: Record<string, unknown>,
+): Promise<{ obj: Record<string, unknown>; disclosures: string[] }> {
+  const obj: Record<string, unknown> = { ...plain }
+  const hashes: string[] = []
+  const disclosures: string[] = []
+  for (const [name, value] of Object.entries(disclosable)) {
+    let inner: unknown = value
+    if (isSdObject(value)) {
+      const built = await buildObjectLevel(value.__sdObject.plain, value.__sdObject.disclosable)
+      inner = built.obj
+      disclosures.push(...built.disclosures)
+    }
+    const disclosure = mintDisclosure(name, inner)
+    hashes.push(await sha256B64url(disclosure))
+    disclosures.push(disclosure)
+  }
+  if (hashes.length) obj._SD = hashes
+  return { obj, disclosures }
+}
+
 export interface MintedSdJwt {
   sdJwt: string
   /** ALL the disclosures — issuance hands everything; the HOLDER
@@ -113,7 +157,13 @@ export async function mintSdJwt(key: OpSigningKey, input: SdJwtMintInput): Promi
   const disclosures: string[] = []
   const sdHashes: string[] = []
   for (const [name, value] of Object.entries(input.disclosable ?? {})) {
-    const disclosure = mintDisclosure(name, value)
+    let inner: unknown = value
+    if (isSdObject(value)) {
+      const built = await buildObjectLevel(value.__sdObject.plain, value.__sdObject.disclosable)
+      inner = built.obj
+      disclosures.push(...built.disclosures)
+    }
+    const disclosure = mintDisclosure(name, inner)
     disclosures.push(disclosure)
     sdHashes.push(await sha256B64url(disclosure))
   }
@@ -173,11 +223,17 @@ export async function verifySdJwtPresentation(
   if (!claims) return { error: 'the SD-JWT signature does not verify' }
   if (claims.iss !== expect.issuer) return { error: 'the issuer does not match' }
 
-  const sd = Array.isArray(claims._SD) ? claims._SD as unknown[] : []
   const seenHashes = new Set<string>()
   const merged: Record<string, unknown> = { ...claims }
   delete merged._SD
   delete merged._sd_alg
+
+  // The disclosure pool: every presented disclosure parsed once, keyed
+  // by its hash. The levels then claim their members — the top _SD
+  // first, and every REVEALED object's own _SD opens a sub-level (the
+  // recursion: a child is revealable only under a presented parent).
+  // Leftovers at the end refuse.
+  const pool = new Map<string, { name: string; value: unknown; disclosure: string }>()
   for (const disclosure of rest) {
     let parsed: unknown
     try {
@@ -188,13 +244,39 @@ export async function verifySdJwtPresentation(
     if (!Array.isArray(parsed) || parsed.length !== 3 || typeof parsed[0] !== 'string' || typeof parsed[1] !== 'string') {
       return { error: 'a disclosure is malformed' }
     }
-    const [, name, value] = parsed as [string, string, unknown]
+    const [, name] = parsed as [string, string, unknown]
     const hash = await sha256B64url(disclosure)
-    if (!sd.includes(hash)) return { error: `an unreferenced disclosure (${name}) refuses` }
-    if (seenHashes.has(hash)) return { error: `the disclosure for ${name} was presented twice` }
-    seenHashes.add(hash)
-    if (name in merged) return { error: `the claim ${name} collides with the payload` }
-    merged[name] = value
+    if (pool.has(hash)) return { error: `the disclosure for ${name} was presented twice` }
+    pool.set(hash, { name, value: (parsed as [string, string, unknown])[2], disclosure })
+  }
+
+  const levels: Array<{ level: Record<string, unknown>; sd: unknown[] }> = []
+  if (Array.isArray(claims._SD)) levels.push({ level: merged, sd: claims._SD as unknown[] })
+  let progress = true
+  while (progress) {
+    progress = false
+    for (const [hash, entry] of [...pool]) {
+      if (seenHashes.has(hash)) continue
+      const level = levels.find(l => l.sd.includes(hash))
+      if (!level) continue
+      if (entry.name in level.level) return { error: `the claim ${entry.name} collides with its level` }
+      level.level[entry.name] = entry.value
+      seenHashes.add(hash)
+      progress = true
+      // The revealed value may itself carry _SD — a new sub-level.
+      if (entry.value !== null && typeof entry.value === 'object' && !Array.isArray(entry.value as object)) {
+        const obj = entry.value as Record<string, unknown>
+        const nestedSd = obj._SD
+        if (Array.isArray(nestedSd)) {
+          delete obj._SD
+          levels.push({ level: obj, sd: nestedSd })
+        }
+      }
+    }
+  }
+  if (seenHashes.size < pool.size) {
+    const unreferenced = [...pool.entries()].filter(([hash]) => !seenHashes.has(hash)).map(([, e]) => e.name)
+    return { error: `an unreferenced disclosure (${unreferenced[0]}) refuses` }
   }
 
   const holderJkt = (claims.cnf as { jkt?: unknown } | undefined)?.jkt

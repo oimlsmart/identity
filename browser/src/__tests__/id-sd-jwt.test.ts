@@ -187,3 +187,48 @@ describe('the OrgMembership credential route (TODO.sota/08)', () => {
     }
   })
 })
+
+
+describe('the recursive disclosures (RFC 9445 — the nested objects)', () => {
+  it('a nested sdObject hides its members until the parent AND the member are both presented', async () => {
+    const { mintSdJwt, combinedPresentation, verifySdJwtPresentation, sdObject } = await import('../../server/auth/op/sd-jwt')
+    const minted = await mintSdJwt(key, {
+      issuer: ISSUER, subject: 'acct-1', ttlSec: 3600,
+      plain: { vct: 'org-membership' },
+      disclosable: {
+        name: 'Ada Lovelace',
+        address: sdObject({ country: 'UK' }, { street: '12 Analytical Way', code: 'NW1' }),
+      },
+    })
+    // Four disclosures (name, address, street, code — the mint's order
+    // is children-before-parent; select by NAME, never position).
+    expect(minted.disclosures.length).toBe(4)
+    const byName = new Map(minted.disclosures.map(d => {
+      const parsed = JSON.parse(atob(d.replace(/-/g, '+').replace(/_/g, '/'))) as [string, string, unknown]
+      return [parsed[1]!, d]
+    }))
+    const nameD = byName.get('name')!
+    const addressD = byName.get('address')!
+
+    // The parent alone: the country shows, the street stays hidden.
+    const parentOnly = await verifySdJwtPresentation(store, combinedPresentation(minted.sdJwt, [nameD, addressD]), { issuer: ISSUER })
+    expect('claims' in parentOnly).toBe(true)
+    if ('claims' in parentOnly) {
+      expect((parentOnly.claims.address as Record<string, unknown>).country).toBe('UK')
+      expect((parentOnly.claims.address as Record<string, unknown>).street).toBeUndefined()
+    }
+
+    // Parent + one member: the street reveals.
+    const memberD = byName.get('street')!
+    const withStreet = await verifySdJwtPresentation(store, combinedPresentation(minted.sdJwt, [nameD, addressD, memberD]), { issuer: ISSUER })
+    expect('claims' in withStreet).toBe(true)
+    if ('claims' in withStreet) {
+      expect((withStreet.claims.address as Record<string, unknown>).street).toBe('12 Analytical Way')
+      expect((withStreet.claims.address as Record<string, unknown>).code).toBeUndefined()
+    }
+
+    // A member WITHOUT its parent: no level carries its hash — refused.
+    const orphan = await verifySdJwtPresentation(store, combinedPresentation(minted.sdJwt, [nameD, memberD]), { issuer: ISSUER })
+    expect('error' in orphan).toBe(true)
+  })
+})
