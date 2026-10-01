@@ -49,6 +49,7 @@ export const OPENAPI_SPEC = {
     { name: 'Tokens', description: 'The personal access tokens a account mints, manages and revokes — the machine credential for the register\'s services.' },
     { name: 'Webhooks', description: 'The account\'s outbound event subscriptions — HMAC-signed deliveries (TODO.modern/08).' },
     { name: 'SCIM', description: 'The SCIM 2.0 provisioning surface (RFC 7644) — the enterprise lifecycle on the existing account model (TODO.modern/05; the SCIM_BEARER_TOKEN arms it).' },
+    { name: 'Credentials', description: 'The SD-JWT membership credentials (TODO.sota/08): the selectively-disclosable OrgMembership credential — issuance, the OIDC4VCI discovery document, the holder key binding.' },
   ],
   components: {
     securitySchemes: {
@@ -402,6 +403,49 @@ export const OPENAPI_SPEC = {
           200: { description: 'The JRD (application/jrd+json), edge-cached 5 minutes.', content: { 'application/jrd+json': { schema: { type: 'object', properties: { subject: { type: 'string' }, links: { type: 'array', items: { type: 'object' } } }, required: ['subject', 'links'] } } } },
           400: { description: 'The resource parameter is absent.' },
           404: { description: 'The resource names another domain.' },
+        },
+      },
+    },
+    '/.well-known/openid-credential-issuer': {
+      get: {
+        tags: ['Credentials'], operationId: 'getCredentialIssuer', summary: 'The credential-issuer metadata (OIDC4VCI discovery)',
+        description:
+          'TODO.sota/08 — the SD-JWT membership credential issuer document: the credential_configurations_supported '
+          + '(the org-membership type, its vc+sd-jwt format, the selectively-disclosable claim set). Public, '
+          + 'edge-cached 5 minutes (it changes only on deploys).',
+        security: [],
+        responses: {
+          200: { description: 'The credential-issuer metadata document.', content: { 'application/json': { schema: { type: 'object', properties: { credential_issuer: { type: 'string', format: 'uri' }, credential_configurations_supported: { type: 'object' } }, required: ['credential_issuer', 'credential_configurations_supported'] } } } },
+        },
+      },
+    },
+    '/api/op/credentials': {
+      get: {
+        tags: ['Credentials'], operationId: 'listCredentialConfigurations', summary: 'The account\u2019s issuable credentials',
+        description: 'The configurations this OP issues + the account\u2019s issuable set (an org-bound account can mint the membership credential).',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: { description: 'The configurations + the issuable ids.', content: { 'application/json': { schema: { type: 'object', properties: { configurations: { type: 'object' }, issuable: { type: 'array', items: { type: 'string' } } }, required: ['configurations', 'issuable'] } } } },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+    '/api/op/credentials/membership': {
+      post: {
+        tags: ['Credentials'], operationId: 'mintOrgMembershipCredential', summary: 'Mint the OrgMembership SD-JWT credential',
+        description:
+          'TODO.sota/08 — the selectively-disclosable membership credential (SD-JWT): the payload carries only the '
+          + '_SD hashes; the combined presentation hands every disclosure, the HOLDER selects what to reveal to a '
+          + 'verifier. The credential\u2019s truth is the same truth the tokens carry (the org context + the registry '
+          + 'row\u2019s ROR id). An optional holder_jwk (a public EC P-256 key) binds the credential to the wallet '
+          + '(cnf.jkt; the holder proves possession with the KB-JWT at presentation).',
+        security: [{ sessionCookie: [] }],
+        requestBody: { required: false, content: { 'application/json': { schema: { type: 'object', properties: { holder_jwk: { type: 'object', description: 'The wallet\u2019s public EC P-256 key ({ kty, crv, x, y })' } } } } } },
+        responses: {
+          200: { description: 'The minted credential (the combined SD-JWT presentation, all disclosures).', content: { 'application/json': { schema: { type: 'object', properties: { format: { type: 'string', example: 'vc+sd-jwt' }, credential: { type: 'string' }, expires_in: { type: 'number' } }, required: ['format', 'credential', 'expires_in'] } } } },
+          400: { description: 'The holder_jwk is malformed.' },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          409: { description: 'The account carries no organization membership — nothing to credential.' },
         },
       },
     },

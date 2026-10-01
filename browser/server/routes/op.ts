@@ -109,6 +109,7 @@ import { createOpClientsAdminRouter } from './op-clients-admin'
 import { createOpProtocolRouter } from './op-protocol'
 import { createOpTokenManagementRouter } from './op-token-management'
 import { authenticateClient, createOpTokenRouter } from './op-token'
+import { createOpCredentialsRouter } from './op-credentials'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -128,6 +129,7 @@ export function createOpRouter(): Hono {
     await next()
   }
   op.use('/.well-known/openid-configuration', profileGate)
+  op.use('/.well-known/openid-credential-issuer', profileGate)
   op.use('/jwks.json', profileGate)
   op.use('/op/*', profileGate)
   op.use('/api/op/*', profileGate)
@@ -215,6 +217,11 @@ export function createOpRouter(): Hono {
   // The avatar serve (TODO.sota/07.4's first extracted module):
   // routes/op-avatar-serve.ts.
   op.route('/', createOpAvatarServeRouter())
+
+  // ── the credentials (TODO.sota/08) ────────────────────────────────
+  // routes/op-credentials.ts: the OrgMembership SD-JWT VC's issuing
+  // surface + the OIDC4VCI discovery document.
+  op.route('/', createOpCredentialsRouter())
 
   // ── the client registry's admin surface ────────────────────────────
   // routes/op-clients-admin.ts (TODO.sota/07.4): the RP registry's
