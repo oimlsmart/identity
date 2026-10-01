@@ -107,7 +107,7 @@ demo_personas: true
   // join gate's negative leg), and the register operator a kind-NULL non-participant.
   await store.createOrgRegistryOrg({ id: 'EX1', name: 'Example Issuing Authority', shortName: 'EIA', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia.example.org' }], participantRef: 'EX1' })
   await store.createOrgRegistryOrg({ id: 'EX9', name: 'Second Example Issuing Authority', shortName: 'EIA-2', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia2.example.org' }], participantRef: 'EX9' })
-  await store.createOrgRegistryOrg({ id: 'mfr-acme', name: 'ACME (the demonstration manufacturer)', shortName: 'ACME', kind: 'manufacturer', country: 'Example Member State', contacts: [{ name: 'ACME Applicant', email: 'applicant@oimlsmart.org' }], participantRef: null })
+  await store.createOrgRegistryOrg({ id: 'mfr-acme', name: 'Steelyard Instruments Ltd.', shortName: 'Steelyard', kind: 'manufacturer', country: 'Lilliput', contacts: [{ name: 'Applicant', email: 'applicant@oimlsmart.org' }], participantRef: null })
   await store.createOrgRegistryOrg({ id: 'mfr-dormant', name: 'Dormant Instruments', shortName: null, kind: 'manufacturer', country: null, contacts: [{ name: null, email: 'office@dormant.example.org' }], participantRef: null })
   await store.setOrgRegistryOrgState('mfr-dormant', 'disabled', 'the test seed')
   await store.createOrgRegistryOrg({ id: 'register-operator', name: 'The Register Operator', shortName: null, kind: null, country: null, contacts: [], participantRef: null })

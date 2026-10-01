@@ -4,7 +4,7 @@
       "account": {
         "avatarUrl": null,
         "email": "ia@oimlsmart.org",
-        "name": "IA Officer"
+        "name": "Issuing Authority"
       },
       "client": {
         "id": "fixture-rp",
@@ -41,7 +41,7 @@
       ],
       "iat": "{ts}",
       "iss": "{issuer}",
-      "name": "IA Officer",
+      "name": "Issuing Authority",
       "nonce": "contract-nonce-7f2a1c",
       "org": "EX1",
       "roles": [
@@ -62,7 +62,7 @@
       "groups": [
         "ia_officer"
       ],
-      "name": "IA Officer",
+      "name": "Issuing Authority",
       "org": "EX1",
       "roles": [
         "ia_officer"

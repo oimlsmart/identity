@@ -397,8 +397,8 @@ describe('the client registry carries the logout block', () => {
     // shape — the org check precedes the logout refusal).
     await store.createOrgRegistryOrg({
       id: 'mfr-acme',
-      name: 'ACME (the demonstration manufacturer)',
-      shortName: 'ACME',
+      name: 'Steelyard Instruments Ltd.',
+      shortName: 'Steelyard',
       kind: 'manufacturer',
       country: 'Example Member State',
       contacts: [],

@@ -55,13 +55,14 @@ members:
     contact: { person: "Ms. Ingrid Halvorsen", email: "oiml@emb.example.org", phone: "+100 555 0110" }
   # The second member state (the legacy-shaped utilizer's designator —
   # the demonstration that a member's engagement may be a designation
-  # alone, never a conflation of the two rows).
-  - id: ms-nl
+  # alone, never a conflation of the two rows). The fictional XG member
+  # (Luggnagg, the Gulliver world — fictional ISO 3166 alpha-2 XG).
+  - id: ms-xg
     kind: member-state
-    name: "Member Body of the Netherlands (demonstration)"
-    short_name: "MB-NL"
-    country: "Netherlands"
-    contact: { person: "Mr. Pieter Jansen", email: "oiml@mb-nl.example.org", phone: "+31 15 269 0101" }
+    name: "Member Body of Luggnagg (demonstration)"
+    short_name: "MB-XG"
+    country: "Luggnagg"
+    contact: { person: "Mr. Pieter Jansen", email: "oiml@mb-xg.example.org", phone: "+906 555 0101" }
   # The corresponding member: the countries/economies not yet members —
   # it participates by DESIGNATING an associate (as-demo).
   - id: cm-demo
@@ -130,13 +131,14 @@ organizations:
     certificate_prefix: XX1
 
 utilizers:
-  - id: ut-nmi-nl
-    name: "Example Metrology Authority (Netherlands)"
-    short_name: "EMA-NL"
-    country: "Netherlands"
+  - id: ut-lmi-xg
+    name: "Luggnagg Metrology Institute"
+    short_name: "LMI"
+    country: "Luggnagg"
     # The designating member state (TODO.identity-features/10).
-    designated_by: ms-nl
-    contact: { person: "Sanne de Vries", email: "oiml-cs@nmi.example.org", phone: "+31 15 269 0100" }
+    designated_by: ms-xg
+    address: { street: "1 Struldbrug Quay", city: "Traldragdubh", country: "Luggnagg", postal_code: "TG-906" }
+    contact: { person: "Sanne de Vries", email: "oiml-cs@lmi.example.org", phone: "+906 555 0100" }
     declaration_id: decl-ut-nl
   # The layered member's designated utilizer (the e2e's chain proof):
   # the member state ms-example DESIGNATES it in its country.
@@ -178,7 +180,7 @@ participantDeclarations:
   - id: decl-ut-nl
     kind: utilizer_declaration
     participant_kind: utilizer
-    participant_id: ut-nmi-nl
+    participant_id: ut-lmi-xg
     status: signed
     scope:
       - { category: load-cells, schemes: [scheme_a, scheme_b] }

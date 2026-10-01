@@ -323,7 +323,7 @@ describe('the aggregate live sessions', () => {
     const rows = (await journal()).filter(e => e.action === 'account.sessions_revoked' && e.entity_id === target.id)
     expect(rows).toHaveLength(1)
     expect(rows[0]!.metadata).toMatchObject({ by: 'administrator', count: 3, email: 'light.dashboard@example.org' })
-    expect(rows[0]!.user_name).toBe('OIML Admin')
+    expect(rows[0]!.user_name).toBe('Admin')
 
     // The unknown account 404s; the gate stands.
     expect((await app.request('/api/op/dashboard/accounts/no-such/sessions/revoke-all', { method: 'POST', headers: { cookie: admin } })).status).toBe(404)

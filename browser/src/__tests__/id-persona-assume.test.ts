@@ -48,27 +48,27 @@ process.env.OP_CLIENT_SEED = JSON.stringify([RP])
 // grantee — any live account address grants the same way).
 const PERSONAS = [
   {
-    email: 'persona-applicant@oimlsmart.org', name: 'ACME Applicant', role: 'user', orgId: 'mfr-acme',
+    email: 'persona-applicant@oimlsmart.org', name: 'Applicant', role: 'user', orgId: 'mfr-acme',
     emailVerified: true, password: 'personas-never-publish-passwords-1',
     clientRoles: { 'oiml-smart-demo': ['applicant'] },
   },
   {
-    email: 'persona-ia@oimlsmart.org', name: 'IA Officer', role: 'user', orgId: 'EX1',
+    email: 'persona-ia@oimlsmart.org', name: 'Issuing Authority', role: 'user', orgId: 'EX1',
     emailVerified: true, password: 'personas-never-publish-passwords-3',
     clientRoles: { 'oiml-smart-demo': ['ia_officer'] },
   },
   {
-    email: 'persona-tl@oimlsmart.org', name: 'TL Operator', role: 'user', orgId: '21',
+    email: 'persona-tl@oimlsmart.org', name: 'Test Laboratory', role: 'user', orgId: '21',
     emailVerified: true, password: 'personas-never-publish-passwords-4',
     clientRoles: { 'oiml-smart-demo': ['tl_operator'] },
   },
   {
-    email: 'persona-utilizer@oimlsmart.org', name: 'Utilizer Officer (NL)', role: 'user', orgId: 'ut-nmi-nl',
+    email: 'persona-utilizer@oimlsmart.org', name: 'Utilizer Officer (XG)', role: 'user', orgId: 'ut-lmi-xg',
     emailVerified: true, password: 'personas-never-publish-passwords-5',
     clientRoles: { 'oiml-smart-demo': ['scheme_participant'] },
   },
   {
-    email: 'persona-cs@oimlsmart.org', name: 'CS Administrator', role: 'user', orgId: 'oiml-cs-demo',
+    email: 'persona-cs@oimlsmart.org', name: 'OIML-CS Administrator', role: 'user', orgId: 'oiml-cs-demo',
     emailVerified: true, password: 'personas-never-publish-passwords-2',
     clientRoles: { 'oiml-smart-demo': ['cs_admin'] },
   },
@@ -79,7 +79,7 @@ const PERSONAS = [
     // mirrors the smart demo mapping EXACTLY (`admin` = full access)
     // while the OP-side account stays `role: 'user'` (no OP
     // administration reach).
-    email: 'persona-admin@oimlsmart.org', name: 'System Administrator', role: 'user',
+    email: 'persona-admin@oimlsmart.org', name: 'Admin', role: 'user',
     emailVerified: true, password: 'personas-never-publish-passwords-6',
     clientRoles: { 'oiml-smart-demo': ['admin'] },
   },
@@ -89,7 +89,7 @@ const PERSONAS = [
     // Utilizer as the utilizer persona; the per-client role key mirrors
     // the smart demo mapping's market_surveillance rule (the register's
     // authority audience resolves from it).
-    email: 'persona-surveillance@oimlsmart.org', name: 'Market Surveillance (NL)', role: 'user', orgId: 'ut-nmi-nl',
+    email: 'persona-surveillance@oimlsmart.org', name: 'Market Surveillance (XG)', role: 'user', orgId: 'ut-lmi-xg',
     emailVerified: true, password: 'personas-never-publish-passwords-7',
     clientRoles: { 'oiml-smart-demo': ['market_surveillance'] },
   },
@@ -239,6 +239,50 @@ describe('the grant gate (the chooser context)', () => {
     expect(body.accounts.find(a => a.email === 'persona-cs@oimlsmart.org')?.hinted).toBe(false)
   })
 
+  it('an assumed persona already in the jar renders ONCE — the assumable row, hinted a single time', async () => {
+    const browser = cookieJar()
+    await loginInto(browser, 'ia@oimlsmart.org')
+    // The assumption joins the persona to the jar (one entry per account).
+    const assume = await app.request('/api/op/choose-account', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: browser.header() },
+      body: JSON.stringify({ email: 'persona-applicant@oimlsmart.org', continue: '/op/account' }),
+    })
+    expect(assume.ok).toBe(true)
+    browser.absorb(assume)
+    // Back to the personal account: the jar now holds BOTH the grantee
+    // and the persona — the rendered list must carry the persona exactly
+    // once (the persona row wins; the jar row drops).
+    await loginInto(browser, 'ia@oimlsmart.org')
+    const res = await app.request('/api/op/choose-account?login_hint=persona-applicant@oimlsmart.org', { headers: { cookie: browser.header() } })
+    const body = await res.json() as { accounts: Array<{ email: string; assumable: boolean; hinted: boolean }> }
+    const rows = body.accounts.filter(a => a.email === 'persona-applicant@oimlsmart.org')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ assumable: true, hinted: true })
+  })
+
+  it('the persona row reads the LIVE account row — a rename and an org move show through (the seed is the fallback)', async () => {
+    const cookie = await login('ia@oimlsmart.org')
+    const persona = (await store.findUserByEmail('persona-applicant@oimlsmart.org'))!
+    const { default: Database } = await import('better-sqlite3')
+    const raw = new Database(process.env.DATABASE_PATH!)
+    raw.prepare('UPDATE users SET name = ?, org_id = ? WHERE id = ?').run('Applicant Renamed', 'EX1', persona.id)
+    raw.close()
+    try {
+      const res = await app.request('/api/op/choose-account', { headers: { cookie } })
+      const body = await res.json() as { accounts: Array<{ email: string; name: string; org: string | null; assumable: boolean }> }
+      const row = body.accounts.find(a => a.email === 'persona-applicant@oimlsmart.org' && a.assumable)
+      // The account row's truth, never the seed declaration's snapshot:
+      // one admin rename fixes every surface the persona appears on.
+      expect(row?.name).toBe('Applicant Renamed')
+      expect(row?.org).toBe('EX1')
+    } finally {
+      const restore = new Database(process.env.DATABASE_PATH!)
+      restore.prepare('UPDATE users SET name = ?, org_id = ? WHERE id = ?').run('Applicant', 'mfr-acme', persona.id)
+      restore.close()
+    }
+  })
+
   it('an account without the grant never sees the personas', async () => {
     const cookie = await login('tl@oimlsmart.org')
     const res = await app.request('/api/op/choose-account', { headers: { cookie } })
@@ -286,6 +330,10 @@ describe('the assumption (the grant-holder becomes the persona)', () => {
     const ctxBody = await ctx.json() as { accounts: Array<{ email: string; assumable: boolean; hinted: boolean }> }
     expect(ctxBody.accounts.find(a => a.email === 'persona-applicant@oimlsmart.org')).toMatchObject({ assumable: true, hinted: true })
 
+    // The journal: the click added ONE event — the actor, the persona,
+    // the client (the suite's earlier legs journal their own
+    // assumptions; measure the delta this click caused).
+    const journalBefore = await store.listOpAssumptions({})
     const pick = await app.request('/api/op/choose-account', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: browser.header() },
@@ -297,10 +345,9 @@ describe('the assumption (the grant-holder becomes the persona)', () => {
     expect(answer.redirect).toBe(continueTarget)
     browser.absorb(pick)
 
-    // The journal: one event — the actor, the persona, the client.
     const journal = await store.listOpAssumptions({})
-    expect(journal).toHaveLength(1)
-    expect(journal[0]).toMatchObject({
+    expect(journal.length).toBe(journalBefore.length + 1)
+    expect(journal[journal.length - 1]).toMatchObject({
       actorEmail: 'ia@oimlsmart.org',
       personaEmail: 'persona-applicant@oimlsmart.org',
       clientId: 'oiml-smart-demo',
@@ -534,6 +581,103 @@ describe('the persona→persona chaining (the streamlined switch)', () => {
       body: JSON.stringify({ email: 'persona-ia@oimlsmart.org', continue: '/op/account' }),
     })
     expect(pick.status).toBe(403)
+  })
+})
+
+describe('the authorize persona= streamline (the chooser never paints)', () => {
+  it('a granted persona= mints the assumption mid-flow and answers the code directly', async () => {
+    const { generatePkce } = await import('../../server/oidc')
+    const browser = cookieJar()
+    await loginInto(browser, 'ia@oimlsmart.org')
+    const pkce = await generatePkce()
+    // The smart switcher's exact ask: the persona named, the chooser
+    // prompt riding as the old-OP fallback.
+    const ask = await app.request(
+      `${ISSUER}/op/authorize?${authorizeQuery({ scope: 'openid email', prompt: 'select_account', login_hint: 'persona-tl@oimlsmart.org', persona: 'persona-tl@oimlsmart.org', code_challenge: pkce.challenge })}`,
+      { headers: { cookie: browser.header() } },
+    )
+    expect(ask.status).toBe(302)
+    const back = new URL(ask.headers.get('location')!)
+    // NO chooser, NO consent page: the RP's own redirect, the code inside.
+    expect(back.origin + back.pathname).toBe(RP.redirect_uris[0]!)
+    const code = back.searchParams.get('code')
+    expect(code).toBeTruthy()
+    // The session flipped to the persona on the SAME answer.
+    const flipped = await store.getSessionUser(setCookieValue(ask, 'oiml-session')!)
+    const tl = (await store.findUserByEmail('persona-tl@oimlsmart.org'))!
+    expect(flipped?.id).toBe(tl.id)
+    expect(flipped?.amr).toEqual(['assumed'])
+    // The journal names the grant-holder of record.
+    const journal = (await store.listOpAssumptions({})).filter(j => j.personaEmail === 'persona-tl@oimlsmart.org')
+    expect(journal.map(j => j.actorEmail)).toContain('ia@oimlsmart.org')
+    // The code exchanges as the persona's own — subject, address, roles.
+    const token = await app.request(`${ISSUER}/op/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code', code: code!, redirect_uri: RP.redirect_uris[0]!,
+        client_id: RP.client_id, client_secret: RP.secret, code_verifier: pkce.verifier,
+      }),
+    })
+    expect(token.status).toBe(200)
+    const grants = await token.json() as { id_token: string }
+    const claims = JSON.parse(atob(grants.id_token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>
+    expect(claims.email).toBe('persona-tl@oimlsmart.org')
+    expect(claims.sub).toBe(tl.id)
+    expect(claims.roles).toEqual(['tl_operator'])
+    expect(claims.amr).toEqual(['assumed'])
+  })
+
+  it('an undeclared persona= refuses redirect-shaped (access_denied), the chooser never entered', async () => {
+    const { generatePkce } = await import('../../server/oidc')
+    const browser = cookieJar()
+    await loginInto(browser, 'ia@oimlsmart.org')
+    const pkce = await generatePkce()
+    const ask = await app.request(
+      `${ISSUER}/op/authorize?${authorizeQuery({ scope: 'openid email', persona: 'stranger@elsewhere.invalid', state: 'st-undeclared', code_challenge: pkce.challenge })}`,
+      { headers: { cookie: browser.header() } },
+    )
+    expect(ask.status).toBe(302)
+    const back = new URL(ask.headers.get('location')!)
+    expect(back.origin + back.pathname).toBe(RP.redirect_uris[0]!)
+    expect(back.searchParams.get('error')).toBe('access_denied')
+    expect(back.searchParams.get('error_description')).toContain('not declared')
+    expect(back.searchParams.get('state')).toBe('st-undeclared')
+  })
+
+  it('an ungranted presenter is refused the same way (the verdict re-judges the principal)', async () => {
+    const { generatePkce } = await import('../../server/oidc')
+    const browser = cookieJar()
+    await loginInto(browser, 'tl@oimlsmart.org')
+    const pkce = await generatePkce()
+    const ask = await app.request(
+      `${ISSUER}/op/authorize?${authorizeQuery({ scope: 'openid email', persona: 'persona-applicant@oimlsmart.org', state: 'st-ungranted', code_challenge: pkce.challenge })}`,
+      { headers: { cookie: browser.header() } },
+    )
+    expect(ask.status).toBe(302)
+    const back = new URL(ask.headers.get('location')!)
+    expect(back.searchParams.get('error')).toBe('access_denied')
+    expect(back.searchParams.get('error_description')).toContain('not granted')
+    expect(back.searchParams.get('state')).toBe('st-ungranted')
+  })
+
+  it('a signed-out persona= request falls through to the login page — the persona rides the re-entry, the prefill stays empty', async () => {
+    const { generatePkce } = await import('../../server/oidc')
+    const pkce = await generatePkce()
+    const ask = await app.request(
+      `${ISSUER}/op/authorize?${authorizeQuery({ scope: 'openid email', persona: 'persona-applicant@oimlsmart.org', login_hint: 'persona-applicant@oimlsmart.org', code_challenge: pkce.challenge })}`,
+    )
+    expect(ask.status).toBe(302)
+    const location = ask.headers.get('location')!
+    expect(location.startsWith('/?redirect=')).toBe(true)
+    const page = new URL(location, ISSUER)
+    // The persona's address never prefills the presenter's credential
+    // form (the presenter signs in as THEMSELVES)…
+    expect(page.searchParams.get('login_hint')).toBeNull()
+    // …and the re-entry carries the persona verbatim — the assumption
+    // applies when the flow re-enters authorize after the sign-in.
+    const target = page.searchParams.get('redirect')!
+    expect(target).toContain('persona=persona-applicant%40oimlsmart.org')
   })
 })
 

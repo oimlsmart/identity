@@ -71,7 +71,7 @@ let resetProfile: () => void
 // ── the seeded participants register (the entity store) + the ────────
 // organization registry (TODO.identity-features/05 — the identity
 // service's OWN org rows, the membership graph's source of truth):
-// EX1: an ACTIVE IA; 21: an ACTIVE TL; ut-nmi-nl: an ACTIVE Utilizer;
+// EX1: an ACTIVE IA; 21: an ACTIVE TL; ut-lmi-xg: an ACTIVE Utilizer;
 // XX1: the mid-pipeline IA — on the participants register but NEVER on
 // the organization registry (the unregistered posture the gates refuse).
 const ORGS = [
@@ -80,12 +80,12 @@ const ORGS = [
 ]
 const TL_ORG = { id: '21', kind: 'test-laboratory', name: 'Example Test Laboratory', short_name: 'ETL', contact: { email: 'lab@etl.example.org' } }
 const UTILIZERS = [
-  { id: 'ut-nmi-nl', name: 'Example Metrology Authority (Netherlands)', short_name: 'EMA-NL', country: 'Netherlands', contact: { email: 'oiml-cs@nmi.example.org' } },
+  { id: 'ut-lmi-xg', name: 'Luggnagg Metrology Institute', short_name: 'LMI', country: 'Luggnagg', contact: { email: 'oiml-cs@lmi.example.org' } },
 ]
 const DECLARATIONS = [
   { id: 'decl-ia-ex1', participant_id: 'EX1', status: 'signed' },
   { id: 'decl-ia-xx1', participant_id: 'XX1', status: 'draft' },
-  { id: 'decl-ut-nl', participant_id: 'ut-nmi-nl', status: 'signed' },
+  { id: 'decl-ut-nl', participant_id: 'ut-lmi-xg', status: 'signed' },
 ]
 
 async function demoLogin(email: string): Promise<string> {
@@ -220,7 +220,7 @@ demo_personas: true
 
   // The Utilizer's org admin (the delegation's actor) — the legacy write
   // path, its membership arrives through the mirror.
-  await store.createLocalUser({ email: 'admin@nmi.example.org', name: 'NL Admin', role: 'org_admin', roles: ['org_admin'], orgId: 'ut-nmi-nl' })
+  await store.createLocalUser({ email: 'admin@lmi.example.org', name: 'NL Admin', role: 'org_admin', roles: ['org_admin'], orgId: 'ut-lmi-xg' })
 
   // The bootstrap seeds (the demo cast + the fixture client) land on the
   // first OP request; drive one.
@@ -251,13 +251,13 @@ describe('the migration backfill (0011)', () => {
     const files = readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort()
     for (const f of files.filter(f => !f.startsWith('0011') && !f.startsWith('0017'))) scratch.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf-8'))
     scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-ia', 'ia@x.example.org', 'IA', 'password', 'ia_officer', '[\"ia_officer\"]', 'EX1')").run()
-    scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-legacy', 'legacy@x.example.org', 'Legacy', 'password', 'viewer', NULL, 'ut-nmi-nl')").run()
+    scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-legacy', 'legacy@x.example.org', 'Legacy', 'password', 'viewer', NULL, 'ut-lmi-xg')").run()
     scratch.prepare("INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-free', 'free@x.example.org', 'Free', 'password', 'admin', '[\"admin\"]', NULL)").run()
     scratch.exec(readFileSync(join(MIGRATIONS_DIR, '0011_org_memberships.sql'), 'utf-8'))
     const rows = scratch.prepare('SELECT user_id, org_id, roles, state, is_primary FROM org_memberships ORDER BY user_id').all() as Array<Record<string, unknown>>
     expect(rows).toEqual([
       { user_id: 'u-ia', org_id: 'EX1', roles: '["ia_officer"]', state: 'active', is_primary: 1 },
-      { user_id: 'u-legacy', org_id: 'ut-nmi-nl', roles: '["viewer"]', state: 'active', is_primary: 1 },
+      { user_id: 'u-legacy', org_id: 'ut-lmi-xg', roles: '["viewer"]', state: 'active', is_primary: 1 },
     ])
     // 0017 (TODO.identity-features/09): the cone column lands expand-only
     // — every backfilled membership's cone is NULL (org-wide, silently).
@@ -281,9 +281,9 @@ describe('the migration backfill (0011)', () => {
     // pre-migration posture — the mirror never saw it).
     const { getDb } = await import('../../server/store/sqlite')
     getDb().prepare(
-      "INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-rowless', 'rowless@x.example.org', 'Rowless', 'password', 'viewer', '[\"viewer\"]', 'ut-nmi-nl')",
+      "INSERT INTO users (id, email, name, provider, role, roles, org_id) VALUES ('u-rowless', 'rowless@x.example.org', 'Rowless', 'password', 'viewer', '[\"viewer\"]', 'ut-lmi-xg')",
     ).run()
-    expect(await store.getOrgMembership('u-rowless', 'ut-nmi-nl')).toBeNull()
+    expect(await store.getOrgMembership('u-rowless', 'ut-lmi-xg')).toBeNull()
 
     // The sessions read identically (the fallback answers the columns).
     const mirroredToken = await store.createSession(ia!.id)
@@ -291,14 +291,14 @@ describe('the migration backfill (0011)', () => {
     const mirroredPayload = await store.getSessionUser(mirroredToken)
     const rowlessPayload = await store.getSessionUser(rowlessToken)
     expect(mirroredPayload).toMatchObject({ orgId: 'EX1', roles: ['ia_officer'] })
-    expect(rowlessPayload).toMatchObject({ orgId: 'ut-nmi-nl', roles: ['viewer'] })
+    expect(rowlessPayload).toMatchObject({ orgId: 'ut-lmi-xg', roles: ['viewer'] })
   })
 })
 
 // ── the lifecycle + the context switch + the claims proof ────────────
 
 describe('the membership lifecycle + the active-org context', () => {
-  const nlAdmin = () => demoLogin('admin@nmi.example.org')
+  const nlAdmin = () => demoLogin('admin@lmi.example.org')
   const officer = () => demoLogin('ia@oimlsmart.org')
 
   it('the org admin invites an EXISTING account (invited); the holder accepts (active); the switch changes the claims; the disable ends the context', async () => {
@@ -312,7 +312,7 @@ describe('the membership lifecycle + the active-org context', () => {
       body: JSON.stringify({ email: 'ia@oimlsmart.org', roles: ['viewer'] }),
     })
     const invited = await json(invite, 201)
-    expect(invited).toMatchObject({ userId: officerUser.id, orgId: 'ut-nmi-nl', roles: ['viewer'], state: 'invited' })
+    expect(invited).toMatchObject({ userId: officerUser.id, orgId: 'ut-lmi-xg', roles: ['viewer'], state: 'invited' })
 
     // The holder's console carries the invitation.
     const accountRes = await app.request(`${ISSUER}/api/op/account`, { headers: { cookie: officerCookie } })
@@ -320,16 +320,16 @@ describe('the membership lifecycle + the active-org context', () => {
     const orgBlock = accountCtx.organizations
     expect(orgBlock.activeOrg).toBeNull()
     expect(orgBlock.effectiveOrg).toBe('EX1')
-    expect(orgBlock.memberships.map((m: any) => [m.orgId, m.state])).toEqual([['EX1', 'active'], ['ut-nmi-nl', 'invited']])
+    expect(orgBlock.memberships.map((m: any) => [m.orgId, m.state])).toEqual([['EX1', 'active'], ['ut-lmi-xg', 'invited']])
 
     // An invited context refuses the switch (the honest 409).
     const early = await app.request(`${ISSUER}/api/op/account/active-org`, {
-      method: 'POST', headers: jsonHeaders(officerCookie), body: JSON.stringify({ org_id: 'ut-nmi-nl' }),
+      method: 'POST', headers: jsonHeaders(officerCookie), body: JSON.stringify({ org_id: 'ut-lmi-xg' }),
     })
     expect(early.status).toBe(409)
 
     // The accept.
-    const accept = await app.request(`${ISSUER}/api/op/account/memberships/ut-nmi-nl/accept`, {
+    const accept = await app.request(`${ISSUER}/api/op/account/memberships/ut-lmi-xg/accept`, {
       method: 'POST', headers: { cookie: officerCookie },
     })
     await json(accept, 200)
@@ -343,22 +343,22 @@ describe('the membership lifecycle + the active-org context', () => {
 
     // …the switch…
     const switched = await app.request(`${ISSUER}/api/op/account/active-org`, {
-      method: 'POST', headers: jsonHeaders(officerCookie), body: JSON.stringify({ org_id: 'ut-nmi-nl' }),
+      method: 'POST', headers: jsonHeaders(officerCookie), body: JSON.stringify({ org_id: 'ut-lmi-xg' }),
     })
     await json(switched, 200)
     // …and the session payload follows at once…
     const sessionRes = await app.request(`${ISSUER}/api/auth/session`, { headers: { cookie: officerCookie } })
     const sessionPayload = await json(sessionRes, 200)
-    expect(sessionPayload.orgId).toBe('ut-nmi-nl')
+    expect(sessionPayload.orgId).toBe('ut-lmi-xg')
     expect(sessionPayload.roles).toEqual(['viewer'])
 
     // …and the token carries the ACTIVE org's set (the consent preview agrees).
     const after = await roundTrip(officerCookie)
-    expect(after.consent.orgClaim).toBe('ut-nmi-nl')
+    expect(after.consent.orgClaim).toBe('ut-lmi-xg')
     expect(after.consent.roleClaims).toEqual(['viewer'])
-    expect(after.idToken.org).toBe('ut-nmi-nl')
+    expect(after.idToken.org).toBe('ut-lmi-xg')
     expect(after.idToken.roles).toEqual(['viewer'])
-    expect(after.userinfo.org).toBe('ut-nmi-nl')
+    expect(after.userinfo.org).toBe('ut-lmi-xg')
     expect(after.userinfo.roles).toEqual(['viewer'])
     // The other membership never leaks.
     expect(JSON.stringify(after.idToken)).not.toContain('EX1')
@@ -366,7 +366,7 @@ describe('the membership lifecycle + the active-org context', () => {
 
     // The org's admin disables the membership → the session falls back to
     // the primary context, and the next token carries it (the re-judgment).
-    const disable = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-nmi-nl/state`, {
+    const disable = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-lmi-xg/state`, {
       method: 'POST', headers: jsonHeaders(adminCookie), body: JSON.stringify({ state: 'disabled' }),
     })
     await json(disable, 200)
@@ -377,7 +377,7 @@ describe('the membership lifecycle + the active-org context', () => {
     expect(afterDisable.idToken.roles).toEqual(['ia_officer'])
 
     // Re-activation is deliberate; the account may switch again.
-    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-nmi-nl/state`, {
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-lmi-xg/state`, {
       method: 'POST', headers: jsonHeaders(adminCookie), body: JSON.stringify({ state: 'active' }),
     }), 200)
     const again = await roundTrip(officerCookie)
@@ -411,9 +411,9 @@ describe('the membership lifecycle + the active-org context', () => {
 
 describe('the org-admin delegation is bounded', () => {
   it('the org grant manages ONLY its own org, never the org_admin role, never an org_admin membership', async () => {
-    const adminCookie = await demoLogin('admin@nmi.example.org')
+    const adminCookie = await demoLogin('admin@lmi.example.org')
     const officerUser = (await store.findUserByEmail('ia@oimlsmart.org'))!
-    const nlAdminUser = (await store.findUserByEmail('admin@nmi.example.org'))!
+    const nlAdminUser = (await store.findUserByEmail('admin@lmi.example.org'))!
 
     // Cross-org reads/writes: not found, never wider.
     const crossList = await app.request(`${ISSUER}/api/op/org-memberships?org_id=EX1`, { headers: { cookie: adminCookie } })
@@ -424,7 +424,7 @@ describe('the org-admin delegation is bounded', () => {
     expect(crossEdit.status).toBe(404)
 
     // The org_admin role is never assignable by the org grant.
-    const grantOrgAdmin = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-nmi-nl/roles`, {
+    const grantOrgAdmin = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-lmi-xg/roles`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ roles: ['viewer', 'org_admin'] }),
     })
     expect(grantOrgAdmin.status).toBe(403)
@@ -432,7 +432,7 @@ describe('the org-admin delegation is bounded', () => {
 
     // …and a membership HOLDING org_admin is the scheme operator's row
     // (the org grant can neither edit nor disable it — even its own).
-    const ownRow = await app.request(`${ISSUER}/api/op/org-memberships/${nlAdminUser.id}/ut-nmi-nl/roles`, {
+    const ownRow = await app.request(`${ISSUER}/api/op/org-memberships/${nlAdminUser.id}/ut-lmi-xg/roles`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ roles: ['org_admin', 'viewer'] }),
     })
     expect(ownRow.status).toBe(403)
@@ -441,27 +441,27 @@ describe('the org-admin delegation is bounded', () => {
     // disable attempt on IT is refused (the self-guard never fires — the
     // target is another account's row).
     const wideCookie = await demoLogin('admin@oimlsmart.org')
-    await store.setOrgMembershipRoles(officerUser.id, 'ut-nmi-nl', ['scheme_participant', 'org_admin'])
-    const toggle = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-nmi-nl/state`, {
+    await store.setOrgMembershipRoles(officerUser.id, 'ut-lmi-xg', ['scheme_participant', 'org_admin'])
+    const toggle = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-lmi-xg/state`, {
       method: 'POST', headers: jsonHeaders(adminCookie), body: JSON.stringify({ state: 'disabled' }),
     })
     expect(toggle.status).toBe(403)
     expect((await toggle.json()).error).toContain('scheme operator')
-    await store.setOrgMembershipRoles(officerUser.id, 'ut-nmi-nl', ['scheme_participant'])
+    await store.setOrgMembershipRoles(officerUser.id, 'ut-lmi-xg', ['scheme_participant'])
 
     // The kind bounds the set: an IA-only role never lands on the Utilizer.
-    const outside = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-nmi-nl/roles`, {
+    const outside = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-lmi-xg/roles`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ roles: ['ia_officer'] }),
     })
     expect(outside.status).toBe(403)
     expect((await outside.json()).error).toContain('utilizer')
 
     // The honest in-bounds write stands.
-    const ok = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-nmi-nl/roles`, {
+    const ok = await app.request(`${ISSUER}/api/op/org-memberships/${officerUser.id}/ut-lmi-xg/roles`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ roles: ['scheme_participant'] }),
     })
     await json(ok, 200)
-    expect((await store.getOrgMembership(officerUser.id, 'ut-nmi-nl'))?.roles).toEqual(['scheme_participant'])
+    expect((await store.getOrgMembership(officerUser.id, 'ut-lmi-xg'))?.roles).toEqual(['scheme_participant'])
   })
 
   it('the identity admin manages everything (the wide grant)', async () => {
@@ -497,16 +497,16 @@ describe('the org-admin delegation is bounded', () => {
 describe('the join-request flow for an existing account', () => {
   it('the holder asks from the account console; the org admin approves; the membership lands directly (no second account)', async () => {
     const officerCookie = await demoLogin('tl@oimlsmart.org') // the TL operator, primary org 21
-    const adminCookie = await demoLogin('admin@nmi.example.org')
+    const adminCookie = await demoLogin('admin@lmi.example.org')
     const tlUser = (await store.findUserByEmail('tl@oimlsmart.org'))!
 
     // The ask (the session names the account — never self-asserted fields).
     const ask = await app.request(`${ISSUER}/api/op/account/membership-requests`, {
       method: 'POST', headers: jsonHeaders(officerCookie),
-      body: JSON.stringify({ org_id: 'ut-nmi-nl', requested_role: 'viewer', note: 'I run the R 60 tests for the joint review.' }),
+      body: JSON.stringify({ org_id: 'ut-lmi-xg', requested_role: 'viewer', note: 'I run the R 60 tests for the joint review.' }),
     })
     const request = await json(ask, 201)
-    expect(request).toMatchObject({ email: 'tl@oimlsmart.org', orgId: 'ut-nmi-nl', requestedRole: 'viewer', status: 'pending' })
+    expect(request).toMatchObject({ email: 'tl@oimlsmart.org', orgId: 'ut-lmi-xg', requestedRole: 'viewer', status: 'pending' })
 
     // A second pending ask from the same account is the honest 409.
     const dupe = await app.request(`${ISSUER}/api/op/account/membership-requests`, {
@@ -519,7 +519,7 @@ describe('the join-request flow for an existing account', () => {
     // directly (the account EXISTS — no invite, no setup link).
     const queue = await json(await app.request(`${ISSUER}/api/op/join-requests`, { headers: { cookie: adminCookie } }), 200)
     const row = queue.requests.find((r: any) => r.id === request.id)
-    expect(row?.orgName).toBe('Example Metrology Authority (Netherlands)')
+    expect(row?.orgName).toBe('Luggnagg Metrology Institute')
 
     const approve = await app.request(`${ISSUER}/api/op/join-requests/${request.id}/approve`, {
       method: 'POST', headers: jsonHeaders(adminCookie), body: JSON.stringify({}),
@@ -527,10 +527,10 @@ describe('the join-request flow for an existing account', () => {
     const decided = await json(approve, 200)
     expect(decided.status).toBe('approved')
     expect(decided.invite).toBeUndefined()
-    expect(decided.membership).toMatchObject({ userId: tlUser.id, orgId: 'ut-nmi-nl', roles: ['viewer'], state: 'active' })
+    expect(decided.membership).toMatchObject({ userId: tlUser.id, orgId: 'ut-lmi-xg', roles: ['viewer'], state: 'active' })
     // The membership is ACTIVE (both consents were on record) — no
     // invitation waits.
-    expect((await store.getOrgMembership(tlUser.id, 'ut-nmi-nl'))?.state).toBe('active')
+    expect((await store.getOrgMembership(tlUser.id, 'ut-lmi-xg'))?.state).toBe('active')
     // And the account list never grew a second row for the email.
     expect((await store.listUsers()).filter(u => u.email === 'tl@oimlsmart.org').length).toBe(1)
 
@@ -540,7 +540,7 @@ describe('the join-request flow for an existing account', () => {
     // exists, the request still names the org — the queue is the decider).
     const publicAsk = await app.request(`${ISSUER}/api/op/join-requests`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'TL Operator', email: 'tl@oimlsmart.org', org_id: 'ut-nmi-nl', requested_role: 'scheme_participant' }),
+      body: JSON.stringify({ name: 'TL Operator', email: 'tl@oimlsmart.org', org_id: 'ut-lmi-xg', requested_role: 'scheme_participant' }),
     })
     const request2 = await json(publicAsk, 201)
     const again = await app.request(`${ISSUER}/api/op/join-requests/${request2.id}/approve`, {
@@ -556,17 +556,17 @@ describe('the join-request flow for an existing account', () => {
 describe('the registry surfaces', () => {
   it('the per-org view carries the members + the per-org roles + the org_admins + the queue', async () => {
     const wideCookie = await demoLogin('admin@oimlsmart.org')
-    const res = await app.request(`${ISSUER}/api/op/registry/orgs/ut-nmi-nl`, { headers: { cookie: wideCookie } })
+    const res = await app.request(`${ISSUER}/api/op/registry/orgs/ut-lmi-xg`, { headers: { cookie: wideCookie } })
     const view = await json(res, 200)
-    expect(view.org).toMatchObject({ id: 'ut-nmi-nl', kind: 'utilizer', registered: true })
-    const nlAdmin = (await store.findUserByEmail('admin@nmi.example.org'))!
+    expect(view.org).toMatchObject({ id: 'ut-lmi-xg', kind: 'utilizer', registered: true })
+    const nlAdmin = (await store.findUserByEmail('admin@lmi.example.org'))!
     const officer = (await store.findUserByEmail('ia@oimlsmart.org'))!
     expect(view.members.some((m: any) => m.userId === nlAdmin.id && m.roles.includes('org_admin'))).toBe(true)
-    expect(view.members.some((m: any) => m.userId === officer.id && m.orgId === 'ut-nmi-nl')).toBe(true)
+    expect(view.members.some((m: any) => m.userId === officer.id && m.orgId === 'ut-lmi-xg')).toBe(true)
     expect(view.requests.some((r: any) => r.email === 'tl@oimlsmart.org')).toBe(true)
     // The gate: the org admin's grant never reads the registry's per-org view.
-    const orgAdminCookie = await demoLogin('admin@nmi.example.org')
-    const refused = await app.request(`${ISSUER}/api/op/registry/orgs/ut-nmi-nl`, { headers: { cookie: orgAdminCookie } })
+    const orgAdminCookie = await demoLogin('admin@lmi.example.org')
+    const refused = await app.request(`${ISSUER}/api/op/registry/orgs/ut-lmi-xg`, { headers: { cookie: orgAdminCookie } })
     expect(refused.status).toBe(403)
     // An unknown org is the honest 404.
     const missing = await app.request(`${ISSUER}/api/op/registry/orgs/no-such-org`, { headers: { cookie: wideCookie } })
@@ -580,7 +580,7 @@ describe('the registry surfaces', () => {
     const detail = await json(res, 200)
     const byOrg = new Map((detail.memberships as any[]).map(m => [m.orgId, m]))
     expect(byOrg.get('EX1')).toMatchObject({ state: 'active', isPrimary: true, roles: ['ia_officer'] })
-    expect(byOrg.get('ut-nmi-nl')).toMatchObject({ state: 'active', isPrimary: false, orgName: 'Example Metrology Authority (Netherlands)' })
+    expect(byOrg.get('ut-lmi-xg')).toMatchObject({ state: 'active', isPrimary: false, orgName: 'Luggnagg Metrology Institute' })
   })
 })
 
@@ -588,18 +588,18 @@ describe('the registry surfaces', () => {
 
 describe('the org-member cone', () => {
   it('the org admin sets the cone; the claims carry it for the cone-gated client ONLY; the audit slice records every act', async () => {
-    const adminCookie = await demoLogin('admin@nmi.example.org')
+    const adminCookie = await demoLogin('admin@lmi.example.org')
     const officerCookie = await demoLogin('ia@oimlsmart.org')
     const officer = (await store.findUserByEmail('ia@oimlsmart.org'))!
-    const nlAdmin = (await store.findUserByEmail('admin@nmi.example.org'))!
+    const nlAdmin = (await store.findUserByEmail('admin@lmi.example.org'))!
 
     // The member's posture starts org-wide (NULL — the silent default).
-    const listed = await json(await app.request(`${ISSUER}/api/op/org-memberships?org_id=ut-nmi-nl`, { headers: { cookie: adminCookie } }), 200)
-    const row = (listed.members as any[]).find(m => m.userId === officer.id && m.orgId === 'ut-nmi-nl')
+    const listed = await json(await app.request(`${ISSUER}/api/op/org-memberships?org_id=ut-lmi-xg`, { headers: { cookie: adminCookie } }), 200)
+    const row = (listed.members as any[]).find(m => m.userId === officer.id && m.orgId === 'ut-lmi-xg')
     expect(row.cone).toEqual({ scope: 'org-wide', readOnly: false })
 
     // The cone act (the org grant, its own org)…
-    const set = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+    const set = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/cone`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'assigned' }),
     })
     const narrowed = await json(set, 200)
@@ -609,10 +609,10 @@ describe('the org-member cone', () => {
     // …the switch into the org, then THE CLAIMS: the cone-gated client
     // learns the posture; the plain client never does.
     await json(await app.request(`${ISSUER}/api/op/account/active-org`, {
-      method: 'POST', headers: jsonHeaders(officerCookie), body: JSON.stringify({ org_id: 'ut-nmi-nl' }),
+      method: 'POST', headers: jsonHeaders(officerCookie), body: JSON.stringify({ org_id: 'ut-lmi-xg' }),
     }), 200)
     const gated = await roundTrip(officerCookie, CLIENT_CONE)
-    expect(gated.idToken.org).toBe('ut-nmi-nl')
+    expect(gated.idToken.org).toBe('ut-lmi-xg')
     expect(gated.idToken.cone).toBe('assigned')
     expect(gated.userinfo.cone).toBe('assigned')
     const plain = await roundTrip(officerCookie, CLIENT)
@@ -620,29 +620,29 @@ describe('the org-member cone', () => {
     expect(plain.userinfo.cone).toBeUndefined()
 
     // The orthogonal read-only modifier composes.
-    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/cone`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'assigned+read-only' }),
     }), 200)
     const composed = await roundTrip(officerCookie, CLIENT_CONE)
     expect(composed.idToken.cone).toBe('assigned+read-only')
 
     // Back to org-wide — the column clears (the claim says the default).
-    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/cone`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'org-wide' }),
     }), 200)
-    expect((await store.getOrgMembership(officer.id, 'ut-nmi-nl'))?.cone).toEqual({ scope: 'org-wide', readOnly: false })
+    expect((await store.getOrgMembership(officer.id, 'ut-lmi-xg'))?.cone).toEqual({ scope: 'org-wide', readOnly: false })
     const restored = await roundTrip(officerCookie, CLIENT_CONE)
     expect(restored.idToken.cone).toBe('org-wide')
 
     // The audit slice records EVERY act, with the postures named.
-    const activityRes = await app.request(`${ISSUER}/api/op/org-memberships/activity?org_id=ut-nmi-nl`, { headers: { cookie: adminCookie } })
+    const activityRes = await app.request(`${ISSUER}/api/op/org-memberships/activity?org_id=ut-lmi-xg`, { headers: { cookie: adminCookie } })
     const activity = await json(activityRes, 200)
     const coneActs = (activity.activity as any[]).filter(e => e.action === 'membership.cone' && e.entity_id === officer.id)
     expect(coneActs.length).toBe(3)
     expect(coneActs[0]).toMatchObject({ user_id: nlAdmin.id, metadata: { cone: 'org-wide', previous: 'assigned+read-only' } })
 
     // The bounds: a member WITHOUT the grant never sets a cone…
-    const noGrant = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+    const noGrant = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/cone`, {
       method: 'PUT', headers: jsonHeaders(officerCookie), body: JSON.stringify({ cone: 'assigned' }),
     })
     expect(noGrant.status).toBe(403)
@@ -652,28 +652,28 @@ describe('the org-member cone', () => {
     })
     expect(crossOrg.status).toBe(404)
     // …never touches an org_admin membership…
-    const adminRow = await app.request(`${ISSUER}/api/op/org-memberships/${nlAdmin.id}/ut-nmi-nl/cone`, {
+    const adminRow = await app.request(`${ISSUER}/api/op/org-memberships/${nlAdmin.id}/ut-lmi-xg/cone`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'read-only' }),
     })
     expect(adminRow.status).toBe(403)
     // …and junk is the honest 400 (the store-side fail-closed parse is
     // the backstop; the route refuses to WRITE it).
-    const junk = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+    const junk = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/cone`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'everything' }),
     })
     expect(junk.status).toBe(400)
 
     // The audit slice's gate: the grantless member gets the honest 403;
     // the org admin's slice never widens to another org.
-    const refused = await app.request(`${ISSUER}/api/op/org-memberships/activity?org_id=ut-nmi-nl`, { headers: { cookie: officerCookie } })
+    const refused = await app.request(`${ISSUER}/api/op/org-memberships/activity?org_id=ut-lmi-xg`, { headers: { cookie: officerCookie } })
     expect(refused.status).toBe(403)
     const widened = await app.request(`${ISSUER}/api/op/org-memberships/activity?org_id=EX1`, { headers: { cookie: adminCookie } })
     expect(widened.status).toBe(403)
 
     // The identity admin's per-org view carries the cone honestly.
     const wideCookie = await demoLogin('admin@oimlsmart.org')
-    const view = await json(await app.request(`${ISSUER}/api/op/registry/orgs/ut-nmi-nl`, { headers: { cookie: wideCookie } }), 200)
-    const viewRow = (view.members as any[]).find(m => m.userId === officer.id && m.orgId === 'ut-nmi-nl')
+    const view = await json(await app.request(`${ISSUER}/api/op/registry/orgs/ut-lmi-xg`, { headers: { cookie: wideCookie } }), 200)
+    const viewRow = (view.members as any[]).find(m => m.userId === officer.id && m.orgId === 'ut-lmi-xg')
     expect(viewRow.cone).toEqual({ scope: 'org-wide', readOnly: false })
 
     // Leave the fixture as found (the primary context).
@@ -687,31 +687,31 @@ describe('the org-member cone', () => {
 
 describe('the effective-permission explainer (the org-scoped endpoint)', () => {
   it('the org grant reads the member’s COMPUTED effective set — the roles, the permissions, the cone’s effect, the dry-run', async () => {
-    const adminCookie = await demoLogin('admin@nmi.example.org')
+    const adminCookie = await demoLogin('admin@lmi.example.org')
     const officer = (await store.findUserByEmail('ia@oimlsmart.org'))!
-    const nlAdmin = (await store.findUserByEmail('admin@nmi.example.org'))!
+    const nlAdmin = (await store.findUserByEmail('admin@lmi.example.org'))!
 
     // The gates: unauthenticated is the honest 401; a member WITHOUT the
     // grant never explains (their own row included); the org grant never
     // reaches another org's row (not found, never wider).
-    const anon = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/explain`)
+    const anon = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/explain`)
     expect(anon.status).toBe(401)
     const officerCookie = await demoLogin('ia@oimlsmart.org')
-    const noGrant = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/explain`, { headers: { cookie: officerCookie } })
+    const noGrant = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/explain`, { headers: { cookie: officerCookie } })
     expect(noGrant.status).toBe(403)
     const crossOrg = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/EX1/explain`, { headers: { cookie: adminCookie } })
     expect(crossOrg.status).toBe(404)
-    const noRow = await app.request(`${ISSUER}/api/op/org-memberships/no-such-user/ut-nmi-nl/explain`, { headers: { cookie: adminCookie } })
+    const noRow = await app.request(`${ISSUER}/api/op/org-memberships/no-such-user/ut-lmi-xg/explain`, { headers: { cookie: adminCookie } })
     expect(noRow.status).toBe(404)
 
     // The member (the officer acting as the Utilizer, scheme_participant,
     // org-wide): the computed set, every piece composed.
-    const res = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/explain`, { headers: { cookie: adminCookie } })
+    const res = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/explain`, { headers: { cookie: adminCookie } })
     const x = await json(res, 200)
     expect(x.member).toMatchObject({ userId: officer.id, email: 'ia@oimlsmart.org', state: 'active', accountActive: true })
-    expect(x.org).toMatchObject({ id: 'ut-nmi-nl', kind: 'utilizer' })
+    expect(x.org).toMatchObject({ id: 'ut-lmi-xg', kind: 'utilizer' })
     expect(x.acting).toBe(true)
-    expect(x.context).toMatchObject({ orgId: 'ut-nmi-nl', cone: { scope: 'org-wide', readOnly: false } })
+    expect(x.context).toMatchObject({ orgId: 'ut-lmi-xg', cone: { scope: 'org-wide', readOnly: false } })
     expect(x.roles).toEqual([
       { id: 'scheme_participant', source: 'membership', known: true, permissions: [{ id: 'anr.declare', label: expect.any(String) }] },
     ])
@@ -727,10 +727,10 @@ describe('the effective-permission explainer (the org-scoped endpoint)', () => {
 
     // The cone moves (the wave-A act) — the explainer reports exactly the
     // narrowed reality the gates enforce.
-    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/cone`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'assigned+read-only' }),
     }), 200)
-    const narrowedRes = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/explain`, { headers: { cookie: adminCookie } })
+    const narrowedRes = await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/explain`, { headers: { cookie: adminCookie } })
     const narrowed = await json(narrowedRes, 200)
     expect(narrowed.cone).toEqual({
       posture: 'assigned+read-only',
@@ -742,14 +742,14 @@ describe('the effective-permission explainer (the org-scoped endpoint)', () => {
     expect(narrowedClasses.get('testRuns').ownOrg).toMatchObject({ visible: false, reason: 'assigned-miss' })
     expect(narrowedClasses.get('testRuns').named).toMatchObject({ visible: true, reason: 'assigned-hit' })
     expect(narrowedClasses.get('applications').ownOrg).toMatchObject({ visible: false, reason: 'assigned-no-key' })
-    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/cone`, {
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/cone`, {
       method: 'PUT', headers: jsonHeaders(adminCookie), body: JSON.stringify({ cone: 'org-wide' }),
     }), 200)
 
     // The org_admin ROW explains too (the read is no wider than the
     // people list that already shows it; the refusal on the mutation
     // routes guards acts, never this read).
-    const adminRow = await json(await app.request(`${ISSUER}/api/op/org-memberships/${nlAdmin.id}/ut-nmi-nl/explain`, { headers: { cookie: adminCookie } }), 200)
+    const adminRow = await json(await app.request(`${ISSUER}/api/op/org-memberships/${nlAdmin.id}/ut-lmi-xg/explain`, { headers: { cookie: adminCookie } }), 200)
     expect(adminRow.kindBound.orgAdminRow).toBe(true)
     expect(adminRow.permissions.map((p: any) => p.id)).toEqual(['org.users.manage'])
     expect(adminRow.visibility.orgBound).toBe(false) // org_admin is not an org-scoped role — the read gate never narrows it
@@ -764,15 +764,15 @@ describe('the effective-permission explainer (the org-scoped endpoint)', () => {
 
     // The state honesty: a disabled membership acts as nothing — the
     // explainer answers the empty set, never another context's posture.
-    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/state`, {
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/state`, {
       method: 'POST', headers: jsonHeaders(adminCookie), body: JSON.stringify({ state: 'disabled' }),
     }), 200)
-    const inactive = await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/explain`, { headers: { cookie: adminCookie } }), 200)
+    const inactive = await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/explain`, { headers: { cookie: adminCookie } }), 200)
     expect(inactive.acting).toBe(false)
     expect(inactive.stateNote).toBe('membership-disabled')
     expect(inactive.roles).toEqual([])
     expect(inactive.permissions).toEqual([])
-    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-nmi-nl/state`, {
+    await json(await app.request(`${ISSUER}/api/op/org-memberships/${officer.id}/ut-lmi-xg/state`, {
       method: 'POST', headers: jsonHeaders(adminCookie), body: JSON.stringify({ state: 'active' }),
     }), 200)
   })

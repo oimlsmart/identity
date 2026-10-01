@@ -101,8 +101,8 @@ const CLIENT_SECRET = 'id05-rp-secret'
 // admin; PRIYA the reviewer his queue approves.
 const VERA = { name: 'Ms. Vera Fullarc', email: 'vera.fullarc@example.org', password: 'vera fullarc passphrase' }
 const GH_VERA = { login: 'octocat-vera', id: 305, name: 'Octo Vera', email: 'vera-gh@example.org' }
-const UTILIZER_ID = 'ut-nmi-nl'
-const UTILIZER_NAME = 'Example Metrology Authority (Netherlands)'
+const UTILIZER_ID = 'ut-lmi-xg'
+const UTILIZER_NAME = 'Luggnagg Metrology Institute'
 const OREN = { name: 'Mr. Oren Degaard', email: 'oren.degaard@nmi.example.org', password: 'oren degaard admin passphrase' }
 const PRIYA = { name: 'Ms. Priya Woud', email: 'priya.woud@nmi.example.org', password: 'priya woud reviewer passphrase' }
 
