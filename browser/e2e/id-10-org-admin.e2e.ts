@@ -58,9 +58,9 @@ const ID_WEB = 9093
 // in leg 4). Both complete their one-time setup link in the browser.
 const UTILIZER_ID = 'ut-lmi-xg'
 const UTILIZER_NAME = 'Luggnagg Metrology Institute'
-const ORG_ADMIN_EMAIL = 'sanne.devries@nmi.example.org'
+const ORG_ADMIN_EMAIL = 'sanne.devries@lmi.example.org'
 const ORG_ADMIN_PASSWORD = 'sanne de vries admin passphrase'
-const REVIEWER_EMAIL = 'willem.jansen@nmi.example.org'
+const REVIEWER_EMAIL = 'willem.jansen@lmi.example.org'
 const REVIEWER_PASSWORD = 'willem jansen reviewer passphrase'
 const FAKE_ORG_NAME = 'Metrology Institute of Nowhere'
 const FAKE_ORG_EMAIL = 'contact@nowhere.example.org'
@@ -325,10 +325,10 @@ describe('TODO.identity/10 — delegated organization administration (the identi
     await page.waitForSelector('[data-testid="join-org-option-EX1"]', { timeout: SETTLE, polling: 500 })
     expect(await page.$('[data-testid="join-org-option-XX1"]')).toBeNull()
     // The search narrows the list.
-    await page.type('[data-testid="join-org-search"]', 'Netherlands')
+    await page.type('[data-testid="join-org-search"]', 'Luggnagg')
     await page.waitForFunction(() => {
       const list = document.querySelector('[data-testid="join-org-options"]')
-      return list && list.textContent?.includes('Netherlands') && !list.textContent?.includes('Issuing Authority')
+      return list && list.textContent?.includes('Luggnagg') && !list.textContent?.includes('Issuing Authority')
     }, { timeout: SETTLE, polling: 500 })
   })
 
@@ -378,7 +378,7 @@ describe('TODO.identity/10 — delegated organization administration (the identi
     const options = await page.$$eval('[data-testid="join-role"] option', els => els.map(e => (e as HTMLOptionElement).value))
     expect(options.filter(Boolean)).toEqual(['viewer', 'scheme_participant'])
     await page.select('[data-testid="join-role"]', 'viewer')
-    await page.type('[data-testid="join-note"]', 'I review R 60 certificates for the NL office.')
+    await page.type('[data-testid="join-note"]', 'I review R 60 certificates for the Luggnagg office.')
     await page.evaluate(() => (document.querySelector('[data-testid="join-submit"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="join-success"]', { timeout: SETTLE, polling: 500 })
     const success = await page.$eval('[data-testid="join-success"]', el => el.textContent ?? '')

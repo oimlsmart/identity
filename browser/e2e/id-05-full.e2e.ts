@@ -103,8 +103,8 @@ const VERA = { name: 'Ms. Vera Fullarc', email: 'vera.fullarc@example.org', pass
 const GH_VERA = { login: 'octocat-vera', id: 305, name: 'Octo Vera', email: 'vera-gh@example.org' }
 const UTILIZER_ID = 'ut-lmi-xg'
 const UTILIZER_NAME = 'Luggnagg Metrology Institute'
-const OREN = { name: 'Mr. Oren Degaard', email: 'oren.degaard@nmi.example.org', password: 'oren degaard admin passphrase' }
-const PRIYA = { name: 'Ms. Priya Woud', email: 'priya.woud@nmi.example.org', password: 'priya woud reviewer passphrase' }
+const OREN = { name: 'Mr. Oren Degaard', email: 'oren.degaard@lmi.example.org', password: 'oren degaard admin passphrase' }
+const PRIYA = { name: 'Ms. Priya Woud', email: 'priya.woud@lmi.example.org', password: 'priya woud reviewer passphrase' }
 
 interface Stack {
   api: ChildProcess
