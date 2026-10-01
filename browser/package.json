@@ -17,7 +17,8 @@
     "test:watch": "vitest --config vitest.config.ts",
     "test:e2e": "tsx scripts/e2e-run.ts",
     "sdk:generate": "tsx scripts/generate-sdk.ts",
-    "sdk:check": "npm run -s sdk:generate && git diff --exit-code -- sdk"
+    "sdk:check": "npm run -s sdk:generate && git diff --exit-code -- sdk",
+    "test:sdk-python": "python3 -m unittest discover sdk/python -p \"test_*.py\""
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",

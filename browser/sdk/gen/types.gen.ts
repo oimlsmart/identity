@@ -340,6 +340,229 @@ export type GetWebfingerResponses = {
 
 export type GetWebfingerResponse = GetWebfingerResponses[keyof GetWebfingerResponses];
 
+export type GetEntityConfigurationData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/.well-known/openid-federation';
+};
+
+export type GetEntityConfigurationErrors = {
+    /**
+     * The signing key is unavailable on this isolate — retry.
+     */
+    503: unknown;
+};
+
+export type GetEntityConfigurationResponses = {
+    /**
+     * The signed entity configuration.
+     */
+    200: string;
+};
+
+export type GetEntityConfigurationResponse = GetEntityConfigurationResponses[keyof GetEntityConfigurationResponses];
+
+export type GetCredentialIssuerData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/.well-known/openid-credential-issuer';
+};
+
+export type GetCredentialIssuerResponses = {
+    /**
+     * The credential-issuer metadata document.
+     */
+    200: {
+        credential_issuer: string;
+        credential_configurations_supported: {
+            [key: string]: unknown;
+        };
+    };
+};
+
+export type GetCredentialIssuerResponse = GetCredentialIssuerResponses[keyof GetCredentialIssuerResponses];
+
+export type RequestCredentialData = {
+    body: {
+        format: string;
+        vct: string;
+        proof: {
+            proof_type: string;
+            jwt: string;
+        };
+    };
+    path?: never;
+    query?: never;
+    url: '/op/credential';
+};
+
+export type RequestCredentialErrors = {
+    /**
+     * The format/vct is wrong, or the proof does not verify.
+     */
+    400: Error;
+    /**
+     * No or unknown access token.
+     */
+    401: Error;
+    /**
+     * The token was not granted the org-membership scope.
+     */
+    403: unknown;
+};
+
+export type RequestCredentialError = RequestCredentialErrors[keyof RequestCredentialErrors];
+
+export type RequestCredentialResponses = {
+    /**
+     * The holder-bound credential.
+     */
+    200: {
+        format: string;
+        credential: string;
+    };
+};
+
+export type RequestCredentialResponse = RequestCredentialResponses[keyof RequestCredentialResponses];
+
+export type GetCredentialStatusListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/op/credentials/statuslist';
+};
+
+export type GetCredentialStatusListResponses = {
+    /**
+     * The status list JWT (application/statuslist+jwt).
+     */
+    200: string;
+};
+
+export type GetCredentialStatusListResponse = GetCredentialStatusListResponses[keyof GetCredentialStatusListResponses];
+
+export type RevokeCredentialStatusData = {
+    body?: never;
+    path: {
+        /**
+         * The credential’s status-list index.
+         */
+        idx: number;
+    };
+    query?: never;
+    url: '/api/op/credentials/statuslist/{idx}/revoke';
+};
+
+export type RevokeCredentialStatusErrors = {
+    /**
+     * The index is not a positive integer.
+     */
+    400: unknown;
+    /**
+     * No session.
+     */
+    401: Error;
+    /**
+     * The administrator role is required.
+     */
+    403: unknown;
+    /**
+     * The index was never issued, or is already revoked.
+     */
+    409: unknown;
+};
+
+export type RevokeCredentialStatusError = RevokeCredentialStatusErrors[keyof RevokeCredentialStatusErrors];
+
+export type RevokeCredentialStatusResponses = {
+    /**
+     * The bit flipped.
+     */
+    200: {
+        ok: boolean;
+        idx: number;
+        revoked: boolean;
+    };
+};
+
+export type RevokeCredentialStatusResponse = RevokeCredentialStatusResponses[keyof RevokeCredentialStatusResponses];
+
+export type ListCredentialConfigurationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/credentials';
+};
+
+export type ListCredentialConfigurationsErrors = {
+    /**
+     * No session.
+     */
+    401: Error;
+};
+
+export type ListCredentialConfigurationsError = ListCredentialConfigurationsErrors[keyof ListCredentialConfigurationsErrors];
+
+export type ListCredentialConfigurationsResponses = {
+    /**
+     * The configurations + the issuable ids.
+     */
+    200: {
+        configurations: {
+            [key: string]: unknown;
+        };
+        issuable: Array<string>;
+    };
+};
+
+export type ListCredentialConfigurationsResponse = ListCredentialConfigurationsResponses[keyof ListCredentialConfigurationsResponses];
+
+export type MintOrgMembershipCredentialData = {
+    body?: {
+        /**
+         * The wallet’s public EC P-256 key ({ kty, crv, x, y })
+         */
+        holder_jwk?: {
+            [key: string]: unknown;
+        };
+    };
+    path?: never;
+    query?: never;
+    url: '/api/op/credentials/membership';
+};
+
+export type MintOrgMembershipCredentialErrors = {
+    /**
+     * The holder_jwk is malformed.
+     */
+    400: unknown;
+    /**
+     * No session.
+     */
+    401: Error;
+    /**
+     * The account carries no organization membership — nothing to credential.
+     */
+    409: unknown;
+};
+
+export type MintOrgMembershipCredentialError = MintOrgMembershipCredentialErrors[keyof MintOrgMembershipCredentialErrors];
+
+export type MintOrgMembershipCredentialResponses = {
+    /**
+     * The minted credential (the combined SD-JWT presentation, all disclosures).
+     */
+    200: {
+        format: string;
+        credential: string;
+        expires_in: number;
+    };
+};
+
+export type MintOrgMembershipCredentialResponse = MintOrgMembershipCredentialResponses[keyof MintOrgMembershipCredentialResponses];
+
 export type GetSecurityTxtData = {
     body?: never;
     path?: never;
