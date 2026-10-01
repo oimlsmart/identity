@@ -365,7 +365,7 @@ describe('TODO.identity-sso (the client-registry governance console) — the per
       expect(before.client.status).toBe('active')
       expect(before.grants.length, 'the one consent grant').toBe(1)
       expect(before.grants[0]!.account?.email).toBe(ACCOUNT)
-      expect(before.grants[0]!.account?.name).toBe('TL Operator')
+      expect(before.grants[0]!.account?.name).toBe('Test Laboratory')
       expect(before.grants[0]!.revokedAt, 'live').toBeNull()
       expect(before.tokens.refreshLive, 'the offline grant stands').toBe(1)
       expect(before.tokens.accessLive, 'the exchange’s mint').toBe(1)

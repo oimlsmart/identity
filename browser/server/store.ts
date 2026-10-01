@@ -1655,7 +1655,8 @@ export function orgIdOf(store: string, data: unknown): string | null {
 // Role model per TODO.new-paradigm/01: applicant | ia_officer | tl_operator |
 // cs_admin, plus the pre-existing admin/viewer accounts. org_id links the user
 // to their organization record in the browser-side entity graph:
-//   applicant  → manufacturer id (sample data: mfr-acme, the ACME fictional manufacturer)
+//   applicant  → manufacturer id (sample data: mfr-acme, Steelyard Instruments
+//                Ltd. — the Lilliput fictional manufacturer)
 //   ia_officer → issuing-authority oiml_code (EX1; XX1 = the pre-signature
 //                demo IA of the task-44 participant registry — its Declaration
 //                is unsigned, so the PD-08 cl. 5 issuance gate blocks it)
@@ -1663,24 +1664,27 @@ export function orgIdOf(store: string, data: unknown): string | null {
 //   mc_member / rc_member / executive_secretary → the OIML-CS organ roles of
 //                TODO.roadmap/44 (approval pipeline + participant registry)
 //   cs_admin/admin/viewer → null (no org)
+// The display names mirror the demo cast's SSOT (the smart platform's
+// program manifest — the Gulliver world), so the seeded account row and the
+// login page's persona card read the same.
 export const DEMO_ACCOUNTS = [
-  { email: 'admin@oimlsmart.org', name: 'OIML Admin', role: 'admin', orgId: null as string | null },
-  // TODO.register/02 — the ACME applicant also holds its org's org_admin
+  { email: 'admin@oimlsmart.org', name: 'Admin', role: 'admin', orgId: null as string | null },
+  // TODO.register/02 — the applicant also holds its org's org_admin
   // (the OP-side manufacturer-org role, simulated on the demo cast until
   // the identity wave lands it): the register's legacy-row claim act is
   // the org administrator's. `roles` is the optional full role set (the
   // users.roles column; absent = the primary role only).
-  { email: 'applicant@oimlsmart.org', name: 'ACME Applicant', role: 'applicant', orgId: 'mfr-acme' as string | null, roles: ['applicant', 'org_admin'] },
-  { email: 'ia@oimlsmart.org', name: 'IA Officer', role: 'ia_officer', orgId: 'EX1' as string | null },
-  { email: 'ia2@oimlsmart.org', name: 'IA Officer (XX1)', role: 'ia_officer', orgId: 'XX1' as string | null },
-  { email: 'tl@oimlsmart.org', name: 'TL Operator', role: 'tl_operator', orgId: '21' as string | null },
+  { email: 'applicant@oimlsmart.org', name: 'Applicant', role: 'applicant', orgId: 'mfr-acme' as string | null, roles: ['applicant', 'org_admin'] },
+  { email: 'ia@oimlsmart.org', name: 'Issuing Authority', role: 'ia_officer', orgId: 'EX1' as string | null },
+  { email: 'ia2@oimlsmart.org', name: 'Issuing Authority (XX1)', role: 'ia_officer', orgId: 'XX1' as string | null },
+  { email: 'tl@oimlsmart.org', name: 'Test Laboratory', role: 'tl_operator', orgId: '21' as string | null },
   // The test operators hold their OWN accounts (the demonstration cast,
   // docs/demo-personas.md): every run, evidence sign-off and report
   // attributes to a person, never to a shared laboratory login.
   { email: 'petra.horvat@etl.example.org', name: 'Ms. Petra Horvat', role: 'tl_operator', orgId: '21' as string | null },
   { email: 'martin.berger@etl.example.org', name: 'Mr. Martin Berger', role: 'tl_operator', orgId: '21' as string | null },
   { email: 'biml@oimlsmart.org', name: 'BIML Officer', role: 'biml_officer', orgId: null as string | null },
-  { email: 'cs@oimlsmart.org', name: 'CS Administrator', role: 'cs_admin', orgId: null as string | null },
+  { email: 'cs@oimlsmart.org', name: 'OIML-CS Administrator', role: 'cs_admin', orgId: null as string | null },
   { email: 'mc@oimlsmart.org', name: 'MC Member', role: 'mc_member', orgId: null as string | null },
   { email: 'rc@oimlsmart.org', name: 'RC Member', role: 'rc_member', orgId: null as string | null },
   { email: 'secretariat@oimlsmart.org', name: 'Executive Secretary', role: 'executive_secretary', orgId: null as string | null },
@@ -1688,11 +1692,16 @@ export const DEMO_ACCOUNTS = [
   // declares Additional National Requirements for their country on the ANR
   // registry console; the declaration records the participant it acts for
   // (the CS registry's approval is the moderation gate).
-  // TODO.adoption/10 — the ORG BINDING (ut-nmi-nl, the seeded NL Utilizer)
-  // is the account's link into the participants register: the register's
-  // participant depth resolves from it (the role alone never upgrades a
-  // viewer — the org-registry's bounds keep the link assignable).
-  { email: 'utilizer@oimlsmart.org', name: 'Utilizer Officer (NL)', role: 'scheme_participant', orgId: 'ut-nmi-nl' as string | null },
+  // TODO.adoption/10 — the ORG BINDING (ut-lmi-xg, the seeded Luggnagg
+  // Utilizer — the fictional XG member state's institute) is the account's
+  // link into the participants register: the register's participant depth
+  // resolves from it (the role alone never upgrades a viewer — the
+  // org-registry's bounds keep the link assignable).
+  { email: 'utilizer@oimlsmart.org', name: 'Utilizer Officer (XG)', role: 'scheme_participant', orgId: 'ut-lmi-xg' as string | null },
+  // TODO.adoption/05 — the market-surveillance authority's officer, bound
+  // to the same registered Utilizer (the member-state authority works from
+  // the member body's registry home). Read-only by construction.
+  { email: 'surveillance@oimlsmart.org', name: 'Market Surveillance (XG)', role: 'market_surveillance', orgId: 'ut-lmi-xg' as string | null },
   { email: 'viewer@oimlsmart.org', name: 'Viewer', role: 'viewer', orgId: null as string | null },
   { email: 'developer@ribose.com', name: 'Ribose Developer', role: 'admin', orgId: null as string | null },
 ]

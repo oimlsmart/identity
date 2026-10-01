@@ -446,7 +446,7 @@ describe('the upstream OIDC flow against the stub IdP', () => {
     const cookie = res.headers.get('set-cookie')
     expect(cookie, 'the session cookie').toContain('oiml-session=')
     const session = await app.request(`${ISSUER}/api/auth/session`, { headers: { cookie: cookie!.split(';')[0]! } })
-    expect(await session.json()).toMatchObject({ email: 'ia@oimlsmart.org', name: 'IA Officer' })
+    expect(await session.json()).toMatchObject({ email: 'ia@oimlsmart.org', name: 'Issuing Authority' })
   })
 
   it('REFUSES an unlinked identity whose verified email matches an account (no email-only match, ever)', async () => {

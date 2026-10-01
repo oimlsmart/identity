@@ -238,22 +238,22 @@ demo_personas: true
 
   // The participants register (the org binding's source of truth —
   // 10's seeded-register posture): one REGISTERED Utilizer.
-  await store.putEntity('utilizers', 'ut-nmi-nl', null, JSON.stringify({
-    id: 'ut-nmi-nl', name: 'Example Metrology Authority (Netherlands)', short_name: 'EMA-NL', country: 'Netherlands', contact: { email: 'oiml-cs@nmi.example.org' },
+  await store.putEntity('utilizers', 'ut-lmi-xg', null, JSON.stringify({
+    id: 'ut-lmi-xg', name: 'Luggnagg Metrology Institute', short_name: 'LMI', country: 'Luggnagg', contact: { email: 'oiml-cs@lmi.example.org' },
   }))
-  await store.putEntity('participantDeclarations', 'decl-ut-nl', null, JSON.stringify({ id: 'decl-ut-nl', participant_id: 'ut-nmi-nl', status: 'signed' }))
+  await store.putEntity('participantDeclarations', 'decl-ut-nl', null, JSON.stringify({ id: 'decl-ut-nl', participant_id: 'ut-lmi-xg', status: 'signed' }))
 
   // TODO.identity-features/05: the org binding's source of truth is the
   // identity service's OWN organization registry — the same Utilizer as
   // an ACTIVE registry org (the participant link is the annotation).
   await store.createOrgRegistryOrg({
-    id: 'ut-nmi-nl',
-    name: 'Example Metrology Authority (Netherlands)',
-    shortName: 'EMA-NL',
+    id: 'ut-lmi-xg',
+    name: 'Luggnagg Metrology Institute',
+    shortName: 'LMI',
     kind: 'utilizer',
     country: 'Netherlands',
-    contacts: [{ name: null, email: 'oiml-cs@nmi.example.org' }],
-    participantRef: 'ut-nmi-nl',
+    contacts: [{ name: null, email: 'oiml-cs@lmi.example.org' }],
+    participantRef: 'ut-lmi-xg',
   })
 
   // The bootstrap seeds land on the first requests.
@@ -393,11 +393,11 @@ describe('the registry acts', () => {
       name: 'Ms. Willa Wharton',
       role: 'viewer',
       roles: ['viewer'],
-      org_id: 'ut-nmi-nl',
+      org_id: 'ut-lmi-xg',
       client_roles: [{ client_id: 'hub-instance', roles: ['ia_officer'] }],
     })
     expect(res.account.email).toBe('willa.wharton@example.org')
-    expect(res.account.orgId).toBe('ut-nmi-nl')
+    expect(res.account.orgId).toBe('ut-lmi-xg')
     expect(res.setupUrl).toContain('/op/setup?token=')
     willa = { id: res.account.id, email: res.account.email, setupUrl: res.setupUrl }
 
@@ -407,7 +407,7 @@ describe('the registry acts', () => {
     expect(audit.map(e => e.action)).toContain('account.invite')
     expect(audit.find(e => e.action === 'account.invite')?.metadata).toMatchObject({
       email: 'willa.wharton@example.org',
-      org_id: 'ut-nmi-nl',
+      org_id: 'ut-lmi-xg',
       client_roles: [{ client_id: 'hub-instance', roles: ['ia_officer'] }],
     })
   })
@@ -717,11 +717,11 @@ describe('the org scope never reaches the registry (10’s reuse, honestly bound
     const admin = await demoLogin('admin@oimlsmart.org')
     // The Utilizer's org admin (10's delegated administrator).
     await invite(admin, {
-      email: 'sanne.scope@nmi.example.org', name: 'Ms. Sanne Scope', role: 'org_admin', roles: ['org_admin'], org_id: 'ut-nmi-nl',
+      email: 'sanne.scope@lmi.example.org', name: 'Ms. Sanne Scope', role: 'org_admin', roles: ['org_admin'], org_id: 'ut-lmi-xg',
     })
-    const orgAdmin = await passwordLogin('sanne.scope@nmi.example.org', 'sanne scope passphrase')
+    const orgAdmin = await passwordLogin('sanne.scope@lmi.example.org', 'sanne scope passphrase')
     // The account has no password yet — enroll it first.
-    const fresh = await app.request(`${ISSUER}/api/op/accounts/${(await store.findUserByEmail('sanne.scope@nmi.example.org'))!.id}/enrollment`, {
+    const fresh = await app.request(`${ISSUER}/api/op/accounts/${(await store.findUserByEmail('sanne.scope@lmi.example.org'))!.id}/enrollment`, {
       method: 'POST', headers: { cookie: admin },
     })
     const orgCookie = await enroll((await json(fresh, 201)).setupUrl, 'sanne scope passphrase')
@@ -746,7 +746,7 @@ describe('the org scope never reaches the registry (10’s reuse, honestly bound
     const slice = await app.request(`${ISSUER}/api/users`, { headers: { cookie: orgCookie } })
     const rows = await json(slice, 200) as Array<{ orgId: string | null }>
     expect(rows.length).toBeGreaterThan(0)
-    expect(rows.every(r => r.orgId === 'ut-nmi-nl')).toBe(true)
+    expect(rows.every(r => r.orgId === 'ut-lmi-xg')).toBe(true)
   })
 })
 

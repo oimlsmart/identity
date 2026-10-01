@@ -158,7 +158,7 @@ async function bootIdentityStack(): Promise<Stack> {
 
     // Provision the profile's seed (the demo cast + the registry — the
     // org registry carries the layered member: ms-example with its IA +
-    // its designated utilizer, ms-nl, cm-demo with its associate).
+    // its designated utilizer, ms-xg, cm-demo with its associate).
     const reset = await fetch(`${apiBase}/api/dev-reset`, { method: 'POST' })
     if (!reset.ok) throw new Error(`dev-reset on ${apiBase} answered ${reset.status}\n${logs.join('').slice(-2000)}`)
 
@@ -400,7 +400,7 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     const created = await fetch(`${stack.apiBase}/api/op/registry/orgs`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie: admin },
-      body: JSON.stringify({ id: 'ut-new', name: 'Newly Designated Utilizer', kind: 'utilizer', country: 'Netherlands', designated_by: 'ms-nl', cs_status: 'signed-active' }),
+      body: JSON.stringify({ id: 'ut-new', name: 'Newly Designated Utilizer', kind: 'utilizer', country: 'Luggnagg', designated_by: 'ms-xg', cs_status: 'signed-active' }),
     })
     expect(created.status).toBe(201)
 
@@ -409,11 +409,11 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     // layered member lands.
     await page.goto(`${stack.base}/op/admin/registry/orgs/ut-new`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-reg-org-designated-by"]', { timeout: SETTLE, polling: 500 })
-    expect(await page.$eval('[data-testid="op-reg-org-designated-by"]', el => el.textContent ?? '')).toContain('Member Body of the Netherlands')
+    expect(await page.$eval('[data-testid="op-reg-org-designated-by"]', el => el.textContent ?? '')).toContain('Member Body of Luggnagg')
     await page.evaluate(() => (document.querySelector('[data-testid="op-reg-org-edit"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="op-reg-org-edit-designated-by"]', { timeout: SETTLE, polling: 500 })
     const options = await page.$$eval('[data-testid="op-reg-org-edit-designated-by"] option', els => els.map(el => ({ value: (el as HTMLOptionElement).value, text: el.textContent ?? '' })))
-    expect(options.map(o => o.value)).toEqual(expect.arrayContaining(['', 'ms-example', 'ms-nl']))
+    expect(options.map(o => o.value)).toEqual(expect.arrayContaining(['', 'ms-example', 'ms-xg']))
     expect(options.map(o => o.value)).not.toContain('cm-demo') // a utilizer's designator is never a corresponding member
     expect(options.map(o => o.value)).not.toContain('EX1')
     await page.select('[data-testid="op-reg-org-edit-designated-by"]', 'ms-example')

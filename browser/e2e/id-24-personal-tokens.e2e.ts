@@ -512,7 +512,7 @@ describe('the developer tokens (the identity profile)', () => {
     await page.waitForSelector(`[data-testid="op-reg-org-token-${mintedId}"]`, { timeout: SETTLE, polling: 500 })
     const rowText = await page.$eval(`[data-testid="op-reg-org-token-${mintedId}"]`, el => el.textContent ?? '')
     expect(rowText).toContain('the lab CLI (e2e)')
-    expect(rowText).toContain('IA Officer')
+    expect(rowText).toContain('Issuing Authority')
     expect(rowText).toContain('revoked')
     expect(rowText).not.toContain(mintedPat)
     expect(rowText).toContain('ospt_') // the display prefix, never the secret

@@ -69,15 +69,17 @@ interface SnapshotContact { person?: string; email?: string }
  *  applicant binding): the MANUFACTURER kind (TODO.register/01) with
  *  the DECLARED standing — a first-class registry kind, never a PD-03
  *  participant. The contact declares the email-domain hint (the demo
- *  cast's ACME Applicant). The snapshot (the participants register)
- *  never carries it: manufacturers are not scheme participants. */
+ *  cast's Applicant). The snapshot (the participants register) never
+ *  carries it: manufacturers are not scheme participants. The details
+ *  mirror the smart platform's program manifest (the Gulliver world's
+ *  Lilliput manufacturer). */
 const DEMO_MANUFACTURER_ORGS = [
   {
     id: 'mfr-acme',
-    name: 'ACME (the demonstration manufacturer)',
-    shortName: 'ACME',
-    country: 'Example Member State',
-    contacts: [{ name: 'ACME Applicant', email: 'applicant@oimlsmart.org' }],
+    name: 'Steelyard Instruments Ltd.',
+    shortName: 'Steelyard',
+    country: 'Lilliput',
+    contacts: [{ name: 'Applicant', email: 'applicant@oimlsmart.org' }],
   },
 ] as const
 
