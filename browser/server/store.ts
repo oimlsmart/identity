@@ -1906,6 +1906,14 @@ export interface ServerStore {
    *  IGNORE on the jti; answers FALSE when it already stands (the
    *  replay). The TTL sweep reaps the rows (dpop_jtis). */
   rememberDpopJti(jti: string, expiresAtIso: string): Promise<boolean>
+  /** TODO.sota/08 (RFC 9157): allocate the next status-list index
+   *  (the table's rowid — unique by construction). */
+  allocateCredentialStatusIdx(): Promise<number>
+  /** Flip the credential's status bit (stamps the revocation instant).
+   *  FALSE when the index was never issued — or already revoked. */
+  setCredentialStatusRevoked(idx: number, atIso: string): Promise<boolean>
+  /** The list build's read: the high-water index + the revoked set. */
+  readCredentialStatus(): Promise<{ maxIdx: number; revoked: number[] }>
   /** The RFC 7009 access-token revocation: delete the row, client-bound —
    *  a client revokes only its OWN tokens (a token minted for another
    *  client answers false). An absent row answers false too (the endpoint

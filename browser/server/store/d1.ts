@@ -1497,6 +1497,33 @@ export class D1ServerStore implements ServerStore {
     return (res.meta.changes ?? 0) > 0
   }
 
+  /** TODO.sota/08 (RFC 9157): the status-list rows (0040). */
+  async allocateCredentialStatusIdx(): Promise<number> {
+    await this.ensureCredentialStatusSupport()
+    const res = await this.stmt('INSERT INTO credential_status (revoked_at) VALUES (NULL)').run()
+    return Number(res.meta.last_row_id ?? 0)
+  }
+
+  async setCredentialStatusRevoked(idx: number, atIso: string): Promise<boolean> {
+    await this.ensureCredentialStatusSupport()
+    const res = await this.stmt('UPDATE credential_status SET revoked_at = ? WHERE idx = ? AND revoked_at IS NULL', atIso, idx).run()
+    return (res.meta.changes ?? 0) > 0
+  }
+
+  async readCredentialStatus(): Promise<{ maxIdx: number; revoked: number[] }> {
+    await this.ensureCredentialStatusSupport()
+    const max = await this.stmt('SELECT COALESCE(MAX(idx), 0) AS m FROM credential_status').first<{ m: number }>()
+    const rows = await this.stmt('SELECT idx FROM credential_status WHERE revoked_at IS NOT NULL').all<{ idx: number }>()
+    return { maxIdx: max?.m ?? 0, revoked: rows.results.map(r => r.idx) }
+  }
+
+  private credentialStatusReady: boolean = false
+  private async ensureCredentialStatusSupport(): Promise<void> {
+    if (this.credentialStatusReady) return
+    await this.db.prepare('CREATE TABLE IF NOT EXISTS credential_status (idx INTEGER PRIMARY KEY AUTOINCREMENT, revoked_at TEXT)').run()
+    this.credentialStatusReady = true
+  }
+
   /** The DPoP surfaces (0039): a dev D1 predating them grows here. */
   private dpopReady: boolean = false
   private async ensureDpopSupport(): Promise<void> {

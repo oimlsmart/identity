@@ -419,10 +419,39 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/op/credentials/statuslist': {
+      get: {
+        tags: ['Credentials'], operationId: 'getCredentialStatusList', summary: 'The credential status list (RFC 9157)',
+        description:
+          'TODO.sota/08 slice 2 — the revocation story: a statuslist+jwt (ES256 by the OP key, typ in the header) '
+          + 'whose payload carries status_list.lst — the base64url(gzip(bitstring)), one bit per issued index, a '
+          + 'revoked credential’s bit set. A verifier fetches, verifies, decompresses, and reads the bit at the '
+          + 'credential’s status.status_list.idx.',
+        security: [],
+        responses: {
+          200: { description: 'The status list JWT (application/statuslist+jwt).', content: { 'application/statuslist+jwt': { schema: { type: 'string' } } } },
+        },
+      },
+    },
+    '/api/op/credentials/statuslist/{idx}/revoke': {
+      post: {
+        tags: ['Credentials'], operationId: 'revokeCredentialStatus', summary: 'Revoke a credential (flip its status bit)',
+        description: 'The administrator’s revocation act: the bit at the index flips in the served list (within its 60-second cache). Idempotent-refusing — an already revoked index answers 409.',
+        security: [{ sessionCookie: [] }],
+        parameters: [{ name: 'idx', in: 'path', required: true, schema: { type: 'integer', minimum: 1 }, description: 'The credential’s status-list index.' }],
+        responses: {
+          200: { description: 'The bit flipped.', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, idx: { type: 'number' }, revoked: { type: 'boolean' } }, required: ['ok', 'idx', 'revoked'] } } } },
+          400: { description: 'The index is not a positive integer.' },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          403: { description: 'The administrator role is required.' },
+          409: { description: 'The index was never issued, or is already revoked.' },
+        },
+      },
+    },
     '/api/op/credentials': {
       get: {
-        tags: ['Credentials'], operationId: 'listCredentialConfigurations', summary: 'The account\u2019s issuable credentials',
-        description: 'The configurations this OP issues + the account\u2019s issuable set (an org-bound account can mint the membership credential).',
+        tags: ['Credentials'], operationId: 'listCredentialConfigurations', summary: 'The account’s issuable credentials',
+        description: 'The configurations this OP issues + the account’s issuable set (an org-bound account can mint the membership credential).',
         security: [{ sessionCookie: [] }],
         responses: {
           200: { description: 'The configurations + the issuable ids.', content: { 'application/json': { schema: { type: 'object', properties: { configurations: { type: 'object' }, issuable: { type: 'array', items: { type: 'string' } } }, required: ['configurations', 'issuable'] } } } },
@@ -436,11 +465,11 @@ export const OPENAPI_SPEC = {
         description:
           'TODO.sota/08 — the selectively-disclosable membership credential (SD-JWT): the payload carries only the '
           + '_SD hashes; the combined presentation hands every disclosure, the HOLDER selects what to reveal to a '
-          + 'verifier. The credential\u2019s truth is the same truth the tokens carry (the org context + the registry '
-          + 'row\u2019s ROR id). An optional holder_jwk (a public EC P-256 key) binds the credential to the wallet '
+          + 'verifier. The credential’s truth is the same truth the tokens carry (the org context + the registry '
+          + 'row’s ROR id). An optional holder_jwk (a public EC P-256 key) binds the credential to the wallet '
           + '(cnf.jkt; the holder proves possession with the KB-JWT at presentation).',
         security: [{ sessionCookie: [] }],
-        requestBody: { required: false, content: { 'application/json': { schema: { type: 'object', properties: { holder_jwk: { type: 'object', description: 'The wallet\u2019s public EC P-256 key ({ kty, crv, x, y })' } } } } } },
+        requestBody: { required: false, content: { 'application/json': { schema: { type: 'object', properties: { holder_jwk: { type: 'object', description: 'The wallet’s public EC P-256 key ({ kty, crv, x, y })' } } } } } },
         responses: {
           200: { description: 'The minted credential (the combined SD-JWT presentation, all disclosures).', content: { 'application/json': { schema: { type: 'object', properties: { format: { type: 'string', example: 'vc+sd-jwt' }, credential: { type: 'string' }, expires_in: { type: 'number' } }, required: ['format', 'credential', 'expires_in'] } } } },
           400: { description: 'The holder_jwk is malformed.' },

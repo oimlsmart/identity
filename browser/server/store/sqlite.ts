@@ -82,6 +82,9 @@ import {
   getOidcAccessToken,
   getOidcAuthorization,
   rememberDpopJti,
+  allocateCredentialStatusIdx,
+  readCredentialStatus,
+  setCredentialStatusRevoked,
   getOidcClient,
   listOidcClients,
   listOidcKeys,
@@ -534,6 +537,15 @@ export class SqliteServerStore implements ServerStore {
   }
   async rememberDpopJti(jti: string, expiresAtIso: string): Promise<boolean> {
     return rememberDpopJti(this.db, jti, expiresAtIso)
+  }
+  async allocateCredentialStatusIdx(): Promise<number> {
+    return allocateCredentialStatusIdx(this.db)
+  }
+  async setCredentialStatusRevoked(idx: number, atIso: string): Promise<boolean> {
+    return setCredentialStatusRevoked(this.db, idx, atIso)
+  }
+  async readCredentialStatus(): Promise<{ maxIdx: number; revoked: number[] }> {
+    return readCredentialStatus(this.db)
   }
   async deleteOidcAccessToken(token: string, clientId: string): Promise<boolean> {
     return deleteOidcAccessToken(this.db, token, clientId)

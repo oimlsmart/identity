@@ -28,6 +28,20 @@ import type { ServerStore } from '../../store'
 import { verifyOpJwt, signOpIdToken, type OpSigningKey } from './keys'
 import { jktOf } from './dpop'
 
+/** RFC 9157's bitstring width per entry: 1 bit — boolean status. */
+const STATUS_BITS = 1
+
+async function gzipB64url(bytes: Uint8Array): Promise<string> {
+  const stream = new Blob([bytes as unknown as BlobPart]).stream().pipeThrough(new CompressionStream('gzip'))
+  const buf = new Uint8Array(await new Response(stream).arrayBuffer())
+  return bytesToB64url(buf)
+}
+
+async function gunzipBytes(b64: string): Promise<Uint8Array> {
+  const stream = new Blob([b64urlToBytes(b64) as unknown as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip'))
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
 function bytesToB64url(bytes: Uint8Array): string {
   let bin = ''
   for (const b of bytes) bin += String.fromCharCode(b)
@@ -78,6 +92,11 @@ export interface SdJwtMintInput {
   /** The holder binding: the key's JKT rides cnf.jkt (plain — it is
    *  structural, the KB's anchor). */
   holderJkt?: string
+  /** RFC 9157 (TODO.sota/08 slice 2): the status list's URI — the mint
+   *  stamps status.status_list.{uri, idx} (structural, never
+   *  disclosable; the revocation's anchor). */
+  statusListUri?: string
+  statusListIdx?: number
 }
 
 export interface MintedSdJwt {
@@ -106,6 +125,9 @@ export async function mintSdJwt(key: OpSigningKey, input: SdJwtMintInput): Promi
     ...(input.audience ? { aud: input.audience } : {}),
     ...(input.plain ?? {}),
     ...(input.holderJkt ? { cnf: { jkt: input.holderJkt } } : {}),
+    ...(input.statusListUri !== undefined && input.statusListIdx !== undefined
+      ? { status: { status_list: { uri: input.statusListUri, idx: input.statusListIdx } } }
+      : {}),
     ...(sdHashes.length ? { _sd_alg: 'sha-256', _SD: sdHashes } : {}),
   }
   const sdJwt = await signOpIdToken(key, payload)
@@ -241,4 +263,60 @@ export async function verifyKeyBindingJwt(
   } catch {
     return false
   }
+}
+
+
+/** Build the status list JWT (RFC 9157): typ statuslist+jwt, ES256 by
+ *  the OP's key, payload { iss, sub: 'statuslist', status_list: {
+ *  bits: 1, lst: base64url(gzip(bitstring)) } } — one bit per issued
+ *  index, LSB-first in its byte; a REVOKED credential's bit is 1. */
+export async function buildStatusListJwt(
+  key: OpSigningKey,
+  input: { issuer: string; maxIdx: number; revoked: number[] },
+): Promise<string> {
+  const bytes = new Uint8Array(new ArrayBuffer(Math.ceil((input.maxIdx + 1) / 8)))
+  for (const idx of input.revoked) {
+    if (idx < 0 || idx >= bytes.length * 8) continue
+    bytes[Math.floor(idx / 8)]! |= 1 << (idx % 8)
+  }
+  return signStatuslistJwt(key, {
+    iss: input.issuer,
+    sub: 'statuslist',
+    status_list: { bits: STATUS_BITS, lst: await gzipB64url(bytes) },
+  })
+}
+
+/** The list's own signer: the typ rides the HEADER (statuslist+jwt —
+ *  the media type the verifier checks), the kid names the signing key. */
+async function signStatuslistJwt(key: OpSigningKey, claims: Record<string, unknown>): Promise<string> {
+  const header = bytesToB64url(new TextEncoder().encode(JSON.stringify({ alg: 'ES256', typ: 'statuslist+jwt', kid: key.kid })))
+  const payload = bytesToB64url(new TextEncoder().encode(JSON.stringify(claims)))
+  const sig = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key.privateKey,
+    new TextEncoder().encode(`${header}.${payload}`),
+  )
+  return `${header}.${payload}.${bytesToB64url(new Uint8Array(sig))}`
+}
+
+/** The verifier's read: the list JWT verifies as the ISSUER's own (the
+ *  typ + the signature + the issuer), the lst decompresses, and the
+ *  bit at idx answers — TRUE = revoked. */
+export async function credentialRevoked(
+  store: ServerStore,
+  listJwt: string,
+  idx: number,
+  issuer: string,
+): Promise<boolean> {
+  const parts = listJwt.split('.')
+  if (parts.length !== 3) return true
+  const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0]!))) as { typ?: string }
+  if (header.typ !== 'statuslist+jwt') return true
+  const claims = await verifyOpJwt(store, listJwt)
+  if (!claims || claims.iss !== issuer || claims.sub !== 'statuslist') return true
+  const list = (claims.status_list as { bits?: unknown; lst?: unknown } | undefined)
+  if (!list || list.bits !== STATUS_BITS || typeof list.lst !== 'string') return true
+  const bytes = await gunzipBytes(list.lst)
+  const byte = bytes[Math.floor(idx / 8)]
+  return byte !== undefined && (byte & (1 << (idx % 8))) !== 0
 }

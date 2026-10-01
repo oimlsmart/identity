@@ -28,8 +28,9 @@ import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { ensureOpKeyRegistered, maySelfRegisterOpKey, resolveOpSigningKey, warnDevKeyRegistrationSkipped } from '../auth/op/keys'
 import { claimsContextFor } from '../auth/op/memberships'
 
-import { combinedPresentation, mintSdJwt } from '../auth/op/sd-jwt'
+import { combinedPresentation, mintSdJwt, buildStatusListJwt } from '../auth/op/sd-jwt'
 import { jktOf } from '../auth/op/dpop'
+import { isSystemAuthority } from '../vocab/roles'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -62,6 +63,47 @@ export function createOpCredentialsRouter(): Hono {
       credential_issuer: configFor(c).issuer,
       credential_configurations_supported: CONFIGURATIONS,
     })
+  })
+
+  // GET /op/credentials/statuslist — RFC 9157's list: the compressed
+  // bitstring in a statuslist+jwt (public; a verifier caches briefly —
+  // a revocation shows within the minute).
+  router.get('/op/credentials/statuslist', async (c) => {
+    const store = getStore()
+    const read = await store.readCredentialStatus()
+    const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+    if (maySelfRegisterOpKey(key, configFor(c))) {
+      await ensureOpKeyRegistered(store, key)
+    } else {
+      warnDevKeyRegistrationSkipped('/op/credentials/statuslist', key)
+    }
+    const jwt = await buildStatusListJwt(key, {
+      issuer: configFor(c).issuer,
+      maxIdx: read.maxIdx,
+      revoked: read.revoked,
+    })
+    c.header('content-type', 'application/statuslist+jwt')
+    c.header('cache-control', 'public, max-age=60')
+    return c.body(jwt)
+  })
+
+  // POST /api/op/credentials/statuslist/:idx/revoke — the revocation
+  // act: an administrator's deliberate flip (the same system-authority
+  // gate as every registry act). Idempotent-refusing: an already
+  // revoked index answers 409.
+  router.post('/api/op/credentials/statuslist/:idx/revoke', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    if (!isSystemAuthority(user.role)) {
+      return c.json({ error: 'administrator role required' }, 403)
+    }
+    const idx = Number(c.req.param('idx'))
+    if (!Number.isInteger(idx) || idx < 1) {
+      return c.json({ error: 'the status-list index must be a positive integer' }, 400)
+    }
+    const flipped = await getStore().setCredentialStatusRevoked(idx, new Date().toISOString())
+    if (!flipped) return c.json({ error: `the index ${idx} was never issued, or is already revoked` }, 409)
+    return c.json({ ok: true, idx, revoked: true })
   })
 
   router.get('/api/op/credentials', async (c) => {
@@ -110,6 +152,9 @@ export function createOpCredentialsRouter(): Hono {
     } else {
       warnDevKeyRegistrationSkipped('/api/op/credentials/membership', key)
     }
+    // RFC 9157: the credential is born with its revocation anchor —
+    // the status list's index (the table's rowid allocator).
+    const statusListIdx = await store.allocateCredentialStatusIdx()
     const minted = await mintSdJwt(key, {
       issuer: configFor(c).issuer,
       subject: raw.id,
@@ -125,6 +170,8 @@ export function createOpCredentialsRouter(): Hono {
         ...(roles.length ? { roles } : {}),
       },
       ...(holderJkt ? { holderJkt } : {}),
+      statusListUri: `${configFor(c).issuer}/op/credentials/statuslist`,
+      statusListIdx,
     })
     return c.json({
       format: 'vc+sd-jwt',

@@ -394,3 +394,21 @@ export function upsertOidcKey(db: Database.Database, input: { kid: string; publi
     'INSERT OR IGNORE INTO oidc_keys (kid, public_jwk) VALUES (?, ?)',
   ).run(input.kid, input.publicJwk)
 }
+
+/** TODO.sota/08 (RFC 9157): the status-list rows — the rowid IS the
+ *  index (the allocator is the table's own; unique by construction). */
+export function allocateCredentialStatusIdx(db: Database.Database): number {
+  const res = db.prepare('INSERT INTO credential_status (revoked_at) VALUES (NULL)').run()
+  return Number(res.lastInsertRowid)
+}
+
+export function setCredentialStatusRevoked(db: Database.Database, idx: number, atIso: string): boolean {
+  const res = db.prepare('UPDATE credential_status SET revoked_at = ? WHERE idx = ? AND revoked_at IS NULL').run(atIso, idx)
+  return res.changes > 0
+}
+
+export function readCredentialStatus(db: Database.Database): { maxIdx: number; revoked: number[] } {
+  const max = db.prepare('SELECT COALESCE(MAX(idx), 0) AS m FROM credential_status').get() as { m: number }
+  const rows = db.prepare('SELECT idx FROM credential_status WHERE revoked_at IS NOT NULL').all() as Array<{ idx: number }>
+  return { maxIdx: max.m, revoked: rows.map(r => r.idx) }
+}

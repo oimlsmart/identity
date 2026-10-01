@@ -410,6 +410,14 @@ CREATE TABLE IF NOT EXISTS dpop_jtis (
   expires_at TEXT NOT NULL
 );
 
+-- The credential status list's rows (0040, TODO.sota/08): one row per
+-- issued credential — the rowid IS the list index; the revocation act
+-- stamps revoked_at (the bit flips in the served list).
+CREATE TABLE IF NOT EXISTS credential_status (
+  idx INTEGER PRIMARY KEY AUTOINCREMENT,
+  revoked_at TEXT
+);
+
 -- The refresh tokens (migration 0025 — the SSO wave-C token surface): the
 -- offline half of the remembered consent. One-time, atomically consumed
 -- (WHERE consumed_at IS NULL); every rotation inherits the first mint's
