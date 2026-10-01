@@ -40,3 +40,6 @@ browser/data/blobs/
 
 # CI/local sibling-checkout scaffold positions (the file: dependency chain)
 x/
+
+# The Python SDK's bytecode (the [dpop] extra's test runs)
+**/__pycache__/
