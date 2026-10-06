@@ -27,7 +27,7 @@ export interface RorBackfillAction {
   name: string
   from: string | null
   to: string
-  basis: 'domain-id' | 'iso-name'
+  basis: 'domain-id' | 'iso-name' | 'member-body'
 }
 
 export interface RorBackfillPlan {
@@ -42,7 +42,7 @@ export interface RorBackfillPlan {
  *  vendored catalog (default: the bundled loadDomains()). Deterministic
  *  order (by row id) — the operator compares plans, not sets. */
 export function planRorBackfill(
-  rows: Array<{ id: string; name: string; country: string | null; rorId: string | null }>,
+  rows: Array<{ id: string; name: string; country: string | null; rorId: string | null; kind?: string | null }>,
   catalog: DomainsCatalog = loadDomains(),
 ): RorBackfillPlan {
   // Join 2's index: (country name, org name) → the ROR id (the rows'
@@ -53,6 +53,26 @@ export function planRorBackfill(
     for (const o of c.orgs) {
       if (o.ror_id) byCountryName.set(`${c.country}|${o.name}`, o.ror_id)
     }
+  }
+  // Join 3's index (the SSOT arc, 2026-10-02): the MEMBER rows are
+  // country-named BY DESIGN (the corrected member model — the row IS
+  // the state), while the artifact enriches the member BODY org behind
+  // the state. A member-state/corresponding-member row joins its
+  // country's SINGLE enriched member body (the state's own metrology
+  // organization); TWO enriched orgs is ambiguity — reported, never
+  // guessed.
+  const soleMemberBodyByCountry = new Map<string, string>()
+  const memberBodyCounts = new Map<string, number>()
+  for (const c of catalog.countries) {
+    for (const o of c.orgs) {
+      if (!o.ror_id) continue
+      const key = c.country
+      memberBodyCounts.set(key, (memberBodyCounts.get(key) ?? 0) + 1)
+      soleMemberBodyByCountry.set(key, o.ror_id)
+    }
+  }
+  for (const [key, count] of memberBodyCounts) {
+    if (count > 1) soleMemberBodyByCountry.delete(key)
   }
 
   const actions: RorBackfillAction[] = []
@@ -68,6 +88,10 @@ export function planRorBackfill(
     if (to === undefined && row.country && row.name) {
       to = byCountryName.get(`${row.country}|${row.name}`)
       basis = 'iso-name'
+    }
+    if (to === undefined && row.country && (row.kind === 'member-state' || row.kind === 'corresponding-member')) {
+      to = soleMemberBodyByCountry.get(row.country)
+      basis = 'member-body'
     }
     if (to === undefined) {
       unmatched.push(row.id)
