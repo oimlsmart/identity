@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-06T12:15:23.091Z",
+  "generated_at": "2026-10-06T12:30:14.357Z",
   "version": 2,
   "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
   "domains": {
@@ -1849,6 +1849,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/03be3fb73",
+          "ror_match": "country-stem",
           "verification": "verified",
           "admin_queue": false
         }
@@ -2092,6 +2094,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/05dw0p167",
+          "ror_match": "country-stem",
           "verification": "inferred",
           "admin_queue": false
         }
