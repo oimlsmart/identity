@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-06T12:30:14.357Z",
+  "generated_at": "2026-10-06T13:53:31.666Z",
   "version": 2,
   "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
   "domains": {
@@ -2341,6 +2341,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/01ph39d13",
+          "ror_match": "country-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2412,6 +2414,8 @@
           "web_domains": [
             "budapest.kormanyhivatalok.hu"
           ],
+          "ror_id": "https://ror.org/03c6pbw79",
+          "ror_match": "country-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2481,6 +2485,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/03gdq6t30",
+          "ror_match": "prefix-acronym",
           "verification": "verified",
           "admin_queue": false
         }
@@ -2692,6 +2698,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/01zs00411",
+          "ror_match": "prefix-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2843,6 +2851,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/02jtq1b51",
+          "ror_match": "prefix-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3061,6 +3071,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/02dj1mv43",
+          "ror_match": "prefix-acronym",
           "verification": "verified",
           "admin_queue": false
         }
@@ -3259,6 +3271,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/03nnxqz81",
+          "ror_match": "country-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3353,6 +3367,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/01gwfq279",
+          "ror_match": "prefix-acronym",
           "verification": "verified",
           "admin_queue": false
         }
@@ -3425,6 +3441,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/02fvybm75",
+          "ror_match": "country-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3447,6 +3465,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/01376qx71",
+          "ror_match": "prefix-acronym",
           "verification": "inferred",
           "admin_queue": false
         },
@@ -3509,6 +3529,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/00y30p033",
+          "ror_match": "prefix-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3557,6 +3579,8 @@
             "inti.gov.ar"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/046denk61",
+          "ror_match": "country-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3813,6 +3837,8 @@
             "lacomet.go.cr"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/01z472y92",
+          "ror_match": "country-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4238,6 +4264,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/05716x568",
+          "ror_match": "prefix-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4326,6 +4354,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/05pdvse20",
+          "ror_match": "prefix-acronym",
           "verification": "verified",
           "admin_queue": false
         }
@@ -4486,6 +4516,8 @@
             "mnstandard.com"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/041tjsq03",
+          "ror_match": "country-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4619,6 +4651,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/03cg0em39",
+          "ror_match": "prefix-acronym",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4789,6 +4823,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/059zwr911",
+          "ror_match": "prefix-acronym",
           "verification": "verified",
           "admin_queue": false
         }
@@ -4945,6 +4981,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/00yc3j708",
+          "ror_match": "prefix-acronym",
           "verification": "verified",
           "admin_queue": false
         }
@@ -4969,6 +5007,8 @@
           ],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/00xzw8796",
+          "ror_match": "prefix-acronym",
           "verification": "verified",
           "admin_queue": false
         }
