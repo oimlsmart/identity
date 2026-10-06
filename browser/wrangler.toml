@@ -133,6 +133,30 @@ bucket_name = "oiml-smart-avatars-identity"
 [env.identity.vars]
 ENTITY_BACKEND = "server"
 OP_ISSUER = "https://id.oimlsmart.org"
+# The upstream provider registry's declaration (docs/deployment/
+# identity-upstreams.md): the bootstrap seed, upserted at boot
+# (idempotent; per-entry — unlisted rows are untouched). ORCID's
+# public-API client: the scopes override is "openid" (ORCID's OpenID
+# scope IS /authenticate — "profile"/"email" are not ORCID scopes, and
+# the ID token carries no email; the resolver's sub-fallback answers).
+# The secret rides env:ORCID_UPSTREAM_CLIENT_SECRET (wrangler secret
+# put, never this file). The id "orcid" IS the callback path:
+# /op/upstream/orcid/callback — the URI registered at ORCID.
+OP_UPSTREAM_SEED = '''
+[
+  {
+    "id": "orcid",
+    "kind": "oidc",
+    "display_name": "ORCID",
+    "brand_mark": "oidc",
+    "issuer": "https://orcid.org",
+    "client_id": "APP-LLQCCBDIYPWR9HNP",
+    "client_secret_ref": "env:ORCID_UPSTREAM_CLIENT_SECRET",
+    "scopes": "openid",
+    "enabled": true
+  }
+]
+'''
 # The Turnstile SITE key (the PUBLIC half — the widget renders with it;
 # /api/config serves it). The SECRET half rides `wrangler secret put
 # TURNSTILE_SECRET` — never this file. The gate guards ACCOUNT
