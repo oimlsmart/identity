@@ -40,6 +40,7 @@ interface Row {
   name: string
   country: string | null
   ror_id: string | null
+  kind: string | null
 }
 
 /** Read the live org_registry through wrangler (the operator's
@@ -47,7 +48,7 @@ interface Row {
  *  path, same as import-org-registry.ts). */
 function readRemoteRows(d1Name: string): Row[] {
   const run = spawnSync('npx', ['wrangler', 'd1', 'execute', d1Name, '--remote', '--json', '--command',
-    'SELECT id, name, country, ror_id FROM org_registry'], {
+    'SELECT id, name, country, ror_id, kind FROM org_registry'], {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   })
@@ -91,7 +92,7 @@ async function main(): Promise<void> {
   const catalog = loadDomains()
   if (remote) {
     const rows = readRemoteRows(d1Name)
-    const plan = planRorBackfill(rows.map(r => ({ id: r.id, name: r.name, country: r.country, rorId: r.ror_id })), catalog)
+    const plan = planRorBackfill(rows.map(r => ({ id: r.id, name: r.name, country: r.country, rorId: r.ror_id, kind: r.kind })), catalog)
     printPlan(plan, `the live D1 (${d1Name})`)
     if (!plan.actions.length) {
       process.stdout.write('nothing to apply — the registry\'s ids agree with the artifact\n')
@@ -110,7 +111,7 @@ async function main(): Promise<void> {
   const { installSqliteStore } = await import('../server/store/sqlite')
   const store = installSqliteStore()
   const rows = await store.listOrgRegistryOrgs()
-  const plan = planRorBackfill(rows.map(r => ({ id: r.id, name: r.name, country: r.country, rorId: r.rorId })), catalog)
+  const plan = planRorBackfill(rows.map(r => ({ id: r.id, name: r.name, country: r.country, rorId: r.rorId, kind: r.kind })), catalog)
   printPlan(plan, `the local store (${dbPath})`)
   if (!execute) {
     process.stdout.write('\ndry-run — pass --execute to apply through the store seam\n')

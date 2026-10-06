@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-30T06:38:02.616Z",
+  "generated_at": "2026-10-06T11:48:05.153Z",
   "version": 2,
   "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
   "domains": {
@@ -1822,6 +1822,8 @@
             "onml.dz"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/03x30pe27",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2048,6 +2050,8 @@
             "mc.ic.gc.ca"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/04y6vkd71",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2134,6 +2138,8 @@
             "dzm.hr"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/01cx46d94",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2184,6 +2190,8 @@
             "cmi.cz"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/02m5haa59",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -2638,6 +2646,8 @@
             "trade.go.ke"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/02wg0x984",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3579,6 +3589,8 @@
           "web_domains": [
             "competition.gov.az"
           ],
+          "ror_id": "https://ror.org/03znjhh70",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3647,6 +3659,8 @@
           "web_domains": [
             "bnsibarbados.org"
           ],
+          "ror_id": "https://ror.org/018kjvj80",
+          "ror_match": "country-name",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3831,6 +3845,8 @@
           "web_domains": [
             "indocal.gob.do"
           ],
+          "ror_id": "https://ror.org/003x31543",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -3943,6 +3959,8 @@
             "gnims.caucasus.net"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/05x31w119",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4406,6 +4424,8 @@
             "cenam.mx"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/05v1qt749",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4476,6 +4496,8 @@
           "web_domains": [
             "innoq.gov.mz"
           ],
+          "ror_id": "https://ror.org/03pmb4h38",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4703,6 +4725,8 @@
             "ww.nml.gov.ph"
           ],
           "web_domains": [],
+          "ror_id": "https://ror.org/02wwfdn93",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }
@@ -4997,6 +5021,8 @@
           "web_domains": [
             "sencamer.gob.ve"
           ],
+          "ror_id": "https://ror.org/010tesj84",
+          "ror_match": "country-single",
           "verification": "inferred",
           "admin_queue": false
         }

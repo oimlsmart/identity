@@ -168,3 +168,55 @@ describe('the backfill planner — the artifact\'s enrichment reaches the EXISTI
     expect(plan.unmatched).toEqual([])
   })
 })
+
+describe('the member-body join (TODO.sota/05 SSOT — the member rows are country-named by design)', () => {
+  const catalog = {
+    version: 2, matchingRule: 'test', generatedAt: '2026-10-02T00:00:00Z',
+    domains: new Map([
+      ['nist.gov', { country: 'United States', country_fr: 'États-Unis', iso: 'US', status: 'member-state', org: 'National Institute of Standards and Technology (NIST)', roles: ['ciml-member'], verification: 'inferred', evidence: '' }],
+    ]),
+    countries: [
+      { country: 'United States', country_fr: 'États-Unis', iso: 'US', status: 'member-state',
+        orgs: [{ name: 'National Institute of Standards and Technology (NIST)', roles: ['ciml-member'], domains: [], website_domains: [], web_domains: [], ror_id: 'https://ror.org/05xpvk416', verification: 'inferred', admin_queue: false }] },
+      { country: 'France', country_fr: 'France', iso: 'FR', status: 'member-state',
+        orgs: [
+          { name: 'LNE', roles: ['ciml-member'], domains: [], website_domains: [], web_domains: [], ror_id: 'https://ror.org/01f4.zzzz1', verification: 'inferred', admin_queue: false },
+          { name: 'BNM', roles: [], domains: [], website_domains: [], web_domains: [], ror_id: 'https://ror.org/01f4.zzzz2', verification: 'inferred', admin_queue: false },
+        ] },
+    ],
+    rorByOrg: new Map([
+      ['US|National Institute of Standards and Technology (NIST)', 'https://ror.org/05xpvk416'],
+      ['FR|LNE', 'https://ror.org/01f4.zzzz1'],
+      ['FR|BNM', 'https://ror.org/01f4.zzzz2'],
+    ]),
+  } as unknown as import('../../server/auth/op/member-domains').DomainsCatalog
+
+  it('a member-state row (country-named) joins its country\'s single enriched member body', async () => {
+    const { planRorBackfill } = await import('../../server/ror-backfill')
+    const plan = planRorBackfill([
+      { id: 'ms-us', name: 'United States', country: 'United States', kind: 'member-state', rorId: null },
+    ], catalog)
+    expect(plan.actions).toEqual([
+      { id: 'ms-us', name: 'United States', from: null, to: 'https://ror.org/05xpvk416', basis: 'member-body' },
+    ])
+  })
+
+  it('an ambiguous country (two enriched orgs) stays unmatched — never a guess', async () => {
+    const { planRorBackfill } = await import('../../server/ror-backfill')
+    const plan = planRorBackfill([
+      { id: 'ms-fr', name: 'France', country: 'France', kind: 'member-state', rorId: null },
+    ], catalog)
+    expect(plan.unmatched).toEqual(['ms-fr'])
+    expect(plan.actions).toEqual([])
+  })
+
+  it('a non-member row never takes the member-body join (the TL keeps its own name join)', async () => {
+    const { planRorBackfill } = await import('../../server/ror-backfill')
+    const plan = planRorBackfill([
+      { id: 'some-slug', name: 'National Institute of Standards and Technology (NIST)', country: 'United States', kind: 'test-laboratory', rorId: null },
+    ], catalog)
+    expect(plan.actions).toEqual([
+      { id: 'some-slug', name: 'National Institute of Standards and Technology (NIST)', from: null, to: 'https://ror.org/05xpvk416', basis: 'iso-name' },
+    ])
+  })
+})
