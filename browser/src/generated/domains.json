@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-06T15:38:48.424Z",
+  "generated_at": "2026-10-06T22:23:07.176Z",
   "version": 2,
   "matching_rule": "An e-mail address matches an entry when its domain equals the entry or ends with '.' + entry (dot boundary mandatory).",
   "domains": {
@@ -1963,6 +1963,8 @@
           "domains": [],
           "website_domains": [],
           "web_domains": [],
+          "ror_id": "https://ror.org/01f8vhd41",
+          "ror_match": "name-only",
           "verification": "unverified",
           "admin_queue": true
         }
