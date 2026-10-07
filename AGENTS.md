@@ -41,6 +41,23 @@ deep-compares against the committed golden
 (`e2e/golden/op-surface-contract.golden.json`); a surface break fails
 before it can reach a relying party.
 
+## The OP module map (TODO.sota/07.4 — the domain split)
+
+`browser/server/routes/op.ts` is the 225-line COMPOSITION ROOT only:
+the profile gate, the config + seed + audit + client-authentication
+seams, and the mounts. Every OP route lives in its domain module —
+`op-discovery.ts` (metadata), `op-session-management.ts`,
+`op-end-session.ts`, `op-clients-admin.ts`, `op-protocol.ts`
+(authorize + PAR + consent + the chooser), `op-token.ts` (the grant
+arms; exports the shared `authenticateClient`),
+`op-token-management.ts` (userinfo/revoke/introspect),
+`op-credentials.ts`, `op-federation.ts`, `op-self-register.ts`,
+`op-upstream.ts`, `op-registry.ts`, `op-accounts.ts`, … — and NEW OP
+ROUTES GO IN THE MATCHING MODULE, never op.ts. Shared closures cross
+modules as FACTORY DEPENDENCIES (`createOpXRouter({ ensureSeeded,
+audit, authenticateClient })`), never module-level memoization. The
+pure-refactor proof: the unit suite + the surface-contract golden.
+
 ## Rules
 
 - **The account registry never moves.** The live D1
@@ -55,6 +72,10 @@ before it can reach a relying party.
 - **The issuer is fixed.** `OP_ISSUER=https://id.oimlsmart.org`
   in production: every RP's `OIDC_ISSUER` and every token's `iss` name
   it. Never repoint it outside the cutover plan.
+- **Every mounted API route outside `/op/*` and `/api/*` needs a
+  production Astro shim** (`src/pages/<path>.ts` forwarding to
+  `handleWorkerApi` — the `.well-known/*` class; the routing guard's
+  server half, `id-routing-guard.test.ts`, holds the class shut).
 - **Deploys are deliberate acts.** Only an `id-v*` tag runs
   deploy-identity.yml (contract gate, the identity e2e legs, then
   production on required reviewers — the preview lane retired

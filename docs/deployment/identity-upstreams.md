@@ -83,6 +83,14 @@ Notes per family:
   metadata's `issuer` to match exactly. The flow is Authorization Code
   + PKCE (S256), client authentication by HTTP Basic
   (`client_secret_basic`).
+- **ORCID** (`kind: "oidc"`, the production row, 2026-10): the issuer
+  is `https://orcid.org` (the sandbox `https://sandbox.orcid.org`);
+  the public-API client registers the redirect exactly
+  `/op/upstream/orcid/callback`. The scopes override MUST be `openid`
+  — ORCID's OpenID scope IS `/authenticate` (`profile`/`email` are not
+  ORCID scopes and the API refuses them), and the ID token carries NO
+  email: the resolver's sub-fallback answers (the link keys on `sub`,
+  which IS the ORCID iD — the `orcid` claim reads the link row).
 - **Apple**: the callback must accept POST as well (the OP sends
   `response_mode=form_post` for Apple's issuer host); the client secret
   is not stored at all, it is a short-lived ES256 JWT minted per
