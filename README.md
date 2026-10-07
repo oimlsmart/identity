@@ -4,13 +4,32 @@ The OIML SMART identity service: the OpenID Connect Provider (OP) at
 https://id.oimlsmart.org, extracted from the `oimlsmart/smart` monorepo
 (the extraction map: smart's `PROGRESS/41-identity-extraction-map.md`).
 
-**Deployment state (2026-08-24): this repository's build serves
+**Deployment state (2026-10-07): this repository's build serves
 production.** The wave-03 cutover deployed tag `id-v2026.08.24-1` to
 the `oiml-smart-platform-identity` Worker over the unchanged account
 registry (the D1 never moved); the monorepo's OP code is inert pending
 the wave-04 retirement. (The preview posture of the staged rollout
 retired 2026-09-17 — production deploys directly behind the
-environment's required reviewers.)
+environment's required reviewers. Current release:
+`id-v2026.10.07-1`.)
+
+## The capabilities (the 2026-10 campaign)
+
+- **Sender-constrained tokens (DPoP, RFC 9449)** — the strict nonce,
+  the jti replay burn, machine-JWT `cnf.jkt`, the delegation
+  possession proof, introspection's `cnf` disclosure.
+- **SD-JWT membership credentials (TODO.sota/08)** — the selectively
+  disclosable OrgMembership credential (RFC 9445) with the holder key
+  binding, the RFC 9157 status list, and the OIDC4VCI wallet flow at
+  `/.well-known/openid-credential-issuer` + `/op/credential`.
+- **OIDC Federation leaf** — the entity configuration at
+  `/.well-known/openid-federation`.
+- **The ROR-resolvable org registry** — 100 member/IA/TL rows carry
+  Research Organization Registry ids; the policy-gated `org_ror`
+  claim rides the tokens and the `orcid` claim rides the ORCID link.
+- **The typed SDKs** — TypeScript (`browser/sdk/identity-client.ts`)
+  and Python (`browser/sdk/python/`), both with the DPoP holder
+  posture (`DpopSession` / `DpopAuth`).
 
 This repository carries the OP half of the identity contract only:
 
