@@ -148,7 +148,7 @@ OP_UPSTREAM_SEED = '''
     "id": "orcid",
     "kind": "oidc",
     "display_name": "ORCID",
-    "brand_mark": "oidc",
+    "brand_mark": "orcid",
     "issuer": "https://orcid.org",
     "client_id": "APP-LLQCCBDIYPWR9HNP",
     "client_secret_ref": "env:ORCID_UPSTREAM_CLIENT_SECRET",
