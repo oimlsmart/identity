@@ -44,7 +44,7 @@ type EnvLike = Record<string, string | undefined>
 
 /** The brand-mark keys the login/account pages map to icons (an unknown
  *  or absent key renders the generic OIDC mark — never dropped). */
-export const BRAND_MARKS = ['github', 'google', 'apple', 'microsoft', 'oidc'] as const
+export const BRAND_MARKS = ['github', 'google', 'apple', 'microsoft', 'orcid', 'oidc'] as const
 
 /** Apple's issuer (the quirk set's key — auth/upstream/apple.ts). */
 export const APPLE_ISSUER = 'https://appleid.apple.com'
