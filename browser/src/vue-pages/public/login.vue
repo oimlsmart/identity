@@ -25,7 +25,7 @@
 // the ISO-benchmark quick win, smart's TODO.identity-features/11 item 3);
 // the locale switch itself is the shell footer's (ShellFooter.vue).
 // ═══════════════════════════════════════════════════════════════════
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
 import SigninPanelFeed from '../../components/SigninPanelFeed.vue'
@@ -129,6 +129,10 @@ const recoveryCode = ref('')
  *  browser has no WebAuthn — an old browser is not an error). */
 const passkeysSupported = webauthnAvailable()
 const passkeyBusy = ref(false)
+/** ANY sign-in ceremony in flight (the password submit, the passkey
+ *  ceremony — whose browser dialog can hang open a long while) locks
+ *  the WHOLE surface: one sign-in at a time, no parallel starts. */
+const signLocked = computed(() => passkeyBusy.value || submitting.value)
 
 /** The post-login destination (the authorize flow's re-entry target). */
 function redirectTarget(): string {
@@ -628,8 +632,9 @@ async function submitReset() {
           v-for="provider in upstreamProviders"
           :key="provider.id"
           :data-testid="`upstream-login-${provider.id}`"
+          :disabled="signLocked"
           @click="upstreamLogin(provider.id)"
-          class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
+          class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
         >
           <svg v-if="provider.brandMark === 'github'" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
           <svg v-else-if="provider.brandMark === 'google'" class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"/></svg>
@@ -728,7 +733,8 @@ async function submitReset() {
           class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
           @click="signInWithPasskey"
         >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+          <div v-if="passkeyBusy" class="w-4 h-4 border-2 border-slate-300 dark:border-slate-500 border-t-slate-700 dark:border-t-slate-200 rounded-full animate-spin" />
+          <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
           {{ passkeyBusy ? t('login.passkeyBusy') : t('login.passkeyButton') }}
         </button>
         <div class="flex items-center gap-3 mt-4 mb-1" aria-hidden="true">
@@ -758,18 +764,19 @@ async function submitReset() {
             type="password"
             required
             data-testid="login-password"
-            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            :disabled="signLocked"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
             :placeholder="t('login.passwordPlaceholder')"
           />
         </div>
         <button
           type="submit"
-          :disabled="submitting"
+          :disabled="signLocked"
           data-testid="login-submit"
           class="w-full min-h-11 py-2 rounded-lg text-base font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          {{ submitting ? t('login.submitting') : t('login.submit') }}
+          <div v-if="signLocked" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          {{ signLocked ? t('login.submitting') : t('login.submit') }}
         </button>
       </form>
 
