@@ -50,7 +50,7 @@ import { verifyTotp } from '../auth/op/totp'
 import { hashRecoveryCode, recoveryCodePlausible } from '../auth/op/recovery'
 import { verifyAssertion, CeremonyError } from '../auth/op/webauthn'
 import { webauthnBindingFor } from './op-factors'
-import { sendOpSecurityMail } from '../auth/op/mail'
+import { sendOpMail, sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
 import {
   auditFactor,
@@ -177,7 +177,7 @@ export function createOpMfaRouter(): Hono {
 
   /** A failed verify: the ladder step, the audit, the cap's burn + the
    *  account's lockout email. */
-  async function failAttempt(c: Context, pending: MfaPending, kind: 'totp' | 'recovery' | 'passkey', errorText: string): Promise<Response> {
+  async function failAttempt(c: Context, pending: MfaPending, kind: 'totp' | 'recovery' | 'passkey' | 'email', errorText: string): Promise<Response> {
     const fresh = await getStore().recordMfaPendingFailure(pending.token)
     const failures = fresh?.failCount ?? pending.failCount + 1
     await auditFactor('factor.mfa_failed', pending.userId, { userId: pending.userId }, { kind, failures })
@@ -233,6 +233,75 @@ export function createOpMfaRouter(): Hono {
       return c.json(await store.getUserById(done.userId))
     }
     return failAttempt(c, pending, 'recovery', 'That recovery code is not valid (or was already used).')
+  })
+
+  // POST /api/op/login/mfa/email — the emailed fallback code (0041, the
+  // 2026-10-10 lockout's way back). Offered ONLY while an allowance is
+  // live on the account (the administrator's grant, or the reset
+  // completion's own hour): the code rides the pending challenge row —
+  // 6 digits, hashed (the recovery-code posture), expiring WITH the
+  // challenge, single use, the resend window throttled, the wrong-code
+  // ladder shared with every other method. The send is the
+  // transactional posture: one addressed target (the primary mailbox —
+  // the same mailbox the reset link proved), never the security
+  // fan-out.
+  const EMAIL_OTP_RESEND_MS = 45_000
+  mfa.post('/api/op/login/mfa/email', async (c) => {
+    const body = await c.req.json<{ token?: string }>().catch(() => null)
+    if (typeof body?.token !== 'string' || !body.token) return c.json({ error: 'The challenge token is required.' }, 400)
+    const { pending, error } = await pendingFor(c, body.token)
+    if (error || !pending) return error!
+    const store = getStore()
+    const until = await store.emailFallbackUntil(pending.userId)
+    if (!until || new Date(until).getTime() <= Date.now()) {
+      return c.json({ error: 'Email sign-in is not available for this account. Use the enrolled factor, or ask your administrator.' }, 403)
+    }
+    if (pending.emailCodeSentAt) {
+      const waitMs = EMAIL_OTP_RESEND_MS - (Date.now() - new Date(pending.emailCodeSentAt).getTime())
+      if (waitMs > 0) {
+        c.header('Retry-After', String(Math.ceil(waitMs / 1000)))
+        return c.json({ error: 'A code was just sent — wait a moment before asking again.', retryAfterMs: waitMs }, 429)
+      }
+    }
+    const account = await store.getUserById(pending.userId)
+    if (!account) return c.json({ error: 'This account no longer exists.' }, 401)
+    const draw = new Uint32Array(1)
+    crypto.getRandomValues(draw)
+    const code = String(draw[0]! % 1_000_000).padStart(6, '0')
+    await store.setMfaPendingEmailCode(pending.token, await hashRecoveryCode(code), pending.expiresAt)
+    await auditFactor('factor.email_otp_sent', pending.userId, { userId: pending.userId }, {})
+    const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+    await sendOpMail(runtimeEnv<MailEnv>(c), {
+      to: account.email,
+      template: 'email_otp',
+      issuer,
+      params: { name: account.name, code },
+    })
+    return c.json({ sent: true, expiresAt: pending.expiresAt })
+  })
+
+  // POST /api/op/login/mfa/email/verify — the mailed code completes the
+  // sign-in (amr ['pwd', 'email'] — RFC 8176 has no email-OTP value;
+  // 'email' is the registered practice, honest about the channel). No
+  // code was sent, or it is stale: the ladder answers, exactly as a
+  // wrong TOTP would.
+  mfa.post('/api/op/login/mfa/email/verify', async (c) => {
+    const body = await c.req.json<{ token?: string; code?: string }>().catch(() => null)
+    const code = typeof body?.code === 'string' ? body.code.trim() : ''
+    if (typeof body?.token !== 'string' || !body.token || !/^\d{6}$/.test(code)) {
+      return c.json({ error: 'The challenge token and the six-digit code are required.' }, 400)
+    }
+    const { pending, error } = await pendingFor(c, body.token)
+    if (error || !pending) return error!
+    const live = pending.emailCodeHash !== null
+      && pending.emailCodeExpiresAt !== null
+      && new Date(pending.emailCodeExpiresAt).getTime() > Date.now()
+    if (live && await hashRecoveryCode(code) === pending.emailCodeHash) {
+      const done = await completeSignIn(c, pending.token, ['email'], 'mail.signin.methodPasswordEmail', 'password+email_otp')
+      if (!done) return c.json({ error: 'This sign-in challenge expired or was already completed. Sign in again.' }, 401)
+      return c.json(await getStore().getUserById(done.userId))
+    }
+    return failAttempt(c, pending, 'email', 'That code did not match. Use the code just mailed to you.')
   })
 
   // POST /api/op/login/mfa/passkey/options — the second-factor ceremony:

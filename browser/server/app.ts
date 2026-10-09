@@ -234,7 +234,15 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // only — the sign-in never captcha-gates. The self-register start
   // carries its own gate inside its router.
   app.use('/api/op/register', turnstileGate)
-  app.use('/api/op/join-requests', turnstileGate)
+  // The SCOPE RULING'S OTHER HALF (the 2026-10-10 production lockout):
+  // the gate rides the join intake's CREATION POST only, never the
+  // queue's authenticated reads/decisions — an app.use on the bare path
+  // method-matched the ADMIN GET too, and on a Turnstile-configured
+  // deployment (production; dev never configures it, so every local
+  // run and CI leg stayed green) the token-less admin read answered
+  // the bot 403 — the whole users console refused every administrator
+  // ("your account holds neither grant").
+  app.on('POST', '/api/op/join-requests', turnstileGate)
 
   // The session + demo sign-in seam (routes/auth-lean.ts): the four
   // /api/auth endpoints the OP's own pages consume. The platform's RP

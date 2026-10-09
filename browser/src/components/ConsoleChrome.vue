@@ -7,7 +7,7 @@
 // the professional console pattern:
 //
 //   DESKTOP (lg+)   a left RAIL beside the page: the console switch
-//                   (My applications / Your account / Administration —
+//                   (Applications / Account / Administration —
 //                   the movement between the three areas is one click,
 //                   the admin entry gated by the session's role) and the
 //                   current console's sections (the admin surfaces; the

@@ -63,6 +63,8 @@ process.env.OP_CLIENT_SEED = JSON.stringify([CLIENT])
 import { totpAtStep } from '../../server/auth/op/totp'
 import { hashRecoveryCode } from '../../server/auth/op/recovery'
 import { base64urlEncode } from '../../server/auth/op/webauthn'
+import { resetMailerForTest } from '../../server/mailer'
+import { startStubMailer, type StubMailer } from '../../e2e/fixtures/stub-mailer'
 import {
   assertWith,
   attest,
@@ -83,6 +85,7 @@ interface FactorsRead {
 
 let app: import('hono').Hono
 let store: ReturnType<typeof import('../../server/store').getStore>
+let stub: StubMailer
 
 // ── the small drivers ────────────────────────────────────────────────
 
@@ -193,6 +196,14 @@ const DEE = { email: 'dee@factors.test', name: 'Dee Recovery', password: 'dee ha
 const UNVERIFIED = { email: 'vera@factors.test', name: 'Vera Unverified', password: 'vera has a proper passphrase' }
 
 beforeAll(async () => {
+  // The email-fallback legs read the OTP from the stub mailer (the mail
+  // IS the channel — the notices suite's posture).
+  stub = await startStubMailer()
+  process.env.EMAIL_FROM = 'OIML SMART Identity <no-reply@oimlsmart.org>'
+  process.env.MAIL_PROVIDER_URL = `${stub.baseUrl}/emails`
+  process.env.MAIL_PROVIDER_KEY = 'stub-mail-key'
+  resetMailerForTest()
+
   const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
   const profileMod = await import('../../server/profile')
@@ -223,6 +234,9 @@ demo_personas: true
 }, 30_000)
 
 afterAll(async () => {
+  await stub.close()
+  for (const k of ['EMAIL_FROM', 'MAIL_PROVIDER_URL', 'MAIL_PROVIDER_KEY']) delete process.env[k]
+  resetMailerForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.OP_ISSUER
   delete process.env.OP_CLIENT_SEED
@@ -280,8 +294,11 @@ describe('the TOTP authenticator app', () => {
     const login = await passwordLogin(CASEY.email, CASEY.password)
     expect(login.cookie).toBeNull() // no session yet
     expect(login.body.mfaRequired).toBe(true)
-    const methods = login.body.methods as { totp: boolean; passkey: boolean; recovery: boolean }
-    expect(methods).toEqual({ totp: true, passkey: false, recovery: true })
+    const methods = login.body.methods as { totp: boolean; passkey: boolean; recovery: boolean; email: boolean }
+    // email rides the reset completion's own hour (this leg's enroll is
+    // the reset ceremony — the 0041 doctrine, proven outright in the
+    // fallback suite below).
+    expect(methods).toEqual({ totp: true, passkey: false, recovery: true, email: true })
     const mfaToken = login.body.mfaToken as string
 
     // A wrong code at the sign-in ladder: audited, counted.
@@ -636,10 +653,17 @@ describe('the enrollment gates', () => {
 
     // The email change with NO mailer configured shows the link honestly
     // (deliveredBy 'shown'); completing it moves the address UNVERIFIED.
+    // (This file binds the stub mailer for the fallback legs — stand in
+    // the console posture for this leg's premise, then re-bind.)
+    const boundMailerUrl = process.env.MAIL_PROVIDER_URL
+    delete process.env.MAIL_PROVIDER_URL
+    resetMailerForTest()
     const request = await app.request('/api/op/account/email', {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ email: 'vera.verified-later@factors.test' }),
     })
+    if (boundMailerUrl) process.env.MAIL_PROVIDER_URL = boundMailerUrl
+    resetMailerForTest()
     expect(request.ok).toBe(true)
     const delivery = await request.json() as { delivery: string; verificationUrl?: string }
     expect(delivery.delivery).toBe('shown')
@@ -693,5 +717,190 @@ branding: { name: OIML SMART Identity }
 demo_personas: true
 `))
     }
+  })
+})
+
+// ── the email sign-in fallback (the lockout's way back) ──────────────
+//
+// The scenario the wave answers (the 2026-10-10 lockout): the account
+// holds a passkey as its only reachable second factor, the device is
+// elsewhere, and the password alone opens nothing. The industry's answer
+// (Microsoft's Temporary Access Pass, Auth0's email OTP, Okta's admin
+// factor reset) mapped onto this OP's doctrine:
+//
+//   - an EMAIL OTP rides the pending challenge (a fourth method, never
+//     offered unless an ALLOWANCE is live);
+//   - the allowance is an ADMIN act (time-boxed, revocable) — or the
+//     RESET path's own completion (the emailed one-time link already
+//     proved the mailbox; one hour covers the next sign-in);
+//   - the code: 6 digits, single use, 10 minutes, hashed on the row
+//     (the recovery-code posture), the resend window throttled, the
+//     wrong-code ladder shared with every other method.
+
+describe('the email sign-in fallback', () => {
+  const JANET = { email: 'janet@factors.test', name: 'Janet Lockout', password: 'janet has a proper passphrase' }
+  const MARG = { email: 'marg@factors.test', name: 'Marg Ladder', password: 'marg has a proper passphrase' }
+  const RETA = { email: 'reta@factors.test', name: 'Reta Reset', password: 'reta has a proper passphrase' }
+
+  /** Janet's posture: a verified TOTP is the enrolled factor (any
+   *  factor forces the branch; TOTP is the cheapest to arrange here). */
+  async function accountWithTotp(email: string, name: string, password: string): Promise<{ id: string; secret: string }> {
+    const invited = await invite(email, name)
+    const cookie = await enroll(invited.setupUrl, password)
+    const start = await app.request('/api/op/account/factors/totp', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+    })
+    const enrollment = await start.json() as { id: string; secret: string }
+    await app.request(`/api/op/account/factors/totp/${enrollment.id}/verify`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ code: await currentCode(enrollment.secret) }),
+    })
+    await app.request('/api/auth/signout', { method: 'POST', headers: { cookie } })
+    return { id: invited.account.id, secret: enrollment.secret }
+  }
+
+  /** The code the stub mailer received (the mail IS the channel). */
+  async function codeFromMail(): Promise<string> {
+    const deadline = Date.now() + 10_000
+    for (;;) {
+      const mail = stub.messages.find(m => (m.subject ?? '').includes('sign-in code'))
+      if (mail?.text) {
+        const code = /\b(\d{6})\b/.exec(mail.text)?.[1]
+        if (code) return code
+      }
+      if (Date.now() > deadline) throw new Error('the OTP mail never arrived at the stub')
+      await new Promise(r => setTimeout(r, 100))
+    }
+  }
+
+  it('the admin grant opens the factor: send → the mailed code → verify (amr pwd+email) → revoke closes it', async () => {
+    const { id } = await accountWithTotp(JANET.email, JANET.name, JANET.password)
+
+    // The TOTP fixture's own enroll completion granted the reset hour
+    // (the doctrine below) — close it first, so the no-allowance
+    // posture is honest.
+    const admin0 = await demoLogin('admin@oimlsmart.org')
+    const closing = await app.request(`/api/op/accounts/${id}/email-fallback`, {
+      method: 'DELETE', headers: { cookie: admin0 },
+    })
+    expect(closing.status).toBe(200)
+
+    // No allowance: the method is absent, the send refuses.
+    const bare = await passwordLogin(JANET.email, JANET.password)
+    expect((bare.body.methods as Record<string, boolean>).email).toBe(false)
+    const refused = await app.request('/api/op/login/mfa/email', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: bare.body.mfaToken }),
+    })
+    expect(refused.status).toBe(403)
+
+    // The admin's act (the default day).
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const grant = await app.request(`/api/op/accounts/${id}/email-fallback`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({}),
+    })
+    expect(grant.status).toBe(200)
+    const granted = await grant.json() as { until: string }
+    expect(new Date(granted.until).getTime()).toBeGreaterThan(Date.now() + 23 * 3600_000)
+
+    // The fresh challenge offers the email method; the send mints + mails.
+    const login = await passwordLogin(JANET.email, JANET.password)
+    expect((login.body.methods as Record<string, boolean>).email).toBe(true)
+    const sent = await app.request('/api/op/login/mfa/email', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: login.body.mfaToken }),
+    })
+    expect(sent.status).toBe(200)
+    expect(((await sent.json()) as { sent: boolean }).sent).toBe(true)
+    const code = await codeFromMail()
+
+    // The mailed code completes the sign-in; the session carries the
+    // honest amr (pwd + email).
+    const done = await app.request('/api/op/login/mfa/email/verify', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: login.body.mfaToken, code }),
+    })
+    expect(done.status).toBe(200)
+    const cookie = done.headers.get('set-cookie')!.split(';')[0]!
+    const session = await (await app.request('/api/auth/session', { headers: { cookie } })).json() as { amr?: string[] }
+    expect(session.amr).toEqual(['pwd', 'email'])
+    const actions = await activityActions(cookie)
+    expect(actions).toContain('factor.email_otp_sent')
+
+    // The consumed challenge never completes twice.
+    const replay = await app.request('/api/op/login/mfa/email/verify', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: login.body.mfaToken, code }),
+    })
+    expect(replay.status).toBe(401)
+
+    // The revoke closes the door again.
+    const revoke = await app.request(`/api/op/accounts/${id}/email-fallback`, {
+      method: 'DELETE', headers: { cookie: admin },
+    })
+    expect(revoke.status).toBe(200)
+    const after = await passwordLogin(JANET.email, JANET.password)
+    expect((after.body.methods as Record<string, boolean>).email).toBe(false)
+  })
+
+  it('the wrong code rides the shared ladder; the resend window throttles', async () => {
+    const { id } = await accountWithTotp(MARG.email, MARG.name, MARG.password)
+    const admin = await demoLogin('admin@oimlsmart.org')
+    await app.request(`/api/op/accounts/${id}/email-fallback`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ hours: 1 }),
+    })
+    const login = await passwordLogin(MARG.email, MARG.password)
+    const token = login.body.mfaToken as string
+
+    const sent = await app.request('/api/op/login/mfa/email', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+    expect(sent.status).toBe(200)
+    await codeFromMail()
+
+    // An immediate resend: the window refuses honestly.
+    const again = await app.request('/api/op/login/mfa/email', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+    expect(again.status).toBe(429)
+
+    // A wrong code: the ladder's 401 (never a method-specific bypass).
+    await new Promise(r => setTimeout(r, 20))
+    const wrong = await app.request('/api/op/login/mfa/email/verify', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, code: '000000' }),
+    })
+    expect(wrong.status).toBe(401)
+  })
+
+  it('the reset path grants its own one-hour window (the mailed link proved the mailbox)', async () => {
+    // The invite + enroll completion IS the reset ceremony (the same
+    // token, the same endpoint): the allowance rides it.
+    const { id } = await accountWithTotp(RETA.email, RETA.name, RETA.password)
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const fresh = await app.request(`/api/op/accounts/${id}/enrollment`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
+    })
+    const { setupUrl } = await fresh.json() as { setupUrl: string }
+    const resetCookie = await enroll(setupUrl, 'reta has a different passphrase')
+    await app.request('/api/auth/signout', { method: 'POST', headers: { cookie: resetCookie } })
+
+    const login = await passwordLogin(RETA.email, 'reta has a different passphrase')
+    expect(login.body.mfaRequired).toBe(true)
+    expect((login.body.methods as Record<string, boolean>).email).toBe(true)
+  })
+
+  it('the grant act is the administrator\'s alone', async () => {
+    const invited = await invite('nobody-grants@factors.test', 'Nora Grants')
+    const pleb = await enroll(invited.setupUrl, 'nora has a proper passphrase')
+    const res = await app.request(`/api/op/accounts/${invited.account.id}/email-fallback`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: pleb },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(403)
   })
 })

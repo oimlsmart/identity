@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS users (
   -- address; NULL when nothing ever proved the mailbox (a change confirmed
   -- through an on-screen link stays unverified, honestly).
   email_verified_at TEXT,
+  -- 0041: the email sign-in fallback's allowance (the lockout's way
+  -- back): while live, the sign-in challenge offers the emailed OTP as
+  -- a second factor. The administrator grants it, or the password-reset
+  -- completion earns it (the mailed link proved the mailbox).
+  email_fallback_until TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   last_login TEXT
 );
@@ -770,7 +775,13 @@ CREATE TABLE IF NOT EXISTS mfa_pending (
   last_failure_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT NOT NULL,
-  consumed_at TEXT
+  consumed_at TEXT,
+  -- 0041: the emailed fallback code rides the challenge row (a fresh
+  -- sign-in mints a fresh challenge): the SHA-256 of the six digits,
+  -- the expiry (the challenge's own), the sent-at (the resend window).
+  email_code_hash TEXT,
+  email_code_expires_at TEXT,
+  email_code_sent_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_mfa_pending_user ON mfa_pending (user_id);
 

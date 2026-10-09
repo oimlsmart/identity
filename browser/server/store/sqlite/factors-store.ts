@@ -108,6 +108,9 @@ function toMfaPending(row: Record<string, unknown>): MfaPending {
     createdAt: storeTimeToIso(row.created_at as string)!,
     expiresAt: storeTimeToIso(row.expires_at as string)!,
     consumedAt: storeTimeToIso((row.consumed_at as string | null) ?? null),
+    emailCodeHash: (row.email_code_hash as string | null) ?? null,
+    emailCodeExpiresAt: storeTimeToIso((row.email_code_expires_at as string | null) ?? null),
+    emailCodeSentAt: storeTimeToIso((row.email_code_sent_at as string | null) ?? null),
   }
 }
 
@@ -326,6 +329,16 @@ export function consumeMfaPending(db: Database.Database, token: string): MfaPend
   if (!row) return null
   if (new Date(row.expires_at as string).getTime() <= Date.now()) return null
   return toMfaPending(row)
+}
+
+/** 0041 (the email sign-in fallback): the mailed code lands on the
+ *  challenge row — the hash (the recovery-code posture), the expiry
+ *  (the caller passes the challenge's own), the sent-at stamp (the
+ *  resend window's clock). */
+export function setMfaPendingEmailCode(db: Database.Database, token: string, codeHash: string, expiresAtIso: string): void {
+  db.prepare(
+    "UPDATE mfa_pending SET email_code_hash = ?, email_code_expires_at = ?, email_code_sent_at = datetime('now') WHERE token = ? AND consumed_at IS NULL",
+  ).run(codeHash, expiresAtIso, token)
 }
 
 /** The failure ladder: fail_count++ + last_failure_at on the LIVE row

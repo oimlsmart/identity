@@ -186,6 +186,12 @@ function maskIpv4(ip: string | null): string | null {
 }
 
 export function createOpAccountsRouter(): Hono {
+
+  // 0041 (the email sign-in fallback): the two windows — the
+  // administrator's default day, the reset completion's hour.
+  const EMAIL_FALLBACK_ADMIN_HOURS = 24
+  const EMAIL_FALLBACK_RESET_HOURS = 1
+  const EMAIL_FALLBACK_RESET_MS = EMAIL_FALLBACK_RESET_HOURS * 3600_000
   const accounts = new Hono()
 
   // ── the profile gate (the same posture as routes/op.ts: the routes
@@ -511,10 +517,11 @@ export function createOpAccountsRouter(): Hono {
     // password chosen while the corpus was unreachable re-runs the query
     // on the presented password (the marker decides; absent = no call).
     // Never strands the sign-in.
-    const [, , counts] = await Promise.all([
+    const [, , counts, fallbackUntil] = await Promise.all([
       clearLoginThrottle(store, loginEmail),
       recheckBreachedPassword(c, store, cred.userId, body.password),
       factorCounts(store, cred.userId),
+      store.emailFallbackUntil(cred.userId),
     ])
     // The second-factor branch (the factor registry, TODO.identity-sso/02+03):
     // a verified TOTP app or a registered passkey turns the password into
@@ -532,6 +539,9 @@ export function createOpAccountsRouter(): Hono {
           totp: counts.totp > 0,
           passkey: counts.passkeys > 0,
           recovery: counts.recoveryRemaining > 0,
+          // 0041 (the email sign-in fallback): offered only while the
+          // allowance is live (the admin's grant, or the reset's hour).
+          email: !!fallbackUntil && new Date(fallbackUntil).getTime() > Date.now(),
         },
       })
     }
@@ -823,6 +833,7 @@ export function createOpAccountsRouter(): Hono {
         passwordSet: methods.password,
         links: links.map(l => ({ provider: l.provider, linkedAt: l.linkedAt, linkedBy: l.linkedBy })),
         lastSignIn: signIns[row.id] ?? row.lastLogin ?? null,
+        emailFallbackUntil: row.emailFallbackUntil ?? null,
         clientRoles: (rolesByUser.get(row.id) ?? []).map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt })),
       }
     })
@@ -1115,6 +1126,46 @@ export function createOpAccountsRouter(): Hono {
     return c.json({ setupUrl, expiresAt: enrollment.expiresAt, mail: mailBlock(mail) }, 201)
   })
 
+  // POST /api/op/accounts/:id/email-fallback — 0041: the administrator
+  // unlocks an account whose second factor is unreachable (the
+  // Microsoft Temporary Access Pass pattern): a time-boxed allowance
+  // (default one day, 1–72 h) during which the sign-in challenge offers
+  // the emailed OTP. Every use stays on the audit chain; DELETE closes
+  // the door again.
+  accounts.post('/api/op/accounts/:id/email-fallback', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const user = await store.getUserById(c.req.param('id'))
+    if (!user) return c.json({ error: 'not found' }, 404)
+    const body = await c.req.json<{ hours?: number }>().catch(() => null)
+    const hours = body?.hours ?? EMAIL_FALLBACK_ADMIN_HOURS
+    if (!Number.isInteger(hours) || hours < 1 || hours > 72) {
+      return c.json({ error: 'hours must be an integer between 1 and 72' }, 400)
+    }
+    const until = new Date(Date.now() + hours * 3600_000).toISOString()
+    await store.setEmailFallback(user.id, until)
+    await audit('account.email_fallback_granted', user.id, { userId: gate.user.id, userName: gate.user.name }, {
+      email: user.email, hours, until,
+    })
+    return c.json({ ok: true, until })
+  })
+
+  // DELETE /api/op/accounts/:id/email-fallback — the revoke (the
+  // allowance is a door the administrator opened; they close it).
+  accounts.delete('/api/op/accounts/:id/email-fallback', async (c) => {
+    const gate = await requireAdmin(c)
+    if (gate.error || !gate.user) return gate.error!
+    const store = getStore()
+    const user = await store.getUserById(c.req.param('id'))
+    if (!user) return c.json({ error: 'not found' }, 404)
+    await store.setEmailFallback(user.id, null)
+    await audit('account.email_fallback_revoked', user.id, { userId: gate.user.id, userName: gate.user.name }, {
+      email: user.email,
+    })
+    return c.json({ ok: true })
+  })
+
   // GET /api/op/enroll/:token — the setup page's context (public): the
   // account it sets up + the honest state of the link. NEVER anything
   // beyond name/email.
@@ -1170,6 +1221,17 @@ export function createOpAccountsRouter(): Hono {
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
     await audit('account.enrolled', result.userId, { userId: result.userId }, {
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
+    })
+    // 0041 (the email sign-in fallback): the reset path's own allowance.
+    // The emailed one-time link just proved the mailbox — the same
+    // channel the fallback code rides — so one hour covers the next
+    // sign-in without the second factor's device (the 2026-10-10
+    // lockout: the password was reset, the passkey was elsewhere). An
+    // account with no factors never sees the offer; the row expires
+    // inert.
+    await store.setEmailFallback(result.userId, new Date(Date.now() + EMAIL_FALLBACK_RESET_MS).toISOString())
+    await audit('account.email_fallback_reset_granted', result.userId, { userId: result.userId }, {
+      hours: EMAIL_FALLBACK_RESET_HOURS,
     })
     if (breach === 'unknown') await markBreachRecheck(store, result.userId)
     const enrolled = await store.getUserById(result.userId)

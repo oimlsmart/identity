@@ -1864,7 +1864,12 @@ async function signOutAll() {
               class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2.5"
               :data-testid="`account-activity-${event.action.replaceAll('.', '-')}`"
             >
-              <p class="text-sm text-slate-700 dark:text-slate-300">
+              <!-- min-w-0 + truncate: a long action id (the audit chain
+                   names them honestly, e.g. account.email_fallback_reset_
+                   granted) ellipsizes on a phone instead of pushing the
+                   shrink-0 timestamp past the viewport (the 2026-10-10
+                   +57px report). -->
+              <p class="min-w-0 truncate text-sm text-slate-700 dark:text-slate-300">
                 {{ activityLabel(event) }}
                 <!-- TODO.modern/06: the NEW DEVICE advisory chip (the
                      journal's metadata carries the flag on every
