@@ -120,11 +120,15 @@ const resetError = ref<string | null>(null)
 // ── the strong-authentication state (TODO.identity-sso/02+03) ────────
 // The password answer's mfaRequired branch: the pending second-factor
 // challenge. The page swaps the password form for the factor step.
-const mfa = ref<{ token: string; methods: { totp: boolean; passkey: boolean; recovery: boolean } } | null>(null)
+const mfa = ref<{ token: string; methods: { totp: boolean; passkey: boolean; recovery: boolean; email: boolean } } | null>(null)
 const mfaCode = ref('')
 const mfaBusy = ref(false)
 const mfaShowRecovery = ref(false)
 const recoveryCode = ref('')
+// 0041 (the email sign-in fallback): the allowance-gated mailed code —
+// the send lands here, the six digits go to emailCode.
+const emailCode = ref('')
+const emailSent = ref(false)
 /** The passkey sign-in's availability (the button hides where the
  *  browser has no WebAuthn — an old browser is not an error). */
 const passkeysSupported = webauthnAvailable()
@@ -275,7 +279,7 @@ async function submitOpLogin() {
     const body = await res.json().catch(() => null) as {
       mfaRequired?: boolean
       mfaToken?: string
-      methods?: { totp: boolean; passkey: boolean; recovery: boolean }
+      methods?: { totp: boolean; passkey: boolean; recovery: boolean; email: boolean }
     } | null
     if (body?.mfaRequired && body.mfaToken && body.methods) {
       // The password branch won: the pending conditional-UI autofill must
@@ -286,6 +290,8 @@ async function submitOpLogin() {
       mfaCode.value = ''
       recoveryCode.value = ''
       mfaShowRecovery.value = false
+      emailCode.value = ''
+      emailSent.value = false
       return
     }
     landSignedIn()
@@ -386,6 +392,56 @@ async function submitMfaRecovery() {
       body: JSON.stringify({ token: mfa.value.token, code: recoveryCode.value }),
     })
     if (res.ok) { landSignedIn(); return }
+    mfaErrorFrom(res, await res.json().catch(() => null))
+  } catch (e) {
+    error.value = failureCopy(e, 'login.networkError')
+  } finally {
+    mfaBusy.value = false
+  }
+}
+
+/** 0041: the emailed fallback code — the send (the allowance was the
+ *  server's judgment; the mailbox of record receives six digits), then
+ *  the verify rides the same error surface as every other method. */
+async function sendEmailCode(): Promise<void> {
+  if (mfaBusy.value || !mfa.value) return
+  mfaBusy.value = true
+  error.value = null
+  try {
+    const res = await fetchBounded('/api/op/login/mfa/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token: mfa.value.token }),
+    })
+    if (res.ok) {
+      emailSent.value = true
+      emailCode.value = ''
+      return
+    }
+    mfaErrorFrom(res, await res.json().catch(() => null))
+  } catch {
+    error.value = t('login.mfa.failed')
+  } finally {
+    mfaBusy.value = false
+  }
+}
+
+async function submitMfaEmailCode(): Promise<void> {
+  if (mfaBusy.value || !mfa.value) return
+  mfaBusy.value = true
+  error.value = null
+  try {
+    const res = await fetchBounded('/api/op/login/mfa/email/verify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token: mfa.value.token, code: emailCode.value.trim() }),
+    })
+    if (res.ok) {
+      landSignedIn()
+      return
+    }
     mfaErrorFrom(res, await res.json().catch(() => null))
   } catch (e) {
     error.value = failureCopy(e, 'login.networkError')
@@ -681,6 +737,41 @@ async function submitReset() {
             class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
             @click="submitMfaPasskey"
           >{{ t('login.mfa.usePasskey') }}</button>
+
+          <!-- 0041: the emailed fallback — offered only while the account's
+               allowance is live (the administrator's grant, or the reset
+               completion's own hour); the code rides the challenge. -->
+          <div v-if="mfa.methods.email">
+            <button
+              v-if="!emailSent"
+              type="button"
+              :disabled="mfaBusy"
+              data-testid="login-mfa-email"
+              class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              @click="sendEmailCode"
+            >{{ t('login.mfa.emailUse') }}</button>
+            <form v-else class="space-y-2" @submit.prevent="submitMfaEmailCode">
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('login.mfa.emailSent') }}</p>
+              <div class="flex items-center gap-2">
+                <input
+                  v-model="emailCode"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
+                  data-testid="login-mfa-email-code"
+                  :placeholder="t('login.mfa.emailCodePlaceholder')"
+                  class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <button
+                  type="submit"
+                  :disabled="mfaBusy || !/^\d{6}$/.test(emailCode.trim())"
+                  data-testid="login-mfa-email-submit"
+                  class="shrink-0 min-h-11 px-4 py-2 rounded-lg text-base font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+                >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.emailSubmit') }}</button>
+              </div>
+            </form>
+          </div>
 
           <!-- The recovery floor (one-time codes; the email reset stands
                behind everything). -->

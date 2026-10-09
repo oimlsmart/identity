@@ -137,6 +137,9 @@ export interface UserAdminRow {
   /** TODO.identity/06: the primary address's verification state
    *  (users.email_verified_at; null = never verified). */
   emailVerifiedAt?: string | null
+  /** 0041 (the email sign-in fallback): the allowance's expiry — while
+   *  live the sign-in challenge offers the emailed OTP; null = closed. */
+  emailFallbackUntil?: string | null
 }
 
 export interface EntityRow {
@@ -1045,6 +1048,12 @@ export interface MfaPending {
   createdAt: string
   expiresAt: string
   consumedAt: string | null
+  /** 0041 (the email sign-in fallback): the mailed code on the
+   *  challenge row — the hash + its expiry + the sent-at (the resend
+   *  window's clock). Null = no code was sent for this challenge. */
+  emailCodeHash: string | null
+  emailCodeExpiresAt: string | null
+  emailCodeSentAt: string | null
 }
 
 // ── the personal access tokens (TODO.identity-features/08) ───────────
@@ -2365,6 +2374,18 @@ export interface ServerStore {
   /** The failure ladder: fail_count++ + last_failure_at, answering the
    *  fresh row (null when the token is gone). */
   recordMfaPendingFailure(token: string): Promise<MfaPending | null>
+
+  /** 0041 (the email sign-in fallback): the mailed code lands on the
+   *  LIVE challenge row (hash, expiry = the challenge's own, sent-at);
+   *  a consumed row takes no code. */
+  setMfaPendingEmailCode(token: string, codeHash: string, expiresAtIso: string): Promise<void>
+
+  /** 0041: the allowance — while `until` is live the sign-in challenge
+   *  offers the emailed OTP; null closes it. */
+  setEmailFallback(userId: string, untilIso: string | null): Promise<void>
+
+  /** 0041: the allowance's current expiry, null = none. */
+  emailFallbackUntil(userId: string): Promise<string | null>
 
   // ── the personal access tokens (TODO.identity-features/08) ──
   /** The mint: one row per token. The plaintext NEVER crosses the seam —

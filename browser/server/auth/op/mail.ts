@@ -110,6 +110,11 @@ export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'self_register_veri
   // you?" reset pointer rides the secondary block, the `reset` flag).
   | 'password_changed' | 'email_changed' | 'linked_method_added' | 'linked_method_removed'
   | 'factor_enrolled' | 'factor_revoked' | 'recovery_code_used' | 'client_roles_granted'
+  // 0041 (the email sign-in fallback): the mailed second-factor code —
+  // a transactional single-target send (the primary mailbox), carrying
+  // the "was this you?" reset pointer (someone with the password asked
+  // for it).
+  | 'email_otp'
 
 /** The DEFAULT mail brand mark: the OIML SMART logo (the globe + the
  *  OIML/SMART wordmark), referenced by its absolute production URL (email
@@ -188,6 +193,7 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   factor_enrolled: { subject: 'mail.factorEnrolled.subject', preheader: 'mail.factorEnrolled.preheader', heading: 'mail.factorEnrolled.heading', body: 'mail.factorEnrolled.body', why: 'mail.factorEnrolled.why', link: false, reset: true },
   factor_revoked: { subject: 'mail.factorRevoked.subject', preheader: 'mail.factorRevoked.preheader', heading: 'mail.factorRevoked.heading', body: 'mail.factorRevoked.body', why: 'mail.factorRevoked.why', link: false, reset: true },
   recovery_code_used: { subject: 'mail.recoveryCodeUsed.subject', preheader: 'mail.recoveryCodeUsed.preheader', heading: 'mail.recoveryCodeUsed.heading', body: 'mail.recoveryCodeUsed.body', why: 'mail.recoveryCodeUsed.why', link: false, reset: true },
+  email_otp: { subject: 'mail.emailOtp.subject', preheader: 'mail.emailOtp.preheader', heading: 'mail.emailOtp.heading', body: 'mail.emailOtp.body', why: 'mail.emailOtp.why', link: false, reset: true },
   client_roles_granted: { subject: 'mail.clientRolesGranted.subject', preheader: 'mail.clientRolesGranted.preheader', heading: 'mail.clientRolesGranted.heading', body: 'mail.clientRolesGranted.body', why: 'mail.clientRolesGranted.why', link: false, reset: true },
 }
 

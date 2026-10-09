@@ -57,6 +57,8 @@ import {
   setSessionActiveOrg,
   setUserActive,
   setUserRoles,
+  setEmailFallback,
+  emailFallbackUntil,
   touchLastLogin,
   updateOrgRegistryOrg,
   updateUserRoleOrg,
@@ -150,6 +152,7 @@ import { TTL_TABLES, installStore, type AccountEmail, type AddAccountEmailResult
 import {
   advanceWebauthnCounter,
   consumeMfaPending,
+  setMfaPendingEmailCode,
   consumeRecoveryCode,
   consumeWebauthnChallenge,
   createMfaPending,
@@ -315,6 +318,12 @@ export class SqliteServerStore implements ServerStore {
   }
   async setUserActive(id: string, active: boolean): Promise<boolean> {
     return setUserActive(this.db, id, active)
+  }
+  async setEmailFallback(id: string, untilIso: string | null): Promise<void> {
+    setEmailFallback(this.db, id, untilIso)
+  }
+  async emailFallbackUntil(id: string): Promise<string | null> {
+    return emailFallbackUntil(this.db, id)
   }
 
   // ── organization administration (TODO.identity/10) ──
@@ -831,6 +840,9 @@ export class SqliteServerStore implements ServerStore {
   }
   async recordMfaPendingFailure(token: string): Promise<MfaPending | null> {
     return recordMfaPendingFailure(this.db, token)
+  }
+  async setMfaPendingEmailCode(token: string, codeHash: string, expiresAtIso: string): Promise<void> {
+    setMfaPendingEmailCode(this.db, token, codeHash, expiresAtIso)
   }
 
   // ── the personal access tokens (TODO.identity-features/08) ──

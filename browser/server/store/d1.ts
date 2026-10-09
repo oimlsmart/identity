@@ -208,6 +208,7 @@ function toAdminRow(user: UserRecord & { last_login?: string | null; provider?: 
     provider: user.provider ?? 'demo',
     lastLogin: user.last_login ?? null,
     emailVerifiedAt: user.email_verified_at ?? null,
+    emailFallbackUntil: (user as { email_fallback_until?: string | null }).email_fallback_until ?? null,
   }
 }
 
@@ -239,6 +240,7 @@ const WIPE_TABLES = ['entity_changes', 'evidence_records', 'entities', 'events',
 // evicts itself: the next call retries the heal.
 interface EnsureMemos {
   usersColumns: Promise<void> | null
+  mfaEmailColumns: Promise<void> | null
   sessionColumns: Promise<void> | null
   membershipSupport: Promise<void> | null
   orgRegistrySupport: Promise<void> | null
@@ -264,7 +266,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
   let memos = ensureMemosByBinding.get(binding)
   if (!memos) {
     memos = {
-      usersColumns: null, sessionColumns: null, membershipSupport: null,
+      usersColumns: null, mfaEmailColumns: null, sessionColumns: null, membershipSupport: null,
       orgRegistrySupport: null, holderAttributionSupport: null,
       instrumentRegistrationSupport: null, oidcColumns: null,
       personalAccessTokenSupport: null, consentGrantSupport: null,
@@ -675,6 +677,21 @@ export class D1ServerStore implements ServerStore {
       // TODO.identity/06 (the account console): the address's
       // verification state.
       if (!names.has('email_verified_at')) await this.db.prepare('ALTER TABLE users ADD COLUMN email_verified_at TEXT').run()
+      // 0041: the email sign-in fallback's allowance.
+      if (!names.has('email_fallback_until')) await this.db.prepare('ALTER TABLE users ADD COLUMN email_fallback_until TEXT').run()
+    })
+  }
+
+  // 0041 (the email sign-in fallback): the emailed code's columns
+  // arrive with migration 0041 — a dev D1 migrated from before it lacks
+  // them, so the email-code methods ensure them defensively.
+  private ensureMfaEmailColumns(): Promise<void> {
+    return ensured(this.binding, 'mfaEmailColumns', async () => {
+      const cols = await this.db.prepare('PRAGMA table_info(mfa_pending)').all<{ name: string }>()
+      const names = new Set(cols.results.map(c => c.name))
+      if (!names.has('email_code_hash')) await this.db.prepare('ALTER TABLE mfa_pending ADD COLUMN email_code_hash TEXT').run()
+      if (!names.has('email_code_expires_at')) await this.db.prepare('ALTER TABLE mfa_pending ADD COLUMN email_code_expires_at TEXT').run()
+      if (!names.has('email_code_sent_at')) await this.db.prepare('ALTER TABLE mfa_pending ADD COLUMN email_code_sent_at TEXT').run()
     })
   }
 
@@ -2862,6 +2879,26 @@ export class D1ServerStore implements ServerStore {
     return row ? D1ServerStore.toMfaPending(row) : null
   }
 
+  async setMfaPendingEmailCode(token: string, codeHash: string, expiresAtIso: string): Promise<void> {
+    await this.ensureMfaEmailColumns()
+    await this.stmt(
+      "UPDATE mfa_pending SET email_code_hash = ?, email_code_expires_at = ?, email_code_sent_at = datetime('now') WHERE token = ? AND consumed_at IS NULL",
+      codeHash, expiresAtIso, token,
+    ).run()
+  }
+
+  async setEmailFallback(userId: string, untilIso: string | null): Promise<void> {
+    await this.ensureUserColumns()
+    await this.stmt('UPDATE users SET email_fallback_until = ? WHERE id = ?', untilIso, userId).run()
+  }
+
+  async emailFallbackUntil(userId: string): Promise<string | null> {
+    await this.ensureUserColumns()
+    const row = await this.stmt('SELECT email_fallback_until AS until FROM users WHERE id = ?', userId)
+      .first<{ until: string | null }>()
+    return row?.until ?? null
+  }
+
   // ── the personal access tokens (TODO.identity-features/08) ─────────
 
   async createPersonalAccessToken(input: {
@@ -3399,6 +3436,9 @@ export class D1ServerStore implements ServerStore {
       createdAt: D1ServerStore.storeTimeToIso(row.created_at as string)!,
       expiresAt: D1ServerStore.storeTimeToIso(row.expires_at as string)!,
       consumedAt: D1ServerStore.storeTimeToIso((row.consumed_at as string | null) ?? null),
+      emailCodeHash: (row.email_code_hash as string | null) ?? null,
+      emailCodeExpiresAt: D1ServerStore.storeTimeToIso((row.email_code_expires_at as string | null) ?? null),
+      emailCodeSentAt: D1ServerStore.storeTimeToIso((row.email_code_sent_at as string | null) ?? null),
     }
   }
 

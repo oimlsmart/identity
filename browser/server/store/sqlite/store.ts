@@ -552,6 +552,7 @@ function toAdminRow(user: any): UserAdminRow {
     provider: user.provider,
     lastLogin: user.last_login ?? null,
     emailVerifiedAt: user.email_verified_at ?? null,
+    emailFallbackUntil: user.email_fallback_until ?? null,
   }
 }
 
@@ -593,6 +594,17 @@ export function setUserRoles(db: Database.Database, id: string, role: string, ro
 
 /** Deactivate/reactivate: sessions stop resolving immediately (the
  *  getSessionUser join) and demo sign-in refuses. */
+/** 0041 (the email sign-in fallback): the allowance — while live, the
+ *  sign-in challenge offers the emailed OTP. NULL closes it. */
+export function setEmailFallback(db: Database.Database, id: string, untilIso: string | null): void {
+  db.prepare('UPDATE users SET email_fallback_until = ? WHERE id = ?').run(untilIso, id)
+}
+
+export function emailFallbackUntil(db: Database.Database, id: string): string | null {
+  const row = db.prepare('SELECT email_fallback_until AS until FROM users WHERE id = ?').get(id) as { until: string | null } | undefined
+  return row?.until ?? null
+}
+
 export function setUserActive(db: Database.Database, id: string, active: boolean): boolean {
   const res = db.prepare('UPDATE users SET active = ? WHERE id = ?').run(active ? 1 : 0, id)
   return res.changes > 0

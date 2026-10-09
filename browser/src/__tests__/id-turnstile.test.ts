@@ -31,6 +31,7 @@ identity:
   role_codes: [identity]
 roles: [identity]
 branding: { name: OIML SMART Identity }
+demo_personas: true
 `))
   const { createApiApp } = await import('../../server/app')
   app = createApiApp({ autoSeedDemo: true, instanceProfile: profileMod.getInstanceProfile() })
@@ -109,6 +110,21 @@ describe('the route gate (the three postures)', () => {
     // validation answers, never the gate's shape).
     expect(res.status, 'the gate opened — the account path answers, never the bot 403').not.toBe(403)
     expect(((await res.json()) as { error?: string }).error ?? '').not.toContain('bot')
+  })
+
+  it('THE SCOPE RULING, part 2 (the 2026-10-10 production lockout): the ADMIN queue read is NEVER captcha-gated — the token-less GET answers the grant\'s own verdict, never the bot 403', async () => {
+    process.env.TURNSTILE_SECRET = 's'
+    process.env.TURNSTILE_SITE_KEY = 'k'
+    // The admin console's own first read: the join queue, authenticated.
+    const login = await app.request(`${ISSUER}/api/auth/demo`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@oimlsmart.org', password: 'demo2026' }),
+    })
+    const cookie = login.headers.get('set-cookie')!.split(';')[0]!
+    const res = await app.request(`${ISSUER}/api/op/join-requests`, { headers: { cookie } })
+    expect(res.status, 'the queue grant answers (200 the wide grant), never the bot 403').not.toBe(403)
+    const body = await res.json() as { error?: string }
+    expect(body.error ?? '').not.toContain('bot')
   })
 
   it('THE SCOPE RULING (2026-09-28): the sign-in is NEVER captcha-gated — a token-less login answers the credential 401, never the bot 403', async () => {

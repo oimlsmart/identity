@@ -125,6 +125,9 @@ interface RegistryAccount {
   passwordSet: boolean
   links: Array<{ provider: string; linkedAt: string; linkedBy: string | null }>
   lastSignIn: string | null
+  /** 0041 (the email sign-in fallback): the allowance's expiry — while
+   *  live the sign-in challenge offers the emailed OTP; null = closed. */
+  emailFallbackUntil: string | null
   clientRoles: Array<{ clientId: string; roles: string[]; assignedBy: string | null; updatedAt: string | null }>
 }
 
@@ -277,7 +280,11 @@ async function load(): Promise<void> {
     return
   }
   if (queueRes.status === 403) {
-    error.value = t('admin.users.consoleGrant')
+    // The server's own refusal names the real reason (the 2026-10-10
+    // lockout: a bot-gate 403 painted as a grant refusal hid the cause
+    // for a day). The generic copy stands only when the body is silent.
+    const body = await queueRes.json().catch(() => null) as { error?: string } | null
+    error.value = body?.error?.trim() ? body.error : t('admin.users.consoleGrant')
     loading.value = false
     return
   }
@@ -730,6 +737,58 @@ async function freshSetupLink(acc: RegistryAccount) {
   } finally {
     acting.value = null
   }
+}
+
+/** 0041 (the email sign-in fallback): the lockout's way back — the
+ *  administrator opens a day of emailed-code sign-in for an account
+ *  whose second factor is unreachable (the Microsoft Temporary Access
+ *  Pass pattern), or closes it again. */
+async function grantEmailFallback(acc: RegistryAccount) {
+  if (acting.value) return
+  acting.value = acc.id
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/accounts/${encodeURIComponent(acc.id)}/email-fallback`, { method: 'POST' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `(${res.status})`
+      return
+    }
+    const body = await res.json() as { until: string }
+    notice.value = `${acc.name} may sign in with an emailed code until ${body.until.slice(0, 16).replace('T', ' ')} UTC.`
+    await load()
+  } catch {
+    error.value = t('error.network')
+  } finally {
+    acting.value = null
+  }
+}
+
+async function revokeEmailFallback(acc: RegistryAccount) {
+  if (acting.value) return
+  acting.value = acc.id
+  error.value = null
+  notice.value = null
+  try {
+    const res = await api(`/api/op/accounts/${encodeURIComponent(acc.id)}/email-fallback`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      error.value = body.error ?? `(${res.status})`
+      return
+    }
+    notice.value = `${acc.name}'s emailed-code sign-in is closed.`
+    await load()
+  } catch {
+    error.value = t('error.network')
+  } finally {
+    acting.value = null
+  }
+}
+
+/** The allowance's live-ness (the row's display + the button's pick). */
+function emailFallbackLive(acc: RegistryAccount): boolean {
+  return !!acc.emailFallbackUntil && new Date(acc.emailFallbackUntil).getTime() > Date.now()
 }
 
 /** The last sign-in's display (the audit chain's ISO stamp). */
@@ -1618,7 +1677,7 @@ onMounted(async () => {
                   </p>
                   <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`registry-meta-${acc.id}`">
                     default roles: {{ acc.roles.join(', ') }}<template v-if="acc.orgId"> · {{ orgNameOf(acc.orgId) }}</template>
-                    <template v-if="acc.provider === 'password'"> · {{ acc.passwordSet ? 'password set' : 'password not set' }}</template><template v-else> · demo sign-in (seed-managed)</template><template v-if="acc.links.length"> · linked: {{ acc.links.map(l => l.provider).join(', ') }}</template>
+                    <template v-if="acc.provider === 'password'"> · {{ acc.passwordSet ? 'password set' : 'password not set' }}</template><template v-else> · demo sign-in (seed-managed)</template><template v-if="emailFallbackLive(acc)"> · email sign-in until {{ acc.emailFallbackUntil!.slice(0, 16).replace('T', ' ') }} UTC</template><template v-if="acc.links.length"> · linked: {{ acc.links.map(l => l.provider).join(', ') }}</template>
                   </p>
                   <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`registry-lastsignin-${acc.id}`">
                     {{ lastSignInLabel(acc) }}
@@ -1627,7 +1686,7 @@ onMounted(async () => {
                     per-client: {{ acc.clientRoles.map(a => `${a.clientId} → ${a.roles.length ? a.roles.join(', ') : '∅ (none)'}`).join(' · ') }}
                   </p>
                 </div>
-                <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                <div class="flex items-center gap-2 flex-wrap">
                   <router-link
                     :to="`/op/admin/registry/users/${acc.id}`"
                     :data-testid="`registry-detail-${acc.id}`"
@@ -1657,6 +1716,20 @@ onMounted(async () => {
                     class="text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline disabled:opacity-50"
                     @click="freshSetupLink(acc)"
                   >{{ t('admin.users.freshSetupLink') }}</button>
+                  <button
+                    v-if="acc.provider === 'password' && emailFallbackLive(acc)"
+                    :data-testid="`registry-email-fallback-revoke-${acc.id}`"
+                    :disabled="acting === acc.id"
+                    class="text-xs font-medium text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                    @click="revokeEmailFallback(acc)"
+                  >{{ t('admin.users.emailFallbackRevoke') }}</button>
+                  <button
+                    v-else-if="acc.provider === 'password'"
+                    :data-testid="`registry-email-fallback-${acc.id}`"
+                    :disabled="acting === acc.id"
+                    class="text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline disabled:opacity-50"
+                    @click="grantEmailFallback(acc)"
+                  >{{ t('admin.users.emailFallbackGrant') }}</button>
                   <button
                     v-if="acc.provider === 'password' && acc.id !== account?.id"
                     :data-testid="`registry-toggle-${acc.id}`"
