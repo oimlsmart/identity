@@ -83,7 +83,12 @@ const ACCOUNT_ENTRIES: ReadonlyArray<NavEntry> = [
 // refuses.
 interface SessionUser { id: string; email: string; name: string; role: string }
 const user = ref<SessionUser | null>(null)
-const isAdmin = computed(() => user.value?.role === 'admin' || user.value?.role === 'cs_admin')
+// The same predicate the server's every admin gate reads
+// (vocab/roles.ts isSystemAuthority): the LEGACY pair (admin, cs_admin)
+// AND system_admin — TODO.modern's role. The console switch hid the
+// whole Administration area from the system_admins (the 2026-10-10
+// report: four super admins, an empty interface).
+const isAdmin = computed(() => user.value?.role === 'admin' || user.value?.role === 'cs_admin' || user.value?.role === 'system_admin')
 
 // The current console's sections. The admin set keeps the pre-07 tab
 // strip's audience: the WIDE grant only — the org-grant visitor (the
