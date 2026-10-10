@@ -101,7 +101,7 @@
 import { en, type MessageKey } from '../../../src/i18n/en'
 import { fr } from '../../../src/i18n/fr'
 import { getInstanceProfile } from '../../profile'
-import { mailerFor, type MailEnv, type MailPosture } from '../../mailer'
+import { clearMailBudgetFor, mailerFor, type MailEnv, type MailPosture } from '../../mailer'
 import type { ServerStore } from '../../store'
 
 export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'self_register_verify' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_edited' | 'pat_expiring'
@@ -446,6 +446,21 @@ export async function sendOpMail(
  *  result, so the caller's stamp semantics (the pat_expiring one-shot)
  *  ride the address of record; the additional sends honor sendOpMail's
  *  never-throws rule one by one. */
+/** THE LOGIN CLEAR (2026-10-10): a completed sign-in proves the real
+ *  holder is present — both mail lanes refill for every address this
+ *  account owns (the attacker's — or the user's own — counted flood
+ *  ends with the successful entry). Never throws: a mailer bookkeeping
+ *  act must never block a sign-in. */
+export async function clearMailBudgetForAccount(store: ServerStore, userId: string): Promise<void> {
+  try {
+    for (const address of await store.listAccountEmails(userId)) {
+      clearMailBudgetFor(address.email)
+    }
+  } catch {
+    /* never blocks the sign-in */
+  }
+}
+
 export async function sendOpSecurityMail(
   env: MailEnv,
   store: ServerStore,

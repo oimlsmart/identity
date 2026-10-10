@@ -83,13 +83,24 @@ export interface MailerConfig {
   binding: SendEmailBinding | null
   providerUrl: string | null
   providerKey: string | null
-  rateLimit: { capacity: number; windowMs: number }
+  rateLimit: { capacity: number; windowMs: number; criticalCapacity: number }
   /** Every configuration problem, named (logged once per config change —
    *  a misdeclared mailer must never silently degrade). */
   problems: string[]
 }
 
-export const MAIL_RATE_LIMIT_DEFAULTS = { capacity: 5, windowMs: 3_600_000 }
+/** THE CRITICAL LANE (2026-10-10): the two entry-gating mails — the
+ *  reset link and the emailed sign-in code — must NEVER be starved by
+ *  the notice budget, or an attacker's mail flood (or the user's own
+ *  bad day) closes the email way out: the rate limiter itself becomes
+ *  the lockout. Criticals draw their OWN budget (criticalCapacity),
+ *  high by default — a mailbox-flood cap for the provider's sake; the
+ *  ROUTE-level buckets already bound any single attacker. A completed
+ *  sign-in clears both lanes (the real holder's return ends the
+ *  counted flood — the login clear). */
+export const MAIL_RATE_LIMIT_DEFAULTS = { capacity: 5, windowMs: 3_600_000, criticalCapacity: 30 }
+/** The templates that gate entry (the way-out lane). */
+export const CRITICAL_MAIL_TEMPLATES: ReadonlySet<string> = new Set(['reset', 'email_otp'])
 
 /** The provider call's ceiling — a hung provider must never hold the
  *  triggering request. */
@@ -119,6 +130,16 @@ export function resolveMailerConfig(env: MailEnv): MailerConfig {
     problems.push('no mail provider is configured (no EMAIL binding, no MAIL_PROVIDER_URL+MAIL_PROVIDER_KEY) — messages are logged, never delivered; the flows keep showing their links')
   }
 
+  let criticalCapacity = MAIL_RATE_LIMIT_DEFAULTS.criticalCapacity
+  const rawCritical = str('MAIL_RATE_LIMIT_CRITICAL_CAPACITY')
+  if (rawCritical !== null) {
+    const parsedCritical = Number(rawCritical)
+    if (!Number.isInteger(parsedCritical) || parsedCritical < 0) {
+      problems.push(`MAIL_RATE_LIMIT_CRITICAL_CAPACITY is not a non-negative integer: ${JSON.stringify(rawCritical)} — the default ${MAIL_RATE_LIMIT_DEFAULTS.criticalCapacity} applies`)
+    } else {
+      criticalCapacity = parsedCritical
+    }
+  }
   let capacity = MAIL_RATE_LIMIT_DEFAULTS.capacity
   const rawCapacity = str('MAIL_RATE_LIMIT_CAPACITY')
   if (rawCapacity !== null) {
@@ -141,12 +162,14 @@ export function resolveMailerConfig(env: MailEnv): MailerConfig {
   }
 
   const posture: MailPosture = binding && from ? 'send_email' : providerUrl && providerKey && from ? 'https' : 'console'
-  return { posture, from, binding, providerUrl, providerKey, rateLimit: { capacity, windowMs }, problems }
+  return { posture, from, binding, providerUrl, providerKey, rateLimit: { capacity, windowMs, criticalCapacity }, problems }
 }
 
 export interface Mailer {
   readonly config: MailerConfig
   send(message: MailMessage, meta?: { template?: string }): Promise<MailSendResult>
+  /** The login clear: refill both lanes for one recipient. */
+  clearBudgetFor(recipient: string): void
 }
 
 /** The audit trail on every send outcome (the spec's invariant) —
@@ -154,7 +177,7 @@ export interface Mailer {
 async function auditSend(
   action: 'email.sent' | 'email.failed' | 'email.logged' | 'email.rate_limited',
   message: MailMessage,
-  meta: { template?: string; posture: MailPosture; error?: string },
+  meta: { template?: string; posture: MailPosture; error?: string; lane?: string },
 ): Promise<void> {
   try {
     const id = crypto.randomUUID()
@@ -237,17 +260,22 @@ export function createMailer(config: MailerConfig, deps?: { now?: () => number; 
     config,
     async send(message, meta) {
       const recipient = message.to.trim().toLowerCase()
-      const { capacity, windowMs } = config.rateLimit
-      if (capacity > 0) {
+      // The lane: the entry-gating templates (the way out) draw their own
+      // budget — the notices' flood can never close the door.
+      const critical = meta?.template !== undefined && CRITICAL_MAIL_TEMPLATES.has(String(meta.template))
+      const { capacity, windowMs, criticalCapacity } = config.rateLimit
+      const laneCapacity = critical ? criticalCapacity : capacity
+      const key = `${critical ? 'critical:' : ''}${recipient}`
+      if (laneCapacity > 0) {
         const at = now()
-        let bucket = buckets.get(recipient)
+        let bucket = buckets.get(key)
         if (!bucket || at >= bucket.resetAt) {
-          bucket = { tokens: capacity, resetAt: at + windowMs }
-          buckets.set(recipient, bucket)
+          bucket = { tokens: laneCapacity, resetAt: at + windowMs }
+          buckets.set(key, bucket)
         }
         if (bucket.tokens <= 0) {
-          const error = `rate limited — this recipient already received ${capacity} message(s) within the window`
-          await auditSend('email.rate_limited', message, { template: meta?.template, posture: config.posture, error })
+          const error = `rate limited — this recipient already received ${laneCapacity} ${critical ? 'entry-gating ' : ''}message(s) within the window`
+          await auditSend('email.rate_limited', message, { template: meta?.template, posture: config.posture, error, lane: critical ? 'critical' : 'notice' })
           return { ok: false, posture: config.posture, error, rateLimited: true }
         }
         bucket.tokens -= 1
@@ -265,6 +293,14 @@ export function createMailer(config: MailerConfig, deps?: { now?: () => number; 
         { template: meta?.template, posture: result.posture, error: result.error },
       )
       return result
+    },
+    /** THE LOGIN CLEAR (2026-10-10): a completed sign-in proves the real
+     *  holder is present — the counted flood (attacker or self-inflicted)
+     *  ends; both lanes refill. */
+    clearBudgetFor(recipient: string) {
+      const r = recipient.trim().toLowerCase()
+      buckets.delete(r)
+      buckets.delete(`critical:${r}`)
     },
   }
 }
@@ -301,6 +337,13 @@ export function mailerFor(env: MailEnv): Mailer {
     cached = { fingerprint, mailer: createMailer(config) }
   }
   return cached.mailer
+}
+
+/** THE LOGIN CLEAR's forward: clear the CACHED mailer's lanes for one
+ *  recipient (a completed sign-in's proof — see Mailer.clearBudgetFor).
+ *  No cached mailer (nothing sent this process) = nothing to clear. */
+export function clearMailBudgetFor(recipient: string): void {
+  cached?.mailer.clearBudgetFor(recipient)
 }
 
 /** Test seam: drop the cached mailer (the next mailerFor re-resolves). */

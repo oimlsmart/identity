@@ -43,7 +43,7 @@ import { getInstanceProfile } from '../profile'
 import { opRequestOrigin } from '../auth/op/config'
 import { clientInfo } from '../client-info'
 import { resolveOpSigningKey } from '../auth/op/keys'
-import { sendOpSecurityMail } from '../auth/op/mail'
+import { clearMailBudgetForAccount, sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
 import { roleHome } from '../vocab'
 import {
@@ -534,6 +534,7 @@ export function createOpUpstreamRouter(): Hono {
       return c.redirect(loginErrorRedirect(origin, 'not_linked', provider.displayName))
     }
 
+    await clearMailBudgetForAccount(store, user.id)
     const token = await store.createSession(user.id, clientInfo(c))
     await store.touchLastLogin(user.id)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
