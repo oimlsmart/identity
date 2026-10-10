@@ -515,6 +515,13 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       // The MFA step renders (the page, not a session).
       await page.waitForSelector('[data-testid="login-mfa"]', { timeout: 60_000, polling: 500 })
       flog(page, 'leg2: the MFA step stands')
+      // The chooser stands when more than one primary can answer (this
+      // account carries the emailed fallback for its post-enroll hour):
+      // pick the authenticator card, then the pane's code form.
+      if (await page.$('[data-testid="login-mfa-choose"]')) {
+        await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-choose-totp"]') as HTMLElement).click())
+      }
+      await page.waitForSelector('[data-testid="login-mfa-code"]', { timeout: 60_000, polling: 500 })
       // A wrong code refuses visibly.
       await page.type('[data-testid="login-mfa-code"]', '000000')
       await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-submit"]') as HTMLElement).click())
@@ -557,6 +564,10 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
     await withPage(async (page) => {
       await pagePasswordSignIn(page, stack.base, CASEY.email, CASEY.password)
       await page.waitForSelector('[data-testid="login-mfa"]', { timeout: 60_000, polling: 500 })
+      if (await page.$('[data-testid="login-mfa-choose"]')) {
+        await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-choose-totp"]') as HTMLElement).click())
+      }
+      await page.waitForSelector('[data-testid="login-mfa-code"]', { timeout: 60_000, polling: 500 })
       // Five wrong codes. The ladder's backoff is the production default
       // (2^n seconds after the nth failure) — the leg rides it honestly.
       // Each attempt awaits its OWN response (never a stale error box).
