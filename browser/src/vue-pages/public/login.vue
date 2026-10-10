@@ -123,12 +123,36 @@ const resetError = ref<string | null>(null)
 const mfa = ref<{ token: string; methods: { totp: boolean; passkey: boolean; recovery: boolean; email: boolean } } | null>(null)
 const mfaCode = ref('')
 const mfaBusy = ref(false)
-const mfaShowRecovery = ref(false)
 const recoveryCode = ref('')
 // 0041 (the email sign-in fallback): the allowance-gated mailed code —
 // the send lands here, the six digits go to emailCode.
 const emailCode = ref('')
 const emailSent = ref(false)
+// The factor step's pane (the AWS/Google pattern, the 2026-10-10
+// ruling): a CHOOSER when several methods can answer — each card names
+// its method — and a STRAIGHT shot when exactly one can (a passkey-
+// only account goes directly into the browser's passkey prompt, the
+// Google/Apple posture). Recovery stays the quiet fallback link.
+type MfaPane = 'choose' | 'totp' | 'passkey' | 'email' | 'recovery'
+const mfaPane = ref<MfaPane>('choose')
+/** The PRIMARY methods that can answer this challenge (recovery is the
+ *  fallback, never a headline card). */
+const mfaPrimaries = computed(() => {
+  const m = mfa.value?.methods
+  if (!m) return [] as Array<'totp' | 'passkey' | 'email'>
+  const out: Array<'totp' | 'passkey' | 'email'> = []
+  if (m.totp) out.push('totp')
+  if (m.passkey) out.push('passkey')
+  if (m.email) out.push('email')
+  return out
+})
+function enterPane(pane: MfaPane): void {
+  mfaPane.value = pane
+  if (pane === 'email' && !emailSent.value) void sendEmailCode()
+}
+function backToChoose(): void {
+  mfaPane.value = 'choose'
+}
 /** The passkey sign-in's availability (the button hides where the
  *  browser has no WebAuthn — an old browser is not an error). */
 const passkeysSupported = webauthnAvailable()
@@ -289,9 +313,15 @@ async function submitOpLogin() {
       mfa.value = { token: body.mfaToken, methods: body.methods }
       mfaCode.value = ''
       recoveryCode.value = ''
-      mfaShowRecovery.value = false
       emailCode.value = ''
       emailSent.value = false
+      // The fast path: exactly one primary method answers — no chooser,
+      // straight to it (a passkey-only account goes straight into the
+      // browser's prompt, Google/Apple style).
+      const primaries = ['totp', 'passkey', 'email'].filter(k => (body.methods as Record<string, boolean>)[k])
+      mfaPane.value = primaries.length === 1 ? primaries[0] as MfaPane : 'choose'
+      if (mfaPane.value === 'passkey') void submitMfaPasskey()
+      if (mfaPane.value === 'email') void sendEmailCode()
       return
     }
     landSignedIn()
@@ -709,8 +739,30 @@ async function submitReset() {
         <div class="space-y-3" data-testid="login-mfa">
           <p class="text-sm text-slate-600 dark:text-slate-300">{{ t('login.mfa.prompt') }}</p>
 
-          <!-- The authenticator code (the user's choice when both exist). -->
-          <form v-if="mfa.methods.totp" class="flex items-center gap-2" @submit.prevent="submitMfaTotp">
+          <!-- The CHOOSER (the AWS pattern): each card names a method that
+               can answer this challenge; the recovery floor stays the
+               quiet link beneath. -->
+          <div v-if="mfaPane === 'choose'" class="space-y-2" data-testid="login-mfa-choose">
+            <button
+              v-for="method in mfaPrimaries"
+              :key="method"
+              type="button"
+              :disabled="mfaBusy"
+              :data-testid="`login-mfa-choose-${method}`"
+              class="w-full min-h-11 px-4 py-2.5 rounded-lg text-left border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              @click="method === 'passkey' ? submitMfaPasskey() : method === 'email' ? enterPane('email') : enterPane('totp')"
+            >
+              <span class="block text-base font-medium text-slate-900 dark:text-white">
+                {{ method === 'passkey' ? t('login.mfa.usePasskey') : method === 'email' ? t('login.mfa.emailUse') : t('login.mfa.useTotp') }}
+              </span>
+              <span class="block text-xs text-slate-500 dark:text-slate-400">
+                {{ method === 'passkey' ? t('login.mfa.passkeyHint') : method === 'email' ? t('login.mfa.emailHint') : t('login.mfa.totpHint') }}
+              </span>
+            </button>
+          </div>
+
+          <!-- The authenticator code pane. -->
+          <form v-if="mfaPane === 'totp'" class="flex items-center gap-2" @submit.prevent="submitMfaTotp">
             <input
               v-model="mfaCode"
               type="text"
@@ -729,29 +781,22 @@ async function submitReset() {
             >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.verify') }}</button>
           </form>
 
+          <!-- The passkey pane: the fast path fired the ceremony already;
+               the button stands for a retry (a dismissed prompt). -->
           <button
-            v-if="mfa.methods.passkey"
+            v-if="mfaPane === 'passkey'"
             type="button"
             :disabled="mfaBusy"
             data-testid="login-mfa-passkey"
             class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
             @click="submitMfaPasskey"
-          >{{ t('login.mfa.usePasskey') }}</button>
+          >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.usePasskey') }}</button>
 
-          <!-- 0041: the emailed fallback — offered only while the account's
-               allowance is live (the administrator's grant, or the reset
-               completion's own hour); the code rides the challenge. -->
-          <div v-if="mfa.methods.email">
-            <button
-              v-if="!emailSent"
-              type="button"
-              :disabled="mfaBusy"
-              data-testid="login-mfa-email"
-              class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-              @click="sendEmailCode"
-            >{{ t('login.mfa.emailUse') }}</button>
-            <form v-else class="space-y-2" @submit.prevent="submitMfaEmailCode">
-              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('login.mfa.emailSent') }}</p>
+          <!-- 0041: the emailed fallback pane — the code was sent on entry
+               (the card's click IS the ask); the verify rides below. -->
+          <div v-if="mfaPane === 'email'">
+            <form class="space-y-2" @submit.prevent="submitMfaEmailCode">
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ emailSent ? t('login.mfa.emailSent') : t('login.mfa.emailSending') }}</p>
               <div class="flex items-center gap-2">
                 <input
                   v-model="emailCode"
@@ -774,32 +819,41 @@ async function submitReset() {
           </div>
 
           <!-- The recovery floor (one-time codes; the email reset stands
-               behind everything). -->
-          <div v-if="mfa.methods.recovery">
-            <p v-if="!mfaShowRecovery" class="text-center">
-              <button
-                type="button"
-                data-testid="login-mfa-recovery-toggle"
-                class="text-sm text-brand-600 dark:text-brand-300 hover:underline"
-                @click="mfaShowRecovery = true"
-              >{{ t('login.mfa.useRecovery') }}</button>
-            </p>
-            <form v-else class="flex items-center gap-2" @submit.prevent="submitMfaRecovery">
-              <input
-                v-model="recoveryCode"
-                type="text"
-                data-testid="login-mfa-recovery-code"
-                :placeholder="t('login.mfa.recoveryPlaceholder')"
-                class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-              <button
-                type="submit"
-                :disabled="mfaBusy"
-                data-testid="login-mfa-recovery-submit"
-                class="shrink-0 min-h-11 px-4 py-2 rounded-lg text-base font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
-              >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.recoverySubmit') }}</button>
-            </form>
+               behind everything) — the chooser's quiet last resort. -->
+          <div v-if="mfa.methods.recovery && mfaPane !== 'recovery'" class="text-center">
+            <button
+              type="button"
+              data-testid="login-mfa-recovery-toggle"
+              class="text-sm text-brand-600 dark:text-brand-300 hover:underline"
+              @click="mfaPane = 'recovery'"
+            >{{ t('login.mfa.useRecovery') }}</button>
           </div>
+          <form v-else-if="mfaPane === 'recovery'" class="flex items-center gap-2" @submit.prevent="submitMfaRecovery">
+            <input
+              v-model="recoveryCode"
+              type="text"
+              data-testid="login-mfa-recovery-code"
+              :placeholder="t('login.mfa.recoveryPlaceholder')"
+              class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <button
+              type="submit"
+              :disabled="mfaBusy"
+              data-testid="login-mfa-recovery-submit"
+              class="shrink-0 min-h-11 px-4 py-2 rounded-lg text-base font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+            >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.recoverySubmit') }}</button>
+          </form>
+
+          <!-- The way back: a chooser stands behind every pane (hidden on
+               the fast path, where there is nothing else to choose). -->
+          <p v-if="mfaPane !== 'choose' && mfaPrimaries.length > 1" class="text-center">
+            <button
+              type="button"
+              data-testid="login-mfa-back"
+              class="text-sm text-slate-500 dark:text-slate-400 hover:underline"
+              @click="backToChoose"
+            >{{ t('login.mfa.back') }}</button>
+          </p>
 
           <p class="text-center">
             <button
