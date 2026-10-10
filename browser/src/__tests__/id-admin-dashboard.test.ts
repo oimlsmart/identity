@@ -61,8 +61,6 @@ let generatePkce: typeof import('../../server/oidc').generatePkce
 /** The stubbed GitHub Actions API (the heartbeat route's source). */
 let ghStub: Server
 let ghStubBase: string
-/** Every request the stub saw (the token-attach + ETag legs' evidence). */
-const ghRequests: Array<{ url: string; authorization: string | null; ifNoneMatch: string | null }> = []
 
 async function demoLogin(email: string): Promise<string> {
   const res = await app.request('/api/auth/demo', {
@@ -189,52 +187,32 @@ demo_personas: true
 
   await demoLogin('admin@oimlsmart.org')
 
-  // The stubbed GitHub Actions API the heartbeat route reads. The
-  // captured request headers let the legs prove the token attach + the
-  // ETag revalidation; the ratelimit repo answers the spent-anonymous
-  // budget shape (403 + the rate-limit headers).
+  // The stubbed STATUS SERVICE the heartbeat route reads (the SLO
+  // panel's source since the 2026-10-10 ruling): /summary.json answers
+  // the estate's live shape; /summary-degraded.json carries one red
+  // identity service; /summary-red.json answers 404.
   ghStub = createServer((req, res) => {
-    ghRequests.push({
-      url: req.url ?? '',
-      authorization: req.headers.authorization ?? null,
-      ifNoneMatch: req.headers['if-none-match'] ?? null,
-    })
-    if (req.url?.includes('/repos/acme/id-ratelimited/actions/workflows/')) {
-      res.writeHead(403, { 'content-type': 'application/json', 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 1800) })
-      res.end(JSON.stringify({ message: 'API rate limit exceeded' }))
+    if (req.url?.includes('summary-red.json')) {
+      res.writeHead(404, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ message: 'gone' }))
       return
     }
-    if (req.url?.includes('/repos/acme/id-etag/actions/workflows/')) {
-      if (req.headers['if-none-match'] === 'W/"stub-v1"') {
-        res.writeHead(304)
-        res.end()
-        return
-      }
-      res.writeHead(200, { 'content-type': 'application/json', etag: 'W/"stub-v1"' })
-      res.end(JSON.stringify({
-        workflow_runs: [
-          { id: 9, status: 'completed', conclusion: 'success', created_at: '2026-08-24T10:00:00Z', html_url: 'https://github.test/runs/9' },
-        ],
-      }))
-      return
-    }
-    if (req.url?.includes('/actions/workflows/broken.yml/runs')) {
-      res.writeHead(500, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ message: 'the stub is red' }))
-      return
-    }
+    const degraded = req.url?.includes('summary-degraded.json')
     res.writeHead(200, { 'content-type': 'application/json' })
     res.end(JSON.stringify({
-      workflow_runs: [
-        { id: 3, status: 'completed', conclusion: 'success', created_at: '2026-08-24T09:52:00Z', html_url: 'https://github.test/runs/3' },
-        { id: 2, status: 'completed', conclusion: 'failure', created_at: '2026-08-24T09:37:00Z', html_url: 'https://github.test/runs/2' },
-        { id: 1, status: 'completed', conclusion: 'success', created_at: '2026-08-24T09:22:00Z', html_url: 'https://github.test/runs/1' },
+      generatedAt: '2026-10-10T04:00:00.000Z',
+      prober: { lastRunAt: 1791603217985 },
+      services: [
+        { id: 'id-op-discovery', name: 'Identity: OP discovery', state: 'operational', reason: null, lastGoodAt: 1791603217497, uptime30d: '100', uptime90d: '100' },
+        { id: 'id-sign-in', name: 'Identity: sign-in', state: 'operational', reason: null, lastGoodAt: 1791603217497, uptime30d: '100', uptime90d: '100' },
+        { id: 'id-auth-route', name: 'Identity: authorize route', state: degraded ? 'down' : 'operational', reason: degraded ? 'HTTP 503' : null, lastGoodAt: 1791603217497, uptime30d: '70.47', uptime90d: '57.73' },
+        { id: 'platform-hub', name: 'The platform hub', state: 'operational', reason: null, lastGoodAt: 1791603217497, uptime30d: '100', uptime90d: '100' },
       ],
     }))
   })
   await new Promise<void>(resolve => ghStub.listen(0, '127.0.0.1', resolve))
   ghStubBase = `http://127.0.0.1:${(ghStub.address() as AddressInfo).port}`
-  process.env.OP_HEARTBEAT_API_BASE = ghStubBase
+  process.env.OP_STATUS_SUMMARY_URL = `${ghStubBase}/summary.json`
 }, 30_000)
 
 afterAll(async () => {
@@ -243,9 +221,7 @@ afterAll(async () => {
   delete process.env.OP_ISSUER
   delete process.env.DATABASE_PATH
   delete process.env.OP_LOGIN_BACKOFF_BASE_MS
-  delete process.env.OP_HEARTBEAT_API_BASE
-  delete process.env.OP_HEARTBEAT_WORKFLOW
-  delete process.env.OP_HEARTBEAT_REPO
+  delete process.env.OP_STATUS_SUMMARY_URL
   const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
 })
@@ -721,91 +697,62 @@ describe('the live access review', () => {
 
 // ── the heartbeat (the SLO panel's data) ─────────────────────────────
 
-describe('the heartbeat read', () => {
-  it('the green window computes from the workflow history at its source', async () => {
-    process.env.OP_HEARTBEAT_REPO = 'acme/id-green'
-    process.env.OP_HEARTBEAT_WORKFLOW = 'identity-heartbeat.yml'
+describe('the heartbeat read (the estate status service)', () => {
+  it('the live summary slices the identity services with their uptime', async () => {
     const admin = await demoLogin('admin@oimlsmart.org')
     const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
     expect(res.status).toBe(200)
     const body = await res.json() as {
       available: boolean
-      totals: { completed: number; succeeded: number; failed: number; successRate: number }
-      lastRun: { conclusion: string }
-      failures: Array<{ url: string }>
-      source: { runsUrl: string }
+      probedAt?: string | null
+      services?: Array<{ id: string; state: string; uptime30d: string | null }>
+      degraded?: Array<{ id: string }>
+      source: { url: string }
     }
     expect(body.available).toBe(true)
-    expect(body.totals).toMatchObject({ completed: 3, succeeded: 2, failed: 1 })
-    expect(body.totals.successRate).toBeCloseTo(2 / 3, 5)
-    expect(body.lastRun.conclusion).toBe('success')
-    expect(body.failures).toHaveLength(1)
-    expect(body.source.runsUrl).toContain('acme/id-green')
+    expect(body.services?.map(svc => svc.id)).toEqual(['id-op-discovery', 'id-sign-in', 'id-auth-route'])
+    expect(body.services?.[2]?.uptime30d).toBe('70.47')
+    expect(body.degraded).toEqual([])
+    expect(body.probedAt).toBe(new Date(1791603217985).toISOString())
+    expect(body.source.url).toBe('https://status.oimlsmart.org')
   })
 
-  it('a configured token rides the workflow-history read (the anonymous 60/hour-per-IP budget is the intermittent 403)', async () => {
-    process.env.OP_HEARTBEAT_REPO = 'acme/id-green'
-    process.env.OP_HEARTBEAT_WORKFLOW = 'identity-heartbeat.yml'
-    process.env.OP_HEARTBEAT_TOKEN = 'ghp_the-stub-token'
-    try {
-      ghRequests.length = 0
-      const admin = await demoLogin('admin@oimlsmart.org')
-      // A fresh cache key: the workflow name forces the miss.
-      process.env.OP_HEARTBEAT_WORKFLOW = 'token-carried.yml'
-      const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
-      expect(res.status).toBe(200)
-      const sent = ghRequests.find(r => r.url.includes('token-carried.yml'))
-      expect(sent?.authorization, 'the token attaches as the Bearer').toBe('Bearer ghp_the-stub-token')
-    } finally {
-      delete process.env.OP_HEARTBEAT_TOKEN
-      process.env.OP_HEARTBEAT_WORKFLOW = 'identity-heartbeat.yml'
-    }
-  })
-
-  it('the rate-limited 403 names the spent anonymous budget honestly (never a bare HTTP code)', async () => {
-    process.env.OP_HEARTBEAT_REPO = 'acme/id-ratelimited'
-    process.env.OP_HEARTBEAT_WORKFLOW = 'spent.yml'
-    const admin = await demoLogin('admin@oimlsmart.org')
-    const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
-    expect(res.status).toBe(200)
-    const body = await res.json() as { available: boolean; reason?: string }
-    expect(body.available).toBe(false)
-    expect(body.reason).toContain('anonymous')
-    expect(body.reason).toContain('rate-limited')
-  })
-
-  it('an unchanged workflow history revalidates by ETag (304 — the free read)', async () => {
-    process.env.OP_HEARTBEAT_REPO = 'acme/id-etag'
-    process.env.OP_HEARTBEAT_WORKFLOW = 'etagged.yml'
-    const admin = await demoLogin('admin@oimlsmart.org')
-    const first = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
-    const firstBody = await first.json() as { available: boolean; totals?: { completed: number } }
-    expect(firstBody.available).toBe(true)
-    expect(firstBody.totals?.completed).toBe(1)
-    // Burn the answer cache (the ETag survives in its own map): the
-    // next read carries if-none-match and the 304 answers from the
-    // revalidation cache.
+  it('a degraded identity service lands in the degraded set, named', async () => {
+    process.env.OP_STATUS_SUMMARY_URL = process.env.OP_STATUS_SUMMARY_URL!.replace('summary.json', 'summary-degraded.json')
     const { resetHeartbeatCachesForTest } = await import('../../server/routes/op-dashboard')
-    resetHeartbeatCachesForTest({ etags: false })
-    ghRequests.length = 0
-    const second = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
-    const secondBody = await second.json() as { available: boolean; totals?: { completed: number } }
-    expect(secondBody.available, 'the 304 revalidated, not degraded').toBe(true)
-    expect(secondBody.totals?.completed).toBe(1)
-    expect(ghRequests.find(r => r.url.includes('etagged.yml'))?.ifNoneMatch).toBe('W/"stub-v1"')
+    resetHeartbeatCachesForTest()
+    try {
+      const admin = await demoLogin('admin@oimlsmart.org')
+      const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
+      const body = await res.json() as { available: boolean; degraded?: Array<{ id: string; reason: string | null }> }
+      expect(body.available).toBe(true)
+      expect(body.degraded?.map(svc => svc.id)).toEqual(['id-auth-route'])
+      expect(body.degraded?.[0]?.reason).toBe('HTTP 503')
+    } finally {
+      process.env.OP_STATUS_SUMMARY_URL = process.env.OP_STATUS_SUMMARY_URL!.replace('summary-degraded.json', 'summary.json')
+      const { resetHeartbeatCachesForTest } = await import('../../server/routes/op-dashboard')
+      resetHeartbeatCachesForTest()
+    }
   })
 
   it('a red source degrades to the honest link, never a fabricated number', async () => {
-    process.env.OP_HEARTBEAT_REPO = 'acme/id-red'
-    process.env.OP_HEARTBEAT_WORKFLOW = 'broken.yml'
-    const admin = await demoLogin('admin@oimlsmart.org')
-    const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
-    expect(res.status).toBe(200)
-    const body = await res.json() as { available: boolean; reason?: string; source: { runsUrl: string }; totals?: unknown }
-    expect(body.available).toBe(false)
-    expect(body.reason).toContain('500')
-    expect(body.totals, 'no fabricated window').toBeUndefined()
-    expect(body.source.runsUrl).toContain('acme/id-red')
+    process.env.OP_STATUS_SUMMARY_URL = process.env.OP_STATUS_SUMMARY_URL!.replace('summary.json', 'summary-red.json')
+    const { resetHeartbeatCachesForTest } = await import('../../server/routes/op-dashboard')
+    resetHeartbeatCachesForTest()
+    try {
+      const admin = await demoLogin('admin@oimlsmart.org')
+      const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
+      expect(res.status).toBe(200)
+      const body = await res.json() as { available: boolean; reason?: string; source: { url: string }; services?: unknown }
+      expect(body.available).toBe(false)
+      expect(body.reason).toContain('404')
+      expect(body.services, 'no fabricated services').toBeUndefined()
+      expect(body.source.url).toBe('https://status.oimlsmart.org')
+    } finally {
+      process.env.OP_STATUS_SUMMARY_URL = process.env.OP_STATUS_SUMMARY_URL!.replace('summary-red.json', 'summary.json')
+      const { resetHeartbeatCachesForTest } = await import('../../server/routes/op-dashboard')
+      resetHeartbeatCachesForTest()
+    }
   })
 })
 
