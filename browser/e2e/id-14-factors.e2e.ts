@@ -479,6 +479,10 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       // The factors section stands, honestly empty.
       await page.waitForSelector('[data-testid="account-factors"]', { timeout: SETTLE, polling: 500 })
       await page.waitForSelector('[data-testid="factors-passkey-empty"]', { timeout: SETTLE, polling: 500 })
+      // The Janet-class nudge: a verified address with NO factor names
+      // the stakes (a stolen password alone would open it).
+      await page.waitForSelector('[data-testid="factors-none-banner"]', { timeout: SETTLE, polling: 500 })
+      expect((await page.$eval('[data-testid="factors-none-banner"]', el => el.textContent ?? ''))).toContain('second factor')
       await page.waitForSelector('[data-testid="factors-totp-empty"]', { timeout: SETTLE, polling: 500 })
       flog(page, 'leg1: the factors section stands empty')
 
