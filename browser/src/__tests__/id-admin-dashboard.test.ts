@@ -61,6 +61,8 @@ let generatePkce: typeof import('../../server/oidc').generatePkce
 /** The stubbed GitHub Actions API (the heartbeat route's source). */
 let ghStub: Server
 let ghStubBase: string
+/** Every request the stub saw (the token-attach + ETag legs' evidence). */
+const ghRequests: Array<{ url: string; authorization: string | null; ifNoneMatch: string | null }> = []
 
 async function demoLogin(email: string): Promise<string> {
   const res = await app.request('/api/auth/demo', {
@@ -187,8 +189,35 @@ demo_personas: true
 
   await demoLogin('admin@oimlsmart.org')
 
-  // The stubbed GitHub Actions API the heartbeat route reads.
+  // The stubbed GitHub Actions API the heartbeat route reads. The
+  // captured request headers let the legs prove the token attach + the
+  // ETag revalidation; the ratelimit repo answers the spent-anonymous
+  // budget shape (403 + the rate-limit headers).
   ghStub = createServer((req, res) => {
+    ghRequests.push({
+      url: req.url ?? '',
+      authorization: req.headers.authorization ?? null,
+      ifNoneMatch: req.headers['if-none-match'] ?? null,
+    })
+    if (req.url?.includes('/repos/acme/id-ratelimited/actions/workflows/')) {
+      res.writeHead(403, { 'content-type': 'application/json', 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 1800) })
+      res.end(JSON.stringify({ message: 'API rate limit exceeded' }))
+      return
+    }
+    if (req.url?.includes('/repos/acme/id-etag/actions/workflows/')) {
+      if (req.headers['if-none-match'] === 'W/"stub-v1"') {
+        res.writeHead(304)
+        res.end()
+        return
+      }
+      res.writeHead(200, { 'content-type': 'application/json', etag: 'W/"stub-v1"' })
+      res.end(JSON.stringify({
+        workflow_runs: [
+          { id: 9, status: 'completed', conclusion: 'success', created_at: '2026-08-24T10:00:00Z', html_url: 'https://github.test/runs/9' },
+        ],
+      }))
+      return
+    }
     if (req.url?.includes('/actions/workflows/broken.yml/runs')) {
       res.writeHead(500, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ message: 'the stub is red' }))
@@ -712,6 +741,58 @@ describe('the heartbeat read', () => {
     expect(body.lastRun.conclusion).toBe('success')
     expect(body.failures).toHaveLength(1)
     expect(body.source.runsUrl).toContain('acme/id-green')
+  })
+
+  it('a configured token rides the workflow-history read (the anonymous 60/hour-per-IP budget is the intermittent 403)', async () => {
+    process.env.OP_HEARTBEAT_REPO = 'acme/id-green'
+    process.env.OP_HEARTBEAT_WORKFLOW = 'identity-heartbeat.yml'
+    process.env.OP_HEARTBEAT_TOKEN = 'ghp_the-stub-token'
+    try {
+      ghRequests.length = 0
+      const admin = await demoLogin('admin@oimlsmart.org')
+      // A fresh cache key: the workflow name forces the miss.
+      process.env.OP_HEARTBEAT_WORKFLOW = 'token-carried.yml'
+      const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
+      expect(res.status).toBe(200)
+      const sent = ghRequests.find(r => r.url.includes('token-carried.yml'))
+      expect(sent?.authorization, 'the token attaches as the Bearer').toBe('Bearer ghp_the-stub-token')
+    } finally {
+      delete process.env.OP_HEARTBEAT_TOKEN
+      process.env.OP_HEARTBEAT_WORKFLOW = 'identity-heartbeat.yml'
+    }
+  })
+
+  it('the rate-limited 403 names the spent anonymous budget honestly (never a bare HTTP code)', async () => {
+    process.env.OP_HEARTBEAT_REPO = 'acme/id-ratelimited'
+    process.env.OP_HEARTBEAT_WORKFLOW = 'spent.yml'
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const res = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { available: boolean; reason?: string }
+    expect(body.available).toBe(false)
+    expect(body.reason).toContain('anonymous')
+    expect(body.reason).toContain('rate-limited')
+  })
+
+  it('an unchanged workflow history revalidates by ETag (304 — the free read)', async () => {
+    process.env.OP_HEARTBEAT_REPO = 'acme/id-etag'
+    process.env.OP_HEARTBEAT_WORKFLOW = 'etagged.yml'
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const first = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
+    const firstBody = await first.json() as { available: boolean; totals?: { completed: number } }
+    expect(firstBody.available).toBe(true)
+    expect(firstBody.totals?.completed).toBe(1)
+    // Burn the answer cache (the ETag survives in its own map): the
+    // next read carries if-none-match and the 304 answers from the
+    // revalidation cache.
+    const { resetHeartbeatCachesForTest } = await import('../../server/routes/op-dashboard')
+    resetHeartbeatCachesForTest({ etags: false })
+    ghRequests.length = 0
+    const second = await app.request('/api/op/dashboard/heartbeat', { headers: { cookie: admin } })
+    const secondBody = await second.json() as { available: boolean; totals?: { completed: number } }
+    expect(secondBody.available, 'the 304 revalidated, not degraded').toBe(true)
+    expect(secondBody.totals?.completed).toBe(1)
+    expect(ghRequests.find(r => r.url.includes('etagged.yml'))?.ifNoneMatch).toBe('W/"stub-v1"')
   })
 
   it('a red source degrades to the honest link, never a fabricated number', async () => {
