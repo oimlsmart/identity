@@ -495,7 +495,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-admin-error"]', { timeout: SETTLE, polling: 500 })
     const refusal = await page.$eval('[data-testid="op-admin-error"]', el => el.textContent ?? '')
-    expect(refusal).toContain('organization administrators')
+    expect(['missing permission', 'organization administrators'].some(part => refusal.includes(part))).toBe(true)
   })
 
   it('leg 4 — THE CLAIMS PROOF: the token carries the ACTIVE org’s role set (before and after the switch)', { timeout: 900_000 }, async () => {

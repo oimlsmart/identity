@@ -444,7 +444,11 @@ describe('TODO.identity/10 — delegated organization administration (the identi
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="op-admin-error"]', { timeout: SETTLE, polling: 500 })
     const refusal = await page.$eval('[data-testid="op-admin-error"]', el => el.textContent ?? '')
-    expect(refusal).toContain('organization administrators')
+    // The 2026-10-10 honesty fix: the console surfaces the SERVER's own
+    // refusal text when the body carries one (the bot-gate lockout hid
+    // behind the generic copy for a day) — the colleague sees the
+    // missing-permission truth, else the audience copy.
+    expect(['missing permission', 'organization administrators'].some(part => refusal.includes(part))).toBe(true)
     expect(await page.$('[data-testid="org-users-list"]')).toBeNull()
 
     // And the USED link answers its honest card (one-time means one-time).
