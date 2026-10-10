@@ -737,7 +737,8 @@ async function submitReset() {
            step when the account holds factors (TODO.identity-sso/03). -->
       <template v-if="mfa">
         <div class="space-y-3" data-testid="login-mfa">
-          <p class="text-sm text-slate-600 dark:text-slate-300">{{ t('login.mfa.prompt') }}</p>
+          <h2 class="text-lg font-serif font-semibold text-slate-900 dark:text-white" data-testid="login-mfa-title">{{ t('login.mfa.additional') }}</h2>
+          <p v-if="mfaPane === 'choose'" class="text-sm text-slate-600 dark:text-slate-300">{{ t('login.mfa.prompt') }}</p>
 
           <!-- The CHOOSER (the AWS pattern): each card names a method that
                can answer this challenge; the recovery floor stays the
@@ -781,16 +782,26 @@ async function submitReset() {
             >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.verify') }}</button>
           </form>
 
-          <!-- The passkey pane: the fast path fired the ceremony already;
-               the button stands for a retry (a dismissed prompt). -->
-          <button
-            v-if="mfaPane === 'passkey'"
-            type="button"
-            :disabled="mfaBusy"
-            data-testid="login-mfa-passkey"
-            class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-            @click="submitMfaPasskey"
-          >{{ mfaBusy ? t('login.mfa.busy') : t('login.mfa.usePasskey') }}</button>
+          <!-- The passkey pane — the AWS screen: the ceremony is live, the
+               page behind the browser's dialog says what is happening;
+               a dismissed dialog offers the retry and the other ways. -->
+          <div v-if="mfaPane === 'passkey'" class="space-y-3" data-testid="login-mfa-passkey-prompt">
+            <p class="text-sm text-slate-600 dark:text-slate-300">{{ t('login.mfa.passkeyProtected') }}</p>
+            <div v-if="mfaBusy || passkeyBusy" class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300" data-testid="login-mfa-passkey-waiting">
+              <div class="w-5 h-5 shrink-0 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" aria-hidden="true"></div>
+              {{ t('login.mfa.passkeyFollow') }}
+            </div>
+            <template v-else>
+              <!-- The dismissal's own explanation rides the shared error
+                   line above — here stands only the way forward. -->
+              <button
+                type="button"
+                data-testid="login-mfa-passkey"
+                class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                @click="submitMfaPasskey"
+              >{{ t('login.mfa.usePasskey') }}</button>
+            </template>
+          </div>
 
           <!-- 0041: the emailed fallback pane — the code was sent on entry
                (the card's click IS the ask); the verify rides below. -->
