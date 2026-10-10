@@ -252,8 +252,13 @@ export function createOpMfaRouter(): Hono {
     const { pending, error } = await pendingFor(c, body.token)
     if (error || !pending) return error!
     const store = getStore()
-    const until = await store.emailFallbackUntil(pending.userId)
-    if (!until || new Date(until).getTime() <= Date.now()) {
+    // The standing factor (2026-10-10): the VERIFIED primary's mailbox
+    // proof IS the grant — the mailed code rides any challenge. The
+    // administrator's allowance covers the UNVERIFIED edge.
+    const holder = await store.getUserById(pending.userId)
+    const until = holder ? await store.emailFallbackUntil(holder.id) : null
+    const verified = (holder?.emailVerifiedAt ?? null) !== null
+    if (!verified && (!until || new Date(until).getTime() <= Date.now())) {
       return c.json({ error: 'Email sign-in is not available for this account. Use the enrolled factor, or ask your administrator.' }, 403)
     }
     if (pending.emailCodeSentAt) {
@@ -263,8 +268,7 @@ export function createOpMfaRouter(): Hono {
         return c.json({ error: 'A code was just sent — wait a moment before asking again.', retryAfterMs: waitMs }, 429)
       }
     }
-    const account = await store.getUserById(pending.userId)
-    if (!account) return c.json({ error: 'This account no longer exists.' }, 401)
+    if (!holder) return c.json({ error: 'This account no longer exists.' }, 401)
     const draw = new Uint32Array(1)
     crypto.getRandomValues(draw)
     const code = String(draw[0]! % 1_000_000).padStart(6, '0')
@@ -272,10 +276,10 @@ export function createOpMfaRouter(): Hono {
     await auditFactor('factor.email_otp_sent', pending.userId, { userId: pending.userId }, {})
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpMail(runtimeEnv<MailEnv>(c), {
-      to: account.email,
+      to: holder.email,
       template: 'email_otp',
       issuer,
-      params: { name: account.name, code },
+      params: { name: holder.name, code },
     })
     return c.json({ sent: true, expiresAt: pending.expiresAt })
   })

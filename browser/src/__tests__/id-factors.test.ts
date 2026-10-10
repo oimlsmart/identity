@@ -49,6 +49,12 @@ process.env.OP_RATE_LIMIT_CAPACITY = '0'
 // The throttle ladder's test value (the honest env seam): 1 ms base, so
 // the backoff exists without sleeping the suite.
 process.env.OP_MFA_BACKOFF_BASE_MS = '1'
+// The mail legs' honesty: the real flows mail one recipient several
+// times in an hour (invite, password-changed, the OTP, the sign-in
+// notice, the grant note) — the default per-recipient budget (5/h) would
+// swallow the later mails THE LEGS ASSERT; the declared test budget
+// keeps the limiter exercised without eating the evidence.
+process.env.MAIL_RATE_LIMIT_CAPACITY = '50'
 
 // The fixture RP for the amr-on-token legs (a confidential client).
 const CLIENT = {
@@ -241,6 +247,7 @@ afterAll(async () => {
   delete process.env.OP_ISSUER
   delete process.env.OP_CLIENT_SEED
   delete process.env.OP_MFA_BACKOFF_BASE_MS
+  delete process.env.MAIL_RATE_LIMIT_CAPACITY
   delete process.env.DATABASE_PATH
   const profileMod = await import('../../server/profile')
   profileMod.resetInstanceProfileForTest()
@@ -728,8 +735,10 @@ demo_personas: true
 // (Microsoft's Temporary Access Pass, Auth0's email OTP, Okta's admin
 // factor reset) mapped onto this OP's doctrine:
 //
-//   - an EMAIL OTP rides the pending challenge (a fourth method, never
-//     offered unless an ALLOWANCE is live);
+//   - an EMAIL OTP rides the pending challenge (a fourth method — the
+//     2026-10-10 standing rule: a VERIFIED primary needs no allowance,
+//     its mailbox proof IS the factor; the admin's allowance is the
+//     override for the unverified edge);
 //   - the allowance is an ADMIN act (time-boxed, revocable) — or the
 //     RESET path's own completion (the emailed one-time link already
 //     proved the mailbox; one hour covers the next sign-in);
@@ -773,50 +782,12 @@ describe('the email sign-in fallback', () => {
     }
   }
 
-  it('the admin grant opens the factor: send → the mailed code → verify (amr pwd+email) → revoke closes it', async () => {
+  it('the standing email factor: send → the mailed code → verify (amr pwd+email); the override act + its mail', { timeout: 30_000 }, async () => {
     const { id } = await accountWithTotp(JANET.email, JANET.name, JANET.password)
 
-    // The TOTP fixture's own enroll completion granted the reset hour
-    // (the doctrine below) — close it first, so the no-allowance
-    // posture is honest.
-    const admin0 = await demoLogin('admin@oimlsmart.org')
-    const closing = await app.request(`/api/op/accounts/${id}/email-fallback`, {
-      method: 'DELETE', headers: { cookie: admin0 },
-    })
-    expect(closing.status).toBe(200)
-
-    // No allowance: the method is absent, the send refuses.
-    const bare = await passwordLogin(JANET.email, JANET.password)
-    expect((bare.body.methods as Record<string, boolean>).email).toBe(false)
-    const refused = await app.request('/api/op/login/mfa/email', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token: bare.body.mfaToken }),
-    })
-    expect(refused.status).toBe(403)
-
-    // The admin's act (the default day).
-    const admin = await demoLogin('admin@oimlsmart.org')
-    const grant = await app.request(`/api/op/accounts/${id}/email-fallback`, {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
-      body: JSON.stringify({}),
-    })
-    expect(grant.status).toBe(200)
-    const granted = await grant.json() as { until: string }
-    expect(new Date(granted.until).getTime()).toBeGreaterThan(Date.now() + 23 * 3600_000)
-    // The last mile (2026-10-10): the account LEARNS the door opened —
-    // the stuck user goes back and retries, and the email card is there.
-    const told = await (async () => {
-      const deadline = Date.now() + 10_000
-      for (;;) {
-        const mail = stub.messages.find(m => m.to === JANET.email && (m.subject ?? '').includes('Email sign-in is enabled'))
-        if (mail) return mail
-        if (Date.now() > deadline) throw new Error('the grant notification never arrived')
-        await new Promise(r => setTimeout(r, 100))
-      }
-    })()
-    expect(told.text ?? '').toContain('sign in again')
-
-    // The fresh challenge offers the email method; the send mints + mails.
+    // THE STANDING RULE (2026-10-10): the verified primary IS the email
+    // factor's proof — no administrator grant, no reset hour. The first
+    // challenge already offers it.
     const login = await passwordLogin(JANET.email, JANET.password)
     expect((login.body.methods as Record<string, boolean>).email).toBe(true)
     const sent = await app.request('/api/op/login/mfa/email', {
@@ -847,22 +818,29 @@ describe('the email sign-in fallback', () => {
     })
     expect(replay.status).toBe(401)
 
-    // The revoke closes the door again.
-    const revoke = await app.request(`/api/op/accounts/${id}/email-fallback`, {
-      method: 'DELETE', headers: { cookie: admin },
+    // The administrator's act stays as the override door (the
+    // unverified edge's grant) — and its mail still tells the account
+    // to retry (the last mile).
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const grant = await app.request(`/api/op/accounts/${id}/email-fallback`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({}),
     })
-    expect(revoke.status).toBe(200)
-    const after = await passwordLogin(JANET.email, JANET.password)
-    expect((after.body.methods as Record<string, boolean>).email).toBe(false)
+    expect(grant.status).toBe(200)
+    const told = await (async () => {
+      const deadline = Date.now() + 10_000
+      for (;;) {
+        const mail = stub.messages.find(m => m.to === JANET.email && (m.subject ?? '').includes('Email sign-in is enabled'))
+        if (mail) return mail
+        if (Date.now() > deadline) throw new Error('the grant notification never arrived')
+        await new Promise(r => setTimeout(r, 100))
+      }
+    })()
+    expect(told.text ?? '').toContain('sign in again')
   })
 
   it('the wrong code rides the shared ladder; the resend window throttles', async () => {
-    const { id } = await accountWithTotp(MARG.email, MARG.name, MARG.password)
-    const admin = await demoLogin('admin@oimlsmart.org')
-    await app.request(`/api/op/accounts/${id}/email-fallback`, {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
-      body: JSON.stringify({ hours: 1 }),
-    })
+    await accountWithTotp(MARG.email, MARG.name, MARG.password)
     const login = await passwordLogin(MARG.email, MARG.password)
     const token = login.body.mfaToken as string
 
@@ -889,9 +867,10 @@ describe('the email sign-in fallback', () => {
     expect(wrong.status).toBe(401)
   })
 
-  it('the reset path grants its own one-hour window (the mailed link proved the mailbox)', async () => {
+  it('the reset path: the page names its act, and the notice names the standing email factor', { timeout: 30_000 }, async () => {
     // The invite + enroll completion IS the reset ceremony (the same
-    // token, the same endpoint): the allowance rides it.
+    // token, the same endpoint) — the standing rule needs no grant
+    // anymore; the RESET-side UX (the context flag + the notice) stands.
     const { id } = await accountWithTotp(RETA.email, RETA.name, RETA.password)
     const admin = await demoLogin('admin@oimlsmart.org')
     const fresh = await app.request(`/api/op/accounts/${id}/enrollment`, {
@@ -914,7 +893,7 @@ describe('the email sign-in fallback', () => {
         await new Promise(r => setTimeout(r, 100))
       }
     })()
-    expect(notice.text ?? '').toContain('code emailed to this address')
+    expect(notice.text ?? '').toContain('emailed code')
     await app.request('/api/auth/signout', { method: 'POST', headers: { cookie: resetCookie } })
 
     const login = await passwordLogin(RETA.email, 'reta has a different passphrase')
