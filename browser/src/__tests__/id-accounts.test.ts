@@ -200,14 +200,14 @@ describe('the password policy + the honest meter', () => {
 // ── the enrollment store semantics ───────────────────────────────────
 
 describe('the enrollment link (one-time, 24 h)', () => {
-  it('the context answers the account (name + email, nothing more)', async () => {
+  it('the context answers the account (name + email + the reset-vs-first flag, nothing more)', async () => {
     const { setupUrl } = await invite('carol@example.org', 'Carol Example')
     const token = new URL(setupUrl).searchParams.get('token')!
     const res = await app.request(`/api/op/enroll/${token}`)
     expect(res.status).toBe(200)
     const body = await res.json() as Record<string, unknown>
-    expect(body).toMatchObject({ name: 'Carol Example', email: 'carol@example.org' })
-    expect(Object.keys(body).sort()).toEqual(['email', 'expiresAt', 'name'])
+    expect(body).toMatchObject({ name: 'Carol Example', email: 'carol@example.org', passwordSet: false })
+    expect(Object.keys(body).sort()).toEqual(['email', 'expiresAt', 'name', 'passwordSet'])
   })
 
   it('a policy-refused password does NOT burn the link', async () => {

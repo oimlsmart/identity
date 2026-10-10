@@ -115,6 +115,9 @@ export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'self_register_veri
   // the "was this you?" reset pointer (someone with the password asked
   // for it).
   | 'email_otp'
+  // 0041's last mile: the administrator's grant, told to the account —
+  // the stuck user learns the door opened and to retry.
+  | 'email_fallback_granted'
 
 /** The DEFAULT mail brand mark: the OIML SMART logo (the globe + the
  *  OIML/SMART wordmark), referenced by its absolute production URL (email
@@ -194,6 +197,7 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   factor_revoked: { subject: 'mail.factorRevoked.subject', preheader: 'mail.factorRevoked.preheader', heading: 'mail.factorRevoked.heading', body: 'mail.factorRevoked.body', why: 'mail.factorRevoked.why', link: false, reset: true },
   recovery_code_used: { subject: 'mail.recoveryCodeUsed.subject', preheader: 'mail.recoveryCodeUsed.preheader', heading: 'mail.recoveryCodeUsed.heading', body: 'mail.recoveryCodeUsed.body', why: 'mail.recoveryCodeUsed.why', link: false, reset: true },
   email_otp: { subject: 'mail.emailOtp.subject', preheader: 'mail.emailOtp.preheader', heading: 'mail.emailOtp.heading', body: 'mail.emailOtp.body', why: 'mail.emailOtp.why', link: false, reset: true },
+  email_fallback_granted: { subject: 'mail.emailFallbackGranted.subject', preheader: 'mail.emailFallbackGranted.preheader', heading: 'mail.emailFallbackGranted.heading', body: 'mail.emailFallbackGranted.body', why: 'mail.emailFallbackGranted.why', link: false, reset: true },
   client_roles_granted: { subject: 'mail.clientRolesGranted.subject', preheader: 'mail.clientRolesGranted.preheader', heading: 'mail.clientRolesGranted.heading', body: 'mail.clientRolesGranted.body', why: 'mail.clientRolesGranted.why', link: false, reset: true },
 }
 
@@ -269,11 +273,16 @@ export function renderOpMail(
   // mail's shape unchanged).
   const newDevice = template === 'signin' && params.newDevice === true
 
+  // 0041: the reset completion's own hour — the password_changed notice
+  // tells the holder the emailed-code door is open (the newDevice
+  // pattern: present only when the caller carries the flag).
+  const fallbackHour = template === 'password_changed' && params.emailFallbackHour === true
+
   // ── The plain-text part: the message IS the text. The expiry note sits
   //    right after the action link; the footer mirrors the HTML footer. ──
   const textBody = raw(keys.body).split(/\n\n+/).flatMap((p) =>
     actionUrl && p.trim() === String(params[actionKey]) ? [p, raw('mail.link.once')] : [p])
-  const text = [...textBody, ...(newDevice ? [raw('mail.signin.newDevice')] : []), ...(resetUrl ? [raw('mail.resetLink.text')] : []), '--', raw(keys.why), raw('mail.footer'), raw('mail.footer.support')].join('\n\n')
+  const text = [...textBody, ...(newDevice ? [raw('mail.signin.newDevice')] : []), ...(fallbackHour ? [raw('mail.passwordChanged.fallbackHour')] : []), ...(resetUrl ? [raw('mail.resetLink.text')] : []), '--', raw(keys.why), raw('mail.footer'), raw('mail.footer.support')].join('\n\n')
   const subject = raw(keys.subject)
 
   // ── The HTML shell. The primary action: the bulletproof button (a
@@ -293,12 +302,16 @@ export function renderOpMail(
     ? '<p style="margin:16px 0 0;padding:10px 14px;background:#fdf6ec;border-radius:8px;font-family:' + SANS + ';font-size:13px;line-height:1.6;color:#8a5a00">' + esc('mail.signin.newDevice') + '</p>'
     : ''
 
+  const fallbackHourBlock = fallbackHour
+    ? '<p style="margin:16px 0 0;padding:10px 14px;background:#eef4fb;border-radius:8px;font-family:' + SANS + ';font-size:13px;line-height:1.6;color:#1d4f8a">' + esc('mail.passwordChanged.fallbackHour') + '</p>'
+    : ''
+
   const paragraphs = esc(keys.body).split(/\n\n+/).map((p) => {
     // The standalone action URL (its own paragraph) becomes the button
     // block in place — everything else is a body paragraph.
     if (actionUrl && p.trim() === escapeHtml(actionUrl)) return actionBlock
     return `<p style="margin:0 0 16px;font-family:${SANS};font-size:15px;line-height:1.6;color:#1d1d1b">${p.replace(/\n/g, '<br>')}</p>`
-  }).join('') + newDeviceBlock
+  }).join('') + newDeviceBlock + fallbackHourBlock
 
   // The reset pointer's HTML: the copy line with its URL wrapped in a
   // plain anchor (the escaped-interpolation trick: the escaped URL is a

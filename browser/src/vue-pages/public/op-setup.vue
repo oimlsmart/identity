@@ -19,6 +19,8 @@ interface SetupContext {
   name: string
   email: string
   expiresAt: string
+  /** 2026-10-10: reset vs first enrollment — the page names its act. */
+  passwordSet?: boolean
 }
 
 const route = useRoute()
@@ -125,7 +127,7 @@ async function submit() {
     <div v-else class="w-full max-w-sm" data-testid="op-setup">
       <div class="text-center mb-8">
         <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('setup.title') }}</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white" data-testid="op-setup-title">{{ context?.passwordSet ? t('setup.titleReset') : t('setup.title') }}</h1>
       </div>
 
       <!-- The honest failure cards (used / expired / unknown link). -->
@@ -135,7 +137,7 @@ async function submit() {
 
       <template v-if="context">
         <p class="text-sm text-slate-600 dark:text-slate-300 mb-6 text-center" data-testid="op-setup-account">
-          This sets the password for
+          {{ context?.passwordSet ? t('setup.accountReset') : t('setup.accountFirst') }}
           <span class="font-medium text-slate-900 dark:text-white">{{ context.name }}</span>
           <span class="text-slate-400 dark:text-slate-500"> &lt;{{ context.email }}&gt;</span>.
         </p>
