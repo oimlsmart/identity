@@ -125,8 +125,12 @@ interface RegistryAccount {
   passwordSet: boolean
   links: Array<{ provider: string; linkedAt: string; linkedBy: string | null }>
   lastSignIn: string | null
-  /** 0041 (the email sign-in fallback): the allowance's expiry — while
-   *  live the sign-in challenge offers the emailed OTP; null = closed. */
+  /** The primary address's verification state (the standing email factor
+   *  rides it — 2026-10-10). */
+  emailVerifiedAt: string | null
+  /** 0041 (the email sign-in fallback): the allowance's expiry — the
+   *  administrator's override for an UNVERIFIED primary (a verified one
+   *  needs no allowance; its mailbox proof is the factor). */
   emailFallbackUntil: string | null
   clientRoles: Array<{ clientId: string; roles: string[]; assignedBy: string | null; updatedAt: string | null }>
 }
@@ -1723,8 +1727,11 @@ onMounted(async () => {
                     class="text-xs font-medium text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
                     @click="revokeEmailFallback(acc)"
                   >{{ t('admin.users.emailFallbackRevoke') }}</button>
+                  <!-- The override door: only an UNVERIFIED primary needs
+                       the administrator's grant (a verified one carries
+                       the factor by its mailbox proof). -->
                   <button
-                    v-else-if="acc.provider === 'password'"
+                    v-else-if="acc.provider === 'password' && !acc.emailVerifiedAt"
                     :data-testid="`registry-email-fallback-${acc.id}`"
                     :disabled="acting === acc.id"
                     class="text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline disabled:opacity-50"

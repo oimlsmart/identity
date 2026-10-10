@@ -187,11 +187,8 @@ function maskIpv4(ip: string | null): string | null {
 
 export function createOpAccountsRouter(): Hono {
 
-  // 0041 (the email sign-in fallback): the two windows — the
-  // administrator's default day, the reset completion's hour.
+  // 0041 (the email sign-in fallback): the administrator's default day.
   const EMAIL_FALLBACK_ADMIN_HOURS = 24
-  const EMAIL_FALLBACK_RESET_HOURS = 1
-  const EMAIL_FALLBACK_RESET_MS = EMAIL_FALLBACK_RESET_HOURS * 3600_000
   const accounts = new Hono()
 
   // ── the profile gate (the same posture as routes/op.ts: the routes
@@ -521,10 +518,11 @@ export function createOpAccountsRouter(): Hono {
     // password chosen while the corpus was unreachable re-runs the query
     // on the presented password (the marker decides; absent = no call).
     // Never strands the sign-in.
-    const [, , counts, fallbackUntil] = await Promise.all([
+    const [, , counts, account, fallbackUntil] = await Promise.all([
       clearLoginThrottle(store, loginEmail),
       recheckBreachedPassword(c, store, cred.userId, body.password),
       factorCounts(store, cred.userId),
+      store.getUserById(cred.userId),
       store.emailFallbackUntil(cred.userId),
     ])
     // The second-factor branch (the factor registry, TODO.identity-sso/02+03):
@@ -543,9 +541,13 @@ export function createOpAccountsRouter(): Hono {
           totp: counts.totp > 0,
           passkey: counts.passkeys > 0,
           recovery: counts.recoveryRemaining > 0,
-          // 0041 (the email sign-in fallback): offered only while the
-          // allowance is live (the admin's grant, or the reset's hour).
-          email: !!fallbackUntil && new Date(fallbackUntil).getTime() > Date.now(),
+          // 0041 → the 2026-10-10 ruling: the VERIFIED primary email is
+          // itself the second factor's proof — the mailed code stands as
+          // a choice whenever a challenge exists (the owner's model: the
+          // user HAS email verification). The allowance stays the
+          // administrator's override for an UNVERIFIED primary.
+          email: (account?.emailVerifiedAt ?? null) !== null
+            || (!!fallbackUntil && new Date(fallbackUntil).getTime() > Date.now()),
         },
       })
     }
@@ -837,6 +839,7 @@ export function createOpAccountsRouter(): Hono {
         passwordSet: methods.password,
         links: links.map(l => ({ provider: l.provider, linkedAt: l.linkedAt, linkedBy: l.linkedBy })),
         lastSignIn: signIns[row.id] ?? row.lastLogin ?? null,
+        emailVerifiedAt: row.emailVerifiedAt ?? null,
         emailFallbackUntil: row.emailFallbackUntil ?? null,
         clientRoles: (rolesByUser.get(row.id) ?? []).map(a => ({ clientId: a.clientId, roles: a.roles, assignedBy: a.assignedBy, updatedAt: a.updatedAt })),
       }
@@ -1242,17 +1245,10 @@ export function createOpAccountsRouter(): Hono {
     await audit('account.enrolled', result.userId, { userId: result.userId }, {
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
     })
-    // 0041 (the email sign-in fallback): the reset path's own allowance.
-    // The emailed one-time link just proved the mailbox — the same
-    // channel the fallback code rides — so one hour covers the next
-    // sign-in without the second factor's device (the 2026-10-10
-    // lockout: the password was reset, the passkey was elsewhere). An
-    // account with no factors never sees the offer; the row expires
-    // inert.
-    await store.setEmailFallback(result.userId, new Date(Date.now() + EMAIL_FALLBACK_RESET_MS).toISOString())
-    await audit('account.email_fallback_reset_granted', result.userId, { userId: result.userId }, {
-      hours: EMAIL_FALLBACK_RESET_HOURS,
-    })
+    // 0041 → the 2026-10-10 ruling: no grant here anymore — the mailed
+    // code is a STANDING choice for a verified primary (the completion's
+    // notice says so; subsumed by the standing factor, never granted
+    // twice).
     if (breach === 'unknown') await markBreachRecheck(store, result.userId)
     const enrolled = await store.getUserById(result.userId)
     // TODO.identity-sso/04 slice D: the password-set notice rides the
