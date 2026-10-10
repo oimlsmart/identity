@@ -191,8 +191,25 @@ interface WorkflowRun {
   html_url: string
 }
 
-const heartbeatCache = new Map<string, { at: number; answer: HeartbeatAnswer }>()
+/** The answer cache (per isolate): a good answer lives 5 minutes; a
+ *  degraded one only 60 seconds — a rate-limit blip must not paint the
+ *  panel dead while the budget recovers. */
+const heartbeatCache = new Map<string, { at: number; ttlMs: number; answer: HeartbeatAnswer }>()
+/** The ETag revalidation cache: a 304 answers from the last known body
+ *  and does NOT count against GitHub's primary rate limit — the free
+ *  read for a 15-minute-cadence panel. */
+const heartbeatEtags = new Map<string, { etag: string; answer: HeartbeatAnswer }>()
 const HEARTBEAT_CACHE_TTL_MS = 5 * 60 * 1000
+const HEARTBEAT_FAIL_TTL_MS = 60 * 1000
+
+/** The tests' reset lever (the module-level caches are per-process);
+ *  each half resets independently so a leg can expire the ANSWER
+ *  while keeping the ETag (the revalidation proof). */
+export function resetHeartbeatCachesForTest(options: { answers?: boolean; etags?: boolean } = {}): void {
+  const { answers = true, etags = true } = options
+  if (answers) heartbeatCache.clear()
+  if (etags) heartbeatEtags.clear()
+}
 
 async function readHeartbeat(env: Record<string, string | undefined>): Promise<HeartbeatAnswer> {
   const apiBase = (env.OP_HEARTBEAT_API_BASE ?? 'https://api.github.com').replace(/\/+$/, '')
@@ -202,21 +219,39 @@ async function readHeartbeat(env: Record<string, string | undefined>): Promise<H
 
   const cacheKey = `${apiBase}|${repo}|${workflow}`
   const cached = heartbeatCache.get(cacheKey)
-  if (cached && Date.now() - cached.at < HEARTBEAT_CACHE_TTL_MS) return cached.answer
+  if (cached && Date.now() - cached.at < cached.ttlMs) return cached.answer
+
+  // The 2026-10-10 lesson: the anonymous read rides GitHub's
+  // 60-requests/hour budget PER EGRESS IP, and a Worker's egress IP is
+  // shared with strangers — the budget is often already spent. A
+  // configured token lifts it; the ETag makes the common case free.
+  const token = env.OP_HEARTBEAT_TOKEN?.trim() || env.GITHUB_TOKEN?.trim() || ''
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'user-agent': 'oimlsmart-identity-op' }
+  if (token) headers.authorization = `Bearer ${token}`
+  const etagged = heartbeatEtags.get(cacheKey)
+  if (etagged) headers['if-none-match'] = etagged.etag
 
   let answer: HeartbeatAnswer
+  let ttlMs = HEARTBEAT_CACHE_TTL_MS
   try {
-    const res = await fetch(`${apiBase}/repos/${repo}/actions/workflows/${workflow}/runs?per_page=100`, {
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'oimlsmart-identity-op' },
-    })
-    if (!res.ok) {
+    const res = await fetch(`${apiBase}/repos/${repo}/actions/workflows/${workflow}/runs?per_page=100`, { headers })
+    if (res.status === 304 && etagged) {
+      answer = { ...etagged.answer, fetchedAt: new Date().toISOString() }
+    } else if (!res.ok) {
+      ttlMs = HEARTBEAT_FAIL_TTL_MS
+      const remaining = res.headers.get('x-ratelimit-remaining')
+      const reason = remaining === '0'
+        ? `GitHub's anonymous read budget for this edge is spent (rate-limited${res.headers.get('x-ratelimit-reset') ? `; resets at ${new Date(Number(res.headers.get('x-ratelimit-reset')) * 1000).toISOString().slice(11, 16)} UTC` : ''}) — a configured GITHUB_TOKEN lifts it, and the run history itself lives at the link`
+        : `the workflow history read answered HTTP ${res.status} — the run history itself lives at the link`
       answer = {
         available: false,
-        reason: `the workflow history read answered HTTP ${res.status} — the run history itself lives at the link`,
+        reason,
         source,
         fetchedAt: new Date().toISOString(),
       }
     } else {
+      const etag = res.headers.get('etag')
+      if (etag) heartbeatEtags.set(cacheKey, { etag, answer: null as unknown as HeartbeatAnswer })
       const body = await res.json() as { workflow_runs?: WorkflowRun[] }
       const runs = (body.workflow_runs ?? []).map(r => ({
         id: r.id,
@@ -248,8 +283,10 @@ async function readHeartbeat(env: Record<string, string | undefined>): Promise<H
         failures: failed.slice(0, 10).map(r => ({ at: r.created_at, url: r.html_url })),
         fetchedAt: new Date().toISOString(),
       }
+      if (etag && answer.available) heartbeatEtags.set(cacheKey, { etag, answer })
     }
   } catch (err) {
+    ttlMs = HEARTBEAT_FAIL_TTL_MS
     answer = {
       available: false,
       reason: `the workflow history read failed (${(err as Error).message}) — the run history itself lives at the link`,
@@ -257,7 +294,7 @@ async function readHeartbeat(env: Record<string, string | undefined>): Promise<H
       fetchedAt: new Date().toISOString(),
     }
   }
-  heartbeatCache.set(cacheKey, { at: Date.now(), answer })
+  heartbeatCache.set(cacheKey, { at: Date.now(), ttlMs, answer })
   return answer
 }
 
@@ -417,7 +454,7 @@ export function createOpDashboardRouter(): Hono {
           succeeded: series.reduce((n, d) => n + d.succeeded, 0),
           failed: series.reduce((n, d) => n + d.failed, 0),
         },
-        note: 'UTC day buckets from the audit journal (account.sign_in + upstream_sign_in against account.sign_in_failed + upstream_refused; the status probe’s account.sign_in_probe rows never count)',
+        note: 'UTC day buckets from the audit journal (account.sign_in + upstream_sign_in against account.sign_in_failed + upstream_refused; the status probe’s account.sign_in_probe rows never count); each bar’s label reads succeeded/failed',
       },
       anomaliesToday: anomalies,
       liveSessions: live.length,

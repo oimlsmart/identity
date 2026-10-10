@@ -58,13 +58,16 @@ const seriesMax = computed(() =>
 /** The chart's fixed plot height (px — the deterministic-layout
  *  doctrine: no percentage heights anywhere in the series). */
 const SIGNIN_CHART_PX = 96
+/** The count label's reserved line above each bar (px). */
+const SIGNIN_HEADROOM_PX = 12
 
-/** A segment's pixel height against the series max; any nonzero day
- *  renders at least a 1px sliver (a big seriesMax would otherwise
- *  round a real event away to nothing). */
+/** A segment's pixel height against the series max, inside the plot
+ *  minus the count label's headroom; any nonzero day renders at least
+ *  a 1px sliver (a big seriesMax would otherwise round a real event
+ *  away to nothing). */
 function segPx(n: number): number {
   if (n <= 0) return 0
-  return Math.max(1, Math.round((n / seriesMax.value) * SIGNIN_CHART_PX))
+  return Math.max(1, Math.round((n / seriesMax.value) * (SIGNIN_CHART_PX - SIGNIN_HEADROOM_PX)))
 }
 
 /** A day bucket's short label (every other day, "MM-DD"). */
@@ -203,6 +206,14 @@ onMounted(async () => {
                segments — the production report). Pixels cannot split. -->
           <div class="flex items-end gap-1" :style="{ height: `${SIGNIN_CHART_PX}px` }" data-testid="op-dash-signins-chart">
             <div v-for="day in overview.signIns.days" :key="day.date" class="flex-1 flex flex-col justify-end h-full min-w-0">
+              <!-- The real numbers at the bar (the 2026-10-10 ruling): a
+                   nonzero day names its counts — succeeded green over the
+                   slash, failed red — in the headroom the scale reserves. -->
+              <p
+                v-if="day.succeeded || day.failed"
+                class="h-3 mb-0.5 text-center text-[9px] leading-3 font-semibold truncate"
+                :data-testid="`op-dash-signins-count-${day.date}`"
+              ><span class="text-emerald-600 dark:text-emerald-400">{{ day.succeeded }}</span><span class="text-slate-400 dark:text-slate-500">/</span><span class="text-red-500 dark:text-red-400">{{ day.failed }}</span></p>
               <div class="w-full max-w-6 mx-auto flex flex-col rounded-sm overflow-hidden">
                 <div
                   v-if="day.failed"
