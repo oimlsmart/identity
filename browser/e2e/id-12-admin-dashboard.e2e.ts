@@ -162,7 +162,7 @@ async function bootIdentityStack(): Promise<Stack> {
       OP_LOGIN_BACKOFF_BASE_MS: '25',
       // The heartbeat route's source is the stub (deterministic, never
       // the real GitHub).
-      OP_HEARTBEAT_API_BASE: `http://127.0.0.1:${GH_STUB}`,
+      OP_STATUS_SUMMARY_URL: `http://127.0.0.1:${GH_STUB}/api/summary.json`,
       OP_CLIENT_SEED: JSON.stringify([{
         client_id: RP_CLIENT_ID,
         name: 'The id-12 fixture RP',
@@ -269,14 +269,19 @@ describe('TODO.identity-sso/01 — the admin dashboard', () => {
   let veraId = ''
 
   beforeAll(async () => {
-    // The stubbed GitHub Actions API: three completed runs, two green.
+    // The stubbed STATUS SERVICE (the SLO panel's source since the
+    // 2026-10-10 ruling): all identity surfaces operational, the
+    // authorize route's 30-day uptime under the 99.9% target (the
+    // amber posture the panel must name).
     gh = createServer((req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({
-        workflow_runs: [
-          { id: 3, status: 'completed', conclusion: 'success', created_at: '2026-08-24T09:52:00Z', html_url: 'https://github.example/runs/3' },
-          { id: 2, status: 'completed', conclusion: 'failure', created_at: '2026-08-24T09:37:00Z', html_url: 'https://github.example/runs/2' },
-          { id: 1, status: 'completed', conclusion: 'success', created_at: '2026-08-24T09:22:00Z', html_url: 'https://github.example/runs/1' },
+        generatedAt: '2026-10-10T04:00:00.000Z',
+        prober: { lastRunAt: 1791603217985 },
+        services: [
+          { id: 'id-op-discovery', name: 'Identity: OP discovery', state: 'operational', reason: null, lastGoodAt: 1791603217497, uptime30d: '100', uptime90d: '100' },
+          { id: 'id-sign-in', name: 'Identity: sign-in', state: 'operational', reason: null, lastGoodAt: 1791603217497, uptime30d: '100', uptime90d: '100' },
+          { id: 'id-auth-route', name: 'Identity: authorize route', state: 'operational', reason: null, lastGoodAt: 1791603217497, uptime30d: '70.47', uptime90d: '57.73' },
         ],
       }))
     })
@@ -324,13 +329,17 @@ describe('TODO.identity-sso/01 — the admin dashboard', () => {
     // The sign-in series rendered its 14 UTC-day buckets.
     await page.waitForSelector('[data-testid="op-dash-signins-chart"]', { timeout: SETTLE, polling: 500 })
 
-    // The SLO panel: the stub's three runs (two green) compute 66.7%.
+    // The SLO panel: the stub's identity services — the WORST 30-day
+    // uptime is the honest number (the authorize route's 70.47%), the
+    // per-service rows carry their windows.
     await page.waitForSelector('[data-testid="op-dash-slo-live"]', { timeout: SETTLE, polling: 500 })
     const rate = await page.$eval('[data-testid="op-dash-slo-rate"]', el => el.textContent ?? '')
-    expect(rate).toContain('66.7%')
-    const failures = await page.$eval('[data-testid="op-dash-slo-failures"]', el => el.textContent ?? '')
-    expect(failures).toContain('the failed run')
-    expect(await page.$('[data-testid="op-dash-slo-link"]')).not.toBeNull()
+    expect(rate).toContain('70.47%')
+    const services = await page.$eval('[data-testid="op-dash-slo-services"]', el => el.textContent ?? '')
+    expect(services).toContain('authorize route')
+    expect(services).toContain('70.47')
+    const link = await page.$eval('[data-testid="op-dash-slo-link"]', el => (el as HTMLAnchorElement).href)
+    expect(link).toBe('https://status.oimlsmart.org/')
     const retention = await page.$eval('[data-testid="op-dash-retention"]', el => el.textContent ?? '')
     expect(retention).toContain('audit journal')
   })

@@ -163,138 +163,103 @@ async function readJournal(): Promise<AuditEvent[]> {
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
 }
 
-// ── the heartbeat's history (the SLO panel) ──────────────────────────
-// The probe (browser/scripts/op-heartbeat.ts) runs as the
-// identity-heartbeat GitHub Actions workflow; its results live in the
-// workflow's run history and NOWHERE else — so the panel reads the
-// GitHub Actions API at the source. The repository is public, so the
-// unauthenticated read suffices; the per-isolate cache (five minutes)
-// keeps the courtesy rate limit distant, and any failure degrades the
-// panel to the honest link, never to a fabricated number.
+// ── the SLO panel's source: the estate status service ────────────────
+// The 2026-10-10 ruling: the service level reads from
+// status.oimlsmart.org — the estate's public status service (its own
+// probes, independent vantages, per-service uptime) — never from
+// GitHub's API (the anonymous read rode a shared 60/hour-per-IP budget
+// and 403'd intermittently). The panel reads the service's own
+// machine surface (OUR worker, public, no rate limit), slices the
+// identity services, and degrades to the honest link on any failure.
+
+interface HeartbeatService {
+  id: string
+  name: string
+  state: string
+  reason: string | null
+  lastGoodAt: string | null
+  uptime30d: string | null
+  uptime90d: string | null
+}
 
 interface HeartbeatAnswer {
   available: boolean
   reason?: string
-  source: { repo: string; workflow: string; runsUrl: string }
-  window?: { runs: number; since: string | null; note: string }
-  totals?: { completed: number; succeeded: number; failed: number; successRate: number | null }
-  lastRun?: { at: string; conclusion: string | null; url: string } | null
-  failures?: Array<{ at: string; url: string }>
+  source: { url: string; summaryUrl: string }
+  probedAt?: string | null
+  services?: HeartbeatService[]
+  degraded?: HeartbeatService[]
   fetchedAt: string
 }
 
-interface WorkflowRun {
-  id: number
-  status: string | null
-  conclusion: string | null
-  created_at: string
-  html_url: string
-}
-
-/** The answer cache (per isolate): a good answer lives 5 minutes; a
- *  degraded one only 60 seconds — a rate-limit blip must not paint the
- *  panel dead while the budget recovers. */
+/** The answer cache (per isolate): the summary is our own service, but
+ *  the courtesy stands — 60s for a good answer, 15s for a degraded
+ *  one (a blip recovers at the next ask). */
 const heartbeatCache = new Map<string, { at: number; ttlMs: number; answer: HeartbeatAnswer }>()
-/** The ETag revalidation cache: a 304 answers from the last known body
- *  and does NOT count against GitHub's primary rate limit — the free
- *  read for a 15-minute-cadence panel. */
-const heartbeatEtags = new Map<string, { etag: string; answer: HeartbeatAnswer }>()
-const HEARTBEAT_CACHE_TTL_MS = 5 * 60 * 1000
-const HEARTBEAT_FAIL_TTL_MS = 60 * 1000
+const HEARTBEAT_CACHE_TTL_MS = 60 * 1000
+const HEARTBEAT_FAIL_TTL_MS = 15 * 1000
 
-/** The tests' reset lever (the module-level caches are per-process);
- *  each half resets independently so a leg can expire the ANSWER
- *  while keeping the ETag (the revalidation proof). */
-export function resetHeartbeatCachesForTest(options: { answers?: boolean; etags?: boolean } = {}): void {
-  const { answers = true, etags = true } = options
-  if (answers) heartbeatCache.clear()
-  if (etags) heartbeatEtags.clear()
+/** The tests' reset lever (the module-level cache is per-process). */
+export function resetHeartbeatCachesForTest(): void {
+  heartbeatCache.clear()
 }
 
 async function readHeartbeat(env: Record<string, string | undefined>): Promise<HeartbeatAnswer> {
-  const apiBase = (env.OP_HEARTBEAT_API_BASE ?? 'https://api.github.com').replace(/\/+$/, '')
-  const repo = env.OP_HEARTBEAT_REPO ?? 'oimlsmart/identity'
-  const workflow = env.OP_HEARTBEAT_WORKFLOW ?? 'identity-heartbeat.yml'
-  const source = { repo, workflow, runsUrl: `https://github.com/${repo}/actions/workflows/${workflow}` }
+  const summaryUrl = (env.OP_STATUS_SUMMARY_URL ?? 'https://status.oimlsmart.org/api/summary.json').trim()
+  const prefix = env.OP_STATUS_SERVICE_PREFIX ?? 'id-'
+  const source = { url: 'https://status.oimlsmart.org', summaryUrl }
 
-  const cacheKey = `${apiBase}|${repo}|${workflow}`
-  const cached = heartbeatCache.get(cacheKey)
+  const cached = heartbeatCache.get(summaryUrl)
   if (cached && Date.now() - cached.at < cached.ttlMs) return cached.answer
-
-  // The 2026-10-10 lesson: the anonymous read rides GitHub's
-  // 60-requests/hour budget PER EGRESS IP, and a Worker's egress IP is
-  // shared with strangers — the budget is often already spent. A
-  // configured token lifts it; the ETag makes the common case free.
-  const token = env.OP_HEARTBEAT_TOKEN?.trim() || env.GITHUB_TOKEN?.trim() || ''
-  const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'user-agent': 'oimlsmart-identity-op' }
-  if (token) headers.authorization = `Bearer ${token}`
-  const etagged = heartbeatEtags.get(cacheKey)
-  if (etagged) headers['if-none-match'] = etagged.etag
 
   let answer: HeartbeatAnswer
   let ttlMs = HEARTBEAT_CACHE_TTL_MS
   try {
-    const res = await fetch(`${apiBase}/repos/${repo}/actions/workflows/${workflow}/runs?per_page=100`, { headers })
-    if (res.status === 304 && etagged) {
-      answer = { ...etagged.answer, fetchedAt: new Date().toISOString() }
-    } else if (!res.ok) {
+    const res = await fetch(summaryUrl, { headers: { accept: 'application/json' } })
+    if (!res.ok) {
       ttlMs = HEARTBEAT_FAIL_TTL_MS
-      const remaining = res.headers.get('x-ratelimit-remaining')
-      const reason = remaining === '0'
-        ? `GitHub's anonymous read budget for this edge is spent (rate-limited${res.headers.get('x-ratelimit-reset') ? `; resets at ${new Date(Number(res.headers.get('x-ratelimit-reset')) * 1000).toISOString().slice(11, 16)} UTC` : ''}) — a configured GITHUB_TOKEN lifts it, and the run history itself lives at the link`
-        : `the workflow history read answered HTTP ${res.status} — the run history itself lives at the link`
       answer = {
         available: false,
-        reason,
+        reason: `the status service's summary answered HTTP ${res.status}`,
         source,
         fetchedAt: new Date().toISOString(),
       }
     } else {
-      const etag = res.headers.get('etag')
-      if (etag) heartbeatEtags.set(cacheKey, { etag, answer: null as unknown as HeartbeatAnswer })
-      const body = await res.json() as { workflow_runs?: WorkflowRun[] }
-      const runs = (body.workflow_runs ?? []).map(r => ({
-        id: r.id,
-        status: r.status,
-        conclusion: r.conclusion,
-        created_at: r.created_at,
-        html_url: r.html_url,
-      }))
-      const completed = runs.filter(r => r.status === 'completed')
-      const succeeded = completed.filter(r => r.conclusion === 'success')
-      const failed = completed.filter(r => r.conclusion === 'failure')
+      const body = await res.json() as {
+        generatedAt?: string
+        prober?: { lastRunAt?: number }
+        services?: Array<{ id?: string; name?: string; state?: string; reason?: string | null; lastGoodAt?: number; uptime30d?: string; uptime90d?: string }>
+      }
+      const services: HeartbeatService[] = (body.services ?? [])
+        .filter(svc => typeof svc?.id === 'string' && svc.id.startsWith(prefix))
+        .map(svc => ({
+          id: svc.id!,
+          name: typeof svc.name === 'string' ? svc.name : svc.id!,
+          state: typeof svc.state === 'string' ? svc.state : 'unknown',
+          reason: svc.reason ?? null,
+          lastGoodAt: typeof svc.lastGoodAt === 'number' ? new Date(svc.lastGoodAt).toISOString() : null,
+          uptime30d: svc.uptime30d ?? null,
+          uptime90d: svc.uptime90d ?? null,
+        }))
       answer = {
         available: true,
         source,
-        window: {
-          runs: runs.length,
-          since: runs.at(-1)?.created_at ?? null,
-          note: `the ${runs.length} most recent runs the API answers (the 15-minute cadence; the full history lives at the link)`,
-        },
-        totals: {
-          completed: completed.length,
-          succeeded: succeeded.length,
-          failed: failed.length,
-          successRate: completed.length ? succeeded.length / completed.length : null,
-        },
-        lastRun: runs[0]
-          ? { at: runs[0].created_at, conclusion: runs[0].conclusion, url: runs[0].html_url }
-          : null,
-        failures: failed.slice(0, 10).map(r => ({ at: r.created_at, url: r.html_url })),
+        probedAt: typeof body.prober?.lastRunAt === 'number' ? new Date(body.prober.lastRunAt).toISOString() : body.generatedAt ?? null,
+        services,
+        degraded: services.filter(svc => svc.state !== 'operational'),
         fetchedAt: new Date().toISOString(),
       }
-      if (etag && answer.available) heartbeatEtags.set(cacheKey, { etag, answer })
     }
   } catch (err) {
     ttlMs = HEARTBEAT_FAIL_TTL_MS
     answer = {
       available: false,
-      reason: `the workflow history read failed (${(err as Error).message}) — the run history itself lives at the link`,
+      reason: `the status service's summary read failed (${(err as Error).message})`,
       source,
       fetchedAt: new Date().toISOString(),
     }
   }
-  heartbeatCache.set(cacheKey, { at: Date.now(), ttlMs, answer })
+  heartbeatCache.set(summaryUrl, { at: Date.now(), ttlMs, answer })
   return answer
 }
 

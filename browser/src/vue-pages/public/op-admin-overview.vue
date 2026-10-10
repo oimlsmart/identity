@@ -30,14 +30,23 @@ interface Overview {
   liveSessions: number
 }
 
+interface StatusService {
+  id: string
+  name: string
+  state: string
+  reason: string | null
+  lastGoodAt: string | null
+  uptime30d: string | null
+  uptime90d: string | null
+}
+
 interface Heartbeat {
   available: boolean
   reason?: string
-  source: { repo: string; workflow: string; runsUrl: string }
-  window?: { runs: number; since: string | null; note: string }
-  totals?: { completed: number; succeeded: number; failed: number; successRate: number | null }
-  lastRun?: { at: string; conclusion: string | null; url: string } | null
-  failures?: Array<{ at: string; url: string }>
+  source: { url: string; summaryUrl: string }
+  probedAt?: string | null
+  services?: StatusService[]
+  degraded?: StatusService[]
   fetchedAt: string
 }
 
@@ -75,14 +84,33 @@ function dayLabel(date: string, index: number): string {
   return index % 2 === 0 ? date.slice(5) : ''
 }
 
-/** The heartbeat's one-line posture. */
+/** The SLO panel's one-line posture: any non-operational identity
+ *  service is red; an operational service running under the 99.9%
+ *  30-day target is amber; else green. */
 const heartbeatTone = computed(() => {
   const hb = heartbeat.value
-  if (!hb?.available || !hb.totals) return 'unknown'
-  if (hb.lastRun?.conclusion && hb.lastRun.conclusion !== 'success') return 'red'
-  if (hb.totals.successRate !== null && hb.totals.successRate < 0.99) return 'amber'
+  if (!hb?.available || !hb.services?.length) return 'unknown'
+  if (hb.degraded?.length) return 'red'
+  if (worstUptime30() !== null && worstUptime30()! < 99.9) return 'amber'
   return 'green'
 })
+
+/** The worst 30-day uptime among the identity services (the SLO's
+ *  honest number: the target protects the weakest surface). */
+function worstUptime30(): number | null {
+  const values = (heartbeat.value?.services ?? [])
+    .map(svc => (svc.uptime30d !== null ? Number(svc.uptime30d) : NaN))
+    .filter(n => Number.isFinite(n))
+  return values.length ? Math.min(...values) : null
+}
+
+function stateClass(state: string): string {
+  return state === 'operational'
+    ? 'text-emerald-600 dark:text-emerald-400'
+    : state === 'degraded' || state === 'partial'
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-red-600 dark:text-red-400'
+}
 
 function pct(rate: number): string {
   return `${(rate * 100).toFixed(1)}%`
@@ -246,31 +274,33 @@ onMounted(async () => {
         <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6" data-testid="op-dash-slo">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.dash.sectionSlo') }}</h2>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-4">
-            The stated SLO is 99.9% monthly, measured by the identity-heartbeat workflow’s 15-minute probes of the public OIDC surface; the probe’s results live in the workflow’s own history, read at the source.
+            The stated SLO is 99.9% monthly, measured by the estate status service — status.oimlsmart.org — whose probes watch the public identity surfaces from independent vantages; this panel reads the service's live summary at the source.
           </p>
 
           <p v-if="!heartbeat && !heartbeatFailed" class="text-sm text-slate-500 dark:text-slate-400" data-testid="op-dash-slo-loading">{{ t('admin.dash.sloLoading') }}</p>
 
-          <div v-else-if="heartbeat?.available && heartbeat.totals" data-testid="op-dash-slo-live">
+          <div v-else-if="heartbeat?.available && heartbeat.services?.length" data-testid="op-dash-slo-live">
             <div class="flex flex-wrap items-baseline gap-x-6 gap-y-2">
               <p class="text-2xl font-semibold" :class="{
                 'text-emerald-600 dark:text-emerald-400': heartbeatTone === 'green',
                 'text-amber-600 dark:text-amber-400': heartbeatTone === 'amber',
                 'text-red-600 dark:text-red-400': heartbeatTone === 'red',
               }" data-testid="op-dash-slo-rate">
-                {{ heartbeat.totals.successRate !== null ? pct(heartbeat.totals.successRate) : t('admin.dash.sloNoProbes') }}
+                {{ worstUptime30() !== null ? `${worstUptime30()}%` : t('admin.dash.sloNoProbes') }}
               </p>
               <p class="text-xs text-slate-500 dark:text-slate-400" data-testid="op-dash-slo-window">
-                {{ t('admin.dash.sloProbes', { succeeded: heartbeat.totals.succeeded, completed: heartbeat.totals.completed, note: heartbeat.window?.note ?? '' }) }}<template v-if="heartbeat.window?.since">{{ t('admin.dash.sloSince', { since: stamp(heartbeat.window.since) }) }}</template>
+                {{ t('admin.dash.sloWorst', { count: heartbeat.services.length }) }}
               </p>
             </div>
-            <p v-if="heartbeat.lastRun" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-dash-slo-last">
-              {{ t('admin.dash.sloLastProbe', { at: stamp(heartbeat.lastRun.at) }) }}:
-              <span :class="heartbeat.lastRun.conclusion === 'success' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'">{{ heartbeat.lastRun.conclusion ?? t('admin.dash.sloRunning') }}</span>
+            <p v-if="heartbeat.probedAt" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-dash-slo-last">
+              {{ t('admin.dash.sloLastProbe', { at: stamp(heartbeat.probedAt) }) }}
             </p>
-            <ul v-if="heartbeat.failures?.length" class="mt-2 space-y-1" data-testid="op-dash-slo-failures">
-              <li v-for="failure in heartbeat.failures" :key="failure.url" class="text-[11px] text-red-600 dark:text-red-400">
-                {{ stamp(failure.at) }} — <a :href="failure.url" target="_blank" rel="noopener" class="underline">{{ t('admin.dash.sloFailedRun') }}</a>
+            <ul class="mt-2 space-y-1" data-testid="op-dash-slo-services">
+              <li v-for="svc in heartbeat.services" :key="svc.id" class="text-[11px] flex items-baseline gap-2" :data-testid="`op-dash-slo-service-${svc.id}`">
+                <span :class="stateClass(svc.state)" aria-hidden="true">●</span>
+                <span class="text-slate-700 dark:text-slate-300">{{ svc.name }}</span>
+                <span class="text-slate-500 dark:text-slate-400">{{ t('admin.dash.sloUptime', { d30: svc.uptime30d ?? '—', d90: svc.uptime90d ?? '—' }) }}</span>
+                <span v-if="svc.reason" class="text-amber-700 dark:text-amber-400 truncate">{{ svc.reason }}</span>
               </li>
             </ul>
           </div>
@@ -283,9 +313,8 @@ onMounted(async () => {
 
           <p class="mt-3 text-[11px] text-slate-400 dark:text-slate-500">
             The record:
-            <a v-if="heartbeat" :href="heartbeat.source.runsUrl" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-dash-slo-link">the identity-heartbeat workflow</a>
-            <a v-else href="https://github.com/oimlsmart/identity/actions/workflows/identity-heartbeat.yml" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-dash-slo-link">the identity-heartbeat workflow</a>
-            — a red probe also opens the standing issue.
+            <a :href="heartbeat?.source.url ?? 'https://status.oimlsmart.org'" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="op-dash-slo-link">status.oimlsmart.org</a>
+            — a red probe opens the incident and notifies the subscribers.
           </p>
         </section>
 
