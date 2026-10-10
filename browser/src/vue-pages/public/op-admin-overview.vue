@@ -55,6 +55,18 @@ const seriesMax = computed(() =>
   Math.max(1, ...(overview.value?.signIns.days.map(d => d.succeeded + d.failed) ?? [])),
 )
 
+/** The chart's fixed plot height (px — the deterministic-layout
+ *  doctrine: no percentage heights anywhere in the series). */
+const SIGNIN_CHART_PX = 96
+
+/** A segment's pixel height against the series max; any nonzero day
+ *  renders at least a 1px sliver (a big seriesMax would otherwise
+ *  round a real event away to nothing). */
+function segPx(n: number): number {
+  if (n <= 0) return 0
+  return Math.max(1, Math.round((n / seriesMax.value) * SIGNIN_CHART_PX))
+}
+
 /** A day bucket's short label (every other day, "MM-DD"). */
 function dayLabel(date: string, index: number): string {
   return index % 2 === 0 ? date.slice(5) : ''
@@ -183,22 +195,36 @@ onMounted(async () => {
         <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-dash-signins">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">{{ t('admin.dash.sectionSignins') }}</h2>
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mb-4">{{ overview.signIns.note }}.</p>
-          <div class="flex items-end gap-1 h-24" data-testid="op-dash-signins-chart">
-            <div v-for="(day, i) in overview.signIns.days" :key="day.date" class="flex-1 flex flex-col items-center justify-end h-full min-w-0">
-              <div class="w-full max-w-6 flex flex-col justify-end rounded-sm overflow-hidden" style="height: 100%">
+          <!-- The stacked series (2026-10-10 rebuild): PIXEL heights and the
+               labels in their OWN row — the old markup stacked percentage
+               heights inside a flex item the label had already shrunk
+               (inline height:100% rendering at 92px in Chromium), the one
+               combination engines resolve differently (Safari split the
+               segments — the production report). Pixels cannot split. -->
+          <div class="flex items-end gap-1" :style="{ height: `${SIGNIN_CHART_PX}px` }" data-testid="op-dash-signins-chart">
+            <div v-for="day in overview.signIns.days" :key="day.date" class="flex-1 flex flex-col justify-end h-full min-w-0">
+              <div class="w-full max-w-6 mx-auto flex flex-col rounded-sm overflow-hidden">
                 <div
+                  v-if="day.failed"
                   class="w-full bg-red-400 dark:bg-red-500/80"
-                  :style="{ height: `${(day.failed / seriesMax) * 100}%` }"
+                  :style="{ height: `${segPx(day.failed)}px` }"
                   :title="t('admin.dash.dayFailed', { date: day.date, count: day.failed })"
                 />
                 <div
+                  v-if="day.succeeded"
                   class="w-full bg-emerald-400 dark:bg-emerald-500/80"
-                  :style="{ height: `${(day.succeeded / seriesMax) * 100}%` }"
+                  :style="{ height: `${segPx(day.succeeded)}px` }"
                   :title="t('admin.dash.daySucceeded', { date: day.date, count: day.succeeded })"
                 />
               </div>
-              <p class="mt-1 text-[9px] text-slate-400 dark:text-slate-500 truncate w-full text-center">{{ dayLabel(day.date, i) }}</p>
             </div>
+          </div>
+          <div class="flex gap-1 mt-1">
+            <p
+              v-for="(day, i) in overview.signIns.days"
+              :key="day.date"
+              class="flex-1 min-w-0 text-center truncate text-[9px] text-slate-400 dark:text-slate-500"
+            >{{ dayLabel(day.date, i) }}</p>
           </div>
           <p v-if="!overview.signIns.totals.succeeded && !overview.signIns.totals.failed" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="op-dash-signins-empty">
             {{ t('admin.dash.signinsEmpty') }}
