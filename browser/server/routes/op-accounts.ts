@@ -398,13 +398,17 @@ export function createOpAccountsRouter(): Hono {
    *  enrollment completion and the console change share it — one copy
    *  ("set or changed") for both ceremonies. Never blocks the path (the
    *  notifySignIn rule: a mail failure is never the flow's failure). */
-  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }): Promise<void> {
+  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }, opts: { emailFallbackHour?: boolean } = {}): Promise<void> {
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId: user.id,
       template: 'password_changed',
       issuer,
-      params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' ') },
+      params: {
+        name: user.name,
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        ...(opts.emailFallbackHour ? { emailFallbackHour: true } : {}),
+      },
     })
   }
 
@@ -1148,6 +1152,18 @@ export function createOpAccountsRouter(): Hono {
     await audit('account.email_fallback_granted', user.id, { userId: gate.user.id, userName: gate.user.name }, {
       email: user.email, hours, until,
     })
+    // The account learns the door opened (the 2026-10-10 lockout's last
+    // mile: the user is sitting at a second-factor step whose methods
+    // were frozen at sign-in — the mail says to go back and try again,
+    // when 'Email me a sign-in code' will be offered).
+    const env = runtimeEnv<MailEnv>(c)
+    const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+    await sendOpMail(env, {
+      to: user.email,
+      template: 'email_fallback_granted',
+      issuer,
+      params: { name: user.name, until: until.slice(0, 16).replace('T', ' ') },
+    })
     return c.json({ ok: true, until })
   })
 
@@ -1185,7 +1201,11 @@ export function createOpAccountsRouter(): Hono {
     if (!user) {
       return c.json({ error: 'unknown', error_description: 'This setup link is not valid. Ask your administrator for a new one.' }, 404)
     }
-    return c.json({ name: user.name, email: user.email, expiresAt: row.expiresAt })
+    // Reset vs first enrollment (2026-10-10): the page says what the
+    // link IS — 'choose a new password' reads differently from 'set up
+    // your account'.
+    const posture = await store.countSignInMethodsBulk([user.id])
+    return c.json({ name: user.name, email: user.email, expiresAt: row.expiresAt, passwordSet: posture.get(user.id)?.password === true })
   })
 
   // POST /api/op/enroll/:token — set the password. The policy is judged
@@ -1239,7 +1259,7 @@ export function createOpAccountsRouter(): Hono {
     // completion (the holder's first proof the credential is live).
     if (enrolled) {
       touchAccountJar(c, token, enrolled)
-      await notifyPasswordChanged(c, enrolled)
+      await notifyPasswordChanged(c, enrolled, { emailFallbackHour: true })
     }
     return c.json(enrolled)
   })

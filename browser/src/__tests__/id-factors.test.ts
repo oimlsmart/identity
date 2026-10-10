@@ -803,6 +803,18 @@ describe('the email sign-in fallback', () => {
     expect(grant.status).toBe(200)
     const granted = await grant.json() as { until: string }
     expect(new Date(granted.until).getTime()).toBeGreaterThan(Date.now() + 23 * 3600_000)
+    // The last mile (2026-10-10): the account LEARNS the door opened —
+    // the stuck user goes back and retries, and the email card is there.
+    const told = await (async () => {
+      const deadline = Date.now() + 10_000
+      for (;;) {
+        const mail = stub.messages.find(m => m.to === JANET.email && (m.subject ?? '').includes('Email sign-in is enabled'))
+        if (mail) return mail
+        if (Date.now() > deadline) throw new Error('the grant notification never arrived')
+        await new Promise(r => setTimeout(r, 100))
+      }
+    })()
+    expect(told.text ?? '').toContain('sign in again')
 
     // The fresh challenge offers the email method; the send mints + mails.
     const login = await passwordLogin(JANET.email, JANET.password)
@@ -886,7 +898,23 @@ describe('the email sign-in fallback', () => {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
     })
     const { setupUrl } = await fresh.json() as { setupUrl: string }
+    // The setup page's context names the act (a reset, not a first
+    // enrollment): the account already holds a password.
+    const ctx = await app.request(`/api/op/enroll/${new URL(setupUrl).searchParams.get('token')}`)
+    expect(((await ctx.json()) as { passwordSet?: boolean }).passwordSet).toBe(true)
     const resetCookie = await enroll(setupUrl, 'reta has a different passphrase')
+    // The password_changed notice carries the fallback-hour line (the
+    // holder learns the emailed-code door is open).
+    const notice = await (async () => {
+      const deadline = Date.now() + 10_000
+      for (;;) {
+        const mail = stub.messages.find(m => m.to === RETA.email && (m.subject ?? '').includes('password was set or changed'))
+        if (mail) return mail
+        if (Date.now() > deadline) throw new Error('the password_changed notice never arrived')
+        await new Promise(r => setTimeout(r, 100))
+      }
+    })()
+    expect(notice.text ?? '').toContain('code emailed to this address')
     await app.request('/api/auth/signout', { method: 'POST', headers: { cookie: resetCookie } })
 
     const login = await passwordLogin(RETA.email, 'reta has a different passphrase')
