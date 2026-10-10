@@ -250,6 +250,40 @@ describe('createMailer — the transport and the guards', () => {
     expect((await emailAudits()).some(e => e.action === 'email.rate_limited' && e.entity_id === 'willa@example.org')).toBe(true)
   })
 
+  it('THE CRITICAL LANE (2026-10-10): the reset and the sign-in code never starve — an attacker (or the user himself) exhausting the notice budget cannot close the email way out', async () => {
+    let at = 1_000_000
+    const mailer = createMailer(
+      resolveMailerConfig({ MAIL_RATE_LIMIT_CAPACITY: '2', MAIL_RATE_LIMIT_WINDOW_MS: '60000', MAIL_RATE_LIMIT_CRITICAL_CAPACITY: '2' }),
+      { now: () => at },
+    )
+    const msg = { to: 'willa@example.org', subject: 's', text: 'b' }
+    // The notice lane exhausts…
+    await mailer.send(msg, { template: 'signin' })
+    await mailer.send(msg, { template: 'signin' })
+    expect((await mailer.send(msg, { template: 'signin' })).rateLimited).toBe(true)
+    // …but the way out stands: the reset link and the sign-in code ride
+    // their OWN lane, unfed by the notices' flood.
+    expect((await mailer.send(msg, { template: 'reset' })).rateLimited).toBeUndefined()
+    expect((await mailer.send(msg, { template: 'email_otp' })).rateLimited).toBeUndefined()
+    // The critical lane is still a lane (a mailbox-flood cap for the
+    // provider's sake) — its own budget refuses honestly.
+    expect((await mailer.send(msg, { template: 'reset' })).rateLimited).toBe(true)
+  })
+
+  it('THE LOGIN CLEAR (2026-10-10): a completed sign-in clears the recipient\'s budgets — the real holder\'s return ends the counted flood', async () => {
+    let at = 1_000_000
+    const mailer = createMailer(
+      resolveMailerConfig({ MAIL_RATE_LIMIT_CAPACITY: '2', MAIL_RATE_LIMIT_WINDOW_MS: '60000' }),
+      { now: () => at },
+    )
+    const msg = { to: 'willa@example.org', subject: 's', text: 'b' }
+    await mailer.send(msg, { template: 'signin' })
+    await mailer.send(msg, { template: 'signin' })
+    expect((await mailer.send(msg, { template: 'signin' })).rateLimited).toBe(true)
+    mailer.clearBudgetFor('Willa@Example.org') // case-insensitive, both lanes
+    expect((await mailer.send(msg, { template: 'signin' })).rateLimited).toBeUndefined()
+  })
+
   it('capacity 0 disables the limiter honestly', async () => {
     const mailer = createMailer(resolveMailerConfig({ MAIL_RATE_LIMIT_CAPACITY: '0' }))
     const msg = { to: 'willa@example.org', subject: 's', text: 'b' }
@@ -581,7 +615,7 @@ demo_personas: true
     expect(mail.text).toContain('your current password stays unchanged')
   })
 
-  it('the rate limit surfaces honestly: the link still answers, the block says why', async () => {
+  it('the rate limit surfaces honestly — and NEVER closes the way out: the notices\' budget cannot starve the reset (2026-10-10)', async () => {
     bindStubProvider()
     process.env.MAIL_RATE_LIMIT_CAPACITY = '1'
     resetMailerForTest()
@@ -589,16 +623,40 @@ demo_personas: true
     try {
       const accountId = (await store.findUserByEmail('willa@example.org'))!.id
       const admin = await demoLogin('admin@oimlsmart.org')
+      // Exhaust the NOTICE lane (one notice goes, the next is refused)…
+      // then the reset STILL sends: the entry-gating lane is its own.
       const first = await app.request(`/api/op/accounts/${accountId}/enrollment`, { method: 'POST', headers: { cookie: admin } })
       expect((await first.json() as { mail: { sent: boolean } }).mail.sent).toBe(true)
+      const second = await app.request(`/api/op/accounts/${accountId}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+      const body = await second.json() as { setupUrl: string; mail: { sent: boolean; error: string | null } }
+      // The reset template rides the CRITICAL lane — the second link
+      // still goes (the way out cannot be starved); the honest cap is
+      // the critical lane's OWN budget, proven below.
+      expect(body.mail.sent).toBe(true)
+      expect(body.setupUrl).toContain('/op/setup?token=') // the link always answers
+      expect(stub.messages).toHaveLength(2)
+    } finally {
+      delete process.env.MAIL_RATE_LIMIT_CAPACITY
+      resetMailerForTest()
+    }
+
+    // The critical lane is still a lane: its own budget refuses
+    // honestly, the link still answers, the block says why.
+    process.env.MAIL_RATE_LIMIT_CRITICAL_CAPACITY = '1'
+    resetMailerForTest()
+    stub.reset()
+    try {
+      const accountId = (await store.findUserByEmail('willa@example.org'))!.id
+      const admin = await demoLogin('admin@oimlsmart.org')
+      expect((await (await app.request(`/api/op/accounts/${accountId}/enrollment`, { method: 'POST', headers: { cookie: admin } })).json() as { mail: { sent: boolean } }).mail.sent).toBe(true)
       const second = await app.request(`/api/op/accounts/${accountId}/enrollment`, { method: 'POST', headers: { cookie: admin } })
       const body = await second.json() as { setupUrl: string; mail: { sent: boolean; error: string | null } }
       expect(body.mail.sent).toBe(false)
       expect(body.mail.error).toContain('rate limited')
       expect(body.setupUrl).toContain('/op/setup?token=') // the link always answers
-      expect(stub.messages).toHaveLength(1) // exactly the first send left
+      expect(stub.messages).toHaveLength(1)
     } finally {
-      delete process.env.MAIL_RATE_LIMIT_CAPACITY
+      delete process.env.MAIL_RATE_LIMIT_CRITICAL_CAPACITY
       resetMailerForTest()
     }
   })

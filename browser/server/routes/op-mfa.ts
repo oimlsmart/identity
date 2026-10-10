@@ -50,7 +50,7 @@ import { verifyTotp } from '../auth/op/totp'
 import { hashRecoveryCode, recoveryCodePlausible } from '../auth/op/recovery'
 import { verifyAssertion, CeremonyError } from '../auth/op/webauthn'
 import { webauthnBindingFor } from './op-factors'
-import { sendOpMail, sendOpSecurityMail } from '../auth/op/mail'
+import { clearMailBudgetForAccount, sendOpMail, sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
 import {
   auditFactor,
@@ -132,6 +132,9 @@ export function createOpMfaRouter(): Hono {
     const amr = [...pending.amr]
     for (const a of addedAmr) if (!amr.includes(a)) amr.push(a)
     const info = clientInfo(c)
+    // The login clear (2026-10-10): the completed entry ends the counted
+    // mail flood on the account's lane.
+    await clearMailBudgetForAccount(store, pending.userId)
     await store.touchLastLogin(pending.userId)
     const token = await store.createSession(pending.userId, { ...info, amr })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
@@ -463,6 +466,7 @@ export function createOpMfaRouter(): Hono {
     }
     const store = getStore()
     const amr = passkeyAmr(cred.transports)
+    await clearMailBudgetForAccount(store, cred.userId)
     await store.touchLastLogin(cred.userId)
     const token = await store.createSession(cred.userId, { ...clientInfo(c), amr })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))

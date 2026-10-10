@@ -160,7 +160,7 @@ import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
 import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
 import { issueAccountInvite } from '../auth/op/enrollment'
-import { sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
+import { clearMailBudgetForAccount, sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
 import { resolveMailerConfig, type MailEnv } from '../mailer'
 import { isActiveRegistryOrg, listRegistryOrganizations, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { parseOpClientSeed, seedOidcClientsFromEnv } from '../auth/op/registry'
@@ -559,6 +559,7 @@ export function createOpAccountsRouter(): Hono {
     // write the UPDATE users stamp — the outage posture's own spec.
     const [token, user] = await Promise.all([
       (async () => {
+        await clearMailBudgetForAccount(store, cred.userId)
         await store.touchLastLogin(cred.userId)
         return store.createSession(cred.userId, { ...clientInfo(c), amr: ['pwd'] })
       })(),
@@ -1240,6 +1241,7 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: 'This setup link is not valid or was already used. Ask your administrator for a new one.' }, 410)
     }
     const token = await store.createSession(result.userId, clientInfo(c))
+    await clearMailBudgetForAccount(store, result.userId)
     await store.touchLastLogin(result.userId)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
     await audit('account.enrolled', result.userId, { userId: result.userId }, {
