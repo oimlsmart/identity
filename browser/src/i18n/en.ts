@@ -127,6 +127,7 @@ export const en = {
   "account.factors.totpRevoked": "The authenticator app was removed; it can no longer answer challenges.",
   "account.factors.totpTitle": "Authenticator apps",
   "account.factors.unverifiedNote": "Your primary email address is not verified, so strong factors are locked for now: the recovery path rides that mailbox. Verify the address from the profile section above, then enroll.",
+  "account.factors.noneNote": "This account has no second factor yet \u2014 a stolen password alone would open it. Register a passkey or add an authenticator app below; the recovery codes arrive with the first factor.",
   "account.activity.description": "Your account's own sign-in and security events, newest first.",
   "account.activity.empty": "Nothing yet: sign-ins, link changes and password changes will appear here.",
   "account.activity.newDevice": "new device",

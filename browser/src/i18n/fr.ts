@@ -130,6 +130,7 @@ export const fr: Record<MessageKey, string> = {
   "account.factors.totpRevoked": "L'application d'authentification a été retirée ; elle ne peut plus répondre aux défis.",
   "account.factors.totpTitle": "Applications d'authentification",
   "account.factors.unverifiedNote": "Votre adresse e-mail principale n'est pas vérifiée, donc les facteurs forts sont verrouillés pour l'instant : le chemin de récupération passe par cette boîte. Vérifiez l'adresse depuis la section profil ci-dessus, puis inscrivez-vous.",
+  "account.factors.noneNote": "Ce compte n'a pas encore de second facteur \u2014 un mot de passe vol\u00e9 suffirait \u00e0 l'ouvrir. Inscrivez une cl\u00e9 d'acc\u00e8s ou ajoutez une application d'authentification ci-dessous ; les codes de r\u00e9cup\u00e9ration arrivent avec le premier facteur.",
   "account.activity.empty": "Rien pour l’instant : les connexions, les changements de liens et de mot de passe apparaîtront ici.",
   "account.activity.newDevice": "nouvel appareil",
   "account.activity.title": "Activité récente",

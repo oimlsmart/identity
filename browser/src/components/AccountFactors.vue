@@ -328,6 +328,17 @@ async function regenerateRecoveryCodes() {
       <p class="text-xs text-amber-800 dark:text-amber-200">{{ t('account.factors.unverifiedNote') }}</p>
     </div>
 
+    <!-- The Janet-class posture (2026-10-10): the address IS verified but
+         NO factor can answer a second-factor challenge — a stolen
+         password alone opens the account. The honest nudge. -->
+    <div
+      v-if="emailVerified && factors && !factors.passkeys.length && !factors.totp.length"
+      class="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+      data-testid="factors-none-banner"
+    >
+      <p class="text-xs text-amber-800 dark:text-amber-200">{{ t('account.factors.noneNote') }}</p>
+    </div>
+
     <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
       <p class="text-sm text-red-700 dark:text-red-300" data-testid="factors-error">{{ error }}</p>
     </div>
