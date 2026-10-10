@@ -210,6 +210,41 @@ describe('the enrollment link (one-time, 24 h)', () => {
     expect(Object.keys(body).sort()).toEqual(['email', 'expiresAt', 'name', 'passwordSet'])
   })
 
+  it('THE RESET ENDS THE OTHER SESSIONS (2026-10-10): a phished-password session must not survive the victim\'s recovery', async () => {
+    const { setupUrl } = await invite('evie@example.org', 'Evie Sessions')
+    const token = new URL(setupUrl).searchParams.get('token')!
+    // The first session (the "attacker's" — minted under the OLD credential).
+    const first = await app.request(`/api/op/enroll/${token}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'the first passphrase 123' }),
+    })
+    expect(first.status).toBe(200)
+    const staleCookie = first.headers.get('set-cookie')!.split(';')[0]!
+    expect(((await app.request('/api/auth/session', { headers: { cookie: staleCookie } })).status)).toBe(200)
+
+    // The reset: a fresh link (the mailbox proof), a new password.
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const { id } = await (async () => {
+      const found = await app.request('/api/op/accounts', { headers: { cookie: admin } })
+      const rows = await found.json() as Array<{ id: string; email: string }>
+      return rows.find(r => r.email === 'evie@example.org')!
+    })()
+    const fresh = await app.request(`/api/op/accounts/${id}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+    const freshUrl = (await fresh.json() as { setupUrl: string }).setupUrl
+    const freshToken = new URL(freshUrl).searchParams.get('token')!
+    const second = await app.request(`/api/op/enroll/${freshToken}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'the second passphrase 123' }),
+    })
+    expect(second.status).toBe(200)
+    const newCookie = second.headers.get('set-cookie')!.split(';')[0]!
+
+    // THE RULE: the stale session died with the old credential; the new
+    // one (the mailbox proof's own) stands.
+    expect((await app.request('/api/auth/session', { headers: { cookie: staleCookie } })).status).toBe(401)
+    expect((await app.request('/api/auth/session', { headers: { cookie: newCookie } })).status).toBe(200)
+  })
+
   it('a policy-refused password does NOT burn the link', async () => {
     const { setupUrl } = await invite('dave@example.org', 'Dave Example')
     const token = new URL(setupUrl).searchParams.get('token')!

@@ -100,7 +100,13 @@ export interface MailerConfig {
  *  counted flood — the login clear). */
 export const MAIL_RATE_LIMIT_DEFAULTS = { capacity: 5, windowMs: 3_600_000, criticalCapacity: 30 }
 /** The templates that gate entry (the way-out lane). */
-export const CRITICAL_MAIL_TEMPLATES: ReadonlySet<string> = new Set(['reset', 'email_otp'])
+export const CRITICAL_MAIL_TEMPLATES: ReadonlySet<string> = new Set([
+  'reset',
+  'email_otp',
+  // The first-run door: the invite carries a new account's ONLY way in
+  // (admin-gated — no attacker flood to cap).
+  'invite',
+])
 
 /** The provider call's ceiling — a hung provider must never hold the
  *  triggering request. */
