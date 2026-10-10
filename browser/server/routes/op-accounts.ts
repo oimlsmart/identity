@@ -1241,11 +1241,18 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: 'This setup link is not valid or was already used. Ask your administrator for a new one.' }, 410)
     }
     const token = await store.createSession(result.userId, clientInfo(c))
+    // THE RESET'S FULL MEANING (2026-10-10): the mailbox proof replaces
+    // the credential's authority — every session minted under the OLD
+    // password dies with it (a phished-password session must not survive
+    // the victim's recovery; the console change holds the same rule). A
+    // first enrollment holds no other sessions — a no-op.
+    const otherSessionsRevoked = await store.deleteOtherSessions(result.userId, token)
     await clearMailBudgetForAccount(store, result.userId)
     await store.touchLastLogin(result.userId)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
     await audit('account.enrolled', result.userId, { userId: result.userId }, {
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
+      ...(otherSessionsRevoked > 0 ? { otherSessionsRevoked } : {}),
     })
     // 0041 → the 2026-10-10 ruling: no grant here anymore — the mailed
     // code is a STANDING choice for a verified primary (the completion's

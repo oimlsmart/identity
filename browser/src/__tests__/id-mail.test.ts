@@ -253,7 +253,7 @@ describe('createMailer — the transport and the guards', () => {
   it('THE CRITICAL LANE (2026-10-10): the reset and the sign-in code never starve — an attacker (or the user himself) exhausting the notice budget cannot close the email way out', async () => {
     let at = 1_000_000
     const mailer = createMailer(
-      resolveMailerConfig({ MAIL_RATE_LIMIT_CAPACITY: '2', MAIL_RATE_LIMIT_WINDOW_MS: '60000', MAIL_RATE_LIMIT_CRITICAL_CAPACITY: '2' }),
+      resolveMailerConfig({ MAIL_RATE_LIMIT_CAPACITY: '2', MAIL_RATE_LIMIT_WINDOW_MS: '60000', MAIL_RATE_LIMIT_CRITICAL_CAPACITY: '3' }),
       { now: () => at },
     )
     const msg = { to: 'willa@example.org', subject: 's', text: 'b' }
@@ -265,6 +265,7 @@ describe('createMailer — the transport and the guards', () => {
     // their OWN lane, unfed by the notices' flood.
     expect((await mailer.send(msg, { template: 'reset' })).rateLimited).toBeUndefined()
     expect((await mailer.send(msg, { template: 'email_otp' })).rateLimited).toBeUndefined()
+    expect((await mailer.send(msg, { template: 'invite' })).rateLimited).toBeUndefined() // the first-run door too
     // The critical lane is still a lane (a mailbox-flood cap for the
     // provider's sake) — its own budget refuses honestly.
     expect((await mailer.send(msg, { template: 'reset' })).rateLimited).toBe(true)
