@@ -766,7 +766,7 @@ async function submitReset() {
           </div>
 
           <!-- The authenticator code pane. -->
-          <form v-if="mfaPane === 'totp'" class="flex items-center gap-2" @submit.prevent="submitMfaTotp">
+          <form v-if="mfaPane === 'totp'" class="flex flex-wrap items-center gap-2" @submit.prevent="submitMfaTotp">
             <input
               v-model="mfaCode"
               type="text"
@@ -775,7 +775,7 @@ async function submitReset() {
               maxlength="6"
               data-testid="login-mfa-code"
               :placeholder="t('login.mfa.codePlaceholder')"
-              class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             <button
               type="submit"
@@ -811,7 +811,7 @@ async function submitReset() {
           <div v-if="mfaPane === 'email'">
             <form class="space-y-2" @submit.prevent="submitMfaEmailCode">
               <p class="text-sm text-slate-500 dark:text-slate-400">{{ emailSent ? t('login.mfa.emailSent') : t('login.mfa.emailSending') }}</p>
-              <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2">
                 <input
                   v-model="emailCode"
                   type="text"
@@ -842,7 +842,7 @@ async function submitReset() {
               @click="mfaPane = 'recovery'"
             >{{ t('login.mfa.useRecovery') }}</button>
           </div>
-          <form v-else-if="mfaPane === 'recovery'" class="flex items-center gap-2" @submit.prevent="submitMfaRecovery">
+          <form v-else-if="mfaPane === 'recovery'" class="flex flex-wrap items-center gap-2" @submit.prevent="submitMfaRecovery">
             <input
               v-model="recoveryCode"
               type="text"
