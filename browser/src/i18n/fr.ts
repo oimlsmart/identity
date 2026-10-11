@@ -848,6 +848,7 @@ export const fr: Record<MessageKey, string> = {
   "login.mfa.emailSubmit": "Utiliser le code",
   "login.mfa.emailSent": "Le code a été envoyé à l'adresse e-mail de votre compte. Il ne fonctionne qu'une fois et expire avec cette tentative de connexion.",
   "login.mfa.emailSending": "Envoi du code à l'adresse e-mail de votre compte…",
+  "login.mfa.emailSendFailed": "Le code n'a pas pu être envoyé pour l'instant — réessayez dans un instant.",
   "login.mfa.useTotp": "Utiliser votre application d'authentification",
   "login.mfa.totpHint": "Saisissez le code à six chiffres affiché par votre application.",
   "login.mfa.passkeyHint": "La clé d'accès de l'appareil — empreinte, visage ou clé matérielle.",

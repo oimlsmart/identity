@@ -867,6 +867,41 @@ describe('the email sign-in fallback', () => {
     expect(wrong.status).toBe(401)
   })
 
+  it('a FAILED send never stamps the resend window (the provider hiccup cannot lock the fallback out for 45s), and the answer says so', { timeout: 30_000 }, async () => {
+    const { id } = await accountWithTotp('sends@factors.test', 'Sid Sends', 'sid has a proper passphrase')
+    void id
+    // Break the provider: the stub URL dies.
+    const bound = process.env.MAIL_PROVIDER_URL
+    process.env.MAIL_PROVIDER_URL = 'http://127.0.0.1:9/unreachable'
+    resetMailerForTest()
+    try {
+      const login = await passwordLogin('sends@factors.test', 'sid has a proper passphrase')
+      const token = login.body.mfaToken as string
+      const failed = await app.request('/api/op/login/mfa/email', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token }),
+      })
+      expect(failed.status).toBe(200)
+      const failedBody = await failed.json() as { sent: boolean; error?: string | null }
+      expect(failedBody.sent, 'the honest answer').toBe(false)
+      expect(failedBody.error ?? '').toContain('deliver')
+
+      // The provider heals; an IMMEDIATE retry goes (the window never
+      // stamped on a failed send).
+      process.env.MAIL_PROVIDER_URL = bound!
+      resetMailerForTest()
+      const retried = await app.request('/api/op/login/mfa/email', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token }),
+      })
+      expect(retried.status).toBe(200)
+      expect(((await retried.json()) as { sent: boolean }).sent).toBe(true)
+    } finally {
+      process.env.MAIL_PROVIDER_URL = bound!
+      resetMailerForTest()
+    }
+  })
+
   it('the reset path: the page names its act, and the notice names the standing email factor', { timeout: 30_000 }, async () => {
     // The invite + enroll completion IS the reset ceremony (the same
     // token, the same endpoint) — the standing rule needs no grant
