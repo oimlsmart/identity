@@ -32,9 +32,28 @@ const PARAMS: Record<OpMailTemplate, Record<string, string | number>> = {
   reset: { ...BASE, setupUrl: 'https://id.oimlsmart.org/op/setup?token=4d6e8a0c2f5b7d9e1a3c5f709f2c7a1b' },
   signin: { ...BASE, when: '2026-08-24 09:41', method: 'GitHub' },
   verify_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=7c1a9f2b4d6e8a0c2f5b7d9e1a3c5f70' },
+  // The waves since the rig's first four (2026-10-10: the map is
+  // COMPLETE again — every template renders, every locale).
+  self_register_verify: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=2b4d6e8a0c2f5b7d9e1a3c5f709f2c7a', org: 'Physikalisch-Technische Bundesanstalt (PTB)' },
+  verify_added_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=8a0c2f5b7d9e1a3c5f709f2c7a1b4d6e' },
+  verify_primary_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=5b7d9e1a3c5f709f2c7a1b4d6e8a0c2f' },
+  mfa_locked: { ...BASE, when: '2026-10-10 14:02' },
+  password_changed: { ...BASE, when: '2026-10-10 14:02', emailFallbackHour: true },
+  email_changed: { ...BASE, name: 'Willa Example', to: 'willa-new@example.org', from: 'willa@example.org', when: '2026-10-10 14:02' },
+  linked_method_added: { ...BASE, name: 'Willa Example', provider: 'GitHub', handle: '@willa', when: '2026-10-10 14:02' },
+  linked_method_removed: { ...BASE, name: 'Willa Example', provider: 'GitHub', handle: '@willa', when: '2026-10-10 14:02' },
+  recovery_code_used: { ...BASE, name: 'Willa Example', when: '2026-10-10 14:02' },
+  client_roles_granted: { ...BASE, name: 'Willa Example', client: 'The certificate portal', roles: 'tl_operator', when: '2026-10-10 14:02' },
+  factor_enrolled: { ...BASE, name: 'Willa Example', factor: 'Passkey "Willa’s key"', when: '2026-10-10 14:02' },
+  factor_revoked: { ...BASE, name: 'Willa Example', factor: 'Passkey "Willa’s key"', when: '2026-10-10 14:02' },
+  pat_minted: { ...BASE, name: 'Willa Example', tokenName: 'The lab CLI', scopes: 'openid profile', expires: '2026-11-09' },
+  pat_edited: { ...BASE, name: 'Willa Example', tokenName: 'The lab CLI', change: 'renewed', scopes: 'openid profile', expires: '2026-11-09' },
+  pat_expiring: { ...BASE, name: 'The lab CLI', expires: '2026-11-09' },
+  email_otp: { ...BASE, code: '482913' },
+  email_fallback_granted: { ...BASE, until: '2026-10-11 14:02' },
 }
 
-const TEMPLATES: OpMailTemplate[] = ['invite', 'reset', 'signin', 'verify_email', 'email_otp', 'email_fallback_granted', 'password_changed']
+const TEMPLATES: OpMailTemplate[] = Object.keys(PARAMS) as OpMailTemplate[]
 const LOCALES: MailLocale[] = ['en', 'fr']
 
 async function main(): Promise<void> {
