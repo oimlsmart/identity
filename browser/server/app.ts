@@ -193,6 +193,12 @@ export function createApiApp(options: ApiAppOptions): Hono {
   // bucket as the join intake (the duplicate guard answers the second
   // ask per address; the bucket answers the scripted flood).
   app.use('/api/op/register', rateLimit)
+  // The setup endpoint (2026-10-10): ANONYMOUS, judges a password
+  // policy, calls the HIBP corpus per attempt, and writes credential
+  // rows — the amplifier's bound (the token is 256-bit random; the
+  // guess was never the risk).
+  app.use('/api/op/enroll', rateLimit)
+  app.use('/api/op/enroll/*', rateLimit)
   app.use('/api/op/login/mfa/*', rateLimit)
   app.use('/api/op/login/passkey', rateLimit)
   app.use('/api/op/login/passkey/options', rateLimit)

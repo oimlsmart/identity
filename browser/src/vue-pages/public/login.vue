@@ -444,12 +444,15 @@ async function sendEmailCode(): Promise<void> {
       credentials: 'include',
       body: JSON.stringify({ token: mfa.value.token }),
     })
-    if (res.ok) {
+    const body = await res.json().catch(() => null) as { sent?: boolean; error?: string } | null
+    if (res.ok && body?.sent === true) {
       emailSent.value = true
       emailCode.value = ''
       return
     }
-    mfaErrorFrom(res, await res.json().catch(() => null))
+    // A failed DELIVERY (the provider's hiccup) leaves the send standing
+    // — the window was never stamped server-side; the retry is immediate.
+    error.value = body?.error ?? t('login.mfa.emailSendFailed')
   } catch {
     error.value = t('login.mfa.failed')
   } finally {

@@ -275,15 +275,21 @@ export function createOpMfaRouter(): Hono {
     const draw = new Uint32Array(1)
     crypto.getRandomValues(draw)
     const code = String(draw[0]! % 1_000_000).padStart(6, '0')
-    await store.setMfaPendingEmailCode(pending.token, await hashRecoveryCode(code), pending.expiresAt)
-    await auditFactor('factor.email_otp_sent', pending.userId, { userId: pending.userId }, {})
+    // The stamp rides the DELIVERY (2026-10-10): a provider failure
+    // stores nothing and consumes no resend window — the retry is
+    // immediate, and the answer says what happened.
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
-    await sendOpMail(runtimeEnv<MailEnv>(c), {
+    const result = await sendOpMail(runtimeEnv<MailEnv>(c), {
       to: holder.email,
       template: 'email_otp',
       issuer,
       params: { name: holder.name, code },
     })
+    if (!result.sent) {
+      return c.json({ sent: false, error: `The sign-in code could not be delivered just now (${result.error ?? 'the mailer refused'}) — try again in a moment.` }, 200)
+    }
+    await store.setMfaPendingEmailCode(pending.token, await hashRecoveryCode(code), pending.expiresAt)
+    await auditFactor('factor.email_otp_sent', pending.userId, { userId: pending.userId }, {})
     return c.json({ sent: true, expiresAt: pending.expiresAt })
   })
 
