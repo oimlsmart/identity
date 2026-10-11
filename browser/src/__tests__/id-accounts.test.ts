@@ -213,7 +213,9 @@ describe('the enrollment link (one-time, 24 h)', () => {
   it('THE RESET ENDS THE OTHER SESSIONS (2026-10-10): a phished-password session must not survive the victim\'s recovery', async () => {
     const { setupUrl } = await invite('evie@example.org', 'Evie Sessions')
     const token = new URL(setupUrl).searchParams.get('token')!
-    // The first session (the "attacker's" — minted under the OLD credential).
+    // The first session (the "attacker's" — minted under the OLD credential)
+    // and a delegated refresh token (the attacker's RP access, minted the
+    // same way under the same credential).
     const first = await app.request(`/api/op/enroll/${token}`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ password: 'the first passphrase 123' }),
@@ -221,6 +223,11 @@ describe('the enrollment link (one-time, 24 h)', () => {
     expect(first.status).toBe(200)
     const staleCookie = first.headers.get('set-cookie')!.split(';')[0]!
     expect(((await app.request('/api/auth/session', { headers: { cookie: staleCookie } })).status)).toBe(200)
+    const staleUserId = (await store.findUserByEmail('evie@example.org'))!.id
+    await store.createOidcRefreshToken({
+      token: 'the-attacker-delegated-refresh-token', userId: staleUserId, clientId: 'some-rp',
+      scope: 'openid', familyId: 'the-attacker-family', ttlMs: 30 * 86_400_000,
+    })
 
     // The reset: a fresh link (the mailbox proof), a new password.
     const admin = await demoLogin('admin@oimlsmart.org')
@@ -243,6 +250,10 @@ describe('the enrollment link (one-time, 24 h)', () => {
     // one (the mailbox proof's own) stands.
     expect((await app.request('/api/auth/session', { headers: { cookie: staleCookie } })).status).toBe(401)
     expect((await app.request('/api/auth/session', { headers: { cookie: newCookie } })).status).toBe(200)
+    // …and the DELEGATED access died with it: the attacker's refresh
+    // token does not survive the victim's recovery (the completion
+    // audits the revoked counts).
+    expect(['unknown', 'invalid'], 'the delegated chain is gone').toContain((await store.consumeOidcRefreshToken('the-attacker-delegated-refresh-token')).kind)
   })
 
   it('a policy-refused password does NOT burn the link', async () => {
