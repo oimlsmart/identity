@@ -796,6 +796,12 @@ describe('the email sign-in fallback', () => {
     })
     expect(sent.status).toBe(200)
     expect(((await sent.json()) as { sent: boolean }).sent).toBe(true)
+    // The body is the code's ONLY home (inbox lists and lock-screen
+    // previews render subject + preheader — the secret never rides them).
+    const otpMail = stub.messages.find(m => m.to === JANET.email && (m.subject ?? '').includes('sign-in code'))!
+    expect(otpMail.subject).not.toMatch(/\d{6}/)
+    expect(otpMail.html ?? '').not.toMatch(/<title>[^<]*\d{6}/)
+    expect(otpMail.text ?? '').toMatch(/\b\d{6}\b/)
     const code = await codeFromMail()
 
     // The mailed code completes the sign-in; the session carries the
