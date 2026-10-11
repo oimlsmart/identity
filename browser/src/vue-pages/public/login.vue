@@ -147,10 +147,12 @@ const mfaPrimaries = computed(() => {
   return out
 })
 function enterPane(pane: MfaPane): void {
+  abortPasskeyCeremony() // a pane change abandons the live dialog, closes it
   mfaPane.value = pane
   if (pane === 'email' && !emailSent.value) void sendEmailCode()
 }
 function backToChoose(): void {
+  abortPasskeyCeremony()
   mfaPane.value = 'choose'
 }
 /** The passkey sign-in's availability (the button hides where the
@@ -487,6 +489,7 @@ async function submitMfaEmailCode(): Promise<void> {
 async function submitMfaPasskey() {
   if (mfaBusy.value || !mfa.value) return
   abortConditionalUi() // one pending get at a time
+  abortPasskeyCeremony() // a stale dialog from a prior attempt closes
   mfaBusy.value = true
   error.value = null
   try {
@@ -854,7 +857,7 @@ async function submitReset() {
               type="button"
               data-testid="login-mfa-recovery-toggle"
               class="text-sm text-brand-600 dark:text-brand-300 hover:underline"
-              @click="mfaPane = 'recovery'"
+              @click="enterPane('recovery')"
             >{{ t('login.mfa.useRecovery') }}</button>
           </div>
           <form v-else-if="mfaPane === 'recovery'" class="flex flex-wrap items-center gap-2" @submit.prevent="submitMfaRecovery">
