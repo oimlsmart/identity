@@ -498,9 +498,11 @@ async function submitMfaPasskey() {
     })
     if (!optRes.ok) { mfaErrorFrom(optRes, await optRes.json().catch(() => null)); mfaBusy.value = false; return }
     const { publicKey } = await optRes.json() as { publicKey: AssertionOptionsJson }
+    const ceremony = new AbortController()
+    passkeyCeremonyAbort.value = ceremony
     let credential: CredentialJson
     try {
-      credential = await assertPasskey(publicKey)
+      credential = await assertPasskey(publicKey, { signal: ceremony.signal })
     } catch {
       error.value = t('login.mfa.passkeyCancelled')
       mfaBusy.value = false
@@ -524,6 +526,7 @@ async function submitMfaPasskey() {
 /** Abandon the factor step (the challenge expires server-side; the page
  *  returns to the password form). */
 function cancelMfa() {
+  abortPasskeyCeremony()
   mfa.value = null
   error.value = null
 }
@@ -562,9 +565,11 @@ async function signInWithPasskey() {
       return
     }
     const { publicKey } = await optRes.json() as { publicKey: AssertionOptionsJson }
+    const ceremony = new AbortController()
+    passkeyCeremonyAbort.value = ceremony
     let credential: CredentialJson
     try {
-      credential = await assertPasskey(publicKey)
+      credential = await assertPasskey(publicKey, { signal: ceremony.signal })
     } catch {
       error.value = t('login.mfa.passkeyCancelled')
       passkeyBusy.value = false
@@ -582,10 +587,20 @@ async function signInWithPasskey() {
 // field's autofill can answer a passkey directly. The wait is aborted
 // when the password form or the passkey button wins.
 const conditionalUiAbort = ref<AbortController | null>(null)
+// The audible ceremonies' aborts (2026-10-10): Cancel — or any state
+// change that abandons the pane — closes the browser's passkey dialog.
+// Without it, a prompt completed AFTER the cancel signed the user in
+// "unexpectedly".
+const passkeyCeremonyAbort = ref<AbortController | null>(null)
 
 function abortConditionalUi() {
   conditionalUiAbort.value?.abort()
   conditionalUiAbort.value = null
+}
+
+function abortPasskeyCeremony() {
+  passkeyCeremonyAbort.value?.abort()
+  passkeyCeremonyAbort.value = null
 }
 
 async function startConditionalUi() {
