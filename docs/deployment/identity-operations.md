@@ -761,6 +761,50 @@ The `traceparent` echo works WITHOUT `OTEL_EXPORTER_OTLP_ENDPOINT`
 set — the seam is independent. If you only want propagation without
 export, leave the endpoint unset.
 
+### The second factor's email fallback (the 2026-10-10 arc)
+
+The emailed sign-in code is a STANDING choice: whenever a second-factor
+challenge exists, an account whose primary address is verified is
+offered "Email me a sign-in code" — the mailbox proof is the factor.
+Six digits, hashed on the challenge row (the recovery-code posture),
+expiring with the challenge (5 minutes), single-use, the wrong-code
+ladder shared with every other method, the resend window 45 s (a
+FAILED send stamps nothing — the retry is immediate). It answers a
+challenge; it never forces one (a password-only account still signs in
+with the password alone).
+
+The operator's unlock procedure, in order of preference:
+
+1. **Nothing.** The holder self-serves: the emailed code is always
+   offered at the challenge for a verified primary.
+2. **The override door** (the rare unverified-primary case):
+   Administration → Members → the account's row → "Allow email
+   sign-in (24 h)" (`POST /api/op/accounts/:id/email-fallback`,
+   1–72 h, `DELETE` to close). The account is MAILED that the door
+   opened (with "go back and sign in again" — a challenge's methods
+   freeze at sign-in).
+3. The password reset — whose completion now carries the reset's FULL
+   MEANING: every session, access token, refresh family, unconsumed
+   code, and pending authorization minted under the old credential
+   dies (the deactivation act's revocation primitive), the relying
+   parties are told through the backchannel fan-out, and the proof's
+   own session stands alone. A phished session — web or delegated —
+   does not survive the victim's recovery.
+
+**The mailer's critical lane.** The three entry-gating mails (the
+invite, the reset link, the sign-in code) draw their OWN per-recipient
+budget — `MAIL_RATE_LIMIT_CRITICAL_CAPACITY` (default 30/hour), beside
+the notices' `MAIL_RATE_LIMIT_CAPACITY` (5/hour). No notice flood —
+attacker-driven or self-inflicted — can starve the way out, and every
+completed sign-in clears both lanes for the account's addresses (the
+real holder's return ends the counted flood). A rate-limited send is
+audited (`email.rate_limited`, the `lane` named).
+
+**The new audit actions** (the activity feeds carry their labels):
+`account.email_fallback_granted` / `account.email_fallback_revoked`
+(the override door), `factor.email_otp_sent` (every mailed code),
+`account.sign_in` with method `password+email_otp`.
+
 ### Webhooks (account lifecycle events)
 
 Six events ride webhooks today (the whitelist in
@@ -774,6 +818,8 @@ account.pat_minted         — a personal access token was minted
 account.pat_revoked        — a PAT was revoked
 factor.totp_enrolled       — a TOTP factor was added
 factor.passkey_enrolled    — a WebAuthn/passkey factor was added
+factor.email_otp_sent      — an emailed sign-in code was minted (the standing factor)
+account.email_fallback_granted / _revoked — the administrator's override door (the unverified-primary edge)
 ```
 
 Adding a deliverable act is a one-string whitelist edit + a one-call
