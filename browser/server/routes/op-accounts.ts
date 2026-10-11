@@ -1240,19 +1240,23 @@ export function createOpAccountsRouter(): Hono {
     if (result.kind !== 'ok') {
       return c.json({ error: 'This setup link is not valid or was already used. Ask your administrator for a new one.' }, 410)
     }
-    const token = await store.createSession(result.userId, clientInfo(c))
     // THE RESET'S FULL MEANING (2026-10-10): the mailbox proof replaces
-    // the credential's authority — every session minted under the OLD
-    // password dies with it (a phished-password session must not survive
-    // the victim's recovery; the console change holds the same rule). A
-    // first enrollment holds no other sessions — a no-op.
-    const otherSessionsRevoked = await store.deleteOtherSessions(result.userId, token)
+    // the credential's authority WHOLESALE — every session, access token,
+    // refresh family and pending grant minted under the OLD password dies
+    // with it (a phished-password session must not survive the victim's
+    // recovery — and neither may the delegated chain an attacker minted
+    // the same way). The revocation runs BEFORE the proof's own session is
+    // minted; a first enrollment holds nothing to revoke — a no-op.
+    const revoked = await store.revokeOpUserCredentials(result.userId)
+    const token = await store.createSession(result.userId, clientInfo(c))
     await clearMailBudgetForAccount(store, result.userId)
     await store.touchLastLogin(result.userId)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
     await audit('account.enrolled', result.userId, { userId: result.userId }, {
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
-      ...(otherSessionsRevoked > 0 ? { otherSessionsRevoked } : {}),
+      ...(revoked.sessions + revoked.refreshTokens + revoked.accessTokens + revoked.codes + revoked.authorizations > 0
+        ? { revokedUnderOldCredential: revoked }
+        : {}),
     })
     // 0041 → the 2026-10-10 ruling: no grant here anymore — the mailed
     // code is a STANDING choice for a verified primary (the completion's
