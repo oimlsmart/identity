@@ -34,7 +34,7 @@ const PARAMS: Record<OpMailTemplate, Record<string, string | number>> = {
   verify_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=7c1a9f2b4d6e8a0c2f5b7d9e1a3c5f70' },
 }
 
-const TEMPLATES: OpMailTemplate[] = ['invite', 'reset', 'signin', 'verify_email']
+const TEMPLATES: OpMailTemplate[] = ['invite', 'reset', 'signin', 'verify_email', 'email_otp', 'email_fallback_granted', 'password_changed']
 const LOCALES: MailLocale[] = ['en', 'fr']
 
 async function main(): Promise<void> {

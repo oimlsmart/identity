@@ -1262,6 +1262,17 @@ export function createOpAccountsRouter(): Hono {
         ? { revokedUnderOldCredential: revoked }
         : {}),
     })
+    // The outbound event (the console change's class — the subscribers
+    // learn the credential was replaced, with what died under it).
+    emitWebhookEvent(c, {
+      event: 'account.password',
+      accountId: result.userId,
+      data: {
+        ...(revoked.sessions + revoked.refreshTokens + revoked.accessTokens + revoked.codes + revoked.authorizations > 0
+          ? { revokedUnderOldCredential: revoked }
+          : {}),
+      },
+    })
     // 0041 → the 2026-10-10 ruling: no grant here anymore — the mailed
     // code is a STANDING choice for a verified primary (the completion's
     // notice says so; subsumed by the standing factor, never granted
