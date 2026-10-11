@@ -263,6 +263,18 @@ async function pagePasswordSignIn(page: Page, base: string, email: string, passw
 }
 
 /** The session payload (the amr provenance read). */
+/** The emailed sign-in code (the mail IS the channel — poll the stub). */
+async function emailedOtpCode(to: string): Promise<string> {
+  const deadline = Date.now() + 15_000
+  for (;;) {
+    const mail = mailer.messages.find(m => m.to === to && (m.subject ?? '').includes('sign-in code'))
+    const code = mail?.text ? /\b(\d{6})\b/.exec(mail.text)?.[1] : undefined
+    if (code) return code
+    if (Date.now() > deadline) throw new Error('the OTP mail never arrived at the stub')
+    await delay(100)
+  }
+}
+
 async function sessionAmr(base: string, cookieValue: string): Promise<string[] | undefined> {
   const res = await fetch(`${base}/api/auth/session`, { headers: { cookie: `oiml-session=${cookieValue}` } })
   expect(res.ok).toBe(true)
@@ -561,6 +573,60 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
     const mfaCookie = done.headers.get('set-cookie')!.split(';')[0]!.split('=')[1]!
     expect(await sessionAmr(stack.base, mfaCookie)).toEqual(['pwd', 'otp'])
     expect(await idTokenAmr(stack.base, mfaCookie)).toEqual(['pwd', 'otp'])
+  })
+
+  it('leg 3b — the STANDING email fallback through the UI: the chooser offers it, the mailed code completes, amr pwd+email', { timeout: 900_000 }, async () => {
+    mailer.reset()
+    const FALLA = { email: 'fallback-ui@factors.test', name: 'Falla Back', password: 'fallback has a proper passphrase' }
+    // The admin invites; the page enrolls (verified — the standing
+    // factor rides it); the TOTP joins through the API so a challenge
+    // EXISTS.
+    const rootCookie = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    const invite = await fetch(`${stack.base}/api/op/accounts`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${rootCookie}` },
+      body: JSON.stringify({ email: FALLA.email, name: FALLA.name }),
+    })
+    expect(invite.status).toBe(201)
+    const { setupUrl: fallaSetup } = await invite.json() as { setupUrl: string }
+
+    await withPage(async (page) => {
+      await page.goto(fallaSetup, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-setup-password"]', { timeout: SETTLE, polling: 500 })
+      await page.type('[data-testid="op-setup-password"]', FALLA.password)
+      await page.type('[data-testid="op-setup-confirm"]', FALLA.password)
+      await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
+      const jar = await page.cookies()
+      const cookie = jar.find(c => c.name === 'oiml-session')!.value
+      const start = await fetch(`${stack.apiBase}/api/op/account/factors/totp`, { method: 'POST', headers: { cookie: `oiml-session=${cookie}` } })
+      const enrollment = await start.json() as { id: string; secret: string }
+      await fetch(`${stack.apiBase}/api/op/account/factors/totp/${enrollment.id}/verify`, {
+        method: 'POST', headers: { 'content-type': 'application/json', cookie: `oiml-session=${cookie}` },
+        body: JSON.stringify({ code: await totpAtStep(enrollment.secret, Math.floor(Date.now() / 1000 / 30)) }),
+      })
+    })
+
+    // THE ARC (a fresh browser — signed out): password → the CHOOSER
+    // (totp + the standing email) → the email card → the mailed code →
+    // in, with the honest amr.
+    await withPage(async (page) => {
+      await pagePasswordSignIn(page, stack.base, FALLA.email, FALLA.password)
+      await page.waitForSelector('[data-testid="login-mfa"]', { timeout: SETTLE, polling: 500 })
+      await page.waitForSelector('[data-testid="login-mfa-choose-email"]', { timeout: SETTLE, polling: 500 })
+      await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-choose-email"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="login-mfa-email-code"]', { timeout: SETTLE, polling: 500 })
+      const code = await emailedOtpCode(FALLA.email)
+      await page.type('[data-testid="login-mfa-email-code"]', code)
+      await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-email-submit"]') as HTMLElement).click())
+      // The landing is the LAUNCHER (leg 2's selector — the account
+      // console is a click away, not the landing).
+      await page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 })
+      flog(page, 'leg3b: the standing fallback completed through the UI')
+      const jar = await page.cookies()
+      const cookie = jar.find(c => c.name === 'oiml-session')!.value
+      expect(await sessionAmr(stack.base, cookie)).toEqual(['pwd', 'email'])
+    })
   })
 
   it('leg 3 — the wrong-code throttle: the cap burns, the account is emailed', { timeout: 900_000 }, async () => {
