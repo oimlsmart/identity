@@ -852,6 +852,7 @@ export const en = {
   "login.mfa.emailSent": "The code was sent to your account's email address. It works once and expires with this sign-in attempt.",
   "login.mfa.emailSending": "Sending the code to your account's email address…",
   "login.mfa.emailSendFailed": "The code could not be sent just now — try again in a moment.",
+  "login.mfa.emailSendAsk": "Send a sign-in code to your account's email address.",
   "login.mfa.useTotp": "Use your authenticator app",
   "login.mfa.totpHint": "Enter the six-digit code your app shows.",
   "login.mfa.passkeyHint": "The device's passkey — fingerprint, face, or a hardware key.",

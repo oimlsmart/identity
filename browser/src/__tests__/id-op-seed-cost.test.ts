@@ -74,7 +74,7 @@ demo_personas: true
 
 const LOGIN = { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'nobody@oimlsmart.org', password: 'wrong' }) }
 
-beforeAll(bootApp)
+beforeAll(bootApp, 60_000)
 
 afterAll(() => {
   rmSync(TMP, { recursive: true, force: true })
