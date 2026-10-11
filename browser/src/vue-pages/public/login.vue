@@ -827,8 +827,21 @@ async function submitReset() {
           <!-- 0041: the emailed fallback pane — the code was sent on entry
                (the card's click IS the ask); the verify rides below. -->
           <div v-if="mfaPane === 'email'">
-            <form class="space-y-2" @submit.prevent="submitMfaEmailCode">
-              <p class="text-sm text-slate-500 dark:text-slate-400">{{ emailSent ? t('login.mfa.emailSent') : t('login.mfa.emailSending') }}</p>
+            <!-- No code is out (the entry's send failed, or the pane was
+                 reached without one): the ask stands, the retry is a
+                 click — a failed delivery stamps no window server-side. -->
+            <div v-if="!emailSent" class="space-y-2">
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('login.mfa.emailSendAsk') }}</p>
+              <button
+                type="button"
+                :disabled="mfaBusy"
+                data-testid="login-mfa-email-send"
+                class="w-full min-h-11 py-2.5 rounded-lg text-base font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                @click="sendEmailCode"
+              >{{ mfaBusy ? t('login.mfa.emailSending') : t('login.mfa.emailUse') }}</button>
+            </div>
+            <form v-else class="space-y-2" @submit.prevent="submitMfaEmailCode">
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('login.mfa.emailSent') }}</p>
               <div class="flex flex-wrap items-center gap-2">
                 <input
                   v-model="emailCode"
