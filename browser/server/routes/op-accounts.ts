@@ -1247,11 +1247,15 @@ export function createOpAccountsRouter(): Hono {
     // recovery — and neither may the delegated chain an attacker minted
     // the same way). The revocation runs BEFORE the proof's own session is
     // minted; a first enrollment holds nothing to revoke — a no-op.
+    // The RPs hear it: the backchannel fan-out collects the live grants
+    // BEFORE the sweep (the signout posture) and floats past the answer.
+    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, result.userId)
     const revoked = await store.revokeOpUserCredentials(result.userId)
     const token = await store.createSession(result.userId, clientInfo(c))
     await clearMailBudgetForAccount(store, result.userId)
     await store.touchLastLogin(result.userId)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    floatBackchannel()
     await audit('account.enrolled', result.userId, { userId: result.userId }, {
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
       ...(revoked.sessions + revoked.refreshTokens + revoked.accessTokens + revoked.codes + revoked.authorizations > 0

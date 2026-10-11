@@ -738,6 +738,36 @@ describe('the backchannel fan-out (OP-initiated logout)', () => {
     expect(claims.nonce).toBeUndefined()
   })
 
+  it('the RESET fans out (2026-10-10): the recovery\'s wholesale revocation reaches the RPs — the phished session\'s grants are told', async () => {
+    // An invited account, enrolled (its first session), with a live RP
+    // grant — then the recovery: a fresh link, a new password.
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const invite = await app.request('/api/op/accounts', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ email: 'reset-fanout@oimlsmart.org', name: 'Reset Fanout' }),
+    })
+    expect(invite.status).toBe(201)
+    const { account, setupUrl } = await invite.json() as { account: { id: string }; setupUrl: string }
+    const enroll = async (url: string, password: string) => app.request(`/api/op/enroll/${new URL(url).searchParams.get('token')}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    const first = await enroll(setupUrl, 'the first passphrase 123')
+    expect(first.status).toBe(200)
+    await store.recordConsentGrant({ userId: account.id, clientId: HUB_ID, scope: 'openid' })
+
+    const fresh = await app.request(`/api/op/accounts/${account.id}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+    const freshUrl = (await fresh.json() as { setupUrl: string }).setupUrl
+    const before = received.length
+    const second = await enroll(freshUrl, 'the second passphrase 123')
+    expect(second.status).toBe(200)
+    // The wholesale revocation is TOLD: the receiver carries the
+    // logout_token for the killed session's grants.
+    await awaitReceived(before + 1)
+    const claims = decodePayload(received[received.length - 1]!.body.split('=').pop()!)
+    expect(claims.events).toEqual({ 'http://schemas.openid.net/event/backchannel-logout': {} })
+  })
+
   it('a failed send never fails the act: the per-target outcomes answer honestly (500 → not-ok, unreachable → not-ok)', async () => {
     const { sendBackchannelLogout, BACKCHANNEL_LOGOUT_EVENT } = await import('../../server/auth/op/logout')
     const { resolveOpSigningKey } = await import('../../server/auth/op/keys')
