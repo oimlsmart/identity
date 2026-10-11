@@ -249,6 +249,46 @@ describe('the delivery ladder (bounded retries + the dead letter)', () => {
 })
 
 describe('the fan-out at a real act (the PAT mint)', () => {
+  it('the RESET reaches the subscribers too (2026-10-10): the recovery\'s password act emits account.password with the revoked counts', async () => {
+    const admin = await demoLogin('admin@oimlsmart.org')
+    // An invited account, enrolled once — then it subscribes to its own
+    // password events, and the recovery completes.
+    const invite = await app.request(`${ISSUER}/api/op/accounts`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ email: 'reset-webhook@oimlsmart.org', name: 'Rita Webhook' }),
+    })
+    expect(invite.status).toBe(201)
+    const { account, setupUrl } = await invite.json() as { account: { id: string }; setupUrl: string }
+    const enroll = async (url: string, password: string) => app.request(`${ISSUER}/api/op/enroll/${new URL(url).searchParams.get('token')}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    const first = await enroll(setupUrl, 'the first passphrase 123')
+    expect(first.status).toBe(200)
+    const cookie = first.headers.get('set-cookie')!.split(';')[0]!
+    const created = await (await createSubscription(cookie, 'https://rita.example/hooks', ['account.password'])).json() as SubscriptionAnswer
+
+    const deliveries: Array<{ headers: Headers; body: string }> = []
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      if (String(input).includes('rita.example')) {
+        deliveries.push({ headers: new Headers(init?.headers), body: String(init?.body) })
+      }
+      return new Response('ok', { status: 200 })
+    }) as typeof fetch
+
+    const fresh = await app.request(`${ISSUER}/api/op/accounts/${account.id}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+    const freshUrl = (await fresh.json() as { setupUrl: string }).setupUrl
+    const second = await enroll(freshUrl, 'the second passphrase 123')
+    expect(second.status).toBe(200)
+
+    const deadline = Date.now() + 5_000
+    while (deliveries.length === 0 && Date.now() < deadline) await new Promise(r => setTimeout(r, 50))
+    expect(deliveries).toHaveLength(1)
+    const envelope = JSON.parse(deliveries[0]!.body) as { event: string; data: { revokedUnderOldCredential?: { sessions: number } } }
+    expect(envelope.event).toBe('account.password')
+    expect(envelope.data.revokedUnderOldCredential?.sessions).toBe(1)
+  })
+
   it('a minted PAT reaches the subscribed endpoint, signed', async () => {
     const { verifyWebhookSignature } = await import('../../server/webhooks/signature')
     const cookie = await demoLogin('cs@oimlsmart.org')
