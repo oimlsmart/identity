@@ -696,7 +696,9 @@ and it is deliberately narrower than the admin's: the answer is the same
 constant 200 whether the address names an account, is unknown, is
 deactivated, or belongs to another provider (no enumeration, and the
 mailer's per-recipient rate limit never becomes an oracle either: a
-refused send swallows into the same 200). The reset travels BY EMAIL
+refused send swallows into the same 200). The reset link and the emailed
+sign-in code ride the mailer's CRITICAL LANE (below) — an attacker's
+mail flood can never close the email way out. The reset travels BY EMAIL
 ONLY: the one-time link (02's enrollment machinery again, 24 h) sets a
 password, so it never appears on screen to an unauthenticated requester;
 a deployment without a mail provider answers an honest 503 and points at
