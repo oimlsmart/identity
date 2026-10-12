@@ -953,7 +953,7 @@ export const en = {
   "mail.linkedMethodRemoved.preheader": "The {provider} identity \"{handle}\" was removed from your {product} account at {when} UTC.",
   "mail.linkedMethodRemoved.subject": "A sign-in method was removed from your {product} account",
   "mail.linkedMethodRemoved.why": "You are receiving this because a sign-in method was removed from your {product} account.",
-  "mail.mfaLocked.body": "Hello {name},\n\nSomeone reached your {product} account's second-factor step and failed it too many times, so the sign-in attempt was closed (at {when} UTC). The password alone was correct, so this message matters: if this was not you, change your password and review your factors on your account page.\n\nIf it was you, simply sign in again — the factor challenge starts fresh each time.",
+  "mail.mfaLocked.body": "Hello {name},\n\nSomeone reached your {product} account\u2019s second-factor step and failed it too many times, so the sign-in attempt was closed (at {when} UTC). The password alone was correct, so this message matters: if this was not you, change your password now \u2014 the reset below is the urgent move.\n\nIf it was you: your ways back stand. Sign in again and complete the factor (the challenge starts fresh), use a recovery code, or \u2014 if your factor\u2019s device is out of reach \u2014 your verified email can finish the sign-in with an emailed code.",
   "mail.mfaLocked.heading": "A sign-in was stopped at the second factor",
   "mail.mfaLocked.preheader": "A sign-in to your {product} account was stopped at the second factor.",
   "mail.mfaLocked.subject": "A sign-in to your {product} account was stopped at the second factor",

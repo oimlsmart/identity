@@ -179,7 +179,7 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   verify_primary_email: { subject: 'mail.verifyPrimaryEmail.subject', preheader: 'mail.verifyPrimaryEmail.preheader', heading: 'mail.verifyPrimaryEmail.heading', body: 'mail.verifyPrimaryEmail.body', why: 'mail.verifyPrimaryEmail.why', action: 'mail.verifyPrimaryEmail.action', link: true },
   // TODO.identity-sso/03: the second-factor lockout notice — a pure
   // notification like signin (no link, no expiry).
-  mfa_locked: { subject: 'mail.mfaLocked.subject', preheader: 'mail.mfaLocked.preheader', heading: 'mail.mfaLocked.heading', body: 'mail.mfaLocked.body', why: 'mail.mfaLocked.why', link: false },
+  mfa_locked: { subject: 'mail.mfaLocked.subject', preheader: 'mail.mfaLocked.preheader', heading: 'mail.mfaLocked.heading', body: 'mail.mfaLocked.body', why: 'mail.mfaLocked.why', link: false, reset: true },
   // TODO.identity-features/08: the developer-token notices — pure
   // notifications (the console's developer-tokens section is named in
   // the prose, never a deep link).
