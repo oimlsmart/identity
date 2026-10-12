@@ -284,12 +284,15 @@ describe('the aggregate live sessions', () => {
     const res = await app.request('/api/op/dashboard/sessions', { headers: { cookie: admin } })
     expect(res.status).toBe(200)
     const body = await res.json() as {
-      sessions: Array<{ id: string; account: { id: string; email: string | null }; current: boolean }>
+      sessions: Array<{ id: string; account: { id: string; email: string | null }; current: boolean; amr?: string[] }>
       retention: string
     }
     const bohrRow = body.sessions.find(s => s.account.id === bohr.id)
     expect(bohrRow, 'bohr’s session is in the aggregate').toBeTruthy()
     expect(bohrRow!.account.email).toBe('bohr.dashboard@example.org')
+    // 21: the session names HOW it signed in (the SOTA consoles' method
+    // badge — the amr minted at the completion, honestly).
+    expect((bohrRow as { amr?: string[] }).amr, 'the enrollment session names its proof — the one-time mailbox link').toEqual(['email'])
     const mine = body.sessions.find(s => s.current)
     expect(mine, 'the administrator’s own row is marked').toBeTruthy()
     expect(mine!.account.email).toBe('admin@oimlsmart.org')
