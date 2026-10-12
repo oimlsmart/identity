@@ -301,6 +301,7 @@ export const en = {
   "account.trusted.lastUsed": "last used {at}",
   "account.trusted.expires": "trusted until {at}",
   "account.trusted.revoke": "Revoke",
+  "account.trusted.currentBadge": "this browser",
   "account.sessions.title": "Active sessions",
   "account.signoutAll": "Sign out of all accounts",
   "account.signoutAllBusy": "Signing out…",

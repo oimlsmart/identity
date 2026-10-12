@@ -200,7 +200,7 @@ const posture = ref<'ok' | 'unavailable'>('ok')
 const context = ref<AccountContext | null>(null)
 
 // 0042 (the SOTA arc): the trusted browsers — the MFA skip's visible face.
-interface TrustedDevice { id: string; userAgent: string | null; ip: string | null; createdAt: string; lastUsedAt: string | null; expiresAt: string }
+interface TrustedDevice { id: string; userAgent: string | null; ip: string | null; createdAt: string; lastUsedAt: string | null; expiresAt: string; current?: boolean }
 const trustedDevices = ref<TrustedDevice[]>([])
 const trustedBusy = ref<string | null>(null)
 
@@ -1819,7 +1819,7 @@ async function signOutAll() {
           <ul v-else class="space-y-2" data-testid="account-trusted-list">
             <li v-for="row in trustedDevices" :key="row.id" class="flex items-start justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2.5">
               <div class="min-w-0">
-                <p class="text-sm text-slate-700 dark:text-slate-300 truncate">{{ row.userAgent ?? t('account.trusted.unknownDevice') }}</p>
+                <p class="text-sm text-slate-700 dark:text-slate-300 truncate">{{ row.userAgent ?? t('account.trusted.unknownDevice') }}<span v-if="row.current" class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 font-semibold" :data-testid="`account-trusted-current-${row.id}`">{{ t('account.trusted.currentBadge') }}</span></p>
                 <p class="text-[11px] text-slate-400 dark:text-slate-500">{{ t('account.trusted.lastUsed', { at: row.lastUsedAt ? fmtDate(row.lastUsedAt) : '—' }) }} · {{ t('account.trusted.expires', { at: fmtDate(row.expiresAt) }) }}</p>
               </div>
               <button

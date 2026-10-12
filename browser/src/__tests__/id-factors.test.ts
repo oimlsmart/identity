@@ -899,6 +899,29 @@ describe('the email sign-in fallback', () => {
     expect(((await after.json()) as { mfaRequired?: boolean }).mfaRequired, 'the reset killed the trust').toBe(true)
   })
 
+  it('THE TRUSTED LIST MARKS THIS BROWSER (24): the presented cookie hashes against the rows — the holder knows which entry they read from', { timeout: 30_000 }, async () => {
+    const MARK = { email: 'marcus@factors.test', name: 'Marcus Mark', password: 'marcus has a proper passphrase' }
+    const { id } = await accountWithTotp(MARK.email, MARK.name, MARK.password)
+    const login = await passwordLogin(MARK.email, MARK.password)
+    const { getStore } = await import('../../server/store')
+    const { totpAtStep } = await import('../../server/auth/op/totp')
+    const secrets = await getStore().listTotpSecrets(id)
+    const done = await app.request('/api/op/login/mfa/totp', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: login.body.mfaToken, code: await totpAtStep(secrets[0]!.secret, Math.floor(Date.now() / 1000 / 30)), rememberDevice: true }),
+    })
+    expect(done.status).toBe(200)
+    const allCookies = done.headers.getSetCookie?.() ?? [done.headers.get('set-cookie')!]
+    const trustCookie = (allCookies as string[]).find(c => c.startsWith('oiml-mfa-device='))!.split(';')[0]!
+    const sessionCookie = (allCookies as string[]).find(c => c.startsWith('oiml-session='))!.split(';')[0]!
+    const marked = await app.request('/api/op/account/trusted-devices', { headers: { cookie: `${sessionCookie}; ${trustCookie}` } })
+    const rows = await marked.json() as Array<{ current?: boolean }>
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.current, 'the presented browser marks itself').toBe(true)
+    const unmarked = await app.request('/api/op/account/trusted-devices', { headers: { cookie: sessionCookie } })
+    expect(((await unmarked.json()) as Array<{ current?: boolean }>)[0]!.current).toBe(false)
+  })
+
   it('the wrong code rides the shared ladder; the resend window throttles', async () => {
     await accountWithTotp(MARG.email, MARG.name, MARG.password)
     const login = await passwordLogin(MARG.email, MARG.password)
