@@ -144,6 +144,7 @@ import { getInstanceProfile } from '../profile'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { clientInfo } from '../client-info'
 import { assessSignInRisk, countryOf } from '../auth/op/risk'
+import { hashRecoveryCode } from '../auth/op/recovery'
 import { deliverEmailChangeLink, OP_EMAIL_CHANGE_TTL_MS } from '../auth/op/email-change'
 import { deliverEmailVerificationLink, type EmailVerificationDelivery } from '../auth/op/emails'
 import {
@@ -155,6 +156,7 @@ import {
 } from '../auth/op/accounts'
 import { opRandomToken } from '../auth/op/keys'
 import { prepareBackchannelLogout } from '../auth/op/logout'
+import { TRUST_COOKIE } from './op-trust'
 import { mintStepUpStamp, STEP_UP_COOKIE, STEP_UP_TTL_MS, stepUpKey } from '../auth/op/step-up-stamp'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
@@ -532,6 +534,39 @@ export function createOpAccountsRouter(): Hono {
     // factor's own. The recovery remainder rides along so the page can
     // offer the recovery floor honestly.
     if (counts.passkeys + counts.totp > 0) {
+      // 0042 (the SOTA arc): the TRUSTED-DEVICE SKIP — a live trust row
+      // for this browser's cookie buys the skip, but ONLY when the risk
+      // assessment is green (an unseen device shape or a country change
+      // puts the factor back in front — Google's adaptive posture). The
+      // skip is audited in its own right and the session's amr says pwd
+      // alone, honestly.
+      const info = clientInfo(c)
+      const trustToken = getCookie(c, TRUST_COOKIE)
+      if (trustToken) {
+        const trustedRow = await store.findLiveMfaTrustedDevice(cred.userId, await hashRecoveryCode(trustToken))
+        if (trustedRow) {
+          const risk = await assessSignInRisk(store, {
+            accountId: cred.userId, userAgent: info.userAgent, ip: info.ip,
+            country: countryOf({ req: c.req.raw }),
+          })
+          if (!risk.newDevice && !risk.countryChanged) {
+            await clearMailBudgetForAccount(store, cred.userId)
+            await store.touchLastLogin(cred.userId)
+            const skippedSession = await store.createSession(cred.userId, { ...info, amr: ['pwd'] })
+            setCookie(c, SESSION_COOKIE, skippedSession, sessionCookieOpts(c))
+            const skippedUser = await store.getUserById(cred.userId)
+            if (skippedUser) touchAccountJar(c, skippedSession, skippedUser)
+            await audit('account.sign_in', cred.userId, { userId: cred.userId }, {
+              method: 'password', amr: ['pwd'], trustedDevice: true,
+            })
+            await audit('factor.skipped_trusted_device', cred.userId, { userId: cred.userId }, {
+              trustedDeviceId: trustedRow.id, expiresAt: trustedRow.expiresAt,
+            })
+            await notifySignIn(c, await store.getUserById(cred.userId) ?? { id: cred.userId, email: '', name: '' })
+            return c.json(skippedUser)
+          }
+        }
+      }
       const mfaToken = opRandomToken()
       await store.createMfaPending({ token: mfaToken, userId: cred.userId, amr: ['pwd'], ttlMs: MFA_PENDING_TTL_MS })
       return c.json({
@@ -1994,6 +2029,7 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
     }
     await store.setPasswordHash(user.id, await hashPassword(body.next), user.email)
+    await store.revokeMfaTrustedDevicesForUser(user.id)
     const revoked = await store.deleteOtherSessions(user.id, getCookie(c, SESSION_COOKIE) ?? '')
     // TODO.sota/04 — the fan-out's last unwired act: the OTHER sessions
     // just died; their RPs learn it through the backchannel logout, or

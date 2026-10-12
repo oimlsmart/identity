@@ -46,6 +46,7 @@ const EXCLUDED_PREFIXES: ReadonlyArray<{ prefix: string; reason: string }> = [
   { prefix: '/api/op/account/avatar', reason: 'edition 2: the binary avatar surface' },
   { prefix: '/api/op/account/email', reason: 'edition 2: the email-change ceremony' },
   { prefix: '/api/op/account/factors', reason: 'edition 2: the strong-auth factor registry' },
+  { prefix: '/api/op/account/trusted-devices', reason: 'edition 2: the trusted-browser grants (0042, the MFA skip\'s visible face)' },
   { prefix: '/api/op/account/grants', reason: 'edition 2: the consent grants' },
   { prefix: '/api/op/account/links', reason: 'edition 2: the upstream identity links' },
   { prefix: '/api/op/account/membership', reason: 'edition 2: the membership requests' },

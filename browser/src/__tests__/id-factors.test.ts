@@ -845,6 +845,60 @@ describe('the email sign-in fallback', () => {
     expect(told.text ?? '').toContain('sign in again')
   })
 
+  it('THE TRUSTED DEVICE (0042, the SOTA arc): remember → the next password sign-in on the same device skips the factor; risk returns it; the reset kills it', { timeout: 30_000 }, async () => {
+    const TRUSTED = { email: 'trusty@factors.test', name: 'Trudy Trust', password: 'trudy has a proper passphrase' }
+    const { id } = await accountWithTotp(TRUSTED.email, TRUSTED.name, TRUSTED.password)
+
+    // No cookie: the branch stands.
+    const first = await passwordLogin(TRUSTED.email, TRUSTED.password)
+    expect(first.body.mfaRequired).toBe(true)
+
+    // The factor completion carries rememberDevice: the answer sets the
+    // trust cookie (and the row).
+    const login = await passwordLogin(TRUSTED.email, TRUSTED.password)
+    const { getStore } = await import('../../server/store')
+    const { totpAtStep } = await import('../../server/auth/op/totp')
+    const secrets = await getStore().listTotpSecrets(id)
+    const done = await app.request('/api/op/login/mfa/totp', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: login.body.mfaToken, code: await totpAtStep(secrets[0]!.secret, Math.floor(Date.now() / 1000 / 30)), rememberDevice: true }),
+    })
+    expect(done.status).toBe(200)
+    const cookies = done.headers.getSetCookie?.() ?? [done.headers.get('set-cookie')!]
+    const trustCookie = (cookies as string[]).find(c => c.startsWith('oiml-mfa-device='))
+    expect(trustCookie, 'the trust cookie is set').toBeTruthy()
+
+    // THE SKIP: password alone + the trusted cookie, the SAME device
+    // shape: the session mints directly (no factor step).
+    const res = await app.request('/api/op/login', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: trustCookie!.split(';')[0]! },
+      body: JSON.stringify({ email: TRUSTED.email, password: TRUSTED.password }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as Record<string, unknown>
+    expect(body.mfaRequired, 'the trusted device skips the factor').toBeUndefined()
+    expect(res.headers.get('set-cookie')).toContain('oiml-session=')
+
+    // THE RISK GATE: the same cookie from an unseen device shape — the
+    // sighting flags, the factor returns.
+    const risky = await app.request('/api/op/login', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: trustCookie!.split(';')[0]!, 'user-agent': 'An-unseen-device/1.0' },
+      body: JSON.stringify({ email: TRUSTED.email, password: TRUSTED.password }),
+    })
+    expect(((await risky.json()) as { mfaRequired?: boolean }).mfaRequired, 'a new-device sighting puts the factor back in front').toBe(true)
+
+    // THE RESET KILLS THE TRUST: every credential-replacement act.
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const fresh = await app.request(`/api/op/accounts/${id}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+    const { setupUrl } = await fresh.json() as { setupUrl: string }
+    await enroll(setupUrl, 'trudy has a new passphrase')
+    const after = await app.request('/api/op/login', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: trustCookie!.split(';')[0]! },
+      body: JSON.stringify({ email: TRUSTED.email, password: 'trudy has a new passphrase' }),
+    })
+    expect(((await after.json()) as { mfaRequired?: boolean }).mfaRequired, 'the reset killed the trust').toBe(true)
+  })
+
   it('the wrong code rides the shared ladder; the resend window throttles', async () => {
     await accountWithTotp(MARG.email, MARG.name, MARG.password)
     const login = await passwordLogin(MARG.email, MARG.password)

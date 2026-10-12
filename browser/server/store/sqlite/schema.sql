@@ -410,6 +410,18 @@ CREATE TABLE IF NOT EXISTS oidc_access_tokens (
 
 -- The DPoP proof-replay cache (0039, TODO.sota/09): one row per seen
 -- jti, expiring at the proof's freshness window; the TTL sweep reaps.
+CREATE TABLE IF NOT EXISTS mfa_trusted_devices (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES users(id),
+  token_hash TEXT NOT NULL,
+  user_agent TEXT,
+  ip TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT,
+  expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mfa_trusted_devices_account ON mfa_trusted_devices (account_id);
+
 CREATE TABLE IF NOT EXISTS dpop_jtis (
   jti TEXT PRIMARY KEY,
   expires_at TEXT NOT NULL

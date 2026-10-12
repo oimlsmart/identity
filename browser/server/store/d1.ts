@@ -7,6 +7,7 @@
 // calls change (prepare/bind/run, async).
 //
 // WORKER-SAFE: the only import is the D1 TYPE (erased at build) — no
+import type { TrustedDeviceRow } from '../store'
 // node built-ins, no better-sqlite3. The binding arrives from the
 // Worker entry (server/cloudflare.ts), which installs this store when
 // env.DB is present — the binding-presence profile switch, the same
@@ -241,6 +242,7 @@ const WIPE_TABLES = ['entity_changes', 'evidence_records', 'entities', 'events',
 interface EnsureMemos {
   usersColumns: Promise<void> | null
   mfaEmailColumns: Promise<void> | null
+  mfaTrustedDeviceSupport: Promise<void> | null
   sessionColumns: Promise<void> | null
   membershipSupport: Promise<void> | null
   orgRegistrySupport: Promise<void> | null
@@ -266,7 +268,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
   let memos = ensureMemosByBinding.get(binding)
   if (!memos) {
     memos = {
-      usersColumns: null, mfaEmailColumns: null, sessionColumns: null, membershipSupport: null,
+      usersColumns: null, mfaEmailColumns: null, mfaTrustedDeviceSupport: null, sessionColumns: null, membershipSupport: null,
       orgRegistrySupport: null, holderAttributionSupport: null,
       instrumentRegistrationSupport: null, oidcColumns: null,
       personalAccessTokenSupport: null, consentGrantSupport: null,
@@ -2264,8 +2266,84 @@ export class D1ServerStore implements ServerStore {
    *  first: a dev D1 from before it lacks the table), every unconsumed
    *  code and pending authorization goes. The user row STAYS (the
    *  history). */
+  // ── 0042 (the trusted-device MFA skip) ──────────────────────────────
+
+  async createMfaTrustedDevice(input: { id: string; accountId: string; tokenHash: string; userAgent: string | null; ip: string | null; ttlMs: number }): Promise<void> {
+    await this.ensureMfaTrustedDeviceSupport()
+    await this.stmt("DELETE FROM mfa_trusted_devices WHERE expires_at <= datetime('now')").run()
+    await this.stmt('INSERT INTO mfa_trusted_devices (id, account_id, token_hash, user_agent, ip, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+      input.id, input.accountId, input.tokenHash, input.userAgent, input.ip, new Date(Date.now() + input.ttlMs).toISOString()).run()
+  }
+
+  async findLiveMfaTrustedDevice(accountId: string, tokenHash: string): Promise<TrustedDeviceRow | null> {
+    await this.ensureMfaTrustedDeviceSupport()
+    const row = await this.stmt("SELECT * FROM mfa_trusted_devices WHERE account_id = ? AND token_hash = ? AND expires_at > datetime('now')", accountId, tokenHash)
+      .first<Record<string, unknown>>()
+    if (!row) return null
+    await this.stmt("UPDATE mfa_trusted_devices SET last_used_at = datetime('now') WHERE id = ?", row.id as string).run()
+    return {
+      id: row.id as string,
+      accountId: row.account_id as string,
+      tokenHash: row.token_hash as string,
+      userAgent: (row.user_agent as string | null) ?? null,
+      ip: (row.ip as string | null) ?? null,
+      createdAt: D1ServerStore.storeTimeToIso(row.created_at as string)!,
+      lastUsedAt: D1ServerStore.storeTimeToIso((row.last_used_at as string | null) ?? null),
+      expiresAt: D1ServerStore.storeTimeToIso(row.expires_at as string)!,
+    }
+  }
+
+  async listMfaTrustedDevices(accountId: string): Promise<TrustedDeviceRow[]> {
+    await this.ensureMfaTrustedDeviceSupport()
+    await this.stmt("DELETE FROM mfa_trusted_devices WHERE expires_at <= datetime('now')").run()
+    const res = await this.stmt('SELECT * FROM mfa_trusted_devices WHERE account_id = ? ORDER BY created_at DESC', accountId).all<Record<string, unknown>>()
+    return res.results.map(row => ({
+      id: row.id as string,
+      accountId: row.account_id as string,
+      tokenHash: row.token_hash as string,
+      userAgent: (row.user_agent as string | null) ?? null,
+      ip: (row.ip as string | null) ?? null,
+      createdAt: D1ServerStore.storeTimeToIso(row.created_at as string)!,
+      lastUsedAt: D1ServerStore.storeTimeToIso((row.last_used_at as string | null) ?? null),
+      expiresAt: D1ServerStore.storeTimeToIso(row.expires_at as string)!,
+    }))
+  }
+
+  async revokeMfaTrustedDevice(id: string, accountId: string): Promise<boolean> {
+    await this.ensureMfaTrustedDeviceSupport()
+    const res = await this.stmt('DELETE FROM mfa_trusted_devices WHERE id = ? AND account_id = ?', id, accountId).run()
+    return (res.meta.changes ?? 0) > 0
+  }
+
+  async revokeMfaTrustedDevicesForUser(accountId: string): Promise<number> {
+    await this.ensureMfaTrustedDeviceSupport()
+    const res = await this.stmt('DELETE FROM mfa_trusted_devices WHERE account_id = ?', accountId).run()
+    return res.meta.changes ?? 0
+  }
+
+  private ensureMfaTrustedDeviceSupport(): Promise<void> {
+    return ensured(this.binding, 'mfaTrustedDeviceSupport', async () => {
+      const cols = await this.db.prepare('PRAGMA table_info(mfa_trusted_devices)').all<{ name: string }>()
+      if (!cols.results.length) {
+        await this.db.prepare(`CREATE TABLE IF NOT EXISTS mfa_trusted_devices (
+          id TEXT PRIMARY KEY,
+          account_id TEXT NOT NULL REFERENCES users(id),
+          token_hash TEXT NOT NULL,
+          user_agent TEXT,
+          ip TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          last_used_at TEXT,
+          expires_at TEXT NOT NULL
+        )`).run()
+        await this.db.prepare('CREATE INDEX IF NOT EXISTS idx_mfa_trusted_devices_account ON mfa_trusted_devices (account_id)').run()
+      }
+    })
+  }
+
   async revokeOpUserCredentials(userId: string): Promise<{ sessions: number; accessTokens: number; refreshTokens: number; codes: number; authorizations: number }> {
     await this.ensureOidcRefreshTokenSupport()
+    await this.ensureMfaTrustedDeviceSupport()
+    await this.stmt('DELETE FROM mfa_trusted_devices WHERE account_id = ?', userId).run()
     const sessions = await this.stmt('DELETE FROM sessions WHERE user_id = ?', userId).run()
     const accessTokens = await this.stmt('DELETE FROM oidc_access_tokens WHERE user_id = ?', userId).run()
     const refreshTokens = await this.stmt('DELETE FROM oidc_refresh_tokens WHERE user_id = ?', userId).run()

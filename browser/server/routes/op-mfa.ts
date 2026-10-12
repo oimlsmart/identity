@@ -43,11 +43,13 @@ import { getInstanceProfile } from '../profile'
 import { clientInfo } from '../client-info'
 import { assessSignInRisk, countryOf } from '../auth/op/risk'
 import { SESSION_COOKIE, sessionCookieOpts } from '../session'
+import { TRUST_COOKIE, TRUST_DEVICE_TTL_MS, trustCookieOpts } from './op-trust'
 import { touchAccountJar } from '../auth/op/account-jar'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { opRandomToken } from '../auth/op/keys'
 import { verifyTotp } from '../auth/op/totp'
 import { hashRecoveryCode, recoveryCodePlausible } from '../auth/op/recovery'
+import { base64urlEncode } from '../auth/op/webauthn'
 import { verifyAssertion, CeremonyError } from '../auth/op/webauthn'
 import { webauthnBindingFor } from './op-factors'
 import { clearMailBudgetForAccount, sendOpMail, sendOpSecurityMail } from '../auth/op/mail'
@@ -125,6 +127,7 @@ export function createOpMfaRouter(): Hono {
     methodKey: string,
     auditMethod: string,
     notifyTemplate: 'signin' | 'recovery_code_used' = 'signin',
+    opts?: { rememberDevice?: boolean },
   ) {
     const store = getStore()
     const pending = await store.consumeMfaPending(pendingToken)
@@ -138,6 +141,25 @@ export function createOpMfaRouter(): Hono {
     await store.touchLastLogin(pending.userId)
     const token = await store.createSession(pending.userId, { ...info, amr })
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))
+    // 0042 (the SOTA arc): the holder's "remember this browser" — a
+    // 256-bit cookie, its SHA-256 on the row, 14 days, revocable from
+    // the account console and killed by every credential-replacement
+    // act. The SKIP it buys is risk-gated at the login branch.
+    if (opts?.rememberDevice) {
+      const draw = new Uint8Array(32)
+      crypto.getRandomValues(draw)
+      const trustToken = base64urlEncode(draw)
+      await store.createMfaTrustedDevice({
+        id: crypto.randomUUID(),
+        accountId: pending.userId,
+        tokenHash: await hashRecoveryCode(trustToken),
+        userAgent: info.userAgent,
+        ip: info.ip,
+        ttlMs: TRUST_DEVICE_TTL_MS,
+      })
+      setCookie(c, TRUST_COOKIE, trustToken, trustCookieOpts(c))
+      await auditFactor('factor.trusted_device_granted', pending.userId, { userId: pending.userId }, {})
+    }
     // The account jar (the chooser wave): the completed sign-in
     // remembers the account (LRU, one per account).
     const jarUser = await store.getUserById(pending.userId)
@@ -196,7 +218,7 @@ export function createOpMfaRouter(): Hono {
   // POST /api/op/login/mfa/totp — the authenticator code. Any VERIFIED
   // app on the account may answer (the registry allows several).
   mfa.post('/api/op/login/mfa/totp', async (c) => {
-    const body = await c.req.json<{ token?: string; code?: string }>().catch(() => null)
+    const body = await c.req.json<{ token?: string; code?: string; rememberDevice?: boolean }>().catch(() => null)
     const code = typeof body?.code === 'string' ? body.code.trim() : ''
     if (typeof body?.token !== 'string' || !body.token || !/^\d{6}$/.test(code)) {
       return c.json({ error: 'The challenge token and the six-digit code are required.' }, 400)
@@ -208,7 +230,7 @@ export function createOpMfaRouter(): Hono {
     for (const secret of secrets) {
       if (await verifyTotp(secret.secret, code)) {
         await store.markTotpSecretUsed(secret.id, clientInfo(c))
-        const done = await completeSignIn(c, pending.token, ['otp'], 'mail.signin.methodPasswordTotp', 'password+totp')
+        const done = await completeSignIn(c, pending.token, ['otp'], 'mail.signin.methodPasswordTotp', 'password+totp', 'signin', { rememberDevice: body?.rememberDevice === true })
         if (!done) return c.json({ error: 'This sign-in challenge expired or was already completed. Sign in again.' }, 401)
         return c.json(await store.getUserById(done.userId))
       }
@@ -220,7 +242,7 @@ export function createOpMfaRouter(): Hono {
   // the account-recovery floor (never the only path — the email reset
   // stands behind everything).
   mfa.post('/api/op/login/mfa/recovery', async (c) => {
-    const body = await c.req.json<{ token?: string; code?: string }>().catch(() => null)
+    const body = await c.req.json<{ token?: string; code?: string; rememberDevice?: boolean }>().catch(() => null)
     const code = typeof body?.code === 'string' ? body.code.trim() : ''
     if (typeof body?.token !== 'string' || !body.token || !recoveryCodePlausible(code)) {
       return c.json({ error: 'The challenge token and a recovery code are required.' }, 400)
@@ -231,7 +253,7 @@ export function createOpMfaRouter(): Hono {
     const consumed = await store.consumeRecoveryCode(pending.userId, await hashRecoveryCode(code))
     if (consumed) {
       await auditFactor('factor.recovery_used', pending.userId, { userId: pending.userId }, {})
-      const done = await completeSignIn(c, pending.token, ['recovery'], 'mail.signin.methodPasswordRecovery', 'password+recovery', 'recovery_code_used')
+      const done = await completeSignIn(c, pending.token, ['recovery'], 'mail.signin.methodPasswordRecovery', 'password+recovery', 'recovery_code_used', { rememberDevice: body?.rememberDevice === true })
       if (!done) return c.json({ error: 'This sign-in challenge expired or was already completed. Sign in again.' }, 401)
       return c.json(await store.getUserById(done.userId))
     }
@@ -299,7 +321,7 @@ export function createOpMfaRouter(): Hono {
   // code was sent, or it is stale: the ladder answers, exactly as a
   // wrong TOTP would.
   mfa.post('/api/op/login/mfa/email/verify', async (c) => {
-    const body = await c.req.json<{ token?: string; code?: string }>().catch(() => null)
+    const body = await c.req.json<{ token?: string; code?: string; rememberDevice?: boolean }>().catch(() => null)
     const code = typeof body?.code === 'string' ? body.code.trim() : ''
     if (typeof body?.token !== 'string' || !body.token || !/^\d{6}$/.test(code)) {
       return c.json({ error: 'The challenge token and the six-digit code are required.' }, 400)
@@ -310,7 +332,7 @@ export function createOpMfaRouter(): Hono {
       && pending.emailCodeExpiresAt !== null
       && new Date(pending.emailCodeExpiresAt).getTime() > Date.now()
     if (live && await hashRecoveryCode(code) === pending.emailCodeHash) {
-      const done = await completeSignIn(c, pending.token, ['email'], 'mail.signin.methodPasswordEmail', 'password+email_otp')
+      const done = await completeSignIn(c, pending.token, ['email'], 'mail.signin.methodPasswordEmail', 'password+email_otp', 'signin', { rememberDevice: body?.rememberDevice === true })
       if (!done) return c.json({ error: 'This sign-in challenge expired or was already completed. Sign in again.' }, 401)
       return c.json(await getStore().getUserById(done.userId))
     }
@@ -409,6 +431,7 @@ export function createOpMfaRouter(): Hono {
   mfa.post('/api/op/login/mfa/passkey', async (c) => {
     const body = await c.req.json<{
       token?: string
+      rememberDevice?: boolean
       credential?: { id?: string; response?: { clientDataJSON?: string; authenticatorData?: string; signature?: string; userHandle?: string | null } }
     }>().catch(() => null)
     if (typeof body?.token !== 'string' || !body.token) return c.json({ error: 'The challenge token is required.' }, 400)
@@ -417,7 +440,7 @@ export function createOpMfaRouter(): Hono {
     const { cred, error: assertionError, clone } = await verifyAssertionFor(c, body?.credential, pending.userId)
     if (clone) return assertionError! // the clone refusal stands as answered (audited inside)
     if (assertionError || !cred) return failAttempt(c, pending, 'passkey', 'The passkey assertion did not verify. Try again.')
-    const done = await completeSignIn(c, pending.token, passkeyAmr(cred.transports), 'mail.signin.methodPasswordPasskey', 'password+webauthn')
+    const done = await completeSignIn(c, pending.token, passkeyAmr(cred.transports), 'mail.signin.methodPasswordPasskey', 'password+webauthn', 'signin', { rememberDevice: body?.rememberDevice === true })
     if (!done) return c.json({ error: 'This sign-in challenge expired or was already completed. Sign in again.' }, 401)
     return c.json(await getStore().getUserById(done.userId))
   })
