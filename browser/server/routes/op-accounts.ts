@@ -1286,7 +1286,9 @@ export function createOpAccountsRouter(): Hono {
     // BEFORE the sweep (the signout posture) and floats past the answer.
     const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, result.userId)
     const revoked = await store.revokeOpUserCredentials(result.userId)
-    const token = await store.createSession(result.userId, clientInfo(c))
+    // The session's amr (26): the one-time link IS a mailbox proof —
+    // the emailed-code completion's own vocabulary, honestly ['email'].
+    const token = await store.createSession(result.userId, { ...clientInfo(c), amr: ['email'] })
     await clearMailBudgetForAccount(store, result.userId)
     await store.touchLastLogin(result.userId)
     setCookie(c, SESSION_COOKIE, token, sessionCookieOpts(c))

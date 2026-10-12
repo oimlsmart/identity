@@ -575,6 +575,75 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
     expect(await idTokenAmr(stack.base, mfaCookie)).toEqual(['pwd', 'otp'])
   })
 
+  it('leg 3c — THE PASSKEY LEADS (25): a passkey-holding account signs in password-first straight through the auto-fired ceremony — no chooser click, Google parity', { timeout: 900_000 }, async () => {
+    const LEAD = { email: 'lead@factors.test', name: 'Leda Leads', password: 'leda has a proper passphrase' }
+    const rootCookie = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    const invite = await fetch(`${stack.base}/api/op/accounts`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${rootCookie}` },
+      body: JSON.stringify({ email: LEAD.email, name: LEAD.name }),
+    })
+    expect(invite.status).toBe(201)
+    const { setupUrl } = await invite.json() as { setupUrl: string }
+
+    // ONE context, end to end: enroll (the setup page), sign out,
+    // register the passkey THROUGH THE PAGE (the virtual authenticator
+    // mints it natively — the credential then LIVES in the authenticator),
+    // sign out again, then THE ARC: password-first — the fast path
+    // auto-fires the ceremony, the authenticator answers, the sign-in
+    // LANDS. No chooser click ever.
+    await withPage(async (page) => {
+      await addVirtualAuthenticator(page)
+      await page.goto(setupUrl, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-setup-password"]', { timeout: SETTLE, polling: 500 })
+      await page.type('[data-testid="op-setup-password"]', LEAD.password)
+      await page.type('[data-testid="op-setup-confirm"]', LEAD.password)
+      await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
+      // The passkey registers through the console's real ceremony.
+      await page.evaluate(() => (document.querySelector('[data-testid="factor-passkey-add"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="factor-passkey-name"]', { timeout: 60_000, polling: 500 })
+      await page.type('[data-testid="factor-passkey-name"]', 'Leda’s key')
+      await page.evaluate(() => (document.querySelector('[data-testid="factor-passkey-register"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="factor-recovery-dialog"]', { timeout: 120_000, polling: 500 })
+      await page.evaluate(() => (document.querySelector('[data-testid="factor-recovery-dismiss"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="factors-passkey-list"]', { timeout: 60_000, polling: 500 })
+      flog(page, 'leg3c: the passkey registered (the virtual authenticator)')
+      // Sign out; the arc. (The API signout from node + the cookie's
+      // removal — the '/' redirect would swallow an in-page miss.)
+      const cookies = await page.cookies()
+      const leadCookie = cookies.find(c => c.name === 'oiml-session')!.value
+      await fetch(`${stack.apiBase}/api/auth/signout`, { method: 'POST', headers: { cookie: `oiml-session=${leadCookie}` } })
+      await page.deleteCookie({ name: 'oiml-session', url: stack.base })
+      // The conditional-UI autofill auto-resolves headlessly (the virtual
+      // authenticator selects itself — a passwordless sign-in steals the
+      // arc). Suppress ONLY the conditional mediation; the explicit
+      // ceremony (the fast path's direct get) stands.
+      await page.evaluateOnNewDocument(() => {
+        const orig = navigator.credentials.get.bind(navigator.credentials)
+        navigator.credentials.get = (opts?: CredentialRequestOptions) =>
+          (opts as { mediation?: string } | undefined)?.mediation === 'conditional'
+            ? Promise.reject(new DOMException('suppressed for the arc', 'NotAllowedError'))
+            : orig(opts)
+      })
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      try {
+        await page.waitForSelector('[data-testid="login-email"]', { timeout: 30_000, polling: 500 })
+      } catch {
+        console.log('LEG3C DUMP url:', page.url(), 'cookies:', JSON.stringify((await page.cookies()).map(c => c.name)))
+        throw new Error('no sign-in form after the deterministic signout')
+      }
+      await page.type('[data-testid="login-email"]', LEAD.email)
+      await page.type('[data-testid="login-password"]', LEAD.password)
+      await page.evaluate(() => (document.querySelector('[data-testid="login-submit"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 })
+      flog(page, 'leg3c: the passkey led — no chooser click')
+      const jar = await page.cookies()
+      const cookie = jar.find(c => c.name === 'oiml-session')!.value
+      expect(await sessionAmr(stack.base, cookie)).toEqual(['pwd', 'webauthn'])
+    })
+  })
+
   it('leg 3b — the STANDING email fallback through the UI: the chooser offers it, the mailed code completes, amr pwd+email', { timeout: 900_000 }, async () => {
     mailer.reset()
     const FALLA = { email: 'fallback-ui@factors.test', name: 'Falla Back', password: 'fallback has a proper passphrase' }
