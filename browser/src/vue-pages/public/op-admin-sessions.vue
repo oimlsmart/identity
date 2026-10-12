@@ -34,6 +34,7 @@ interface SessionRow {
   lastSeenAt: string | null
   userAgent: string | null
   ip: string | null
+  amr?: string[]
   current: boolean
 }
 
@@ -257,7 +258,7 @@ onMounted(async () => {
                 </p>
                 <p class="text-[11px] text-slate-400 dark:text-slate-500">{{ row.account.email ?? 'the account row is gone' }}</p>
                 <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400" :title="row.userAgent ?? undefined" :data-testid="`op-sess-agent-${row.id}`">
-                  {{ agent(row) }}<template v-if="row.ip"> · {{ row.ip }}</template><template v-else> · {{ t('admin.sess.ipNotRecorded') }}</template>
+                  {{ agent(row) }}<template v-if="row.ip"> · {{ row.ip }}</template><template v-else> · {{ t('admin.sess.ipNotRecorded') }}</template><template v-if="row.amr?.length"> · <span class="font-mono text-[11px]" :data-testid="`sess-amr-${row.id}`">{{ row.amr.join('+') }}</span></template>
                 </p>
                 <p class="text-[11px] text-slate-400 dark:text-slate-500" :data-testid="`op-sess-times-${row.id}`">
                   {{ t('admin.sess.lineMeta', { at: stamp(row.createdAt), last: row.lastSeenAt ? stamp(row.lastSeenAt) : t('admin.sess.notRecordedShort'), expires: stamp(row.expiresAt) }) }}

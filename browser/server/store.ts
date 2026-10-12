@@ -808,6 +808,9 @@ export interface SessionView {
   lastSeenAt: string | null
   userAgent: string | null
   ip: string | null
+  /** 21: the sign-in provenance (RFC 8176-ish: pwd, otp, webauthn,
+   *  email…), as minted — the consoles name the method per session. */
+  amr?: string[]
   current: boolean
 }
 
