@@ -15,6 +15,7 @@ import type { Context } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { env as runtimeEnv } from 'hono/adapter'
 import { getStore, type AuthUserPayload } from './store'
+import { requestIsSecure } from './auth/op/config'
 import type { KernelContext } from './context'
 
 export type { KernelContext } from './context'
@@ -31,13 +32,15 @@ export async function sessionUser(c: KernelContext): Promise<AuthUserPayload | n
   return token ? getStore().getSessionUser(token) : null
 }
 
-/** The cookie posture follows the request's runtime env (hono/adapter
- *  reads c.env on the Worker, process.env on node — the one env seam
- *  both platforms share, TODO.cs-e2e/14). */
+/** The cookie posture follows the REQUEST, never NODE_ENV (2026-10-12,
+ *  the cold-eyes audit): the Worker's env bindings never carry NODE_ENV,
+ *  so `secure` evaluated false in production — the session cookie rode
+ *  plain http. The https scheme or a declared https issuer decides
+ *  (auth/op/config.ts's requestIsSecure). */
 export function sessionCookieOpts(c: KernelContext) {
   return {
     httpOnly: true,
-    secure: runtimeEnv<{ NODE_ENV?: string }>(c as Context).NODE_ENV === 'production',
+    secure: requestIsSecure(c.req.raw, runtimeEnv<{ OP_ISSUER?: string }>(c as Context)),
     sameSite: 'Lax' as const,
     maxAge: 7 * 24 * 60 * 60,
     path: '/',

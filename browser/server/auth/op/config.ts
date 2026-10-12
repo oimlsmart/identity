@@ -78,6 +78,23 @@ export function opRequestOrigin(request: Request): string {
   return `${proto}://${host}`
 }
 
+/** Whether the credential cookies may carry `Secure` (2026-10-12, the
+ *  cold-eyes audit): the https request scheme — or a DECLARED https
+ *  issuer, which covers a Worker posture whose visible scheme lies (an
+ *  upstream TLS terminator). NEVER the NODE_ENV read it replaced: the
+ *  Worker's env bindings never carry NODE_ENV, so `secure` evaluated
+ *  false in production — the session and the 14-day trust cookie rode
+ *  plain http. */
+export function requestIsSecure(request: Request, env: { OP_ISSUER?: string }): boolean {
+  const declaredIssuer = env.OP_ISSUER?.trim()
+  if (declaredIssuer?.startsWith('https://')) return true
+  try {
+    return new URL(request.url).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 /** Resolve the effective OP config. Pure. */
 export function resolveOpConfig(env: EnvLike, requestOrigin: string): OpConfig {
   const declared = env.OP_ISSUER?.trim().replace(/\/+$/, '')

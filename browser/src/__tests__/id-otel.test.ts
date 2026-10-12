@@ -205,8 +205,12 @@ describe('the store-phase correlation + the outbound traceparent', () => {
     // UNARMED: no traceparent header at all (byte-identical posture).
     delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT
     seen.length = 0
+    // The changer's FRESH cookie: the change sweeps wholesale now
+    // (2026-10-12) — the presenting session died with the old password
+    // and the answer re-minted the changer.
+    const fresh = res.headers.get('set-cookie')!.split(';')[0]!
     const second = await app.request(`${ISSUER}/api/op/account/password`, {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: fresh },
       // The first change SET the password — the second presents it.
       body: JSON.stringify({ current: 'a-traced-delivery-probe-2026', next: 'an-untraced-delivery-probe-2026' }),
     })

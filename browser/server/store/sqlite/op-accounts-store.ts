@@ -215,6 +215,11 @@ export function completeEnrollment(db: Database.Database, token: string, passwor
   if (res.changes === 0) return { kind: 'unknown' }
   const row = getEnrollmentToken(db, token)!
   if (new Date(row.expiresAt).getTime() <= Date.now()) return { kind: 'expired' }
+  // The state machine never acts behind the join (2026-10-12): a
+  // deactivated account's link consumes with its refusal — the password
+  // never lands, and the context read leaks nothing afterwards.
+  const holder = db.prepare('SELECT active FROM users WHERE id = ?').get(row.userId) as { active: number } | undefined
+  if (!holder || holder.active !== 1) return { kind: 'inactive' }
   setPasswordHash(db, row.userId, passwordHash, setBy)
   // TODO.identity/06: the invite ceremony doubles as the address's
   // verification (the administrator delivered the one-time link to that
@@ -369,6 +374,26 @@ export function revokeOpUserCredentials(db: Database.Database, userId: string): 
   const codes = db.prepare('DELETE FROM oidc_codes WHERE user_id = ? AND consumed_at IS NULL').run(userId).changes
   const authorizations = db.prepare('DELETE FROM oidc_authorizations WHERE user_id = ? AND decision IS NULL').run(userId).changes
   return { sessions, accessTokens, refreshTokens, codes, authorizations, trustedDevices }
+}
+
+/** The credential-replacement act's factor half (2026-10-12): the factor
+ *  registry an attacker planted under a hijacked session survives every
+ *  session sweep — a planted passkey is a PRIMARY login. The reset
+ *  completion calls this beside revokeOpUserCredentials. */
+/** The account's standing, read directly (the completion paths' guard).
+ *  Absent account = false. */
+export function isUserActive(db: Database.Database, id: string): boolean {
+  const row = db.prepare('SELECT active FROM users WHERE id = ?').get(id) as { active: number } | undefined
+  return !!row && row.active === 1
+}
+
+export function revokeOpUserFactors(db: Database.Database, userId: string): {
+  passkeys: number; totp: number; recoveryCodes: number; pendingChallenges: number } {
+  const passkeys = db.prepare('DELETE FROM webauthn_credentials WHERE user_id = ?').run(userId).changes
+  const totp = db.prepare('DELETE FROM totp_secrets WHERE user_id = ?').run(userId).changes
+  const recoveryCodes = db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(userId).changes
+  const pendingChallenges = db.prepare('DELETE FROM mfa_pending WHERE user_id = ?').run(userId).changes
+  return { passkeys, totp, recoveryCodes, pendingChallenges }
 }
 
 /** The registry's edit act (name/email). The email UNIQUE conflict

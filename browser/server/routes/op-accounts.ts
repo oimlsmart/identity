@@ -397,7 +397,7 @@ export function createOpAccountsRouter(): Hono {
    *  enrollment completion and the console change share it — one copy
    *  ("set or changed") for both ceremonies. Never blocks the path (the
    *  notifySignIn rule: a mail failure is never the flow's failure). */
-  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }, opts: { emailFallbackHour?: boolean } = {}): Promise<void> {
+  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }, opts: { emailFallbackHour?: boolean; factorsRevoked?: boolean } = {}): Promise<void> {
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId: user.id,
@@ -407,6 +407,7 @@ export function createOpAccountsRouter(): Hono {
         name: user.name,
         when: new Date().toISOString().slice(0, 16).replace('T', ' '),
         ...(opts.emailFallbackHour ? { emailFallbackHour: true } : {}),
+        ...(opts.factorsRevoked ? { factorsRevoked: true } : {}),
       },
     })
   }
@@ -550,6 +551,13 @@ export function createOpAccountsRouter(): Hono {
             country: countryOf({ req: c.req.raw }),
           })
           if (!risk.newDevice && !risk.countryChanged) {
+            // The skip IS a successful sign-in (2026-10-12): the
+            // address's ladder ends with it — every other success path
+            // clears the throttle; the skip path forgetting it left one
+            // stale rung taxing every future sign-in (nothing else
+            // clears it: the password leg that clears the ladder is the
+            // leg the skip exists to avoid).
+            await clearLoginThrottle(store, loginEmail)
             await clearMailBudgetForAccount(store, cred.userId)
             await store.touchLastLogin(cred.userId)
             const skippedSession = await store.createSession(cred.userId, { ...info, amr: ['pwd'] })
@@ -1286,6 +1294,14 @@ export function createOpAccountsRouter(): Hono {
     // BEFORE the sweep (the signout posture) and floats past the answer.
     const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, result.userId)
     const revoked = await store.revokeOpUserCredentials(result.userId)
+    // …and the FACTOR half (2026-10-12, the cold-eyes audit): a factor
+    // enrolled under a hijacked session — an attacker passkey above all,
+    // a PRIMARY login needing no password — survives every session sweep.
+    // The mailbox proof is the one act entitled to it (the holder
+    // re-enrolls from the setup page they're standing on; the
+    // admin-granted fallback is an account flag, granted after this
+    // sweep — Janet's ladder stands).
+    const factorsRevoked = await store.revokeOpUserFactors(result.userId)
     // The session's amr (26): the one-time link IS a mailbox proof —
     // the emailed-code completion's own vocabulary, honestly ['email'].
     const token = await store.createSession(result.userId, { ...clientInfo(c), amr: ['email'] })
@@ -1298,6 +1314,9 @@ export function createOpAccountsRouter(): Hono {
       ...(revoked.sessions + revoked.refreshTokens + revoked.accessTokens + revoked.codes + revoked.authorizations > 0
         ? { revokedUnderOldCredential: revoked }
         : {}),
+      ...(factorsRevoked.passkeys + factorsRevoked.totp + factorsRevoked.recoveryCodes + factorsRevoked.pendingChallenges > 0
+        ? { factorsRevokedUnderOldCredential: factorsRevoked }
+        : {}),
     })
     // The outbound event (the console change's class — the subscribers
     // learn the credential was replaced, with what died under it).
@@ -1307,6 +1326,9 @@ export function createOpAccountsRouter(): Hono {
       data: {
         ...(revoked.sessions + revoked.refreshTokens + revoked.accessTokens + revoked.codes + revoked.authorizations > 0
           ? { revokedUnderOldCredential: revoked }
+          : {}),
+        ...(factorsRevoked.passkeys + factorsRevoked.totp + factorsRevoked.recoveryCodes + factorsRevoked.pendingChallenges > 0
+          ? { factorsRevokedUnderOldCredential: factorsRevoked }
           : {}),
       },
     })
@@ -1320,7 +1342,10 @@ export function createOpAccountsRouter(): Hono {
     // completion (the holder's first proof the credential is live).
     if (enrolled) {
       touchAccountJar(c, token, enrolled)
-      await notifyPasswordChanged(c, enrolled, { emailFallbackHour: true })
+      await notifyPasswordChanged(c, enrolled, {
+        emailFallbackHour: true,
+        factorsRevoked: factorsRevoked.passkeys + factorsRevoked.totp + factorsRevoked.recoveryCodes + factorsRevoked.pendingChallenges > 0,
+      })
     }
     return c.json(enrolled)
   })
@@ -2032,14 +2057,28 @@ export function createOpAccountsRouter(): Hono {
     }
     await store.setPasswordHash(user.id, await hashPassword(body.next), user.email)
     await store.revokeMfaTrustedDevicesForUser(user.id)
-    const revoked = await store.deleteOtherSessions(user.id, getCookie(c, SESSION_COOKIE) ?? '')
+    // THE CONSOLE CHANGE'S FULL MEANING (2026-10-12, the cold-eyes
+    // audit): the reset doctrine, kept — every delegated chain minted
+    // under the OLD password dies with it. deleteOtherSessions alone
+    // left the OAuth refresh families alive: a refresh token carries no
+    // session binding and kept minting access tokens for 30 days after
+    // the victim rotated. The sweep takes the presenting session too;
+    // the changer is re-minted at once (the changer keeps a live
+    // session, everything else is gone).
+    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, user.id)
+    const revoked = await store.revokeOpUserCredentials(user.id)
+    const freshToken = await store.createSession(user.id, { ...clientInfo(c), amr: ['pwd'] })
+    setCookie(c, SESSION_COOKIE, freshToken, sessionCookieOpts(c))
     // TODO.sota/04 — the fan-out's last unwired act: the OTHER sessions
     // just died; their RPs learn it through the backchannel logout, or
     // their sessions outlive the credential that created them.
-    const floatBackchannel = await prepareBackchannelLogout(c, runtimeEnv<EnvLike>(c), c.req.raw, user.id)
     floatBackchannel()
+    const otherSessionsRevoked = Math.max(0, revoked.sessions - 1)
     await audit('account.password', user.id, { userId: user.id, userName: user.name }, {
-      otherSessionsRevoked: revoked,
+      otherSessionsRevoked,
+      ...(revoked.sessions + revoked.refreshTokens + revoked.accessTokens + revoked.codes + revoked.authorizations > 0
+        ? { revokedUnderOldCredential: revoked }
+        : {}),
       ...(breach === 'unknown' ? { breachCheck: 'unreachable' } : {}),
     })
     // The outbound event (TODO.modern/08): the state CHANGED — the
@@ -2047,13 +2086,18 @@ export function createOpAccountsRouter(): Hono {
     emitWebhookEvent(c, {
       event: 'account.password',
       accountId: user.id,
-      data: { otherSessionsRevoked: revoked },
+      data: {
+        otherSessionsRevoked,
+        ...(revoked.sessions + revoked.refreshTokens + revoked.accessTokens + revoked.codes + revoked.authorizations > 0
+          ? { revokedUnderOldCredential: revoked }
+          : {}),
+      },
     })
     if (breach === 'unknown') await markBreachRecheck(store, user.id)
     // TODO.identity-sso/04 slice D: the password-changed notice (the
     // "was this you?" for the credential change itself).
     await notifyPasswordChanged(c, user)
-    return c.json({ ok: true, otherSessionsRevoked: revoked })
+    return c.json({ ok: true, otherSessionsRevoked })
   })
 
   // DELETE /api/op/account/password — remove the password as a sign-in

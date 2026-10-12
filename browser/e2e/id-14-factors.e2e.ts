@@ -31,7 +31,7 @@
 //          authenticator is gone (never a lockout).
 //
 // SELF-CONTAINED: own ports (API 10193 / astro 10194 — clear of id-01's
-// 8693/8393, id-02's 8793/8593, id-06's 9493/9393, id-08's 8993/8893,
+// 8703/8403, id-02's 8793/8593, id-06's 9493/9393, id-08's 8993/8893,
 // id-10's 9193/9093, the contract gate's 9693/9694, 9793, and the memberships leg's 9993/9994), own
 // SQLite file, the stub mailer on a kernel-assigned port. THE BROWSER IS
 // PER-LEG (the id-02 header note); cross-leg state rides the DATABASE.

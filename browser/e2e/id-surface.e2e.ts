@@ -32,7 +32,7 @@ const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
 const DB_DIR = join(BROWSER_DIR, '.cache', 'id-surface')
 
 // Port-isolated: clear of the shared dev stack (5190/3190), id-01
-// (8693/8393/8694), id-02 (8793/8593/8794), id-09 (8795/8595), id-08
+// (8703/8403/8704), id-02 (8793/8593/8794), id-09 (8795/8595), id-08
 // (8993/8893/8994), id-10 (9193/9093), id-03 (9393/9293/9294), id-07
 // (9293/9294), id-06 (9493/9393), id-04-op-side (9492/9493/9494),
 // id-05 (9592/9593/9596), op-key-rotate (9693/9695).

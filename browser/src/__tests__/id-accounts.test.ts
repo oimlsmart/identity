@@ -256,6 +256,112 @@ describe('the enrollment link (one-time, 24 h)', () => {
     expect(['unknown', 'invalid'], 'the delegated chain is gone').toContain((await store.consumeOidcRefreshToken('the-attacker-delegated-refresh-token')).kind)
   })
 
+  it('THE RESET TAKES THE FACTORS TOO (2026-10-12): an attacker-planted factor does not outlive the mailbox proof', async () => {
+    const { setupUrl, account } = await invite('pia@example.org', 'Pia Planted')
+    const token = new URL(setupUrl).searchParams.get('token')!
+    const first = await app.request(`/api/op/enroll/${token}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'pia first passphrase 123' }),
+    })
+    expect(first.status).toBe(200)
+    // The session hijacker plants their own durable ways back in: a
+    // passkey (a PRIMARY login needing no password), a TOTP secret, a
+    // recovery-code set — each answers the next MFA challenge.
+    await store.createWebauthnCredential({
+      credentialId: 'the-attacker-cred-id', userId: account.id, name: 'attacker key',
+      publicKeyCose: 'cose', signCount: 0, aaguid: null, transports: [],
+    })
+    await store.createTotpSecret({ id: 'the-attacker-totp', userId: account.id, name: 'attacker app', secret: 'ATTACKERSECRET234' })
+    await store.replaceRecoveryCodes(account.id, 'the-attacker-batch', ['hash-one', 'hash-two'])
+    expect((await store.listWebauthnCredentials(account.id)).map(c => c.credentialId)).toContain('the-attacker-cred-id')
+
+    // The reset: the mailbox proof — the one act whose whole meaning is
+    // "the old credential's era is over".
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const fresh = await app.request(`/api/op/accounts/${account.id}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+    const freshToken = new URL(((await fresh.json()) as { setupUrl: string }).setupUrl).searchParams.get('token')!
+    const second = await app.request(`/api/op/enroll/${freshToken}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'pia second passphrase 123' }),
+    })
+    expect(second.status).toBe(200)
+
+    // THE RULE: nothing planted under the old credential survives it.
+    expect(await store.listWebauthnCredentials(account.id), 'the planted passkey is gone').toEqual([])
+    expect(await store.listTotpSecrets(account.id), 'the planted TOTP is gone').toEqual([])
+    expect((await store.recoveryCodeState(account.id)).total, 'the planted codes are gone').toBe(0)
+    // The holder's own fresh enrollment (the proof's own session) still
+    // works: the second passphrase verifies.
+    const relg = await app.request('/api/op/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pia@example.org', password: 'pia second passphrase 123' }),
+    })
+    expect(relg.status).toBe(200)
+  })
+
+  it('THE CONSOLE PASSWORD CHANGE ENDS THE DELEGATED CHAIN (2026-10-12): the refresh family does not outlive the credential', async () => {
+    const { setupUrl, account } = await invite('quinn@example.org', 'Quinn Console')
+    const cookie = await enroll(setupUrl, 'quinn has a proper passphrase')
+    // The delegated chain: an RP refresh family minted under the phished
+    // session — it outlives sessions and keeps minting access tokens.
+    await store.createOidcRefreshToken({
+      token: 'quinn-delegated-refresh', userId: account.id, clientId: 'some-rp',
+      scope: 'openid', familyId: 'quinn-family', ttlMs: 30 * 86_400_000,
+    })
+    // A second browser's session.
+    const other = await store.createSession(account.id, { userAgent: 'the other browser', ip: '10.0.0.9' })
+    expect((await app.request('/api/auth/session', { headers: { cookie: `oiml-session=${other}` } })).status).toBe(200)
+
+    const change = await app.request('/api/op/account/password', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ current: 'quinn has a proper passphrase', next: 'quinn has a fresh passphrase' }),
+    })
+    expect(change.status).toBe(200)
+
+    // THE RULE: the credential's replacement is total, as the reset's is.
+    expect(['unknown', 'invalid'], 'the delegated chain is gone').toContain((await store.consumeOidcRefreshToken('quinn-delegated-refresh')).kind)
+    expect((await app.request('/api/auth/session', { headers: { cookie: `oiml-session=${other}` } })).status, 'the other session died').toBe(401)
+    // The changer stays signed in — the sweep mints them a fresh session.
+    const freshCookie = change.headers.get('set-cookie')!.split(';')[0]!
+    expect((await app.request('/api/auth/session', { headers: { cookie: freshCookie } })).status, 'the changer keeps a live session').toBe(200)
+  })
+
+  it('a deactivated account’s setup link is refused and never sets a password (2026-10-12)', async () => {
+    const { setupUrl, account } = await invite('gina@example.org', 'Gina Gone')
+    await store.setUserActive(account.id, false)
+    const token = new URL(setupUrl).searchParams.get('token')!
+    const res = await app.request(`/api/op/enroll/${token}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'gina has a proper passphrase' }),
+    })
+    expect(res.status, 'the completion refuses').toBe(410)
+    expect(await store.getPasswordLogin('gina@example.org'), 'no password ever lands').toBeFalsy()
+    // The link is burned with the refusal — the context read leaks
+    // nothing either.
+    const context = await app.request(`/api/op/enroll/${token}`)
+    expect(context.status).toBe(410)
+    await store.setUserActive(account.id, true)
+  })
+
+  it('the session cookie rides SECURE on an https request (2026-10-12) — NODE_ENV never says production on the Worker', async () => {
+    const { setupUrl } = await invite('rhea@example.org', 'Rhea Secure')
+    const token = new URL(setupUrl).searchParams.get('token')!
+    const res = await app.request(`https://op.test/api/op/enroll/${token}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'rhea has a proper passphrase' }),
+    })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('set-cookie')!, 'Secure rides the session cookie').toContain('Secure')
+  })
+
+  it('requestIsSecure: the https scheme or an https issuer — never NODE_ENV', async () => {
+    const { requestIsSecure } = await import('../../server/auth/op/config')
+    expect(requestIsSecure(new Request('https://id.example/op/account'), {})).toBe(true)
+    expect(requestIsSecure(new Request('http://id.example/op/account'), {})).toBe(false)
+    expect(requestIsSecure(new Request('http://id.example/op/account'), { OP_ISSUER: 'https://id.oimlsmart.org' })).toBe(true)
+    expect(requestIsSecure(new Request('http://id.example/op/account'), { OP_ISSUER: 'http://op.test' })).toBe(false)
+  })
+
   it('a policy-refused password does NOT burn the link', async () => {
     const { setupUrl } = await invite('dave@example.org', 'Dave Example')
     const token = new URL(setupUrl).searchParams.get('token')!

@@ -321,9 +321,14 @@ describe('the password change and the sessions', () => {
     expect(change.status).toBe(200)
     expect(await change.json()).toMatchObject({ ok: true, otherSessionsRevoked: 1 })
 
-    // The other session is dead; the changing session stands.
+    // The other session is dead — and the presenting session went with
+    // the wholesale sweep (2026-10-12): the delegated chains minted
+    // under the old password die with it. The changer was re-minted at
+    // once (the fresh cookie rides the answer).
+    const fresh = change.headers.get('set-cookie')!.split(';')[0]!
     expect((await app.request('/api/auth/session', { headers: { cookie: cookie2 } })).status).toBe(401)
-    expect((await app.request('/api/auth/session', { headers: { cookie: cookie1 } })).status).toBe(200)
+    expect((await app.request('/api/auth/session', { headers: { cookie: cookie1 } })).status).toBe(401)
+    expect((await app.request('/api/auth/session', { headers: { cookie: fresh } })).status).toBe(200)
     expect((await passwordLogin('yuri@example.org', 'yuri has a NEW proper passphrase')).status).toBe(200)
   })
 
@@ -376,12 +381,15 @@ describe('the activity feed', () => {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ name: 'Anna Actual' }),
     })
-    await app.request('/api/op/account/password', {
+    const change = await app.request('/api/op/account/password', {
       method: 'POST', headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ current: 'anna has a proper passphrase', next: 'anna has a NEW proper passphrase' }),
     })
+    // The change sweeps wholesale now (2026-10-12) — the reader presents
+    // the re-minted session.
+    const changed = change.headers.get('set-cookie')!.split(';')[0]!
 
-    const res = await app.request('/api/op/account/activity', { headers: { cookie } })
+    const res = await app.request('/api/op/account/activity', { headers: { cookie: changed } })
     expect(res.status).toBe(200)
     const events = await res.json() as Array<{ id: string; timestamp: string; action: string; metadata: Record<string, unknown> }>
     const actions = events.map(e => e.action)

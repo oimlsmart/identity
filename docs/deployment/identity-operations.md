@@ -790,6 +790,19 @@ The operator's unlock procedure, in order of preference:
    parties are told through the backchannel fan-out, and the proof's
    own session stands alone. A phished session — web or delegated —
    does not survive the victim's recovery.
+4. **The factor sweep rides the reset too (2026-10-12, the cold-eyes
+   audit):** every sign-in factor on the account — passkeys,
+   authenticator apps, recovery codes, pending challenges — is removed
+   with the old credential. A factor enrolled by a session hijacker
+   (above all an attacker passkey: a PRIMARY login needing no
+   password) must not outlive the act whose whole meaning is "the old
+   credential's era is over". The completion's notice names the sweep
+   and tells the holder to re-enroll the factors they recognize from
+   the account console's Security settings — the audit event carries
+   `factorsRevokedUnderOldCredential`, the webhook's
+   `account.password` payload the same key. The admin-granted email
+   fallback is NOT a factor row: the override door's allowance
+   survives the sweep (the unlock ladder stands).
 
 **The mailer's critical lane.** The three entry-gating mails (the
 invite, the reset link, the sign-in code) draw their OWN per-recipient
@@ -812,7 +825,10 @@ Six events ride webhooks today (the whitelist in
 names verbatim, never a translation layer):
 
 ```
-account.password           — a password change
+account.password           — a password change (both ceremonies carry
+                             what died under the old credential:
+                             revokedUnderOldCredential — and, on the
+                             reset path, factorsRevokedUnderOldCredential)
 account.session_revoked    — any session-ending act (RP, console, admin, deactivation)
 account.pat_minted         — a personal access token was minted
 account.pat_revoked        — a PAT was revoked

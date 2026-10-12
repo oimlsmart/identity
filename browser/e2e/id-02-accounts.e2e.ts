@@ -54,7 +54,7 @@ const DB_DIR = join(BROWSER_DIR, '.cache', 'id-02')
 
 // Port-isolated: clear of the shared dev stack (5190/3190), the fed-01
 // stacks (8291/8292/8491/8492), the fed-10 stub (8699), the id-01 stack
-// (8693/8393/8694) and the local identity dev stack (7390/7190).
+// (8703/8403/8704) and the local identity dev stack (7390/7190).
 const ID_API = 8793
 const ID_WEB = 8593
 const RP_PORT = 8794

@@ -48,7 +48,7 @@ const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
 const DB_DIR = join(BROWSER_DIR, '.cache', 'id-42')
 
-// Port-isolated: clear of id-01's stack (8693/8393/8694) and every other resident stack, the shared dev
+// Port-isolated: clear of id-01's stack (8703/8403/8704) and every other resident stack, the shared dev
 // stack (5190/3190), the fed-01 stacks and the fed-10 stub.
 const ID_API = 8791
 const ID_WEB = 8793

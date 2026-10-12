@@ -38,7 +38,7 @@ const PARAMS: Record<OpMailTemplate, Record<string, string | number>> = {
   verify_added_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=8a0c2f5b7d9e1a3c5f709f2c7a1b4d6e' },
   verify_primary_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=5b7d9e1a3c5f709f2c7a1b4d6e8a0c2f' },
   mfa_locked: { ...BASE, when: '2026-10-10 14:02' },
-  password_changed: { ...BASE, when: '2026-10-10 14:02', emailFallbackHour: true },
+  password_changed: { ...BASE, when: '2026-10-10 14:02', emailFallbackHour: true, factorsRevoked: true },
   email_changed: { ...BASE, name: 'Willa Example', to: 'willa-new@example.org', from: 'willa@example.org', when: '2026-10-10 14:02' },
   linked_method_added: { ...BASE, name: 'Willa Example', provider: 'GitHub', handle: '@willa', when: '2026-10-10 14:02' },
   linked_method_removed: { ...BASE, name: 'Willa Example', provider: 'GitHub', handle: '@willa', when: '2026-10-10 14:02' },

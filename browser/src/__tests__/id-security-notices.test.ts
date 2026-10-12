@@ -359,7 +359,17 @@ describe('TODO.identity-sso/04 slice D — the security notices fire on their tr
       body: JSON.stringify({ token: login.body.mfaToken, code: recoveryCodes[0] }),
     })
     expect(done.status).toBe(200)
-    const recoveryNotices = mailsWithSubject(`A recovery code was used to sign in to your ${PRODUCT} account`)
+    // The notice rides BESIDE the answer now (2026-10-12: the mailer's
+    // latency left the completion's critical path) — poll for its landing.
+    const recoveryNotices = await (async () => {
+      const deadline = Date.now() + 5_000
+      for (;;) {
+        const found = mailsWithSubject(`A recovery code was used to sign in to your ${PRODUCT} account`)
+        if (found.length) return found
+        if (Date.now() > deadline) return []
+        await new Promise(r => setTimeout(r, 25))
+      }
+    })()
     expect(recoveryNotices, 'the specialized notice fires').toHaveLength(1)
     expect(recoveryNotices[0]!.to).toBe('vera@example.org')
     expectResetPointer(recoveryNotices[0]!.text)

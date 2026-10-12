@@ -45,7 +45,7 @@ const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
 const DB_DIR = join(BROWSER_DIR, '.cache', 'id-10')
 
 // Port-isolated: clear of the shared dev stack (5190/3190), the fed-01
-// stacks (8291/8292/8491/8492), the id-01 stack (8693/8393/8694), the
+// stacks (8291/8292/8491/8492), the id-01 stack (8703/8403/8704), the
 // fed-10 stub (8699), the local identity dev stack (7390/7190), the
 // id-02 stack (8793/8593/8794), the id-08 stack (8993/8893/8994) and the
 // local id-10 dev loop (6390/6290).

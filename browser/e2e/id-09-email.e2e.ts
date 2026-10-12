@@ -42,7 +42,7 @@ const DB_DIR = join(BROWSER_DIR, '.cache', 'id-09')
 
 // Port-isolated: clear of the shared dev stack (5190/3190), the fed-01
 // stacks (8291/8292/8491/8492), the fed-10 stub (8699), the id-01 stack
-// (8693/8393/8694) and the id-02 stack (8793/8593/8794).
+// (8703/8403/8704) and the id-02 stack (8793/8593/8794).
 const ID_API = 8795
 const ID_WEB = 8595
 
