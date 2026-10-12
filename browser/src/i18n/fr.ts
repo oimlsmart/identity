@@ -303,6 +303,7 @@ export const fr: Record<MessageKey, string> = {
   "account.trusted.lastUsed": "derni\u00e8re utilisation {at}",
   "account.trusted.expires": "de confiance jusqu'\u00e0 {at}",
   "account.trusted.revoke": "R\u00e9voquer",
+  "account.trusted.currentBadge": "ce navigateur",
   "account.sessions.title": "Sessions actives",
   "account.signoutAll": "Déconnecter tous les comptes",
   "account.signoutAllBusy": "Déconnexion…",

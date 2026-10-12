@@ -51,10 +51,12 @@
 
 import { Hono, type Context } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
+import { getCookie } from 'hono/cookie'
 import { getStore } from '../store'
 import { getInstanceProfile } from '../profile'
 import { clientInfo } from '../client-info'
 import { sessionUser } from '../session'
+import { TRUST_COOKIE } from './op-trust'
 import { emitWebhookEvent } from '../webhooks/deliver'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { opRandomToken } from '../auth/op/keys'
@@ -157,6 +159,11 @@ export function createOpFactorsRouter(): Hono {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
     const rows = await getStore().listMfaTrustedDevices(user.id)
+    // The presented browser marks itself (the cookie's hash against the
+    // rows — the sessions list's current-badge pattern): the holder
+    // knows which entry they are READING FROM before they revoke.
+    const presented = getCookie(c, TRUST_COOKIE)
+    const presentedHash = presented ? await hashRecoveryCode(presented) : null
     return c.json(rows.map(row => ({
       id: row.id,
       userAgent: row.userAgent,
@@ -164,6 +171,7 @@ export function createOpFactorsRouter(): Hono {
       createdAt: row.createdAt,
       lastUsedAt: row.lastUsedAt,
       expiresAt: row.expiresAt,
+      current: presentedHash !== null && row.tokenHash === presentedHash,
     })))
   })
 
