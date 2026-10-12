@@ -1792,6 +1792,10 @@ export const TTL_TABLES = [
   'webhook_deliveries', 'pushed_authorization_requests',
   // TODO.sota/09: the DPoP proof-replay cache (0039).
   'dpop_jtis',
+  // 0042: the trusted-device grants — expired rows otherwise linger on
+  // an account that never signs in again (the sweep's abandoned-flow
+  // common case; the lazy sweeps already keep the LIVE reads honest).
+  'mfa_trusted_devices',
 ] as const
 
 /** The delivery journal's retention (0034's policy). */
