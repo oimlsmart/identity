@@ -46,9 +46,9 @@ import { SESSION_COOKIE, sessionCookieOpts } from '../session'
 import { TRUST_COOKIE, TRUST_DEVICE_TTL_MS, trustCookieOpts } from './op-trust'
 import { touchAccountJar } from '../auth/op/account-jar'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
-import { opRandomToken } from '../auth/op/keys'
+import { opRandomToken, resolveOpSigningKey } from '../auth/op/keys'
 import { verifyTotp } from '../auth/op/totp'
-import { hashRecoveryCode, recoveryCodePlausible } from '../auth/op/recovery'
+import { hashEmailOtpCode, hashRecoveryCode, recoveryCodePlausible } from '../auth/op/recovery'
 import { base64urlEncode } from '../auth/op/webauthn'
 import { verifyAssertion, CeremonyError } from '../auth/op/webauthn'
 import { webauthnBindingFor } from './op-factors'
@@ -132,6 +132,14 @@ export function createOpMfaRouter(): Hono {
     const store = getStore()
     const pending = await store.consumeMfaPending(pendingToken)
     if (!pending) return null
+    // The state machine never acts behind the join (2026-10-12, the
+    // cold-eyes audit): a deactivated account's pending row (the race —
+    // the row minted seconds before the deactivation) consumes with its
+    // refusal; the session join would have made the cookie dead on
+    // arrival anyway, but the ACT — the audit, the notice, the stamps —
+    // never ran for an account that stands closed.
+    const holder = await store.getUserById(pending.userId)
+    if (!holder || !(await store.isUserActive(pending.userId))) return null
     const amr = [...pending.amr]
     for (const a of addedAmr) if (!amr.includes(a)) amr.push(a)
     const info = clientInfo(c)
@@ -162,8 +170,7 @@ export function createOpMfaRouter(): Hono {
     }
     // The account jar (the chooser wave): the completed sign-in
     // remembers the account (LRU, one per account).
-    const jarUser = await store.getUserById(pending.userId)
-    if (jarUser) touchAccountJar(c, token, jarUser)
+    touchAccountJar(c, token, holder)
     // TODO.modern/06's risk signals: the assessment rides AFTER the
     // session mint (the advisory layer — never in front of the
     // sign-in critical path).
@@ -175,7 +182,19 @@ export function createOpMfaRouter(): Hono {
       method: auditMethod, amr,
       newDevice: risk.newDevice, countryChanged: risk.countryChanged,
     })
-    await notifySignIn(c, pending.userId, methodKey, notifyTemplate, risk.newDevice)
+    // The holder's notice rides BESIDE the answer (2026-10-12, the
+    // cold-eyes audit): the await put the mailer's latency — up to the
+    // provider timeout, per recipient — back on the sign-in critical
+    // path, against the login route's own doctrine (op-accounts.ts).
+    // The mailer's results are honest (it never throws); waitUntil,
+    // when the runtime provides it, keeps the promise alive past the
+    // response.
+    const notice = notifySignIn(c, pending.userId, methodKey, notifyTemplate, risk.newDevice)
+    try {
+      c.executionCtx.waitUntil(notice)
+    } catch {
+      void notice // no execution context (the node/test posture) — the promise rides the process
+    }
     return { userId: pending.userId, amr }
   }
 
@@ -310,7 +329,11 @@ export function createOpMfaRouter(): Hono {
     if (!result.sent) {
       return c.json({ sent: false, error: `The sign-in code could not be delivered just now (${result.error ?? 'the mailer refused'}) — try again in a moment.` }, 200)
     }
-    await store.setMfaPendingEmailCode(pending.token, await hashRecoveryCode(code), pending.expiresAt)
+    // The keyed storage form (2026-10-12): HMAC over the OP's secret
+    // material — six digits under bare SHA-256 crack instantly on any
+    // read of the row (recovery.ts's hashEmailOtpCode).
+    const { secretMaterial } = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
+    await store.setMfaPendingEmailCode(pending.token, await hashEmailOtpCode(code, secretMaterial), pending.expiresAt)
     await auditFactor('factor.email_otp_sent', pending.userId, { userId: pending.userId }, {})
     return c.json({ sent: true, expiresAt: pending.expiresAt })
   })
@@ -331,7 +354,7 @@ export function createOpMfaRouter(): Hono {
     const live = pending.emailCodeHash !== null
       && pending.emailCodeExpiresAt !== null
       && new Date(pending.emailCodeExpiresAt).getTime() > Date.now()
-    if (live && await hashRecoveryCode(code) === pending.emailCodeHash) {
+    if (live && await hashEmailOtpCode(code, (await resolveOpSigningKey(runtimeEnv<EnvLike>(c))).secretMaterial) === pending.emailCodeHash) {
       const done = await completeSignIn(c, pending.token, ['email'], 'mail.signin.methodPasswordEmail', 'password+email_otp', 'signin', { rememberDevice: body?.rememberDevice === true })
       if (!done) return c.json({ error: 'This sign-in challenge expired or was already completed. Sign in again.' }, 401)
       return c.json(await getStore().getUserById(done.userId))

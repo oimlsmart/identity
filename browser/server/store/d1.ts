@@ -2097,6 +2097,11 @@ export class D1ServerStore implements ServerStore {
     if ((res.meta.changes ?? 0) === 0) return { kind: 'unknown' }
     const row = (await this.getEnrollmentToken(token))!
     if (new Date(row.expiresAt).getTime() <= Date.now()) return { kind: 'expired' }
+    // The state machine never acts behind the join (2026-10-12): a
+    // deactivated account's link consumes with its refusal — the password
+    // never lands, and the context read leaks nothing afterwards.
+    const holder = await this.stmt('SELECT active FROM users WHERE id = ?', row.userId).first<{ active: number }>()
+    if (!holder || holder.active !== 1) return { kind: 'inactive' }
     await this.setPasswordHash(row.userId, passwordHash, setBy)
     // TODO.identity/06: the invite ceremony doubles as the address's
     // verification (the administrator-delivered one-time link).
@@ -2356,6 +2361,33 @@ export class D1ServerStore implements ServerStore {
       refreshTokens: refreshTokens.meta.changes ?? 0,
       codes: codes.meta.changes ?? 0,
       authorizations: authorizations.meta.changes ?? 0,
+    }
+  }
+
+  /** The account's standing, read directly (2026-10-12): the completion
+   *  paths guard on it — the state machine refuses a deactivated
+   *  account's act rather than acting behind the session join. Absent
+   *  account = false. */
+  async isUserActive(id: string): Promise<boolean> {
+    const row = await this.stmt('SELECT active FROM users WHERE id = ?', id).first<{ active: number }>()
+    return !!row && row.active === 1
+  }
+
+  /** The credential-replacement act's factor half (2026-10-12, the
+   *  cold-eyes audit): a factor enrolled under a hijacked session — an
+   *  attacker passkey, a planted TOTP, foreign recovery codes — is a
+   *  PRIMARY way back in that survives every session sweep. The reset
+   *  completion calls this beside revokeOpUserCredentials. */
+  async revokeOpUserFactors(userId: string): Promise<{ passkeys: number; totp: number; recoveryCodes: number; pendingChallenges: number }> {
+    const passkeys = await this.stmt('DELETE FROM webauthn_credentials WHERE user_id = ?', userId).run()
+    const totp = await this.stmt('DELETE FROM totp_secrets WHERE user_id = ?', userId).run()
+    const recoveryCodes = await this.stmt('DELETE FROM recovery_codes WHERE user_id = ?', userId).run()
+    const pendingChallenges = await this.stmt('DELETE FROM mfa_pending WHERE user_id = ?', userId).run()
+    return {
+      passkeys: passkeys.meta.changes ?? 0,
+      totp: totp.meta.changes ?? 0,
+      recoveryCodes: recoveryCodes.meta.changes ?? 0,
+      pendingChallenges: pendingChallenges.meta.changes ?? 0,
     }
   }
 

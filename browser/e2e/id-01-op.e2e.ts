@@ -20,8 +20,8 @@
 //          failure spends the code.
 //
 // SELF-CONTAINED: the suite's shared stack (E2E_BASE_URL) is untouched —
-// the identity instance boots on its own ports (API 8693 / astro 8393,
-// the fixture RP on 8694) with its own SQLite file.
+// the identity instance boots on its own ports (API 8703 / astro 8403,
+// the fixture RP on 8704) with its own SQLite file.
 // ═══════════════════════════════════════════════════════════════════
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -41,9 +41,9 @@ const DB_DIR = join(BROWSER_DIR, '.cache', 'id-01')
 // Port-isolated: clear of the shared dev stack (5190/3190), the fed-01
 // stacks (8291/8292/8491/8492), the fed-10 stub (8699) and the local
 // identity dev stack (7390/7190).
-const ID_API = 8693
-const ID_WEB = 8393
-const RP_PORT = 8694
+const ID_API = 8703
+const ID_WEB = 8403
+const RP_PORT = 8704
 
 const ISSUER = `http://localhost:${ID_WEB}` // the astro origin (the browser's OP)
 const RP_CLIENT_ID = 'fixture-rp'

@@ -145,6 +145,21 @@ function currentCode(secret: string): Promise<string> {
   return totpAtStep(secret, Math.floor(Date.now() / 1000 / 30))
 }
 
+  async function accountWithTotp(email: string, name: string, password: string): Promise<{ id: string; secret: string }> {
+    const invited = await invite(email, name)
+    const cookie = await enroll(invited.setupUrl, password)
+    const start = await app.request('/api/op/account/factors/totp', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+    })
+    const enrollment = await start.json() as { id: string; secret: string }
+    await app.request(`/api/op/account/factors/totp/${enrollment.id}/verify`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ code: await currentCode(enrollment.secret) }),
+    })
+    await app.request('/api/auth/signout', { method: 'POST', headers: { cookie } })
+    return { id: invited.account.id, secret: enrollment.secret }
+  }
+
 /** The OIDC round trip with the fixture client: authorize → consent →
  *  allow → the code exchange → the decoded ID token payload. */
 async function idTokenClaims(cookie: string): Promise<Record<string, unknown>> {
@@ -753,21 +768,6 @@ describe('the email sign-in fallback', () => {
 
   /** Janet's posture: a verified TOTP is the enrolled factor (any
    *  factor forces the branch; TOTP is the cheapest to arrange here). */
-  async function accountWithTotp(email: string, name: string, password: string): Promise<{ id: string; secret: string }> {
-    const invited = await invite(email, name)
-    const cookie = await enroll(invited.setupUrl, password)
-    const start = await app.request('/api/op/account/factors/totp', {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie },
-    })
-    const enrollment = await start.json() as { id: string; secret: string }
-    await app.request(`/api/op/account/factors/totp/${enrollment.id}/verify`, {
-      method: 'POST', headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ code: await currentCode(enrollment.secret) }),
-    })
-    await app.request('/api/auth/signout', { method: 'POST', headers: { cookie } })
-    return { id: invited.account.id, secret: enrollment.secret }
-  }
-
   /** The code the stub mailer received (the mail IS the channel). */
   async function codeFromMail(): Promise<string> {
     const deadline = Date.now() + 10_000
@@ -896,7 +896,12 @@ describe('the email sign-in fallback', () => {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: trustCookie!.split(';')[0]! },
       body: JSON.stringify({ email: TRUSTED.email, password: 'trudy has a new passphrase' }),
     })
-    expect(((await after.json()) as { mfaRequired?: boolean }).mfaRequired, 'the reset killed the trust').toBe(true)
+    // The reset kills the trust — AND THE FACTORS with it (2026-10-12):
+    // Trudy's TOTP went with the old credential, so even the dead trust
+    // cookie has nothing to skip — the sign-in completes on the fresh
+    // mailbox-proven password alone.
+    expect(((await after.json()) as { mfaRequired?: boolean }).mfaRequired, 'the sweep leaves no challenge to skip').toBeUndefined()
+    expect(after.headers.get('set-cookie')).toContain('oiml-session=')
   })
 
   it('THE TRUSTED LIST MARKS THIS BROWSER (24): the presented cookie hashes against the rows — the holder knows which entry they read from', { timeout: 30_000 }, async () => {
@@ -1014,9 +1019,12 @@ describe('the email sign-in fallback', () => {
     expect(notice.text ?? '').toContain('emailed code')
     await app.request('/api/auth/signout', { method: 'POST', headers: { cookie: resetCookie } })
 
+    // THE RESET TAKES THE FACTORS TOO (2026-10-12): Reta's TOTP went
+    // with the old credential — the next sign-in completes on the fresh
+    // mailbox-proven password alone (the notice told her to re-enroll).
     const login = await passwordLogin(RETA.email, 'reta has a different passphrase')
-    expect(login.body.mfaRequired).toBe(true)
-    expect((login.body.methods as Record<string, boolean>).email).toBe(true)
+    expect(login.body.mfaRequired, 'the swept factors leave no challenge').toBeUndefined()
+    expect(login.cookie, 'the sign-in completes').toBeTruthy()
   })
 
   it('the grant act is the administrator\'s alone', async () => {
@@ -1027,5 +1035,70 @@ describe('the email sign-in fallback', () => {
       body: JSON.stringify({}),
     })
     expect(res.status).toBe(403)
+  })
+})
+
+describe('the completion edges (2026-10-12, the cold-eyes audit)', () => {
+  it('THE TRUSTED SKIP ENDS THE LOGIN LADDER: a successful sign-in clears the address\'s failures with it', { timeout: 30_000 }, async () => {
+    const CLEARED = { email: 'cleared@factors.test', name: 'Cleo Cleared', password: 'cleo has a proper passphrase' }
+    const { secret } = await accountWithTotp(CLEARED.email, CLEARED.name, CLEARED.password)
+    const { getStore } = await import('../../server/store')
+    const { readLoginThrottleRow } = await import('../../server/auth/op/login-throttle')
+    // One wrong password: the ladder owes a rung.
+    const wrong = await app.request('/api/op/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: CLEARED.email, password: 'not the passphrase' }),
+    })
+    expect(wrong.status).toBe(401)
+    expect((await readLoginThrottleRow(getStore(), CLEARED.email))?.failCount ?? 0, 'the rung stands').toBeGreaterThan(0)
+
+    // The trust cookie (the remember grant on the factor completion).
+    const login = await passwordLogin(CLEARED.email, CLEARED.password)
+    const { totpAtStep } = await import('../../server/auth/op/totp')
+    const done = await app.request('/api/op/login/mfa/totp', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: login.body.mfaToken, code: await totpAtStep(secret, Math.floor(Date.now() / 1000 / 30)), rememberDevice: true }),
+    })
+    const trustCookie = (done.headers.getSetCookie?.() ?? []).find(c => c.startsWith('oiml-mfa-device='))!.split(';')[0]!
+
+    // THE SKIP: password + trust → the session mints directly.
+    const skip = await app.request('/api/op/login', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: trustCookie },
+      body: JSON.stringify({ email: CLEARED.email, password: CLEARED.password }),
+    })
+    expect(skip.status).toBe(200)
+    expect(((await skip.json()) as Record<string, unknown>).mfaRequired).toBeUndefined()
+    // THE RULE: a success is a success — the address's ladder ends with
+    // it. Otherwise one stale rung taxes every future sign-in for the
+    // trusted-device user (nothing else clears it: the password leg that
+    // clears the ladder is the leg the skip exists to avoid).
+    expect((await readLoginThrottleRow(getStore(), CLEARED.email))?.failCount ?? 0, 'the skip ends the ladder').toBe(0)
+  })
+
+  it('a deactivated account never completes a challenge: the state machine refuses, not the session join', async () => {
+    const DE = { email: 'dee-inactive@factors.test', name: 'Dee Deactivated', password: 'dee has a proper passphrase' }
+    const { id, secret } = await accountWithTotp(DE.email, DE.name, DE.password)
+    const { getStore } = await import('../../server/store')
+    await getStore().setUserActive(id, false)
+    // The race, built directly: the password leg's pending row outlived
+    // the deactivation (the login route refuses the inactive — the row
+    // was minted seconds before it).
+    const token = 'dee-pending-challenge-token'
+    await getStore().createMfaPending({ token, userId: id, amr: ['pwd'], ttlMs: 5 * 60_000 })
+    const { totpAtStep } = await import('../../server/auth/op/totp')
+    const done = await app.request('/api/op/login/mfa/totp', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, code: await totpAtStep(secret, Math.floor(Date.now() / 1000 / 30)) }),
+    })
+    expect(done.status, 'the completion refuses the deactivated account').toBe(401)
+  })
+
+  it('the emailed OTP hash is keyed (HMAC), never bare SHA-256', async () => {
+    const mod = await import('../../server/auth/op/recovery')
+    expect(mod.hashEmailOtpCode, 'the keyed hash exists').toBeTypeOf('function')
+    const a = await mod.hashEmailOtpCode!('123456', 'material-one')
+    expect(a, 'not the bare SHA-256 the recovery codes use').not.toBe(await mod.hashRecoveryCode('123456'))
+    expect(await mod.hashEmailOtpCode!('123456', 'material-one'), 'deterministic per material').toBe(a)
+    expect(await mod.hashEmailOtpCode!('123456', 'material-two'), 'a different material hashes differently').not.toBe(a)
   })
 })

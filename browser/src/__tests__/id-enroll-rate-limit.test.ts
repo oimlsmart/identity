@@ -69,3 +69,44 @@ describe('the setup endpoint rides the OP rate limiter', () => {
     expect(tripped, 'the burst trips within the sweep').toBe(true)
   })
 })
+
+describe('the in-session password gates ride the limiter too (2026-10-12)', () => {
+  it('step-up and the console password change trip the honest 429', async () => {
+    process.env.OP_RATE_LIMIT_CAPACITY = '3'
+    const { parseInstanceProfile, installInstanceProfile } = await import('../../server/profile')
+    const { createApiApp } = await import('../../server/app')
+    // A fresh app per path: the bucket is per middleware instance, so
+    // each mount is proven on its own empty bucket.
+    const build = () => {
+      const profile = parseInstanceProfile(`
+identity:
+  org_id: oimlsmart-id
+  org_name: OIML SMART Identity
+  role_codes: [identity]
+roles: [identity]
+branding: { name: OIML SMART Identity }
+demo_personas: false
+`)
+      installInstanceProfile(profile)
+      return createApiApp({ autoSeedDemo: false, instanceProfile: profile })
+    }
+    for (const path of ['/api/op/step-up', '/api/op/account/password']) {
+      const scoped = build()
+      const probe = () => scoped.request(`http://op.test${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      let tripped = false
+      for (let i = 0; i < 12 && !tripped; i++) {
+        const res = await probe()
+        if (res.status === 429) {
+          tripped = true
+        } else {
+          expect([400, 401, 403], `${path} answered ${res.status}`).toContain(res.status)
+        }
+      }
+      expect(tripped, `${path} trips the limiter`).toBe(true)
+    }
+  })
+})

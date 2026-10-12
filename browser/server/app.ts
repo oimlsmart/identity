@@ -203,6 +203,15 @@ export function createApiApp(options: ApiAppOptions): Hono {
   app.use('/api/op/login/passkey', rateLimit)
   app.use('/api/op/login/passkey/options', rateLimit)
   app.use('/api/op/account/factors/totp/*/verify', rateLimit)
+  // The in-session credential gates (2026-10-12, the cold-eyes audit):
+  // the current-password check and the step-up stamp run a full-cost
+  // PBKDF2 verify per attempt with no ladder of their own — a stolen
+  // session cookie could brute the gate at network speed. The generous
+  // default never bites a human re-typing; the bucket answers the
+  // scripted flood. Both paths are mutations only (POST), so the mount
+  // never gates an authenticated read (the method-scope rule).
+  app.use('/api/op/step-up', rateLimit)
+  app.use('/api/op/account/password', rateLimit)
   // The device-grant surface (the 2026-09-25 security pass): the
   // anonymous ceremony create mints a row per call (the join-intake
   // F10.5 shape), and the page API's user_code lookups are the

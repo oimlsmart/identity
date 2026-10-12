@@ -39,6 +39,26 @@ export async function hashRecoveryCode(code: string): Promise<string> {
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+/** The emailed six-digit sign-in code's storage form (2026-10-12, the
+ *  cold-eyes audit): HMAC-SHA256 keyed by the OP's own secret material —
+ *  NEVER the bare SHA-256 the 80-bit recovery codes can afford. A
+ *  six-digit code has 10^6 candidates; unsalted, any read of the
+ *  pending row cracked instantly. Domain separation keeps the OTP
+ *  HMAC independent of the key's other HMAC duties. Deterministic per
+ *  material — hash and verify share it, so an in-flight row's ≤5-minute
+ *  window is the only transition cost. */
+export async function hashEmailOtpCode(code: string, secretMaterial: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(`oiml-email-otp:${secretMaterial}`),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(code.trim()))
+  return [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 /** The presented code's plausible shape (before any hash work): 16
  *  base32 characters, dashes/spaces tolerated. */
 export function recoveryCodePlausible(code: string): boolean {

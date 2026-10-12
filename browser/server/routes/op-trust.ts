@@ -9,6 +9,7 @@
 
 import type { Context } from 'hono'
 import { env as runtimeEnv } from 'hono/adapter'
+import { requestIsSecure } from '../auth/op/config'
 
 export const TRUST_COOKIE = 'oiml-mfa-device'
 export const TRUST_DEVICE_TTL_MS = 14 * 24 * 3600_000
@@ -16,7 +17,7 @@ export const TRUST_DEVICE_TTL_MS = 14 * 24 * 3600_000
 export function trustCookieOpts(c: Context) {
   return {
     httpOnly: true,
-    secure: runtimeEnv<{ NODE_ENV?: string }>(c).NODE_ENV === 'production',
+    secure: requestIsSecure(c.req.raw, runtimeEnv<{ OP_ISSUER?: string }>(c)),
     sameSite: 'Lax' as const,
     maxAge: Math.floor(TRUST_DEVICE_TTL_MS / 1000),
     path: '/',

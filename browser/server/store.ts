@@ -831,6 +831,10 @@ export type CompleteEnrollmentResult =
   | { kind: 'unknown' }
   /** Past the TTL: burned on presentation, never redeemable later. */
   | { kind: 'expired' }
+  /** The account stands deactivated (2026-10-12): the token is consumed
+   *  with the refusal — the state machine never acts behind the join,
+   *  and the link leaks nothing afterwards. */
+  | { kind: 'inactive' }
 
 // ── the central user registry (TODO.identity/03) ─────────────────────
 
@@ -1856,6 +1860,11 @@ export interface ServerStore {
   }): Promise<UserAdminRow>
   setUserRoles(id: string, role: string, roles: string[]): Promise<boolean>
   setUserActive(id: string, active: boolean): Promise<boolean>
+  /** The account's standing, read directly (2026-10-12): the completion
+   *  paths guard on it — the state machine refuses a deactivated
+   *  account's act rather than acting behind the session join. Absent
+   *  account = false. */
+  isUserActive(id: string): Promise<boolean>
 
   // ── the OIDC Provider (TODO.identity/01) ──
   /** The client registry (admin-managed; the bootstrap seed upserts). */
@@ -2193,6 +2202,14 @@ export interface ServerStore {
    *  Answers the counts (the audit event's metadata). The user row STAYS
    *  (the history). */
   revokeOpUserCredentials(userId: string): Promise<{ sessions: number; accessTokens: number; refreshTokens: number; codes: number; authorizations: number }>
+  /** The credential-replacement act's factor half (2026-10-12, the
+   *  cold-eyes audit): a factor enrolled under a hijacked session — an
+   *  attacker passkey, a planted TOTP, foreign recovery codes — is a
+   *  PRIMARY way back in that survives every session sweep. The mailbox
+   *  proof (the reset completion) calls this beside revokeOpUserCredentials:
+   *  nothing minted under the old credential's era survives it. Answers
+   *  the counts (the audit + webhook metadata, the notice's paragraph). */
+  revokeOpUserFactors(userId: string): Promise<{ passkeys: number; totp: number; recoveryCodes: number; pendingChallenges: number }>
   /** The offboarding runbook's DELETE path (the erasure): every credential,
    *  token, link and per-client assignment removed, the user row anonymized
    *  in place (provider 'erased' — it drops out of every account surface;

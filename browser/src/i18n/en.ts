@@ -965,6 +965,7 @@ export const en = {
   "mail.passwordChanged.subject": "Your {product} password was set or changed",
   "mail.passwordChanged.why": "You are receiving this because the password on your {product} account was set or changed.",
   "mail.passwordChanged.fallbackHour": "Your verified email can also finish sign-ins with an emailed code \u2014 the 'Email me a sign-in code' choice stands whenever a second-factor challenge appears, useful when your factor's device is out of reach.",
+  "mail.passwordChanged.factorsRevoked": "Because the password was reset over email, every sign-in factor on the account (passkeys, authenticator apps, recovery codes) was removed with the old credential \u2014 nothing planted under it survives. Re-enroll the ones you recognize from your account's Security settings; anything you did not add yourself was never yours.",
   "mail.patEdited.body": "Hello {name},\n\nYour {product} developer token \"{tokenName}\" was changed on your account: it was {change} (scopes now: {scopes}); it expires {expires}.\n\nA token only ever acts within your account's own permissions, and its permission set is re-checked at every use. If you did not make this change, revoke the token at once on your account page (the developer tokens section), change your password, and tell your administrator.",
   "mail.patEdited.heading": "A developer token was changed",
   "mail.patEdited.preheader": "Your {product} developer token \"{tokenName}\" was {change}.",

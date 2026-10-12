@@ -147,7 +147,9 @@ import {
   removeAccountEmail,
   listOpAssumptions,
   recordOpAssumption,
+  isUserActive,
   revokeOpUserCredentials,
+  revokeOpUserFactors,
   setOpClientRoles,
   setPasswordHash,
   setPrimaryAccountEmail,
@@ -1027,6 +1029,12 @@ export class SqliteServerStore implements ServerStore {
   }
   async revokeOpUserCredentials(userId: string): Promise<{ sessions: number; accessTokens: number; refreshTokens: number; codes: number; authorizations: number }> {
     return revokeOpUserCredentials(this.db, userId)
+  }
+  async revokeOpUserFactors(userId: string): Promise<{ passkeys: number; totp: number; recoveryCodes: number; pendingChallenges: number }> {
+    return revokeOpUserFactors(this.db, userId)
+  }
+  async isUserActive(id: string): Promise<boolean> {
+    return isUserActive(this.db, id)
   }
   async eraseOpAccount(userId: string): Promise<OpAccountErasure | null> {
     return eraseOpAccount(this.db, userId)
