@@ -291,8 +291,14 @@ describe('the aggregate live sessions', () => {
     expect(bohrRow, 'bohr’s session is in the aggregate').toBeTruthy()
     expect(bohrRow!.account.email).toBe('bohr.dashboard@example.org')
     // 21: the session names HOW it signed in (the SOTA consoles' method
-    // badge — the amr minted at the completion, honestly).
-    expect((bohrRow as { amr?: string[] }).amr, 'the enrollment session names its proof — the one-time mailbox link').toEqual(['email'])
+    // badge — the amr minted at the completion, honestly). Bohr holds
+    // TWO sessions here (the enrollment completion's, then the password
+    // login's) — BOTH name their own proof. Not `.find()`: created_at
+    // has 1-second resolution, so which of the two sorts first is a
+    // tie-break coin toss (the CI bit, 2026-10-12).
+    const bohrAmrs = body.sessions.filter(s => s.account.id === bohr.id).map(s => (s as { amr?: string[] }).amr)
+    expect(bohrAmrs, 'the enrollment session names its proof — the one-time mailbox link; the password login names pwd').toContainEqual(['email'])
+    expect(bohrAmrs).toContainEqual(['pwd'])
     const mine = body.sessions.find(s => s.current)
     expect(mine, 'the administrator’s own row is marked').toBeTruthy()
     expect(mine!.account.email).toBe('admin@oimlsmart.org')
