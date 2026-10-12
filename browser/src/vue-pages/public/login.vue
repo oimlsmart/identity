@@ -321,12 +321,20 @@ async function submitOpLogin() {
       emailCode.value = ''
       emailSent.value = false
       rememberDevice.value = false
-      // The fast path: exactly one primary method answers — no chooser,
-      // straight to it (a passkey-only account goes straight into the
-      // browser's prompt, Google/Apple style).
-      const primaries = ['totp', 'passkey', 'email'].filter(k => (body.methods as Record<string, boolean>)[k])
+      // THE PASSKEY LEADS (the 2026-10-12 correction — the sweep caught
+      // the chooser standing where AWS/Google put the prompt): when a
+      // passkey can answer, the ceremony fires immediately; every other
+      // method waits one 'Try another way' behind it. Without a passkey:
+      // exactly one primary → straight to it; several → the chooser.
+      const hasPasskey = body.methods.passkey === true
+      const others = (['totp', 'email'] as const).filter(k => (body.methods as Record<string, boolean>)[k])
+      if (hasPasskey) {
+        mfaPane.value = 'passkey'
+        void submitMfaPasskey()
+        return
+      }
+      const primaries = ['totp', 'email'].filter(k => (body.methods as Record<string, boolean>)[k])
       mfaPane.value = primaries.length === 1 ? primaries[0] as MfaPane : 'choose'
-      if (mfaPane.value === 'passkey') void submitMfaPasskey()
       if (mfaPane.value === 'email') void sendEmailCode()
       return
     }
@@ -900,7 +908,7 @@ async function submitReset() {
             {{ t('login.mfa.rememberDevice') }}
           </label>
 
-          <p v-if="mfaPane !== 'choose' && mfaPrimaries.length > 1" class="text-center">
+          <p v-if="mfaPane !== 'choose' && (mfaPrimaries.length > 1 || mfa.methods.recovery)" class="text-center">
             <button
               type="button"
               data-testid="login-mfa-back"
