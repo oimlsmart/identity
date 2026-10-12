@@ -644,6 +644,53 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
     })
   })
 
+  it('leg 3d — THE CONDITIONAL-UI AUTOFILL (27): the sign-in page offers the passkey directly — no password, no click, the SOTA first screen', { timeout: 900_000 }, async () => {
+    const AUTO = { email: 'autofill@factors.test', name: 'Ada Autofill', password: 'ada has a proper passphrase' }
+    const rootCookie = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    const invite = await fetch(`${stack.base}/api/op/accounts`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${rootCookie}` },
+      body: JSON.stringify({ email: AUTO.email, name: AUTO.name }),
+    })
+    expect(invite.status).toBe(201)
+    const { setupUrl } = await invite.json() as { setupUrl: string }
+
+    await withPage(async (page) => {
+      await addVirtualAuthenticator(page)
+      await page.goto(setupUrl, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-setup-password"]', { timeout: SETTLE, polling: 500 })
+      await page.type('[data-testid="op-setup-password"]', AUTO.password)
+      await page.type('[data-testid="op-setup-confirm"]', AUTO.password)
+      await page.evaluate(() => (document.querySelector('[data-testid="op-setup-submit"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="account-name"]', { timeout: APP_COLD, polling: 500 })
+      // The passkey registers through the page's real ceremony — the
+      // credential is DISCOVERABLE (resident), so the conditional UI can
+      // offer it on the next sign-in.
+      await page.evaluate(() => (document.querySelector('[data-testid="factor-passkey-add"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="factor-passkey-name"]', { timeout: 60_000, polling: 500 })
+      await page.type('[data-testid="factor-passkey-name"]', 'Ada’s key')
+      await page.evaluate(() => (document.querySelector('[data-testid="factor-passkey-register"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="factor-recovery-dialog"]', { timeout: 120_000, polling: 500 })
+      await page.evaluate(() => (document.querySelector('[data-testid="factor-recovery-dismiss"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="factors-passkey-list"]', { timeout: 60_000, polling: 500 })
+      flog(page, 'leg3d: the passkey registered (discoverable)')
+      // Deterministic sign-out (node-side), then load the sign-in page
+      // WITHOUT suppression: the conditional autofill fires on mount —
+      // headless auto-resolves it (the 25-pass discovery) — the landing
+      // is the launcher. NO password typed, NO button clicked.
+      const cookies = await page.cookies()
+      const autoCookie = cookies.find(c => c.name === 'oiml-session')!.value
+      await fetch(`${stack.apiBase}/api/auth/signout`, { method: 'POST', headers: { cookie: `oiml-session=${autoCookie}` } })
+      await page.deleteCookie({ name: 'oiml-session', url: stack.base })
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 })
+      flog(page, 'leg3d: the autofill signed in — no password, no click')
+      const jar = await page.cookies()
+      const cookie = jar.find(c => c.name === 'oiml-session')!.value
+      expect(await sessionAmr(stack.base, cookie)).toEqual(['webauthn'])
+    })
+  })
+
   it('leg 3b — the STANDING email fallback through the UI: the chooser offers it, the mailed code completes, amr pwd+email', { timeout: 900_000 }, async () => {
     mailer.reset()
     const FALLA = { email: 'fallback-ui@factors.test', name: 'Falla Back', password: 'fallback has a proper passphrase' }
