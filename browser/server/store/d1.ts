@@ -2382,6 +2382,8 @@ export class D1ServerStore implements ServerStore {
     // ceremony state).
     const passkeys = await this.stmt('DELETE FROM webauthn_credentials WHERE user_id = ?', userId).run()
     const totp = await this.stmt('DELETE FROM totp_secrets WHERE user_id = ?', userId).run()
+    await this.ensureMfaTrustedDeviceSupport()
+    await this.stmt('DELETE FROM mfa_trusted_devices WHERE account_id = ?', userId).run()
     const recovery = await this.stmt('DELETE FROM recovery_codes WHERE user_id = ?', userId).run()
     const challenges = await this.stmt('DELETE FROM webauthn_challenges WHERE user_id = ?', userId).run()
     const mfa = await this.stmt('DELETE FROM mfa_pending WHERE user_id = ?', userId).run()
