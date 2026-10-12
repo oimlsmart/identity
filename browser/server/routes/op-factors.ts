@@ -151,6 +151,31 @@ export function createOpFactorsRouter(): Hono {
   }
 
   // GET /api/op/account/factors — the registry's console read.
+  // ── 0042 (the trusted-device MFA skip): the holder's visible grant ──
+  // The list and the revoke — the trust is never an invisible bypass.
+  factors.get('/api/op/account/trusted-devices', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const rows = await getStore().listMfaTrustedDevices(user.id)
+    return c.json(rows.map(row => ({
+      id: row.id,
+      userAgent: row.userAgent,
+      ip: row.ip,
+      createdAt: row.createdAt,
+      lastUsedAt: row.lastUsedAt,
+      expiresAt: row.expiresAt,
+    })))
+  })
+
+  factors.delete('/api/op/account/trusted-devices/:id', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const revoked = await getStore().revokeMfaTrustedDevice(c.req.param('id'), user.id)
+    if (!revoked) return c.json({ error: 'not found' }, 404)
+    await auditFactor('factor.trusted_device_revoked', user.id, { userId: user.id }, { id: c.req.param('id') })
+    return c.json({ ok: true })
+  })
+
   factors.get('/api/op/account/factors', async (c) => {
     const { user, error } = await requireUser(c)
     if (error || !user) return error!

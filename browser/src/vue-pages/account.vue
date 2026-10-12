@@ -198,6 +198,29 @@ const loading = ref(true)
 /** 'unavailable' = a non-identity deployment (the OP routes 404). */
 const posture = ref<'ok' | 'unavailable'>('ok')
 const context = ref<AccountContext | null>(null)
+
+// 0042 (the SOTA arc): the trusted browsers — the MFA skip's visible face.
+interface TrustedDevice { id: string; userAgent: string | null; ip: string | null; createdAt: string; lastUsedAt: string | null; expiresAt: string }
+const trustedDevices = ref<TrustedDevice[]>([])
+const trustedBusy = ref<string | null>(null)
+
+async function loadTrustedDevices(): Promise<void> {
+  try {
+    const res = await fetch('/api/op/account/trusted-devices', { credentials: 'include' })
+    if (res.ok) trustedDevices.value = await res.json() as TrustedDevice[]
+  } catch { /* the section reads empty, honestly */ }
+}
+
+async function revokeTrustedDevice(row: TrustedDevice): Promise<void> {
+  if (trustedBusy.value) return
+  trustedBusy.value = row.id
+  try {
+    const res = await fetch(`/api/op/account/trusted-devices/${encodeURIComponent(row.id)}`, { method: 'DELETE', credentials: 'include' })
+    if (res.ok) await loadTrustedDevices()
+  } finally {
+    trustedBusy.value = null
+  }
+}
 const links = ref<LinkRow[]>([])
 const providers = ref<PublicProvider[]>([])
 const activity = ref<ActivityEvent[] | null>(null)
@@ -816,6 +839,7 @@ async function loadQuiet(): Promise<void> {
 }
 
 onMounted(async () => {
+  void loadTrustedDevices()
   await load()
   if (posture.value !== 'ok') return
   // The upstream callback's flashes (TODO.identity/08's keys).
@@ -1784,6 +1808,28 @@ async function signOutAll() {
               {{ passwordBusy ? t('account.password.busy') : (context.passwordSet ? t('account.password.submitChange') : t('account.password.submitSet')) }}
             </button>
           </form>
+        </section>
+
+        <!-- 5b · The trusted browsers (0042): the MFA skip's visible face —
+             every grant lists, every grant revokes. -->
+        <section id="trusted-devices" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-trusted-devices">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ t('account.trusted.title') }}</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">{{ t('account.trusted.description') }}</p>
+          <p v-if="!trustedDevices.length" class="text-sm text-slate-500 dark:text-slate-400" data-testid="account-trusted-empty">{{ t('account.trusted.empty') }}</p>
+          <ul v-else class="space-y-2" data-testid="account-trusted-list">
+            <li v-for="row in trustedDevices" :key="row.id" class="flex items-start justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2.5">
+              <div class="min-w-0">
+                <p class="text-sm text-slate-700 dark:text-slate-300 truncate">{{ row.userAgent ?? t('account.trusted.unknownDevice') }}</p>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500">{{ t('account.trusted.lastUsed', { at: row.lastUsedAt ? fmtDate(row.lastUsedAt) : '—' }) }} · {{ t('account.trusted.expires', { at: fmtDate(row.expiresAt) }) }}</p>
+              </div>
+              <button
+                :disabled="trustedBusy === row.id"
+                :data-testid="`account-trusted-revoke-${row.id}`"
+                class="shrink-0 text-xs font-medium text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                @click="revokeTrustedDevice(row)"
+              >{{ t('account.trusted.revoke') }}</button>
+            </li>
+          </ul>
         </section>
 
         <!-- 5 · The active sessions. -->

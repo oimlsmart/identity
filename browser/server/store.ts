@@ -1056,6 +1056,19 @@ export interface MfaPending {
   emailCodeSentAt: string | null
 }
 
+// ── the trusted-device MFA skip (0042, the SOTA arc) ─────────────────
+
+export interface TrustedDeviceRow {
+  id: string
+  accountId: string
+  tokenHash: string
+  userAgent: string | null
+  ip: string | null
+  createdAt: string
+  lastUsedAt: string | null
+  expiresAt: string
+}
+
 // ── the personal access tokens (TODO.identity-features/08) ───────────
 // The developer surface: an ACCOUNT-minted credential for programmatic
 // access (the lab CLI, scripts, the agent pipelines). The GitHub
@@ -2383,6 +2396,22 @@ export interface ServerStore {
   /** 0041: the allowance — while `until` is live the sign-in challenge
    *  offers the emailed OTP; null closes it. */
   setEmailFallback(userId: string, untilIso: string | null): Promise<void>
+
+  /** 0042 (the trusted-device MFA skip): mint the deliberate grant
+   *  (the cookie's token hash, TTL-bounded). */
+  createMfaTrustedDevice(input: { id: string; accountId: string; tokenHash: string; userAgent: string | null; ip: string | null; ttlMs: number }): Promise<void>
+
+  /** The live row for a cookie's token hash (null = not trusted). */
+  findLiveMfaTrustedDevice(accountId: string, tokenHash: string): Promise<TrustedDeviceRow | null>
+
+  /** The account's grants (the console's list; expired rows swept). */
+  listMfaTrustedDevices(accountId: string): Promise<TrustedDeviceRow[]>
+
+  /** Revoke one grant (the holder's act). */
+  revokeMfaTrustedDevice(id: string, accountId: string): Promise<boolean>
+
+  /** Revoke every grant (the credential-replacement acts). */
+  revokeMfaTrustedDevicesForUser(accountId: string): Promise<number>
 
   /** 0041: the allowance's current expiry, null = none. */
   emailFallbackUntil(userId: string): Promise<string | null>

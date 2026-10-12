@@ -20,6 +20,13 @@
 import { fileURLToPath } from 'url'
 import type Database from 'better-sqlite3'
 import {
+  createMfaTrustedDevice,
+  findLiveMfaTrustedDevice,
+  listMfaTrustedDevices,
+  revokeMfaTrustedDevice,
+  revokeMfaTrustedDevicesForUser,
+} from './sqlite/trusted-devices-store'
+import {
   authenticateDemo,
   cleanExpiredSessions,
   createLocalUser,
@@ -148,7 +155,7 @@ import {
   updateOpAccount,
   updateUserName,
 } from './sqlite/op-accounts-store'
-import { TTL_TABLES, installStore, type AccountEmail, type AddAccountEmailResult, type AuthUserPayload, type CertificateHolderClaim, type CertificateHolderOrg, type CompleteEmailChangeResult, type CompleteEnrollmentResult, type ConsumeOidcRefreshTokenResult, type EmailChangeToken, type EnrollmentToken, type EntityChange, type EntityListOptions, type EntityRow, type EntityWriteInput, type EventEntityKey, type EventKeyFilter, type EventWriteInput, type FederationPeer, type IdentityApproval, type IdentityLink, type IdentityProvider, type InstrumentRegistration, type InstrumentRegistrationLifecycle, type InstrumentRegistrationScopeStatus, type InstrumentRegistrationWriteInput, type JournalAppend, type NotifyDelivery, type NotifyDeliveryStatus, type NotifyEntityMute, type NotifyInboxState, type NotifyPreferences, type NotifyRule, type OAuthInitialAssignment, type OidcAccessToken, type OidcAuthorization, type OidcClient, type OidcClientLaunch, type OidcCode, type OidcConsentGrant, type OidcKeyRow, type OidcRefreshToken, type OpAccountErasure, type OpAssumptionEvent, type OpClientRoleAssignment, type OpLiveSession, type OrgJoinRequest, type OrgMembership, type OrgMembershipState, type OrgRegistryContact, type OrgRegistryOrg, type OrgRegistryState, type PersonalAccessToken, type PlatformEvent, type ServerStore, type SessionView, type SsoSignInState, type UserAdminRow, type AdvanceCounterResult, type MfaPending, type RecoveryCodeState, type TotpSecret, type WebauthnChallenge, type WebauthnCredential } from '../store'
+import { TTL_TABLES, installStore, type AccountEmail, type AddAccountEmailResult, type AuthUserPayload, type CertificateHolderClaim, type CertificateHolderOrg, type CompleteEmailChangeResult, type CompleteEnrollmentResult, type ConsumeOidcRefreshTokenResult, type EmailChangeToken, type EnrollmentToken, type EntityChange, type EntityListOptions, type EntityRow, type EntityWriteInput, type EventEntityKey, type EventKeyFilter, type EventWriteInput, type FederationPeer, type IdentityApproval, type IdentityLink, type IdentityProvider, type InstrumentRegistration, type InstrumentRegistrationLifecycle, type InstrumentRegistrationScopeStatus, type InstrumentRegistrationWriteInput, type JournalAppend, type NotifyDelivery, type NotifyDeliveryStatus, type NotifyEntityMute, type NotifyInboxState, type NotifyPreferences, type NotifyRule, type OAuthInitialAssignment, type OidcAccessToken, type OidcAuthorization, type OidcClient, type OidcClientLaunch, type OidcCode, type OidcConsentGrant, type OidcKeyRow, type OidcRefreshToken, type OpAccountErasure, type OpAssumptionEvent, type OpClientRoleAssignment, type OpLiveSession, type OrgJoinRequest, type OrgMembership, type OrgMembershipState, type OrgRegistryContact, type OrgRegistryOrg, type OrgRegistryState, type PersonalAccessToken, type PlatformEvent, type ServerStore, type SessionView, type SsoSignInState, type UserAdminRow, type AdvanceCounterResult, type MfaPending, type TrustedDeviceRow, type RecoveryCodeState, type TotpSecret, type WebauthnChallenge, type WebauthnCredential } from '../store'
 import {
   advanceWebauthnCounter,
   consumeMfaPending,
@@ -843,6 +850,22 @@ export class SqliteServerStore implements ServerStore {
   }
   async setMfaPendingEmailCode(token: string, codeHash: string, expiresAtIso: string): Promise<void> {
     setMfaPendingEmailCode(this.db, token, codeHash, expiresAtIso)
+  }
+
+  async createMfaTrustedDevice(input: { id: string; accountId: string; tokenHash: string; userAgent: string | null; ip: string | null; ttlMs: number }): Promise<void> {
+    createMfaTrustedDevice(this.db, input)
+  }
+  async findLiveMfaTrustedDevice(accountId: string, tokenHash: string): Promise<TrustedDeviceRow | null> {
+    return findLiveMfaTrustedDevice(this.db, accountId, tokenHash)
+  }
+  async listMfaTrustedDevices(accountId: string): Promise<TrustedDeviceRow[]> {
+    return listMfaTrustedDevices(this.db, accountId)
+  }
+  async revokeMfaTrustedDevice(id: string, accountId: string): Promise<boolean> {
+    return revokeMfaTrustedDevice(this.db, id, accountId)
+  }
+  async revokeMfaTrustedDevicesForUser(accountId: string): Promise<number> {
+    return revokeMfaTrustedDevicesForUser(this.db, accountId)
   }
 
   // ── the personal access tokens (TODO.identity-features/08) ──

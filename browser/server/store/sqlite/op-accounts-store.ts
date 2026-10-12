@@ -349,13 +349,15 @@ export function deleteOpClientRoles(db: Database.Database, userId: string, clien
  *  the reuse detector has no more verdicts to give), every unconsumed
  *  code and pending authorization goes. The user row STAYS (the
  *  history). */
-export function revokeOpUserCredentials(db: Database.Database, userId: string): { sessions: number; accessTokens: number; refreshTokens: number; codes: number; authorizations: number } {
+export function revokeOpUserCredentials(db: Database.Database, userId: string): {
+  sessions: number; accessTokens: number; refreshTokens: number; codes: number; authorizations: number; trustedDevices: number } {
+  const trustedDevices = db.prepare('DELETE FROM mfa_trusted_devices WHERE account_id = ?').run(userId).changes
   const sessions = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId).changes
   const accessTokens = db.prepare('DELETE FROM oidc_access_tokens WHERE user_id = ?').run(userId).changes
   const refreshTokens = db.prepare('DELETE FROM oidc_refresh_tokens WHERE user_id = ?').run(userId).changes
   const codes = db.prepare('DELETE FROM oidc_codes WHERE user_id = ? AND consumed_at IS NULL').run(userId).changes
   const authorizations = db.prepare('DELETE FROM oidc_authorizations WHERE user_id = ? AND decision IS NULL').run(userId).changes
-  return { sessions, accessTokens, refreshTokens, codes, authorizations }
+  return { sessions, accessTokens, refreshTokens, codes, authorizations, trustedDevices }
 }
 
 /** The registry's edit act (name/email). The email UNIQUE conflict

@@ -128,6 +128,9 @@ const recoveryCode = ref('')
 // the send lands here, the six digits go to emailCode.
 const emailCode = ref('')
 const emailSent = ref(false)
+// 0042 (the SOTA arc): "Remember this browser" — the holder's deliberate
+// grant; the factor completions carry the ask.
+const rememberDevice = ref(false)
 // The factor step's pane (the AWS/Google pattern, the 2026-10-10
 // ruling): a CHOOSER when several methods can answer — each card names
 // its method — and a STRAIGHT shot when exactly one can (a passkey-
@@ -317,6 +320,7 @@ async function submitOpLogin() {
       recoveryCode.value = ''
       emailCode.value = ''
       emailSent.value = false
+      rememberDevice.value = false
       // The fast path: exactly one primary method answers — no chooser,
       // straight to it (a passkey-only account goes straight into the
       // browser's prompt, Google/Apple style).
@@ -399,7 +403,7 @@ async function submitMfaTotp() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ token: mfa.value.token, code: mfaCode.value.trim() }),
+      body: JSON.stringify({ token: mfa.value.token, rememberDevice: rememberDevice.value, code: mfaCode.value.trim() }),
     })
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
@@ -421,7 +425,7 @@ async function submitMfaRecovery() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ token: mfa.value.token, code: recoveryCode.value }),
+      body: JSON.stringify({ token: mfa.value.token, rememberDevice: rememberDevice.value, code: recoveryCode.value }),
     })
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
@@ -471,7 +475,7 @@ async function submitMfaEmailCode(): Promise<void> {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ token: mfa.value.token, code: emailCode.value.trim() }),
+      body: JSON.stringify({ token: mfa.value.token, rememberDevice: rememberDevice.value, code: emailCode.value.trim() }),
     })
     if (res.ok) {
       landSignedIn()
@@ -515,7 +519,7 @@ async function submitMfaPasskey() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ token: mfa.value.token, credential }),
+      body: JSON.stringify({ token: mfa.value.token, rememberDevice: rememberDevice.value, credential }),
     })
     if (res.ok) { landSignedIn(); return }
     mfaErrorFrom(res, await res.json().catch(() => null))
@@ -891,6 +895,11 @@ async function submitReset() {
 
           <!-- The way back: a chooser stands behind every pane (hidden on
                the fast path, where there is nothing else to choose). -->
+          <label class="flex items-center gap-2 justify-center text-sm text-slate-600 dark:text-slate-300" data-testid="login-mfa-remember">
+            <input v-model="rememberDevice" type="checkbox" class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500">
+            {{ t('login.mfa.rememberDevice') }}
+          </label>
+
           <p v-if="mfaPane !== 'choose' && mfaPrimaries.length > 1" class="text-center">
             <button
               type="button"
