@@ -2139,7 +2139,7 @@ export class D1ServerStore implements ServerStore {
   async listOpLiveSessions(currentToken?: string): Promise<OpLiveSession[]> {
     await this.ensureSessionColumns()
     const res = await this.stmt(
-      `SELECT id, user_id, created_at, expires_at, last_seen_at, user_agent, ip, (token = ?) AS is_current
+      `SELECT id, user_id, created_at, expires_at, last_seen_at, user_agent, ip, amr, (token = ?) AS is_current
        FROM sessions
        WHERE expires_at > datetime('now')
        ORDER BY created_at DESC`,
@@ -2153,6 +2153,7 @@ export class D1ServerStore implements ServerStore {
       lastSeenAt: (row.last_seen_at as string | null) ?? null,
       userAgent: (row.user_agent as string | null) ?? null,
       ip: (row.ip as string | null) ?? null,
+      amr: D1ServerStore.parseAmr(row.amr as string | null),
       current: Number(row.is_current) === 1,
     }))
   }
@@ -3457,6 +3458,16 @@ export class D1ServerStore implements ServerStore {
    *  strings the code paths write); the API answers ISO always —
    *  Date.parse would read the naive shape as LOCAL time and the routes'
    *  age math would misfire off-UTC. */
+  /** The session's amr list — a malformed cell reads as none. */
+  private static parseAmr(raw: string | null): string[] {
+    try {
+      const parsed = JSON.parse(raw ?? '[]') as unknown
+      return Array.isArray(parsed) ? parsed.filter((a): a is string => typeof a === 'string') : []
+    } catch {
+      return []
+    }
+  }
+
   private static storeTimeToIso(value: string | null): string | null {
     if (value === null) return null
     if (value.includes('T')) return value

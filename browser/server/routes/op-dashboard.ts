@@ -464,6 +464,7 @@ export function createOpDashboardRouter(): Hono {
           lastSeenAt: s.lastSeenAt,
           userAgent: s.userAgent,
           ip: s.ip,
+          amr: s.amr ?? [],
           current: s.current,
         }
       }),

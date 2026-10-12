@@ -255,7 +255,7 @@ export function deleteSessionById(db: Database.Database, userId: string, session
  *  read (TODO.identity-sso/01); the token never leaves the store. */
 export function listOpLiveSessions(db: Database.Database, currentToken?: string): OpLiveSession[] {
   const rows = db.prepare(
-    `SELECT id, user_id, created_at, expires_at, last_seen_at, user_agent, ip, (token = ?) AS is_current
+    `SELECT id, user_id, created_at, expires_at, last_seen_at, user_agent, ip, amr, (token = ?) AS is_current
      FROM sessions
      WHERE expires_at > datetime('now')
      ORDER BY created_at DESC`,
@@ -268,8 +268,19 @@ export function listOpLiveSessions(db: Database.Database, currentToken?: string)
     lastSeenAt: (row.last_seen_at as string | null) ?? null,
     userAgent: (row.user_agent as string | null) ?? null,
     ip: (row.ip as string | null) ?? null,
+    amr: parseAmrList(row.amr as string | null),
     current: Number(row.is_current) === 1,
   }))
+}
+
+/** The session's amr list — a malformed cell reads as none. */
+function parseAmrList(raw: string | null): string[] {
+  try {
+    const parsed = JSON.parse(raw ?? '[]') as unknown
+    return Array.isArray(parsed) ? parsed.filter((a): a is string => typeof a === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 /** The administrator's revoke-all (TODO.identity-sso/01's light act):
