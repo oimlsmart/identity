@@ -18,8 +18,7 @@
 // never a writer, until then.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import BrandLogo from '../../components/BrandLogo.vue'
+import { useRoute, useRouter } from 'vue-router'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { t } from '../../i18n'
@@ -28,6 +27,7 @@ interface PickerOrg { name: string; domains: string[]; website_domains?: string[
 interface PickerCountry { country: string; country_fr: string; iso?: string; orgs: PickerOrg[] }
 
 const route = useRoute()
+const router = useRouter()
 
 const loading = ref(true)
 const busy = ref(false)
@@ -265,13 +265,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-cream dark:bg-slate-900">
-    <div class="w-full max-w-md" data-testid="selfreg-page">
-      <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-2xl font-serif font-bold text-slate-900 dark:text-white" data-testid="selfreg-heading">{{ t('selfreg.heading') }}</h1>
-        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400" data-testid="selfreg-subtitle">{{ t('selfreg.subtitle') }}</p>
-      </div>
+  <div>
+    <div class="w-full" data-testid="selfreg-page">
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="selfreg-error">{{ error }}</p>
@@ -384,17 +379,6 @@ onMounted(async () => {
 
       <!-- The start form (the pickers → the name → the work email →
            Turnstile → the attribution choice). -->
-      <!-- THE BARE START carries the doors' banner (2026-10-13): this
-           page is the registry-verified door of the join flow — the
-           visitor who landed here looking for the other ways in gets
-           the one-click hop to the doors. The ceremony states
-           (?token/?sent/?error) never show it. -->
-      <div v-if="!loading && !sentTerminal && !activeToken && !attribution" class="mb-4 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800" data-testid="selfreg-doors-banner">
-        <p class="text-sm text-brand-900 dark:text-brand-200">
-          This is the <strong>registry-verified</strong> door — one of seven.
-          <router-link to="/op/join" class="font-medium underline" data-testid="selfreg-doors-link">See all the ways to request an account →</router-link>
-        </p>
-      </div>
       <form v-else class="space-y-4" @submit.prevent="start">
         <div class="relative">
           <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-country">{{ t('selfreg.countryLabel') }}</label>

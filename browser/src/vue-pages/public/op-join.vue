@@ -33,6 +33,8 @@
 // the admins promote from there.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import SelfRegisterFlow from './self-register-flow.vue'
 import BrandLogo from '../../components/BrandLogo.vue'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
@@ -81,6 +83,21 @@ const PICKER_KINDS: Partial<Record<JoinDoor, ReadonlyArray<string>>> = {
 }
 
 const { branding } = useBranding()
+
+const route = useRoute()
+const router = useRouter()
+/** THE REGISTRY-VERIFIED MODE: the seventh door's flow renders INSIDE
+ *  this page (one front door). The mode arms from the query (the mailed
+ *  links land here directly: ?token/?setup/?sent/?error/?link) or from
+ *  picking the door. */
+const selfRegisterStates = ['token', 'setup', 'sent', 'error', 'link', 'selfregister']
+const selfRegisterMode = computed(() => selfRegisterStates.some(k => typeof route.query[k] === 'string'))
+function openRegistryDoor() {
+  router.replace({ path: '/op/join', query: { selfregister: '1' } })
+}
+function backToDoorsFromRegistry() {
+  router.replace({ path: '/op/join' })
+}
 
 const loading = ref(true)
 /** null while unknown; false when this instance is not the identity
@@ -305,6 +322,10 @@ onMounted(async () => {
           registered you become its organization administrator.
         </p>
       </div>
+
+      <!-- THE REGISTRY-VERIFIED MODE: the seventh door's flow, on this
+           page (one front door; the mailed links land here directly). -->
+      <SelfRegisterFlow v-if="selfRegisterMode" />
 
       <template v-else>
         <!-- The honest framing: the answer decides where the request goes -->

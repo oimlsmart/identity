@@ -34,6 +34,7 @@ const PARAMS: Record<OpMailTemplate, Record<string, string | number>> = {
   verify_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=7c1a9f2b4d6e8a0c2f5b7d9e1a3c5f70' },
   // The waves since the rig's first four (2026-10-10: the map is
   // COMPLETE again — every template renders, every locale).
+  membership_invited: { ...BASE, org: 'Example Issuing Authority' },
   self_register_verify: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=2b4d6e8a0c2f5b7d9e1a3c5f709f2c7a', org: 'Physikalisch-Technische Bundesanstalt (PTB)' },
   verify_added_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=8a0c2f5b7d9e1a3c5f709f2c7a1b4d6e' },
   verify_primary_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=5b7d9e1a3c5f709f2c7a1b4d6e8a0c2f' },

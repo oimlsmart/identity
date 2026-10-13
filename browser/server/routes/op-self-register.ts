@@ -425,7 +425,7 @@ export async function continueSelfRegisterSecondProof(
   provider: string,
   accountId: string,
 ): Promise<string> {
-  const done = (fragment: string): string => `/op/self-register${fragment}`
+  const done = (fragment: string): string => `/op/join${fragment}`
   const key = await resolveOpSigningKey(runtimeEnv<EnvLike>(c))
   const link = await verifyRegistrationPayload(key.secretMaterial, presentedToken)
   if (!link?.at) {
@@ -458,7 +458,7 @@ export async function continueSelfRegisterAttribution(
   upstream?: { provider: string; accountId: string; name?: string },
 ): Promise<string> {
   const config = resolveSelfRegisterConfig(runtimeEnv<EnvLike>(c))
-  const done = (fragment: string): string => `/op/self-register${fragment}`
+  const done = (fragment: string): string => `/op/join${fragment}`
   console.warn(`[op] self-register attribution RETURN: provider=${providerName} handle=${handle} target=${targetEmail ?? 'NONE'} enabled=${config.enabled}`)
   if (!config.enabled) return done('?error=not-configured')
   const email = targetEmail?.trim().toLowerCase() ?? ''
@@ -484,7 +484,7 @@ export async function continueSelfRegisterAttribution(
   // completion's second sign-in must reproduce it. Never the raw id.
   const at = upstream ? await attributionHash(key.secretMaterial, upstream.provider, upstream.accountId) : undefined
   const token = await mintRegistrationToken(key.secretMaterial, email, Date.now(), 24 * 60 * 60 * 1000, upstream?.name, at)
-  const verifyUrl = `${origin}/op/self-register?token=${encodeURIComponent(token)}`
+  const verifyUrl = `${origin}/op/join?token=${encodeURIComponent(token)}`
 
   const mail = await sendOpMail(runtimeEnv<Record<string, string | undefined>>(c) as never, {
     to: email,

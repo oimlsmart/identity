@@ -37,8 +37,9 @@ const ROUTE_PATHS: Array<{ path: string; name: string }> = [
   { path: '/op/consent', name: 'op-consent' },
   // TODO.ai-platform/10 — the device authorization grant's approval page.
   { path: '/op/device', name: 'op-device' },
-  // The Ommisa member tier's self-enrollment (the verified-first flow).
-  { path: '/op/self-register', name: 'op-self-register' },
+  // The Ommisa member tier's self-enrollment rides /op/join's
+  // registry-verified mode (2026-10-13, one front door) — the old path
+  // is gone with its page.
   { path: '/op/join', name: 'op-join' },
   { path: '/op/setup', name: 'op-setup' },
   { path: '/op/email-change', name: 'op-email-change' },

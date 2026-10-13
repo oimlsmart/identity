@@ -96,7 +96,7 @@ import {
 } from '../auth/org-registry'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { OP_ENROLLMENT_TTL_MS } from '../auth/op/accounts'
-import { sendOpMail } from '../auth/op/mail'
+import { sendOpMail, sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { sessionUser } from '../session'
@@ -521,13 +521,16 @@ export function createOpJoinRouter(): Hono {
     }
 
     // TODO.identity/11 — the EXISTING account joins the org (the
-    // multi-org model): no second account, no enrollment link. The
-    // membership lands directly ACTIVE — the holder asked, the org's
-    // admin approved: both consents are on record. An existing
-    // membership decides honestly: the ACTIVE one is the conflict; the
-    // invited one settles (both consents now present); the disabled one
-    // is the org's deliberate re-admission (the role set follows the
-    // approval).
+    // multi-org model): no second account, no enrollment link. THE
+    // CONSENT MODEL (2026-10-13, the cold-eyes audit's finding): the
+    // intake is ANONYMOUS — the filer's "the holder asked" proves
+    // nothing, and an approval landing DIRECTLY ACTIVE would let an
+    // org admin silently attach any account to their org. The
+    // membership lands INVITED — the holder's yes is the activation
+    // (the account console's Organizations section: accept / decline),
+    // and the holder learns by mail. An existing ACTIVE membership is
+    // the conflict; an invited or disabled one refreshes the role set
+    // and waits for the holder's yes again.
     const existingAccount = await store.findUserByEmail(request.email)
     if (existingAccount) {
       const existingMembership = await store.getOrgMembership(existingAccount.id, orgId)
@@ -536,15 +539,16 @@ export function createOpJoinRouter(): Hono {
       }
       if (existingMembership) {
         await store.setOrgMembershipRoles(existingAccount.id, orgId, [role])
-        await store.setOrgMembershipState(existingAccount.id, orgId, 'active', user.email)
+        await store.setOrgMembershipState(existingAccount.id, orgId, 'invited', user.email)
       } else {
         const created = await store.createOrgMembership({
-          userId: existingAccount.id, orgId, roles: [role], state: 'active', invitedBy: user.email,
+          userId: existingAccount.id, orgId, roles: [role], state: 'invited', invitedBy: user.email,
         })
         if (!created) {
-          // A concurrent approval created it first — settle honestly.
+          // A concurrent approval created it first — it waits for the
+          // holder's yes exactly the same.
           await store.setOrgMembershipRoles(existingAccount.id, orgId, [role])
-          await store.setOrgMembershipState(existingAccount.id, orgId, 'active', user.email)
+          await store.setOrgMembershipState(existingAccount.id, orgId, 'invited', user.email)
         }
       }
       const decided = await store.decideOrgJoinRequest(request.id, {
@@ -558,10 +562,29 @@ export function createOpJoinRouter(): Hono {
         role,
         org_id: orgId,
         existing_account: true,
+        consent: 'invited',
       })
+      // The holder learns by mail (the account console holds the
+      // accept/decline). Never blocks the act (the mailer doctrine).
+      const approvedOrg = await resolveRegistryOrg(store, orgId)
+      try {
+        await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+          userId: existingAccount.id,
+          template: 'membership_invited',
+          issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer,
+          params: {
+            name: existingAccount.name,
+            org: approvedOrg?.name ?? orgId,
+            roles: role,
+            when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+          },
+        })
+      } catch (err) {
+        console.error('[op] the approval notice failed:', (err as Error).message)
+      }
       return c.json({
         ...decided,
-        membership: { userId: existingAccount.id, orgId, roles: [role], state: 'active' },
+        membership: { userId: existingAccount.id, orgId, roles: [role], state: 'invited' },
       })
     }
 
