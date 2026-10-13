@@ -70,11 +70,26 @@ function intFrom(env: EnvLike, name: string, fallback: number): number {
 }
 
 /** The origin the request arrived on (the dev proxy forwards the astro
- *  host) — the same derivation the federation descriptor uses. */
-export function opRequestOrigin(request: Request): string {
+ *  host) — the same derivation the federation descriptor uses. When the
+ *  forwarded host STEERS the origin and no issuer is declared, the
+ *  warning fires once per isolate (2026-10-13, the cold-eyes audit: an
+ *  attacker-chosen x-forwarded-host on an undeclared-issuer deployment
+ *  mails password-reset links pointing at the attacker's host — the
+ *  link carries the one-time token; the declaration pins the origin). */
+let warnedForwardedSteer = false
+export function opRequestOrigin(request: Request, env?: { OP_ISSUER?: string }): string {
   const url = new URL(request.url)
-  const host = request.headers.get('x-forwarded-host') ?? url.host
+  const forwarded = request.headers.get('x-forwarded-host')
+  const host = forwarded ?? url.host
   const proto = request.headers.get('x-forwarded-proto') ?? url.protocol.replace(':', '')
+  if (forwarded && forwarded !== url.host && !env?.OP_ISSUER?.trim() && !warnedForwardedSteer) {
+    warnedForwardedSteer = true
+    console.warn(
+      `[op] the request origin is steered by x-forwarded-host (${forwarded}) while OP_ISSUER is undeclared — `
+      + 'password-reset and enrollment links are built on this origin, and a client able to set that header chooses where they point. '
+      + 'Declare OP_ISSUER (production does) to pin every link\'s origin.',
+    )
+  }
   return `${proto}://${host}`
 }
 

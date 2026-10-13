@@ -1102,3 +1102,41 @@ describe('the completion edges (2026-10-12, the cold-eyes audit)', () => {
     expect(await mod.hashEmailOtpCode!('123456', 'material-two'), 'a different material hashes differently').not.toBe(a)
   })
 })
+
+describe('the fresh-proof gate (2026-10-13, the cold-eyes audit residual)', () => {
+  it('a STALE session cannot plant a factor — the re-proof (the step-up stamp) re-opens the door', async () => {
+    const STALE = { email: 'stale-plant@factors.test', name: 'Sam Stale', password: 'sam has a proper passphrase' }
+    const invited = await invite(STALE.email, STALE.name)
+    const cookie = await enroll(invited.setupUrl, STALE.password)
+    const { getStore } = await import('../../server/store')
+    const store = getStore()
+    const account = (await store.findUserByEmail(STALE.email))!
+
+    // The session AGES past the window (the store's own row — the same
+    // state a hijacked cookie carries: the credentials are gone, the
+    // session lives). The test's own handle on the store's file does the
+    // aging (the seam has no raw-SQL escape by design).
+    const { default: Database } = await import('better-sqlite3')
+    const db = new Database(process.env.DATABASE_PATH!)
+    db.prepare("UPDATE sessions SET created_at = datetime('now', '-2 hours') WHERE user_id = ?").run(account.id)
+    db.close()
+
+    const staleStart = await app.request('/api/op/account/factors/totp', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+    })
+    expect(staleStart.status, 'the stale session is refused').toBe(403)
+    const body = await staleStart.json() as { step_up?: string }
+    expect(body.step_up).toBe('required')
+
+    // The re-proof: the step-up stamp (the account console's re-entry
+    // mints it — the test mints the same signed stamp directly).
+    const { mintStepUpStamp, stepUpKey } = await import('../../server/auth/op/step-up-stamp')
+    const key = await stepUpKey(process.env as Record<string, string | undefined>)
+    const stamp = await mintStepUpStamp(key, account.id, 'pwd')
+    const fresh = await app.request('/api/op/account/factors/totp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, 'x-op-step-up': stamp },
+    })
+    expect(fresh.status, 'the re-proof re-opens the door').toBe(201)
+  })
+})

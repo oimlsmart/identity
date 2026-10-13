@@ -693,7 +693,7 @@ export function createOpAccountsRouter(): Hono {
     // runs).
     const account = resolved ? (await store.listUsers()).find(u => u.id === resolved.id) ?? null : null
     if (account && account.provider === OP_ACCOUNT_PROVIDER && account.active) {
-      const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+      const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw, runtimeEnv<EnvLike>(c))).issuer
       const token = mintEnrollmentToken()
       await store.createEnrollmentToken({
         token,
@@ -701,7 +701,7 @@ export function createOpAccountsRouter(): Hono {
         createdBy: 'self-service reset',
         ttlMs: OP_ENROLLMENT_TTL_MS,
       })
-      const setupUrl = setupUrlFor(c, token)
+      const setupUrl = setupUrlFor(c, token, runtimeEnv<EnvLike>(c))
       await sendOpMail(env, {
         to: email,
         template: 'reset',
@@ -712,6 +712,12 @@ export function createOpAccountsRouter(): Hono {
       // learns of it, whoever asked); the send's own audit rides the
       // mailer's email.* chain either way.
       await audit('account.password_reset', account.id, { userName: email }, { delivery: 'email' })
+    } else {
+      // The TIMING STAND-IN (2026-10-13, the cold-eyes audit): the
+      // known-address path pays a full-cost hash plus a send; the
+      // unknown path paying one line of JSON was a clean enumeration
+      // oracle. One full-cost hash (never stored) squares the CPU.
+      await hashPassword('the timing stand-in for an address that holds no account')
     }
     return c.json({ ok: true, message: 'If an account exists for that address, a password reset email is on its way. The link works once and lives 24 hours.' })
   })
@@ -720,8 +726,8 @@ export function createOpAccountsRouter(): Hono {
 
   /** The setup link's public URL: the OP's issuer (the deployment's
    *  declared URL; the request origin in dev) + the one-time token. */
-  function setupUrlFor(c: Context, token: string): string {
-    const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+  function setupUrlFor(c: Context, token: string, env?: EnvLike): string {
+    const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw, env ?? runtimeEnv<EnvLike>(c))).issuer
     return `${issuer}/op/setup?token=${encodeURIComponent(token)}`
   }
 

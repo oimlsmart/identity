@@ -99,6 +99,10 @@ export interface MailerConfig {
  *  sign-in clears both lanes (the real holder's return ends the
  *  counted flood — the login clear). */
 export const MAIL_RATE_LIMIT_DEFAULTS = { capacity: 5, windowMs: 3_600_000, criticalCapacity: 30 }
+/** The entry-gating templates' LANE CLASSES (2026-10-13): independent
+ *  per-recipient buckets, so flooding one class (the anonymous reset)
+ *  never starves another (the sign-in code — the lockout's way out). */
+export const CRITICAL_LANES: Record<string, string> = { reset: 'reset', email_otp: 'otp', invite: 'invite' }
 /** The templates that gate entry (the way-out lane). */
 export const CRITICAL_MAIL_TEMPLATES: ReadonlySet<string> = new Set([
   'reset',
@@ -268,10 +272,16 @@ export function createMailer(config: MailerConfig, deps?: { now?: () => number; 
       const recipient = message.to.trim().toLowerCase()
       // The lane: the entry-gating templates (the way out) draw their own
       // budget — the notices' flood can never close the door.
-      const critical = meta?.template !== undefined && CRITICAL_MAIL_TEMPLATES.has(String(meta.template))
+      const template = meta?.template !== undefined ? String(meta.template) : null
+      const criticalClass = template ? CRITICAL_LANES[template] ?? null : null
+      const critical = criticalClass !== null
       const { capacity, windowMs, criticalCapacity } = config.rateLimit
       const laneCapacity = critical ? criticalCapacity : capacity
-      const key = `${critical ? 'critical:' : ''}${recipient}`
+      // 2026-10-13 (the cold-eyes audit): each entry-gating CLASS draws
+      // its own bucket — a scripted reset flood burns the victim's RESET
+      // lane only; the sign-in codes and the invites stay deliverable
+      // (the way out can never be starved sideways).
+      const key = `${critical ? `critical:${criticalClass}:` : ''}${recipient}`
       if (laneCapacity > 0) {
         const at = now()
         let bucket = buckets.get(key)
@@ -280,8 +290,8 @@ export function createMailer(config: MailerConfig, deps?: { now?: () => number; 
           buckets.set(key, bucket)
         }
         if (bucket.tokens <= 0) {
-          const error = `rate limited — this recipient already received ${laneCapacity} ${critical ? 'entry-gating ' : ''}message(s) within the window`
-          await auditSend('email.rate_limited', message, { template: meta?.template, posture: config.posture, error, lane: critical ? 'critical' : 'notice' })
+          const error = `rate limited — this recipient already received ${laneCapacity} ${critical ? `entry-gating (${criticalClass}) ` : ''}message(s) within the window`
+          await auditSend('email.rate_limited', message, { template: meta?.template, posture: config.posture, error, lane: critical ? `critical:${criticalClass}` : 'notice' })
           return { ok: false, posture: config.posture, error, rateLimited: true }
         }
         bucket.tokens -= 1
@@ -306,6 +316,9 @@ export function createMailer(config: MailerConfig, deps?: { now?: () => number; 
     clearBudgetFor(recipient: string) {
       const r = recipient.trim().toLowerCase()
       buckets.delete(r)
+      for (const cls of new Set(Object.values(CRITICAL_LANES))) {
+        buckets.delete(`critical:${cls}:${r}`)
+      }
       buckets.delete(`critical:${r}`)
     },
   }

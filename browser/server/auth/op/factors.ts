@@ -32,6 +32,12 @@ export const TOTP_ENROLL_TTL_MS = 10 * 60 * 1000
  *  is the deployment's (OP_MFA_BACKOFF_BASE_MS — the OP_RATE_LIMIT_*
  *  precedent; the tests declare 1 ms so the ladder is exercised, not
  *  slept through). */
+/** The fresh-session window (2026-10-13, the cold-eyes audit's
+ *  residual): factor enrollment demands a proof born inside it — a
+ *  session minted by a real credential act, or the step-up stamp's
+ *  re-entry extending the window on demand. */
+export const FRESH_SESSION_MS = 5 * 60 * 1000
+
 export const MFA_FAILURE_CAP = 5
 export const MFA_BACKOFF_DEFAULTS = { baseMs: 1000, capMs: 30_000 }
 
