@@ -805,18 +805,39 @@ The operator's unlock procedure, in order of preference:
    survives the sweep (the unlock ladder stands).
 
 **The mailer's critical lane.** The three entry-gating mails (the
-invite, the reset link, the sign-in code) draw their OWN per-recipient
-budget — `MAIL_RATE_LIMIT_CRITICAL_CAPACITY` (default 30/hour), beside
-the notices' `MAIL_RATE_LIMIT_CAPACITY` (5/hour). No notice flood —
-attacker-driven or self-inflicted — can starve the way out, and every
-completed sign-in clears both lanes for the account's addresses (the
+invite, the reset link, the sign-in code) draw per-recipient budgets —
+`MAIL_RATE_LIMIT_CRITICAL_CAPACITY` (default 30/hour), beside the
+notices' `MAIL_RATE_LIMIT_CAPACITY` (5/hour). **Per CLASS since
+2026-10-13:** the reset link, the sign-in code, and the invite each
+draw their OWN bucket (`critical:reset:` / `critical:otp:` /
+`critical:invite:`) — a scripted reset flood burns the victim's RESET
+lane only; the sign-in codes and the invites stay deliverable. Every
+completed sign-in clears all lanes for the account's addresses (the
 real holder's return ends the counted flood). A rate-limited send is
-audited (`email.rate_limited`, the `lane` named).
+audited (`email.rate_limited`, the lane named down to the class).
+
+**The anonymous reset's remaining bounds** (2026-10-13): the reset's
+unknown-address path pays a full-cost hash stand-in (the enumeration
+timing oracle closes), and the reset POST rides the OP rate limiter +
+Turnstile. The app-level floor ends here; the edge-level answer to a
+distributed reset flood is a **Cloudflare WAF rate rule** on
+`/api/op/login/reset` (POST; ~10 requests/minute per IP, challenge
+rather than block), an OPS act on the zone — the app cannot see a
+botnet's many addresses.
+
+**The fresh-proof gate.** Factor enrollment (a passkey, an
+authenticator app, recovery-code regeneration) demands a proof born
+inside five minutes: the acting session's own birth (every sign-in
+mints the session) or the step-up stamp (the account console's
+password re-entry — `/api/op/step-up` extends the window on demand). A
+session hijacker holding only the cookie cannot plant a factor; the
+victim's ordinary flow never meets the gate.
 
 **The new audit actions** (the activity feeds carry their labels):
 `account.email_fallback_granted` / `account.email_fallback_revoked`
 (the override door), `factor.email_otp_sent` (every mailed code),
-`account.sign_in` with method `password+email_otp`.
+`account.sign_in` with method `password+email_otp`,
+`factor.enrollment_step_up` (the fresh-proof gate's demand).
 
 ### The public join doors (2026-10-13)
 
