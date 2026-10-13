@@ -65,12 +65,12 @@ interface DoorDef {
 }
 
 const DOORS: ReadonlyArray<DoorDef> = [
-  { key: 'ia', title: 'An OIML-CS Issuing Authority', blurb: 'Your authority issues OIML-CS certificates. Pick it from the register, then ask for your staff role.' },
-  { key: 'tl', title: 'An OIML-CS Test Laboratory', blurb: 'Your laboratory tests measuring instruments for the OIML-CS. Pick it from the register, then ask for your staff role.' },
-  { key: 'member', title: 'An OIML Member (Member State or Corresponding Member)', blurb: 'Your national body participates in the OIML. Its personnel join on the read/access posture.' },
-  { key: 'manufacturer', title: 'A manufacturer of measuring instruments', blurb: 'Register your organization with the declared manufacturer standing — a manufacturer is not an OIML-CS participant.' },
+  { key: 'ia', title: 'My organization is an OIML-CS Issuing Authority', blurb: 'Your authority issues OIML-CS certificates. Pick it from the register, then ask for your staff role.' },
+  { key: 'tl', title: 'My organization is an OIML-CS Test Laboratory', blurb: 'Your laboratory tests measuring instruments for the OIML-CS. Pick it from the register, then ask for your staff role.' },
+  { key: 'member', title: 'My organization is an OIML Member (a Member State or a Corresponding Member)', blurb: 'Your national body participates in the OIML. Its personnel join on the read/access posture.' },
+  { key: 'manufacturer', title: 'My company manufactures measuring instruments', blurb: 'Your company applies for OIML-CS certificates for measuring instruments as an applicant or manufacturer.' },
   { key: 'biml', title: 'I work for the OIML/BIML', blurb: 'Bureau and OIML staff hold an @oiml.org address. The one-time setup link proves the mailbox — no waiting queue.' },
-  { key: 'others', title: 'Others', blurb: 'None of these — name your organization and the BIML secretariat verifies the participation.' },
+  { key: 'others', title: 'Something else', blurb: 'None of these — name your organization and the BIML secretariat verifies the participation.' },
 ]
 
 /** The register doors' picker filters (the org kinds each door offers).
@@ -152,7 +152,12 @@ const doorOrgs = computed(() => {
   return orgs.value.filter(o => pickerKinds.value!.includes(o.kind))
 })
 
+/** The options render ONLY while the searcher is engaged (focused or
+ *  typed) — the full register never dumps into the form — and collapse
+ *  the moment an organization is picked. */
+const orgOpen = ref(false)
 const filteredOrgs = computed(() => {
+  if (!orgOpen.value) return []
   const q = orgSearch.value.trim().toLowerCase()
   if (!q) return doorOrgs.value
   return doorOrgs.value.filter(o =>
@@ -177,6 +182,8 @@ const canSubmit = computed(() => {
 function pickOrg(id: string) {
   selectedOrgId.value = id
   requestedRole.value = ''
+  orgSearch.value = ''
+  orgOpen.value = false
 }
 
 /** The typed address against the picked org's pre-approved domains —
@@ -193,6 +200,7 @@ function pickDoor(key: JoinDoor) {
   selectedOrgId.value = null
   requestedRole.value = ''
   orgSearch.value = ''
+  orgOpen.value = false
   error.value = null
 }
 
@@ -437,9 +445,21 @@ onMounted(async () => {
               type="text"
               data-testid="join-org-search"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="Search the participants register…"
+              placeholder="Click and type to search the participants register…"
+              @focus="orgOpen = true"
             />
-            <ul v-if="filteredOrgs.length" class="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700" data-testid="join-org-options">
+            <!-- The picked organization stands in the field's place (the
+                 list collapsed the moment it was chosen). -->
+            <div v-if="selectedOrg && !orgOpen" class="mt-2 rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 px-3 py-2 flex items-center justify-between gap-2" data-testid="join-org-picked">
+              <span class="text-sm text-slate-900 dark:text-white">
+                <span class="font-medium">{{ selectedOrg.name }}</span>
+                <span class="block text-[11px] text-slate-400 dark:text-slate-500">
+                  {{ kindLabel(selectedOrg.kind) }}<template v-if="selectedOrg.country"> · {{ selectedOrg.country }}</template><template v-if="selectedOrg.email_domains?.length"> · <span class="font-mono">@{{ selectedOrg.email_domains[0] }}</span></template>
+                </span>
+              </span>
+              <button type="button" class="text-xs text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-org-change" @click="orgOpen = true; selectedOrgId = null; requestedRole = ''">{{ t('checkup.fix') }}</button>
+            </div>
+            <ul v-else-if="filteredOrgs.length" class="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700" data-testid="join-org-options">
               <li v-for="org in filteredOrgs" :key="org.id">
                 <button
                   type="button"
@@ -456,13 +476,12 @@ onMounted(async () => {
                 </button>
               </li>
             </ul>
-            <p v-else class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-org-empty">
-              No organization of this kind is on the register yet{{ orgSearch ? ' — check the spelling' : '' }}. If your organization should be here, use the “Others” door so the BIML secretariat can verify its participation.
-            </p>
-            <p v-if="!filteredOrgs.length" class="mt-2 text-xs">
-              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-others-from-picker" @click="pickDoor('others')">
-                My organization is none of these
-              </button>
+            <p v-if="!filteredOrgs.length" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-org-empty">
+              <template v-if="orgSearch">No organization of this kind matches — check the spelling.</template>
+              <template v-else>Start typing to search the register.</template>
+              If your organization should be here, use the
+              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-others-from-picker" @click="pickDoor('others')">Others</button>
+              door.
             </p>
           </div>
 
@@ -540,10 +559,10 @@ onMounted(async () => {
               <span class="font-mono" data-testid="join-domain-list">{{ orgDomains.map(d => '@' + d).join(', ') }}</span>
             </p>
             <p v-if="domainMatch === true" class="mt-1 text-emerald-700 dark:text-emerald-300" data-testid="join-domain-match">
-              ✓ your address is on the pre-approved domain — the request goes straight to your administrator.
+              ✓ Emails with <span class="font-mono">{{ orgDomains.map(d => '@' + d).join(', ') }}</span> are auto-approved — your request goes straight to the organization's administrator.
             </p>
             <p v-else-if="domainMatch === false" class="mt-1" data-testid="join-domain-mismatch">
-              Your address is <strong>not</strong> on the pre-approved domain — the request still files, and the administrator will verify your role in the organization before approving.
+              Your address is <strong>not</strong> on the pre-approved domain — any other email address will need to be approved by the organization's administrator.
             </p>
           </div>
 
@@ -559,7 +578,7 @@ onMounted(async () => {
             >
               <option value="" disabled>Choose a role…</option>
               <option v-for="role in roleOptions" :key="role" :value="role" :data-testid="`join-role-option-${role}`">
-                {{ role }} — {{ roleGloss(role) }}
+                {{ roleGloss(role) }}
               </option>
             </select>
             <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
@@ -591,7 +610,7 @@ onMounted(async () => {
             class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            {{ submitting ? 'Filing…' : (door === 'biml' ? 'Request my setup link' : 'Request the account') }}
+            {{ submitting ? 'Filing…' : (door === 'biml' ? 'Request my setup link' : (domainMatch === false ? 'Request account (administrator approval)' : 'Request account')) }}
           </button>
         </form>
 

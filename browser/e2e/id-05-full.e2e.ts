@@ -618,6 +618,8 @@ describe('TODO.identity/05: the full identity arc, OP-side (real OP, fixture RP,
       await page.type('[data-testid="join-given-name"]', 'Priya')
       await page.type('[data-testid="join-family-name"]', 'van der Berg')
       await page.type('[data-testid="join-email"]', PRIYA.email)
+      await page.focus('[data-testid="join-org-search"]')
+      await page.waitForSelector(`[data-testid="join-org-option-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })
       await page.evaluate((id) => {
         (document.querySelector(`[data-testid="join-org-option-${id}"]`) as HTMLElement).click()
       }, UTILIZER_ID)

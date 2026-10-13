@@ -283,6 +283,7 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     // with a utilizer — and NEVER a participant org or the disabled
     // mid-pipeline IA (the honesty the feed always had).
     await page.evaluate(() => (document.querySelector('[data-testid="join-door-member"]') as HTMLElement).click())
+    await page.focus('[data-testid="join-org-search"]')
     await page.waitForSelector('[data-testid="join-org-option-ms-example"]', { timeout: SETTLE, polling: 500 })
     const memberOption = await page.$eval('[data-testid="join-org-option-ms-example"]', el => el.textContent ?? '')
     expect(memberOption).toContain('OIML Member — Member State')
