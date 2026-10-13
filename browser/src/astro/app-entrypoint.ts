@@ -41,6 +41,7 @@ const ROUTE_PATHS: Array<{ path: string; name: string }> = [
   // registry-verified mode (2026-10-13, one front door) — the old path
   // is gone with its page.
   { path: '/op/join', name: 'op-join' },
+  { path: '/op/security-checkup', name: 'op-security-checkup' },
   { path: '/op/setup', name: 'op-setup' },
   { path: '/op/email-change', name: 'op-email-change' },
   { path: '/op/admin', name: 'op-admin' },

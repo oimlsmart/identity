@@ -1449,6 +1449,52 @@ export function createOpAccountsRouter(): Hono {
   // (every state, with the register's display names), the session's
   // active-org stamp + the effective org the claims carry, and the
   // account's own join requests (the membership-request path's state).
+  // GET /api/op/account/security-checkup — THE GUIDED REVIEW (2026-10-13,
+  // the Google parity): the account's hygiene in one scored read — every
+  // check names its finding and the act that settles it, the page
+  // renders the prioritized list. The reads are the account API's own
+  // (no new state, no new store surface).
+  accounts.get('/api/op/account/security-checkup', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const store = getStore()
+    const sessionToken = getCookie(c, SESSION_COOKIE) ?? ''
+    const [methods, totpSecrets, passkeys, recovery, sessions, emails, grants, pendingChange] = await Promise.all([
+      store.countSignInMethods(user.id),
+      store.listTotpSecrets(user.id).then(rows => rows.filter(t => t.verifiedAt !== null)),
+      store.listWebauthnCredentials(user.id),
+      store.recoveryCodeState(user.id),
+      store.listUserSessions(user.id, sessionToken),
+      store.listAccountEmails(user.id),
+      store.listConsentGrants(user.id),
+      store.getPendingEmailChange(user.id),
+    ])
+    const factors = passkeys.length + totpSecrets.length
+    const verifiedEmail = emails.some(e => e.verifiedAt !== null) || user.emailVerifiedAt !== null
+    const staleSessions = sessions.filter(s =>
+      Date.now() - new Date(s.lastSeenAt ?? s.createdAt.replace(' ', 'T') + 'Z').getTime() > 90 * 86_400_000)
+    const checks = [
+      { id: 'second_factor', ok: factors > 0, detail: { factors }, act: '/op/account#factors',
+        label: 'A second factor is enrolled', fix: 'Add a passkey or an authenticator app' },
+      { id: 'verified_email', ok: verifiedEmail, detail: { addresses: emails.length }, act: '/op/account#profile',
+        label: 'The account’s address is verified', fix: 'Verify your email address' },
+      { id: 'recovery_codes', ok: recovery.remaining > 0, detail: { remaining: recovery.remaining }, act: '/op/account#factors',
+        label: 'Recovery codes are available', fix: 'Regenerate your recovery codes' },
+      { id: 'stale_sessions', ok: staleSessions.length === 0, detail: { stale: staleSessions.length }, act: '/op/account#sessions',
+        label: 'No untouched session older than 90 days', fix: 'Sign out the sessions you no longer use' },
+      { id: 'no_pending_email_change', ok: pendingChange === null, detail: { pending: pendingChange !== null }, act: '/op/account#profile',
+        label: 'No email change is waiting', fix: 'Review the pending email change' },
+    ]
+    const score = Math.round(100 * checks.filter(c => c.ok).length / checks.length)
+    return c.json({
+      score,
+      checks,
+      sessions: sessions.map(s => ({ id: s.id, current: s.current, lastSeenAt: s.lastSeenAt, createdAt: s.createdAt, userAgent: s.userAgent })),
+      grants: grants.map(g => ({ id: g.id, clientId: g.clientId, scope: g.scope, createdAt: g.createdAt })),
+      factors,
+    })
+  })
+
   accounts.get('/api/op/account', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)

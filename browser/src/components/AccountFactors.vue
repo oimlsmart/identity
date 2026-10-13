@@ -314,8 +314,15 @@ async function regenerateRecoveryCodes() {
 
 <template>
   <section id="factors" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-6 mb-6" data-testid="account-factors">
-    <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ t('account.factors.title') }}</h2>
-    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">{{ t('account.factors.description') }}</p>
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ t('account.factors.title') }}</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">{{ t('account.factors.description') }}</p>
+      </div>
+      <!-- The guided review (2026-10-13, the Google parity): the
+           checkup aggregates the account's hygiene and names the acts. -->
+      <router-link to="/op/security-checkup" class="text-xs font-medium text-brand-600 dark:text-brand-300 hover:underline shrink-0" data-testid="account-checkup-link">{{ t('account.checkupLink') }} →</router-link>
+    </div>
 
     <!-- The unverified-address posture (wave E's lifecycle state): the
          enrollment acts refuse honestly — the recovery floor rides the
