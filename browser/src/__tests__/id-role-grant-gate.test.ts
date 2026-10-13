@@ -253,7 +253,7 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role grants refuse t
     expect((await store.getUserById(id))!.roles).toEqual(['viewer'])
 
     // …and once the mailbox is proven, the privileged reassignment stands.
-    await enroll(setupUrl, 'victor has a proper passphrase')
+    await enroll(setupUrl, 'the grants wait for a proper passphrase')
     const grant = await app.request(`/api/users/${id}/roles`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json', cookie: admin },
@@ -287,7 +287,7 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role grants refuse t
       .toEqual(['ia_officer'])
     expect((await store.getUserById(id))?.emailVerifiedAt ?? null, '…while the account is still unverified').toBeNull()
 
-    await enroll(setupUrl, 'ingrid has a proper passphrase')
+    await enroll(setupUrl, 'the carve-out rides a proper passphrase')
     expect((await store.getUserById(id))?.emailVerifiedAt, 'the completion stamps the verification').toBeTruthy()
   })
 })

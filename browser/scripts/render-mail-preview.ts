@@ -35,6 +35,7 @@ const PARAMS: Record<OpMailTemplate, Record<string, string | number>> = {
   // The waves since the rig's first four (2026-10-10: the map is
   // COMPLETE again — every template renders, every locale).
   membership_invited: { ...BASE, org: 'Example Issuing Authority' },
+  consent_granted: { ...BASE, client: 'The certificate portal', scope: 'openid profile certificates.read' },
   self_register_verify: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=2b4d6e8a0c2f5b7d9e1a3c5f709f2c7a', org: 'Physikalisch-Technische Bundesanstalt (PTB)' },
   verify_added_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=8a0c2f5b7d9e1a3c5f709f2c7a1b4d6e' },
   verify_primary_email: { ...BASE, verifyUrl: 'https://id.oimlsmart.org/op/verify-email?token=5b7d9e1a3c5f709f2c7a1b4d6e8a0c2f' },

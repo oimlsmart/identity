@@ -1269,7 +1269,12 @@ export function createOpAccountsRouter(): Hono {
     if (!body || typeof body.password !== 'string') {
       return c.json({ error: 'password is required' }, 400)
     }
-    const policy = passwordPolicy(body.password)
+    // The identity check (2026-10-13) reads the link's OWN account —
+    // the holder's address is known before the link is touched (the
+    // read consumes nothing; a refused password never burns it).
+    const peek = await getStore().getEnrollmentToken(c.req.param('token'))
+    const peekUser = peek ? await getStore().getUserById(peek.userId) : null
+    const policy = passwordPolicy(body.password, { email: peekUser?.email })
     if (!policy.ok) {
       return c.json({ error: `The password needs ${policy.problems.join(' and ')}.` }, 400)
     }
@@ -1396,7 +1401,7 @@ export function createOpAccountsRouter(): Hono {
     // The enroll route's own order: a refused password never touches
     // state (the policy, then the corpus; an unreachable corpus accepts
     // and arms the sign-in re-check).
-    const policy = passwordPolicy(body.password)
+    const policy = passwordPolicy(body.password, { email })
     if (!policy.ok) {
       return c.json({ error: `The password needs ${policy.problems.join(' and ')}.` }, 400)
     }
@@ -2042,7 +2047,7 @@ export function createOpAccountsRouter(): Hono {
     if (!body || typeof body.next !== 'string') {
       return c.json({ error: 'next (the new password) is required' }, 400)
     }
-    const policy = passwordPolicy(body.next)
+    const policy = passwordPolicy(body.next, { email: user.email })
     if (!policy.ok) {
       return c.json({ error: `The password needs ${policy.problems.join(' and ')}.` }, 400)
     }

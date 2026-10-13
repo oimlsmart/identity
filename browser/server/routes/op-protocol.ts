@@ -28,6 +28,8 @@ import {
 import { getInstanceProfile } from '../profile'
 import { clientInfo } from '../client-info'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
+import { sendOpSecurityMail } from '../auth/op/mail'
+import type { MailEnv } from '../mailer'
 import {
   opRandomToken, resolveOpSigningKey, signOpIdToken,
 } from '../auth/op/keys'
@@ -662,6 +664,30 @@ export function createOpProtocolRouter(deps: {
       name: grantClient?.name ?? decided.clientId,
       scope: grant.scope,
     })
+    // The GitHub parity (2026-10-13): "you authorized X to Y" — the
+    // holder learns of the grant by mail (a grant IS a standing
+    // permission; the authorize page showed it, the mail records it).
+    // Only the FIRST grant per (account, client, scope) mails — the
+    // remembered re-authorizations refresh a live triple, they are not
+    // news.
+    const priorGrant = await getStore().getConsentGrant(user.id, decided.clientId, decided.scope)
+    if (!priorGrant) {
+      try {
+        await sendOpSecurityMail(runtimeEnv<EnvLike>(c), getStore(), {
+          userId: user.id,
+          template: 'consent_granted',
+          issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer,
+          params: {
+            name: user.name,
+            client: grantClient?.name ?? decided.clientId,
+            scope: grant.scope,
+            when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+          },
+        })
+      } catch (err) {
+        console.error('[op] the consent notice failed:', (err as Error).message)
+      }
+    }
     const redirect = await mintAuthorizationCode(c, {
       clientId: decided.clientId,
       redirectUri: decided.redirectUri,

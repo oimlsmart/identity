@@ -445,8 +445,8 @@ describe('TODO.identity-sso/04 slice D — the security notices fire on their tr
   it('LOCALE: MAIL_LOCALE=fr renders the French catalog on the trigger', async () => {
     // A fresh address (the mailer's per-recipient rate limit: pat's
     // mailbox already holds its budget from the earlier legs).
-    await enrollAccount('france@example.org', 'France Locale', 'france has a proper passphrase')
-    const login = await passwordLogin('france@example.org', 'france has a proper passphrase')
+    await enrollAccount('france@example.org', 'France Locale', 'the locale rides a proper passphrase')
+    const login = await passwordLogin('france@example.org', 'the locale rides a proper passphrase')
     expect(login.cookie).toBeTruthy()
     stub.reset()
     process.env.MAIL_LOCALE = 'fr'
@@ -454,7 +454,7 @@ describe('TODO.identity-sso/04 slice D — the security notices fire on their tr
       const change = await app.request('/api/op/account/password', {
         method: 'POST',
         headers: { 'content-type': 'application/json', cookie: login.cookie! },
-        body: JSON.stringify({ current: 'france has a proper passphrase', next: 'france has a fresh passphrase' }),
+        body: JSON.stringify({ current: 'the locale rides a proper passphrase', next: 'the fresh passphrase waits for you' }),
       })
       expect(change.status).toBe(200)
       const notices = mailsWithSubject(`Votre mot de passe ${PRODUCT} a été défini ou changé`)
