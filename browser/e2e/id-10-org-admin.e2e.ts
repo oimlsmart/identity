@@ -372,8 +372,9 @@ describe('TODO.identity/10 — delegated organization administration (the identi
     await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="join-door-member"]') as HTMLElement).click())
     await page.waitForSelector(`[data-testid="join-org-option-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })
-    await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
-    await page.type('[data-testid="join-name"]', 'Mr. Willem Jansen')
+    await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
+    await page.type('[data-testid="join-given-name"]', 'Willem')
+    await page.type('[data-testid="join-family-name"]', 'Jansen')
     await page.type('[data-testid="join-email"]', REVIEWER_EMAIL)
     await page.evaluate(() => {
       (document.querySelector('[data-testid="join-org-search"]') as HTMLInputElement).value = ''
@@ -473,8 +474,9 @@ describe('TODO.identity/10 — delegated organization administration (the identi
     await page.goto(`${stack.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
     await page.evaluate(() => (document.querySelector('[data-testid="join-door-others"]') as HTMLElement).click())
-    await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
-    await page.type('[data-testid="join-name"]', 'Ms. Nobody Real')
+    await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
+    await page.type('[data-testid="join-given-name"]', 'Nobody')
+      await page.type('[data-testid="join-family-name"]', 'Real')
     await page.type('[data-testid="join-email"]', FAKE_ORG_EMAIL)
     await page.waitForSelector('[data-testid="join-org-name-text"]', { timeout: SETTLE, polling: 500 })
     await page.type('[data-testid="join-org-name-text"]', FAKE_ORG_NAME)

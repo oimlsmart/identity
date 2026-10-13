@@ -712,3 +712,38 @@ describe('the BIML door: the domain-proven self-invite', () => {
     }
   })
 })
+
+describe('the structured names + the pre-approved domains (0043, 2026-10-13)', () => {
+  it('the doors collect given/family — the queue carries them and the account derives the display name', async () => {
+    const res = await app.request(`${ORIGIN}/api/op/join-requests`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        given_name: 'Willemina', family_name: 'van der Berg',
+        email: 'willemina@lmi.example.org', org_id: 'ut-lmi-xg', requested_role: 'viewer',
+      }),
+    })
+    expect(res.status).toBe(201)
+    const { getStore } = await import('../../server/store')
+    const queue = await getStore().listOrgJoinRequests({ scope: 'org', orgId: 'ut-lmi-xg', status: 'pending' })
+    const row = queue.find(r => r.email === 'willemina@lmi.example.org')
+    expect(row?.givenName).toBe('Willemina')
+    expect(row?.familyName).toBe('van der Berg')
+    expect(row?.name, 'the display name derives').toBe('Willemina van der Berg')
+    // The legacy shape still works (the API's own clients).
+    const legacy = await app.request(`${ORIGIN}/api/op/join-requests`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'One Name Only', email: 'legacy@lmi.example.org', org_id: 'ut-lmi-xg', requested_role: 'viewer' }),
+    })
+    expect(legacy.status).toBe(201)
+  })
+
+  it('the org’s verified domains ride the row and the public feed', async () => {
+    await store.updateOrgRegistryOrg('21', { emailDomains: ['etl.example.org', 'etl2.example.org'] }, 'the test')
+    const feed = await (await app.request(`${ORIGIN}/api/op/organizations`)).json() as Array<{ id: string; email_domains?: string[] | null }>
+    const tl = feed.find(o => o.id === '21')
+    expect(tl?.email_domains).toEqual(['etl.example.org', 'etl2.example.org'])
+    expect(feed.find(o => o.id === 'EX1')?.email_domains ?? null).toBeNull()
+  })
+})

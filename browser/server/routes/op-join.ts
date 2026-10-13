@@ -207,6 +207,10 @@ export function createOpJoinRouter(): Hono {
       kind: o.kind,
       country: o.country,
       roles: o.roles,
+      // 0043: the org's VERIFIED email domains (the pre-approved domain
+      // the join page shows and honestly compares) — public registry
+      // data, ops-managed.
+      email_domains: o.emailDomains,
     })))
   })
 
@@ -222,6 +226,8 @@ export function createOpJoinRouter(): Hono {
   router.post('/api/op/join-requests', async (c) => {
     const body = await c.req.json<{
       name?: string
+      given_name?: string
+      family_name?: string
       email?: string
       org_id?: string | null
       org_kind?: string | null
@@ -230,7 +236,11 @@ export function createOpJoinRouter(): Hono {
       requested_role?: string
       note?: string | null
     }>().catch(() => null)
-    const name = body?.name?.trim() ?? ''
+    // 0043: the doors collect the structured names (the OIDC claims'
+    // vocabulary); a bare `name` (the legacy/API shape) still works.
+    const givenName = body?.given_name?.trim() || null
+    const familyName = body?.family_name?.trim() || null
+    const name = body?.name?.trim() || [givenName, familyName].filter(Boolean).join(' ').trim()
     const email = body?.email?.trim().toLowerCase() ?? ''
     if (!body || !name || !email.includes('@')) {
       return c.json({ error: 'name and a work email are required' }, 400)
@@ -263,7 +273,7 @@ export function createOpJoinRouter(): Hono {
         }, 400)
       }
       const request = await getStore().createOrgJoinRequest({
-        name, email, orgId, orgNameText: null, requestedRole: role, note,
+        name, givenName, familyName, email, orgId, orgNameText: null, requestedRole: role, note,
       })
       return c.json(request, 201)
     }
@@ -311,6 +321,8 @@ export function createOpJoinRouter(): Hono {
       const invite = await issueAccountInvite(getStore(), {
         email,
         name,
+        givenName,
+        familyName,
         role: 'viewer',
         roles: ['viewer'],
         orgId: profile.identity.org_id,
@@ -367,7 +379,7 @@ export function createOpJoinRouter(): Hono {
       const match = domainMatches.find(o => o.name.toLowerCase() === orgNameText.toLowerCase()) ?? domainMatches[0] ?? null
       if (match) {
         const request = await store.createOrgJoinRequest({
-          name, email, orgId: match.id, orgNameText: null, requestedRole: 'applicant', note,
+          name, givenName, familyName, email, orgId: match.id, orgNameText: null, requestedRole: 'applicant', note,
         })
         return c.json({ ...request, organization: { id: match.id, name: match.name, created: false } }, 201)
       }
@@ -396,7 +408,7 @@ export function createOpJoinRouter(): Hono {
         metadata: { name: orgNameText, kind: 'manufacturer', participant_ref: null, self_registered: true, email },
       }))
       const request = await store.createOrgJoinRequest({
-        name, email, orgId: id, orgNameText: null, requestedRole: 'org_admin', note,
+        name, givenName, familyName, email, orgId: id, orgNameText: null, requestedRole: 'org_admin', note,
       })
       return c.json({ ...request, organization: { id, name: orgNameText, created: true } }, 201)
     }
@@ -409,7 +421,7 @@ export function createOpJoinRouter(): Hono {
       return c.json({ error: 'name your organization, or pick it from the register' }, 400)
     }
     const request = await getStore().createOrgJoinRequest({
-      name, email, orgId: null, orgNameText, requestedRole: 'org_admin', note,
+      name, givenName, familyName, email, orgId: null, orgNameText, requestedRole: 'org_admin', note,
     })
     return c.json(request, 201)
   })
@@ -564,6 +576,8 @@ export function createOpJoinRouter(): Hono {
     const invite = await issueAccountInvite(store, {
       email: request.email,
       name: request.name,
+      givenName: request.givenName,
+      familyName: request.familyName,
       role,
       roles: [role],
       orgId,

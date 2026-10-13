@@ -1,6 +1,10 @@
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
+  -- 0043 (2026-10-13): the structured person names (the OIDC claims'
+  -- vocabulary; the public intake collects them, name derives).
+  given_name TEXT,
+  family_name TEXT,
   name TEXT NOT NULL,
   avatar_url TEXT,
   provider TEXT NOT NULL DEFAULT 'demo',
@@ -589,6 +593,10 @@ CREATE INDEX IF NOT EXISTS idx_email_change_tokens_user ON email_change_tokens (
 CREATE TABLE IF NOT EXISTS org_join_requests (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  -- 0043 (2026-10-13): the structured names ride the queue into the
+  -- account (the approve carries them into the invite).
+  given_name TEXT,
+  family_name TEXT,
   email TEXT NOT NULL,
   -- The selected REGISTERED participant org (NULL = the not-listed path).
   org_id TEXT,
@@ -844,6 +852,10 @@ CREATE TABLE IF NOT EXISTS org_registry (
   -- Research Organization Registry id matched by the website-domain
   -- anchor in the member-domains pipeline. NULL = unmatched.
   ror_id TEXT,
+  -- 0043 (2026-10-13): the org's VERIFIED email domains (the
+  -- member-domains pipeline's artifact — the join page's pre-approved
+  -- domain, shown and honestly compared). A JSON array of strings.
+  email_domains TEXT,
   state TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   created_by TEXT,
@@ -1135,3 +1147,4 @@ CREATE TABLE IF NOT EXISTS pushed_authorization_requests (
   consumed INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+

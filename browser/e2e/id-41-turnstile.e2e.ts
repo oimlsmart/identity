@@ -209,7 +209,8 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
       })
       page.on('console', m => { if (m.type() === 'error') flog(page, `console ${m.text().slice(0, 200)}`) })
       // The not-listed path: a typed org name — no register search.
-      await page.type('[data-testid="join-name"]', 'Turnstile Probe')
+      await page.type('[data-testid="join-given-name"]', 'Turnstile')
+      await page.type('[data-testid="join-family-name"]', 'Probe')
       await page.type('[data-testid="join-email"]', `turnstile-probe-${Date.now()}@example.org`)
       await page.type('[data-testid="join-org-name-text"]', 'The Probe Cooperation')
       await page.evaluate(() => (document.querySelector('[data-testid="join-submit"]') as HTMLElement).click())

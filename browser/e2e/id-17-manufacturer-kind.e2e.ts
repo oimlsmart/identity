@@ -300,8 +300,9 @@ describe('TODO.register/01 — the manufacturer org kind (the identity profile)'
     await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
 
     await page.evaluate(() => (document.querySelector('[data-testid="join-door-manufacturer"]') as HTMLElement).click())
-    await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
-    await page.type('[data-testid="join-name"]', 'Dr. Sofia Mercer')
+    await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
+    await page.type('[data-testid="join-given-name"]', 'Sofia')
+      await page.type('[data-testid="join-family-name"]', 'Mercer')
     await page.type('[data-testid="join-email"]', FOUNDER_EMAIL)
     await page.waitForSelector('[data-testid="join-mfr-name"]', { timeout: SETTLE, polling: 500 })
     // The honest framing: the declared standing, never a participation.

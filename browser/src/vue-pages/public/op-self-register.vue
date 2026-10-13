@@ -384,6 +384,17 @@ onMounted(async () => {
 
       <!-- The start form (the pickers → the name → the work email →
            Turnstile → the attribution choice). -->
+      <!-- THE BARE START carries the doors' banner (2026-10-13): this
+           page is the registry-verified door of the join flow — the
+           visitor who landed here looking for the other ways in gets
+           the one-click hop to the doors. The ceremony states
+           (?token/?sent/?error) never show it. -->
+      <div v-if="!loading && !sentTerminal && !activeToken && !attribution" class="mb-4 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800" data-testid="selfreg-doors-banner">
+        <p class="text-sm text-brand-900 dark:text-brand-200">
+          This is the <strong>registry-verified</strong> door — one of seven.
+          <router-link to="/op/join" class="font-medium underline" data-testid="selfreg-doors-link">See all the ways to request an account →</router-link>
+        </p>
+      </div>
       <form v-else class="space-y-4" @submit.prevent="start">
         <div class="relative">
           <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-country">{{ t('selfreg.countryLabel') }}</label>

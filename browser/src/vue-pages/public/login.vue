@@ -1037,13 +1037,11 @@ async function submitReset() {
             <p class="text-sm font-medium text-slate-900 dark:text-white">{{ t('login.paths.invited.title') }}</p>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.invited.body') }}</p>
           </div>
+          <!-- ONE front door (2026-10-13): the doors page routes
+               everything — including the registry-verified flow. -->
           <router-link to="/op/join" class="block rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50/50 dark:hover:bg-slate-800 transition-colors" data-testid="login-path-join">
-            <p class="text-sm font-medium text-brand-700 dark:text-brand-300">{{ t('login.paths.join.title') }} <span aria-hidden="true">→</span></p>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.join.body') }}</p>
-          </router-link>
-          <router-link to="/op/self-register" class="block rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50/50 dark:hover:bg-slate-800 transition-colors" data-testid="login-path-selfregister">
-            <p class="text-sm font-medium text-brand-700 dark:text-brand-300">{{ t('login.paths.selfregister.title') }} <span aria-hidden="true">→</span></p>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.selfregister.body') }}</p>
+            <p class="text-sm font-medium text-brand-700 dark:text-brand-300">{{ t('login.paths.account.title') }} <span aria-hidden="true">→</span></p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.account.body') }}</p>
           </router-link>
         </div>
       </div>

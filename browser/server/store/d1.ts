@@ -241,6 +241,8 @@ const WIPE_TABLES = ['entity_changes', 'evidence_records', 'entities', 'events',
 // evicts itself: the next call retries the heal.
 interface EnsureMemos {
   usersColumns: Promise<void> | null
+  userNameColumns: Promise<void> | null
+  orgJoinRequestsNameColumns: Promise<void> | null
   mfaEmailColumns: Promise<void> | null
   mfaTrustedDeviceSupport: Promise<void> | null
   sessionColumns: Promise<void> | null
@@ -268,7 +270,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
   let memos = ensureMemosByBinding.get(binding)
   if (!memos) {
     memos = {
-      usersColumns: null, mfaEmailColumns: null, mfaTrustedDeviceSupport: null, sessionColumns: null, membershipSupport: null,
+      usersColumns: null, userNameColumns: null, orgJoinRequestsNameColumns: null, mfaEmailColumns: null, mfaTrustedDeviceSupport: null, sessionColumns: null, membershipSupport: null,
       orgRegistrySupport: null, holderAttributionSupport: null,
       instrumentRegistrationSupport: null, oidcColumns: null,
       personalAccessTokenSupport: null, consentGrantSupport: null,
@@ -812,6 +814,8 @@ export class D1ServerStore implements ServerStore {
       if (!names.has('cs_status')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN cs_status TEXT').run()
       // The ROR id (0038, TODO.sota/05's enrichment).
       if (!names.has('ror_id')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN ror_id TEXT').run()
+      // 0043 (2026-10-13, the doors pass): the verified email domains.
+      if (!names.has('email_domains')) await this.db.prepare('ALTER TABLE org_registry ADD COLUMN email_domains TEXT').run()
     })
   }
 
@@ -885,6 +889,18 @@ export class D1ServerStore implements ServerStore {
       await this.db.prepare('CREATE INDEX IF NOT EXISTS idx_instrument_registrations_certificate ON instrument_registrations (certificate_id)').run()
       await this.db.prepare('CREATE INDEX IF NOT EXISTS idx_instrument_registrations_holder ON instrument_registrations (holder_org_id)').run()
       await this.db.prepare('CREATE INDEX IF NOT EXISTS idx_instrument_registrations_lifecycle ON instrument_registrations (lifecycle)').run()
+    })
+  }
+
+  // 0043 (2026-10-13, the doors pass): the join requests' structured
+  // person names arrive with the migration — a dev D1 migrated from
+  // before it lacks the columns, so the request methods ensure them
+  // defensively (the memoized posture).
+  private ensureOrgJoinRequestsSupport(): Promise<void> {
+    return ensured(this.binding, 'orgJoinRequestsNameColumns', async () => {
+      const cols = await this.db.prepare('PRAGMA table_info(org_join_requests)').all<{ name: string }>()
+      if (!cols.results.some(c => c.name === 'given_name')) await this.db.prepare('ALTER TABLE org_join_requests ADD COLUMN given_name TEXT').run()
+      if (!cols.results.some(c => c.name === 'family_name')) await this.db.prepare('ALTER TABLE org_join_requests ADD COLUMN family_name TEXT').run()
     })
   }
 
@@ -1005,6 +1021,17 @@ export class D1ServerStore implements ServerStore {
   // so the address methods ensure them defensively (the
   // ensureConsentGrantSupport posture, memoized per (binding, chain) at
   // module scope).
+  // 0043 (2026-10-13, the doors pass): the users table's structured
+  // person names arrive with the migration — the create paths ensure
+  // them defensively (the memoized posture).
+  private ensureUserNameColumns(): Promise<void> {
+    return ensured(this.binding, 'userNameColumns', async () => {
+      const cols = await this.db.prepare('PRAGMA table_info(users)').all<{ name: string }>()
+      if (!cols.results.some(c => c.name === 'given_name')) await this.db.prepare('ALTER TABLE users ADD COLUMN given_name TEXT').run()
+      if (!cols.results.some(c => c.name === 'family_name')) await this.db.prepare('ALTER TABLE users ADD COLUMN family_name TEXT').run()
+    })
+  }
+
   private ensureAccountEmailSupport(): Promise<void> {
     return ensured(this.binding, 'accountEmailSupport', async () => {
       await this.db.prepare(
@@ -1951,6 +1978,8 @@ export class D1ServerStore implements ServerStore {
   async createOpAccount(input: {
     email: string
     name: string
+    givenName?: string | null
+    familyName?: string | null
     role: string
     createdBy?: string | null
     orgId?: string
@@ -1963,14 +1992,16 @@ export class D1ServerStore implements ServerStore {
     // address as a new account's primary (an address names at most one
     // account; the users.email UNIQUE remains the race backstop).
     await this.ensureAccountEmailSupport()
+    await this.ensureUserNameColumns()
     const additional = await this.stmt('SELECT user_id FROM account_emails WHERE email = ?', input.email.trim().toLowerCase()).first<{ user_id: string }>()
     if (additional) return null
     const rolesJson = input.roles?.length ? JSON.stringify(input.roles) : null
     try {
       await this.stmt(
-        `INSERT INTO users (id, email, name, provider, role, org_id, roles, email_verified_at)
-         VALUES (?, ?, ?, 'password', ?, ?, ?, CASE WHEN ? THEN datetime('now') ELSE NULL END)`,
-        id, input.email.trim().toLowerCase(), input.name.trim(), input.role, input.orgId ?? null, rolesJson, input.emailVerified ? 1 : 0,
+        `INSERT INTO users (id, email, name, given_name, family_name, provider, role, org_id, roles, email_verified_at)
+         VALUES (?, ?, ?, ?, ?, 'password', ?, ?, ?, CASE WHEN ? THEN datetime('now') ELSE NULL END)`,
+        id, input.email.trim().toLowerCase(), input.name.trim(), input.givenName ?? null, input.familyName ?? null,
+        input.role, input.orgId ?? null, rolesJson, input.emailVerified ? 1 : 0,
       ).run()
     } catch (e) {
       if (String((e as Error).message).includes('UNIQUE')) return null
@@ -3593,6 +3624,8 @@ export class D1ServerStore implements ServerStore {
     return {
       id: row.id as string,
       name: row.name as string,
+      givenName: (row.given_name as string | null) ?? null,
+      familyName: (row.family_name as string | null) ?? null,
       email: row.email as string,
       orgId: (row.org_id as string | null) ?? null,
       orgNameText: (row.org_name_text as string | null) ?? null,
@@ -3609,6 +3642,8 @@ export class D1ServerStore implements ServerStore {
 
   async createOrgJoinRequest(input: {
     name: string
+    givenName?: string | null
+    familyName?: string | null
     email: string
     orgId: string | null
     orgNameText: string | null
@@ -3616,10 +3651,11 @@ export class D1ServerStore implements ServerStore {
     note?: string | null
   }): Promise<OrgJoinRequest> {
     const id = crypto.randomUUID()
+    await this.ensureOrgJoinRequestsSupport()
     await this.stmt(
-      `INSERT INTO org_join_requests (id, name, email, org_id, org_name_text, requested_role, note)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      id, input.name, input.email, input.orgId, input.orgNameText, input.requestedRole, input.note ?? null,
+      `INSERT INTO org_join_requests (id, name, given_name, family_name, email, org_id, org_name_text, requested_role, note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, input.name, input.givenName ?? null, input.familyName ?? null, input.email, input.orgId, input.orgNameText, input.requestedRole, input.note ?? null,
     ).run()
     return (await this.getOrgJoinRequest(id))!
   }
@@ -3867,6 +3903,14 @@ export class D1ServerStore implements ServerStore {
   // mirror the SQLite store's registry section one-for-one.
 
   private static toOrgRegistryOrg(row: Record<string, unknown>): OrgRegistryOrg {
+    let emailDomains: string[] | null = null
+    try {
+      const parsed = JSON.parse((row.email_domains as string | null) ?? 'null') as unknown
+      if (Array.isArray(parsed)) {
+        const domains = parsed.filter((d): d is string => typeof d === 'string' && /^[a-z0-9.-]+$/i.test(d.trim())).map(d => d.trim().toLowerCase())
+        emailDomains = domains.length ? domains : null
+      }
+    } catch { /* a malformed cell reads as none declared */ }
     let contacts: OrgRegistryContact[] = []
     try {
       const parsed = JSON.parse((row.contacts as string) ?? '[]') as unknown
@@ -3881,6 +3925,7 @@ export class D1ServerStore implements ServerStore {
       id: row.id as string,
       name: row.name as string,
       shortName: (row.short_name as string | null) ?? null,
+      emailDomains,
       kind: (row.kind as string | null) ?? null,
       country: (row.country as string | null) ?? null,
       contacts,
@@ -3932,6 +3977,7 @@ export class D1ServerStore implements ServerStore {
     id: string
     name: string
     shortName?: string | null
+    emailDomains?: string[] | null
     kind?: string | null
     country?: string | null
     contacts?: OrgRegistryContact[]
@@ -3944,11 +3990,12 @@ export class D1ServerStore implements ServerStore {
   }): Promise<OrgRegistryOrg | null> {
     await this.ensureOrgRegistrySupport()
     const res = await this.stmt(
-      `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, ror_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, ror_id, created_by, email_domains)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       input.id, input.name, input.shortName ?? null, input.kind ?? null, input.country ?? null,
       JSON.stringify(input.contacts ?? []), input.participantRef ?? null,
       input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.rorId ?? null, input.createdBy ?? null,
+      input.emailDomains?.length ? JSON.stringify(input.emailDomains) : null,
     ).run()
     if ((res.meta.changes ?? 0) === 0) return null
     return this.getOrgRegistryOrg(input.id)
@@ -3960,6 +4007,7 @@ export class D1ServerStore implements ServerStore {
     patch: {
       name?: string
       shortName?: string | null
+      emailDomains?: string[] | null
       kind?: string | null
       country?: string | null
       contacts?: OrgRegistryContact[]
@@ -3976,6 +4024,7 @@ export class D1ServerStore implements ServerStore {
     const params: unknown[] = []
     if (patch.name !== undefined) { sets.push('name = ?'); params.push(patch.name) }
     if (patch.shortName !== undefined) { sets.push('short_name = ?'); params.push(patch.shortName) }
+    if (patch.emailDomains !== undefined) { sets.push('email_domains = ?'); params.push(patch.emailDomains?.length ? JSON.stringify(patch.emailDomains) : null) }
     if (patch.kind !== undefined) { sets.push('kind = ?'); params.push(patch.kind) }
     if (patch.country !== undefined) { sets.push('country = ?'); params.push(patch.country) }
     if (patch.contacts !== undefined) { sets.push('contacts = ?'); params.push(JSON.stringify(patch.contacts)) }
