@@ -645,3 +645,70 @@ demo_personas: true
     }
   })
 })
+
+// ── the BIML door (2026-10-13): the domain-proven self-invite ────────
+// "I work for the OIML/BIML" — the join page's own door. BIML staff
+// hold @oiml.org addresses; the domain IS the claim, the one-time
+// enrollment link IS the mailbox proof (the admin-invite ceremony,
+// self-served). No queue row, no decision wait: the account is minted
+// unreachable (the invite posture) into the operator's own org with
+// the floor role — the admins promote; a public form never grants.
+
+describe('the BIML door: the domain-proven self-invite', () => {
+  const ask = (email: string) => app.request(`${ORIGIN}/api/op/join-requests`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Biml Staffer', email, org_kind: 'biml' }),
+  })
+
+  it('refuses a non-BIML domain honestly — nothing is minted', async () => {
+    const before = (await store.listUsers()).length
+    const res = await ask('impostor@example.com')
+    expect(res.status).toBe(400)
+    const body = await json(res, 400)
+    expect(body.error).toContain('oiml.org')
+    expect((await store.listUsers()).length).toBe(before)
+  })
+
+  it('invites an @oiml.org ask: the account exists unreachable, bound to the operator org with the floor role; the link rides only the mail', { timeout: 30_000 }, async () => {
+    const res = await ask('staffer@oiml.org')
+    expect(res.status).toBe(201)
+    const body = await json(res, 201)
+    expect(body.invited).toBe(true)
+    // The link NEVER rides the public answer — it goes by mail.
+    expect(JSON.stringify(body)).not.toContain('setup')
+    // The account: minted, unreachable, bound to the instance's own org
+    // (the operator org), floor role.
+    const account = await store.findUserByEmail('staffer@oiml.org')
+    expect(account, 'the account is minted').toBeTruthy()
+    expect(account!.orgId).toBe('oimlsmart-id')
+    expect(account!.roles).toContain('viewer')
+    expect(await store.getPasswordLogin('staffer@oiml.org'), 'no password: the enrollment link is the way in').toBeFalsy()
+    // The invite's one-time link exists for the account (the enrollment
+    // row) — the mailbox proof that stands between the ask and the
+    // first sign-in.
+    const links = await store.listUsers()
+    expect(links.find(u => u.email === 'staffer@oiml.org')?.email).toBe('staffer@oiml.org')
+  })
+
+  it('refuses an ask for an address that already holds an account — the sign-in pointer, no second account', { timeout: 30_000 }, async () => {
+    const before = (await store.listUsers()).length
+    const res = await ask('staffer@oiml.org')
+    expect(res.status).toBe(409)
+    const body = await json(res, 409)
+    expect(body.error).toContain('already hold an account')
+    expect((await store.listUsers()).length).toBe(before)
+  })
+
+  it('reads OP_BIML_DOMAINS (the comma list) — the deployment may declare more doors', { timeout: 30_000 }, async () => {
+    process.env.OP_BIML_DOMAINS = 'oiml.org,biml.example'
+    try {
+      const res = await ask('other@biml.example')
+      expect(res.status).toBe(201)
+      await json(res, 201)
+      expect((await store.findUserByEmail('other@biml.example'))?.orgId).toBe('oimlsmart-id')
+    } finally {
+      delete process.env.OP_BIML_DOMAINS
+    }
+  })
+})

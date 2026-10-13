@@ -818,6 +818,34 @@ audited (`email.rate_limited`, the `lane` named).
 (the override door), `factor.email_otp_sent` (every mailed code),
 `account.sign_in` with method `password+email_otp`.
 
+### The public join doors (2026-10-13)
+
+The join page leads with a question — six doors, and the answer dictates
+the form and the lane:
+
+| Door | Form | Lane |
+|---|---|---|
+| An OIML-CS Issuing Authority | the register picker, IA orgs only + the kind-bounded staff role | the org's administrator approves |
+| An OIML-CS Test Laboratory | the register picker, TL orgs only | the org's administrator approves |
+| An OIML Member (Member State or Corresponding Member) | the register picker, the four member kinds; the read/access roles only | the org's administrator approves |
+| A manufacturer of measuring instruments | the organization's name + country; the domain hint decides who decides | its manufacturer org's administrator, or BIML for the founding |
+| I work for the OIML/BIML | name + work email | **no queue** — see below |
+| Others | the organization's name; the note | BIML verifies the participation (PD-03/PD-09) |
+
+**The BIML door** is the operator's own, domain-proven: the intake
+accepts `org_kind: 'biml'`, checks the address's domain against
+`OP_BIML_DOMAINS` (default `oiml.org`; a comma list), and — on match —
+runs the admin-invite ceremony self-served: the account is minted
+UNREACHABLE (no password; the invite posture), bound to the instance's
+own org (`identity.org_id`) with the floor role (`viewer` — the admins
+promote; a public form never grants), and the one-time 24 h setup link
+goes by email only. The link IS the decision: no queue row, no admin
+act. Bounds: the OP rate limiter, Turnstile on the POST, the critical
+mail lane's per-recipient budget, one account per address (a second ask
+answers 409 with the sign-in pointer), and a non-BIML domain refuses
+with nothing minted. The act audits `account.invite` with
+`invitedBy: 'join-biml'`.
+
 ### Webhooks (account lifecycle events)
 
 Six events ride webhooks today (the whitelist in

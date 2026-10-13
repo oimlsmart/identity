@@ -1,30 +1,36 @@
 <script setup lang="ts">
 // ═══════════════════════════════════════════════════════════════════
 // "Request an account" (TODO.identity/10) — the OP's public,
-// self-service join intake. The requester picks their organization FROM
-// THE PARTICIPANTS REGISTER (the selector is fed by
-// /api/op/organizations — REGISTERED orgs only, never a typed name) and
-// asks for the role their work needs (the options are bounded by the
-// org's kind — an IA's staff get ia_officer etc.). The request lands
-// with the ORG's administrator — approval comes from the requester's
-// own organization, never from BIML and never automatically.
+// self-service join intake, led by THE QUESTION (2026-10-13): before
+// any form, the page asks what best describes you — six doors, and the
+// answer dictates the form:
 //
-// The "my organization is not listed" path names the org in free text
-// and lands with BIML (the new-organizations queue): BIML verifies the
-// participation (PD-03/PD-09), and the requester becomes the org's
-// administrator once the org is registered.
+//   An OIML-CS Issuing Authority        → the register, IA orgs only
+//   An OIML-CS Test Laboratory          → the register, TL orgs only
+//   An OIML Member (Member State or     → the register, member orgs
+//     Corresponding Member)               (the four member kinds)
+//   A manufacturer of measuring         → the manufacturer path
+//     instruments                         (TODO.register/01: the
+//                                         DECLARED standing, never a
+//                                         participant)
+//   I work for the OIML/BIML            → the BIML door: an @oiml.org
+//                                         address, the one-time setup
+//                                         link proves the mailbox, no
+//                                         queue
+//   Others                              → the not-listed path (BIML's
+//                                         new-organizations queue,
+//                                         PD-03/PD-09)
 //
-// The MANUFACTURER path (TODO.register/01): "my organization
-// manufactures measuring instruments". A manufacturer org is NOT an
-// OIML-CS participant — its registry standing is DECLARED on
-// self-registration (the founder's work email declares the domain
-// hint), upgradeable to IA-endorsed by an issuing authority's
-// confirmation. When the work email's domain matches an already
-// registered manufacturer org's declared domain, the request JOINS it
-// (its administrator decides); otherwise the org is created with the
-// declared standing and the founder's administrator ask lands with
-// BIML. The page says all of this honestly — the kind is the proof,
-// never the claim.
+// The register door forms pick the organization FROM THE PARTICIPANTS
+// REGISTER (the selector is fed by /api/op/organizations — REGISTERED
+// orgs only, never a typed name) and ask for the role the org's kind
+// bounds (an IA's staff get ia_officer etc.). The request lands with
+// the ORG's administrator — approval comes from the requester's own
+// organization, never from BIML and never automatically. The
+// manufacturer and Others doors keep their own honest copy. The BIML
+// door's account is minted UNREACHABLE (the invite posture) into the
+// operator's own org with the floor role — the link is the decision;
+// the admins promote from there.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../../components/BrandLogo.vue'
@@ -33,6 +39,8 @@ import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 import { orgKindLabelKey, orgRoleGlossKey } from '../../org-vocabulary'
+
+type JoinDoor = 'ia' | 'tl' | 'member' | 'manufacturer' | 'biml' | 'others'
 
 interface SelectorOrg {
   id: string
@@ -43,6 +51,30 @@ interface SelectorOrg {
   roles: string[]
 }
 
+interface DoorDef {
+  key: JoinDoor
+  title: string
+  blurb: string
+}
+
+const DOORS: ReadonlyArray<DoorDef> = [
+  { key: 'ia', title: 'An OIML-CS Issuing Authority', blurb: 'Your authority issues OIML-CS certificates. Pick it from the register, then ask for your staff role.' },
+  { key: 'tl', title: 'An OIML-CS Test Laboratory', blurb: 'Your laboratory tests measuring instruments for the OIML-CS. Pick it from the register, then ask for your staff role.' },
+  { key: 'member', title: 'An OIML Member (Member State or Corresponding Member)', blurb: 'Your national body participates in the OIML. Its personnel join on the read/access posture.' },
+  { key: 'manufacturer', title: 'A manufacturer of measuring instruments', blurb: 'Register your organization with the declared manufacturer standing — a manufacturer is not an OIML-CS participant.' },
+  { key: 'biml', title: 'I work for the OIML/BIML', blurb: 'Bureau and OIML staff hold an @oiml.org address. The one-time setup link proves the mailbox — no waiting queue.' },
+  { key: 'others', title: 'Others', blurb: 'None of these — name your organization and the BIML secretariat verifies the participation.' },
+]
+
+/** The register doors' picker filters (the org kinds each door offers).
+ *  The manufacturer never picks from the register; the BIML and Others
+ *  doors name no organization at all. */
+const PICKER_KINDS: Partial<Record<JoinDoor, ReadonlyArray<string>>> = {
+  ia: ['issuing-authority'],
+  tl: ['test-laboratory'],
+  member: ['member-state', 'corresponding-member', 'utilizer', 'associate'],
+}
+
 const { branding } = useBranding()
 
 const loading = ref(true)
@@ -51,13 +83,13 @@ const loading = ref(true)
 const served = ref<boolean | null>(null)
 const orgs = ref<SelectorOrg[]>([])
 
+/** THE QUESTION: null = the door step. */
+const door = ref<JoinDoor | null>(null)
+
 const name = ref('')
 const email = ref('')
 const orgSearch = ref('')
 const selectedOrgId = ref<string | null>(null)
-const notListed = ref(false)
-/** The TODO.register/01 manufacturer path. */
-const manufacturer = ref(false)
 const orgNameText = ref('')
 const orgCountry = ref('')
 const requestedRole = ref('')
@@ -71,8 +103,9 @@ const turnstileField = ref<InstanceType<typeof TurnstileField> | null>(null)
 onMounted(async () => {
   turnstileSiteKey.value = await fetchTurnstileSiteKey()
 })
-/** The success panel's copy once the request is filed. */
-const filed = ref<{ queue: 'org' | 'biml' | 'manufacturer'; orgName: string; orgCreated?: boolean } | null>(null)
+/** The success panel's copy once the request is filed. 'biml-invite' is
+ *  the BIML door's own posture (the link IS the decision — no queue). */
+const filed = ref<{ queue: 'org' | 'biml' | 'manufacturer' | 'biml-invite'; orgName: string; orgCreated?: boolean; email?: string } | null>(null)
 
 // The kind and role vocabulary rides the ONE shared module
 // (TODO.restructure/07 — src/org-vocabulary.ts): the same labels and
@@ -88,15 +121,18 @@ function roleGloss(role: string): string {
   return key ? t(key) : role
 }
 
-const selectedOrg = computed(() => orgs.value.find(o => o.id === selectedOrgId.value) ?? null)
+const doorDef = computed(() => DOORS.find(d => d.key === door.value) ?? null)
+const pickerKinds = computed(() => (door.value ? PICKER_KINDS[door.value] ?? null : null))
+/** The picker's visible options: THIS door's kinds only. */
+const doorOrgs = computed(() => {
+  if (!pickerKinds.value) return []
+  return orgs.value.filter(o => pickerKinds.value!.includes(o.kind))
+})
 
-/** The selector's visible options: the search box filters by name,
- *  short name, country and kind (registered orgs only — the feed never
- *  carries an unregistered one). */
 const filteredOrgs = computed(() => {
   const q = orgSearch.value.trim().toLowerCase()
-  if (!q) return orgs.value
-  return orgs.value.filter(o =>
+  if (!q) return doorOrgs.value
+  return doorOrgs.value.filter(o =>
     o.name.toLowerCase().includes(q)
     || o.shortName.toLowerCase().includes(q)
     || o.country.toLowerCase().includes(q)
@@ -105,11 +141,13 @@ const filteredOrgs = computed(() => {
 })
 
 const roleOptions = computed(() => selectedOrg.value?.roles ?? [])
+const selectedOrg = computed(() => orgs.value.find(o => o.id === selectedOrgId.value) ?? null)
 
 const canSubmit = computed(() => {
   if (submitting.value) return false
-  if (!name.value.trim() || !email.value.includes('@')) return false
-  if (manufacturer.value || notListed.value) return !!orgNameText.value.trim()
+  if (!name.value.trim() || !email.value.trim().includes('@')) return false
+  if (door.value === 'manufacturer' || door.value === 'others') return !!orgNameText.value.trim()
+  if (door.value === 'biml') return true
   return !!selectedOrg.value && !!requestedRole.value
 })
 
@@ -118,18 +156,21 @@ function pickOrg(id: string) {
   requestedRole.value = ''
 }
 
-/** The three intake paths are mutually exclusive (the register selector,
- *  the manufacturer path, the not-listed path). */
-function setPath(path: 'register' | 'manufacturer' | 'not-listed') {
-  notListed.value = path === 'not-listed'
-  manufacturer.value = path === 'manufacturer'
+function pickDoor(key: JoinDoor) {
+  door.value = key
   selectedOrgId.value = null
   requestedRole.value = ''
+  orgSearch.value = ''
+  error.value = null
+}
+
+function backToDoors() {
+  door.value = null
   error.value = null
 }
 
 async function submit() {
-  if (!canSubmit.value) return
+  if (!canSubmit.value || !door.value) return
   submitting.value = true
   error.value = null
   try {
@@ -142,29 +183,15 @@ async function submit() {
         return
       }
     }
-    const payload = manufacturer.value
-      ? {
-          name: name.value.trim(),
-          email: email.value.trim(),
-          org_kind: 'manufacturer',
-          org_name_text: orgNameText.value.trim(),
-          country: orgCountry.value.trim() || undefined,
-          note: note.value.trim() || undefined,
-        }
-      : notListed.value
-        ? {
-            name: name.value.trim(),
-            email: email.value.trim(),
-            org_name_text: orgNameText.value.trim(),
-            note: note.value.trim() || undefined,
-          }
-        : {
-            name: name.value.trim(),
-            email: email.value.trim(),
-            org_id: selectedOrgId.value,
-            requested_role: requestedRole.value,
-            note: note.value.trim() || undefined,
-          }
+    const shared = { name: name.value.trim(), email: email.value.trim(), note: note.value.trim() || undefined }
+    const payload =
+      door.value === 'manufacturer'
+        ? { ...shared, org_kind: 'manufacturer', org_name_text: orgNameText.value.trim(), country: orgCountry.value.trim() || undefined }
+        : door.value === 'biml'
+          ? { ...shared, org_kind: 'biml' }
+          : door.value === 'others'
+            ? { ...shared, org_name_text: orgNameText.value.trim() }
+            : { ...shared, org_id: selectedOrgId.value, requested_role: requestedRole.value }
     const res = await fetch('/api/op/join-requests', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -176,15 +203,18 @@ async function submit() {
       error.value = body.error ?? `The request could not be filed (${res.status}).`
       return
     }
-    if (manufacturer.value) {
+    if (door.value === 'manufacturer') {
       const created = await res.json().catch(() => ({})) as { organization?: { name: string; created: boolean } }
       filed.value = {
         queue: 'manufacturer',
         orgName: created.organization?.name ?? orgNameText.value.trim(),
         orgCreated: created.organization?.created ?? false,
       }
+    } else if (door.value === 'biml') {
+      const created = await res.json().catch(() => ({})) as { invited?: boolean; org?: string }
+      filed.value = { queue: 'biml-invite', orgName: created.org ?? '', email: email.value.trim() }
     } else {
-      filed.value = notListed.value
+      filed.value = door.value === 'others'
         ? { queue: 'biml', orgName: orgNameText.value.trim() }
         : { queue: 'org', orgName: selectedOrg.value?.name ?? 'your organization' }
     }
@@ -238,6 +268,12 @@ onMounted(async () => {
           Your request is with <strong>{{ filed.orgName }}</strong>’s administrator. Approval comes from
           your organization — you will receive your invite when they approve it.
         </p>
+        <p v-else-if="filed.queue === 'biml-invite'" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-biml-invite">
+          Your setup link is on its way to <strong>{{ filed.email }}</strong> — it works once and stays
+          valid for 24 hours. Until you complete it, the account cannot sign in: the link <em>is</em> the
+          decision — the mailbox proof. No queue, no waiting. If the mail does not arrive, check the spam
+          folder and file again.
+        </p>
         <p v-else-if="filed.queue === 'manufacturer' && filed.orgCreated" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-manufacturer-created">
           <strong>{{ filed.orgName }}</strong> is registered on the identity service with the
           <strong>declared</strong> manufacturer standing (not an OIML-CS participation). Your request to
@@ -256,12 +292,12 @@ onMounted(async () => {
       </div>
 
       <template v-else>
-        <!-- The honest framing: approval comes from your organization -->
+        <!-- The honest framing: the answer decides where the request goes -->
         <div class="mb-4 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
           <p class="text-sm text-brand-900 dark:text-brand-200" data-testid="join-framing">
-            Accounts are issued per organization: your request goes to <strong>your organization’s
-            administrator</strong>, who verifies and approves it. If your organization is not on the OIML-CS
-            participants register yet, the BIML secretariat handles the request instead.
+            Pick the description that matches you — it decides what the form asks and where the request
+            goes: your <strong>organization’s administrator</strong>, the <strong>BIML secretariat</strong>,
+            or (BIML and OIML staff) straight to your mailbox.
           </p>
         </div>
 
@@ -270,7 +306,38 @@ onMounted(async () => {
           <p class="text-sm text-red-700 dark:text-red-300" data-testid="join-error">{{ error }}</p>
         </div>
 
-        <form class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-4" @submit.prevent="submit">
+        <!-- THE QUESTION: six doors, the answer dictates the form -->
+        <div v-if="!door" role="radiogroup" aria-label="What best describes you?" data-testid="join-doors">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">What best describes you?</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              v-for="d in DOORS"
+              :key="d.key"
+              type="button"
+              role="radio"
+              :aria-checked="false"
+              :data-testid="`join-door-${d.key}`"
+              class="text-left rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 hover:border-brand-500 dark:hover:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
+              @click="pickDoor(d.key)"
+            >
+              <span class="block text-sm font-semibold text-slate-900 dark:text-white">{{ d.title }}</span>
+              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">{{ d.blurb }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- THE DOOR'S FORM -->
+        <form v-else class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-4" @submit.prevent="submit">
+          <div>
+            <button
+              type="button"
+              class="text-xs text-brand-600 dark:text-brand-300 hover:underline"
+              data-testid="join-door-back"
+              @click="backToDoors"
+            >← Choose a different description</button>
+            <h2 class="mt-1 text-sm font-semibold text-slate-900 dark:text-white" data-testid="join-door-title">{{ doorDef?.title }}</h2>
+          </div>
+
           <div>
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-name">Full name</label>
             <input
@@ -292,12 +359,13 @@ onMounted(async () => {
               required
               data-testid="join-email"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="jane.doe@your-organization.example"
+              :placeholder="door === 'biml' ? 'jane.doe@oiml.org' : 'jane.doe@your-organization.example'"
             />
           </div>
 
-          <!-- The organization selector (the register, never a typed name) -->
-          <div v-if="!notListed && !manufacturer">
+          <!-- The register doors: the organization selector (the register,
+               never a typed name), THIS door's kinds only -->
+          <div v-if="pickerKinds">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-org-search">Organization</label>
             <input
               id="join-org-search"
@@ -325,23 +393,18 @@ onMounted(async () => {
               </li>
             </ul>
             <p v-else class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-org-empty">
-              No registered organization matches — check the spelling, or use the “not listed” path below.
+              No organization of this kind is on the register yet{{ orgSearch ? ' — check the spelling' : '' }}. If your organization should be here, use the “Others” door so the BIML secretariat can verify its participation.
             </p>
-            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              Only organizations on the OIML-CS participants register can be picked.
-              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-manufacturer" @click="setPath('manufacturer')">
-                My organization manufactures measuring instruments
-              </button>
-              ·
-              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-not-listed" @click="setPath('not-listed')">
-                My organization is not listed
+            <p v-if="!filteredOrgs.length" class="mt-2 text-xs">
+              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-others-from-picker" @click="pickDoor('others')">
+                My organization is none of these
               </button>
             </p>
           </div>
 
-          <!-- The manufacturer path (TODO.register/01): the declared
+          <!-- The manufacturer door (TODO.register/01): the declared
                standing, honestly — never an OIML-CS participation. -->
-          <div v-else-if="manufacturer">
+          <div v-else-if="door === 'manufacturer'">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-mfr-name">Your organization’s name</label>
             <input
               id="join-mfr-name"
@@ -371,13 +434,20 @@ onMounted(async () => {
               manufacturer organization, your request goes to its administrator to join it; otherwise the
               organization is created and you become its administrator once the BIML secretariat confirms
               the founding.
-              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-mfr-back" @click="setPath('register')">
-                Pick from the register instead
-              </button>
             </p>
           </div>
 
-          <!-- The not-listed path (BIML's queue) -->
+          <!-- The BIML door: the domain is the claim, the link is the proof -->
+          <div v-else-if="door === 'biml'">
+            <p class="text-xs text-slate-500 dark:text-slate-400" data-testid="join-biml-note">
+              BIML and OIML staff hold an <strong>@oiml.org</strong> address. Filing here mints your account
+              immediately and mails the one-time setup link to that address — the mailbox proof. The link
+              works once and stays valid for 24 hours. The account starts with the floor role in the
+              operator’s organization; the administrators grant more as your work requires.
+            </p>
+          </div>
+
+          <!-- The Others door (BIML's new-organizations queue) -->
           <div v-else>
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-org-name-text">Your organization’s name</label>
             <input
@@ -393,14 +463,11 @@ onMounted(async () => {
               Your request goes to the <strong>BIML secretariat</strong>: they verify organizations joining
               the OIML-CS (the participation procedures PD-03/PD-09). Once your organization is registered,
               you become its organization administrator.
-              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-listed" @click="setPath('register')">
-                Pick from the register instead
-              </button>
             </p>
           </div>
 
-          <!-- The role asked for (bounded by the org's kind) -->
-          <div v-if="!notListed && !manufacturer && selectedOrg">
+          <!-- The role asked for (the register doors, bounded by the org's kind) -->
+          <div v-if="pickerKinds && selectedOrg">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-role">Role you are asking for</label>
             <select
               id="join-role"
@@ -430,7 +497,7 @@ onMounted(async () => {
               rows="2"
               data-testid="join-note"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="Anything that helps your administrator recognize the request (your team, your manager)."
+              :placeholder="door === 'biml' ? 'Anything that helps the administrators recognize you (your team, your role at the Bureau).' : 'Anything that helps your administrator recognize the request (your team, your manager).'            "
             />
           </div>
 
@@ -443,7 +510,7 @@ onMounted(async () => {
             class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            {{ submitting ? 'Filing…' : 'Request the account' }}
+            {{ submitting ? 'Filing…' : (door === 'biml' ? 'Request my setup link' : 'Request the account') }}
           </button>
         </form>
 

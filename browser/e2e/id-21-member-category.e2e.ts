@@ -277,18 +277,18 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
 
   it('leg 1 — the join page offers the OIML MEMBER orgs honestly; the member’s personnel file for the read/access role', { timeout: 900_000 }, async () => {
     await page.goto(`${stack.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await page.waitForSelector('[data-testid="op-join"]', { timeout: SETTLE, polling: 500 })
-
-    // The selector carries the member state + the corresponding member,
-    // LABELED as the category — never a conflation with a utilizer.
+    await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
+    // The member door: the picker carries the member state + the
+    // corresponding member, LABELED as the category — never a conflation
+    // with a utilizer — and NEVER a participant org or the disabled
+    // mid-pipeline IA (the honesty the feed always had).
+    await page.evaluate(() => (document.querySelector('[data-testid="join-door-member"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="join-org-option-ms-example"]', { timeout: SETTLE, polling: 500 })
     const memberOption = await page.$eval('[data-testid="join-org-option-ms-example"]', el => el.textContent ?? '')
     expect(memberOption).toContain('OIML Member — Member State')
     const cmOption = await page.$eval('[data-testid="join-org-option-cm-demo"]', el => el.textContent ?? '')
     expect(cmOption).toContain('OIML Member — Corresponding Member')
-    // …the participants ride as before, and the disabled/mid-pipeline IA
-    // never appears (the honesty the feed always had).
-    await page.waitForSelector('[data-testid="join-org-option-EX1"]', { timeout: SETTLE, polling: 500 })
+    expect(await page.$('[data-testid="join-org-option-EX1"]')).toBeNull()
     expect(await page.$('[data-testid="join-org-option-XX1"]')).toBeNull()
 
     // The member state's personnel file against their member org.

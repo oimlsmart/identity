@@ -158,6 +158,29 @@ export function createOpJoinRouter(): Hono {
     }))
   }
 
+  /** The door acts' audit (no request row behind them — the BIML
+   *  self-invite mints an account, not a queue entry; the same
+   *  auditEvents envelope, the account entity). Never throws (the
+   *  admin-invite audit's posture). */
+  async function auditEvent(action: string, entityId: string, userName: string, metadata: Record<string, unknown>): Promise<void> {
+    try {
+      const id = crypto.randomUUID()
+      await getStore().putEntity('auditEvents', id, null, JSON.stringify({
+        id,
+        timestamp: new Date().toISOString(),
+        standard_id: '',
+        entity_type: 'account',
+        entity_id: entityId,
+        action,
+        user_id: null,
+        user_name: userName,
+        metadata,
+      }))
+    } catch (err) {
+      console.error(`[op] join door audit event ${action} failed to persist:`, (err as Error).message)
+    }
+  }
+
   // ── the public selector feed ───────────────────────────────────────
 
   // GET /api/op/organizations — the REGISTERED participant orgs plus the
@@ -258,6 +281,68 @@ export function createOpJoinRouter(): Hono {
     //    manufacturer org NEVER gains the participant standing — the
     //    kind's honesty is the scheme's liability shield.
     const orgKind = typeof body.org_kind === 'string' && body.org_kind.trim() ? body.org_kind.trim() : null
+    // ── the BIML door (2026-10-13): "I work for the OIML/BIML" ─────────
+    // BIML and OIML staff hold @oiml.org addresses — the domain IS the
+    // claim, and the one-time enrollment link IS the mailbox proof (the
+    // admin-invite ceremony, self-served). No queue row and no decision
+    // wait: the account is minted UNREACHABLE (the invite posture — no
+    // password until the link completes) into the operator's own org
+    // with the floor role; the admins promote from there — a public
+    // form never grants. The link rides the mail only, never the
+    // answer. The bounds: the OP rate limiter (app.ts), Turnstile on
+    // this POST, the critical mail lane's per-recipient budget, and one
+    // account per address.
+    if (orgKind === 'biml') {
+      const declared = runtimeEnv<Record<string, string | undefined>>(c).OP_BIML_DOMAINS?.trim()
+      const bimlDomains = (declared || 'oiml.org').split(',').map(d => d.trim().toLowerCase()).filter(Boolean)
+      const domain = emailDomain(email)
+      if (!bimlDomains.includes(domain)) {
+        return c.json({
+          error: `BIML and OIML staff hold an @${bimlDomains[0] ?? 'oiml.org'} address — this door files only for those. If that is not you, go back and pick the description that matches your organization.`,
+        }, 400)
+      }
+      if (await getStore().findUserByEmail(email)) {
+        return c.json({
+          error: 'you already hold an account on this service — sign in instead (the "Forgot your password?" link is on the sign-in page)',
+        }, 409)
+      }
+      const profile = getInstanceProfile()
+      const issuer = opRequestOrigin(c.req.raw)
+      const invite = await issueAccountInvite(getStore(), {
+        email,
+        name,
+        role: 'viewer',
+        roles: ['viewer'],
+        orgId: profile.identity.org_id,
+        invitedBy: 'join-biml',
+        issuer,
+      })
+      if (!invite) {
+        return c.json({ error: 'you already hold an account on this service — sign in instead' }, 409)
+      }
+      // The setup link goes BY EMAIL (the admin invite's own posture —
+      // the send never fails the ask; the holder retries if the mail
+      // bounces). The link never rides the public answer.
+      await sendOpMail(runtimeEnv<MailEnv>(c), {
+        to: email,
+        template: 'invite',
+        issuer,
+        params: {
+          name,
+          setupUrl: invite.setupUrl,
+          hours: Math.round(OP_ENROLLMENT_TTL_MS / 3_600_000),
+        },
+      })
+      await auditEvent('account.invite', invite.user.id, name, {
+        email,
+        role: 'viewer',
+        roles: ['viewer'],
+        org_id: profile.identity.org_id,
+        invitedBy: 'join-biml',
+        door: 'biml',
+      })
+      return c.json({ invited: true, org: profile.identity.org_name }, 201)
+    }
     if (orgKind) {
       if (orgKind !== 'manufacturer') {
         return c.json({
