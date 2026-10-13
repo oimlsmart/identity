@@ -163,6 +163,7 @@ import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markB
 import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { clearMailBudgetForAccount, sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
+import { deviceSummary } from '../auth/op/device-summary'
 import { resolveMailerConfig, type MailEnv } from '../mailer'
 import { isActiveRegistryOrg, listRegistryOrganizations, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { parseOpClientSeed, seedOidcClientsFromEnv } from '../auth/op/registry'
@@ -382,6 +383,7 @@ export function createOpAccountsRouter(): Hono {
    *  primary PLUS every verified additional (the "was this you?" must
    *  reach every proven mailbox — auth/op/mail.ts's sendOpSecurityMail). */
   async function notifySignIn(c: Context, user: { id: string; email: string; name: string }, newDevice = false): Promise<void> {
+    const info = clientInfo(c)
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId: user.id,
@@ -389,7 +391,15 @@ export function createOpAccountsRouter(): Hono {
       issuer,
       // TODO.modern/06: the NEW DEVICE advisory rides the notice when
       // the assessment flagged the sighting (absent = unchanged mail).
-      params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), ...(newDevice ? { newDevice: true } : {}) },
+      // 2026-10-13 (the GitHub/Google parity): the notice names WHAT and
+      // WHERE the act came from.
+      params: {
+        name: user.name,
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        fromDevice: deviceSummary(info.userAgent),
+        fromIp: info.ip ?? '',
+        ...(newDevice ? { newDevice: true } : {}),
+      },
     })
   }
 
@@ -397,7 +407,8 @@ export function createOpAccountsRouter(): Hono {
    *  enrollment completion and the console change share it — one copy
    *  ("set or changed") for both ceremonies. Never blocks the path (the
    *  notifySignIn rule: a mail failure is never the flow's failure). */
-  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }, opts: { emailFallbackHour?: boolean; factorsRevoked?: boolean } = {}): Promise<void> {
+  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }, opts: { emailFallbackHour?: boolean; factorsRevoked?: boolean; otherSessionsRevoked?: number } = {}): Promise<void> {
+    const info = clientInfo(c)
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId: user.id,
@@ -406,6 +417,9 @@ export function createOpAccountsRouter(): Hono {
       params: {
         name: user.name,
         when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        fromDevice: deviceSummary(info.userAgent),
+        fromIp: info.ip ?? '',
+        ...(opts.otherSessionsRevoked !== undefined ? { otherSessionsRevoked: opts.otherSessionsRevoked } : {}),
         ...(opts.emailFallbackHour ? { emailFallbackHour: true } : {}),
         ...(opts.factorsRevoked ? { factorsRevoked: true } : {}),
       },
@@ -706,7 +720,13 @@ export function createOpAccountsRouter(): Hono {
         to: email,
         template: 'reset',
         issuer,
-        params: { name: account.name, setupUrl, hours: Math.round(OP_ENROLLMENT_TTL_MS / 3_600_000) },
+        params: {
+          name: account.name,
+          setupUrl,
+          hours: Math.round(OP_ENROLLMENT_TTL_MS / 3_600_000),
+          fromDevice: deviceSummary(clientInfo(c).userAgent),
+          fromIp: clientInfo(c).ip ?? '',
+        },
       })
       // The account's own activity feed shows the request (the holder
       // learns of it, whoever asked); the send's own audit rides the
@@ -2101,8 +2121,9 @@ export function createOpAccountsRouter(): Hono {
     })
     if (breach === 'unknown') await markBreachRecheck(store, user.id)
     // TODO.identity-sso/04 slice D: the password-changed notice (the
-    // "was this you?" for the credential change itself).
-    await notifyPasswordChanged(c, user)
+    // "was this you?" for the credential change itself — with the
+    // act's context and the survived-session count).
+    await notifyPasswordChanged(c, user, { otherSessionsRevoked })
     return c.json({ ok: true, otherSessionsRevoked })
   })
 
