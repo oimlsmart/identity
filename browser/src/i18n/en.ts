@@ -1069,6 +1069,8 @@ export const en = {
   "mail.membershipInvited.heading": "The membership waits for your yes",
   "mail.membershipInvited.body": "An administrator of {org} approved a request associating your account with the organization. Nothing is active yet: the membership waits for YOUR consent. Accept it (or decline it) from your account's Organizations section.",
   "mail.membershipInvited.why": "You are receiving this because your account was named in an organization's membership request.",
+  "mail.context.deviceOnly": "From: {device}.",
+  "mail.context.from": "From: {device} — IP {ip}.",
   "mail.selfRegister.subject": "Finish creating your {product} account",
   "mail.selfRegister.preheader": "Confirm the address on your {product} registration — the link is valid for 24 hours.",
   "mail.selfRegister.heading": "Confirm your registration",

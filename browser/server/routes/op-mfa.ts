@@ -53,6 +53,7 @@ import { base64urlEncode } from '../auth/op/webauthn'
 import { verifyAssertion, CeremonyError } from '../auth/op/webauthn'
 import { webauthnBindingFor } from './op-factors'
 import { clearMailBudgetForAccount, sendOpMail, sendOpSecurityMail } from '../auth/op/mail'
+import { deviceSummary } from '../auth/op/device-summary'
 import type { MailEnv } from '../mailer'
 import {
   auditFactor,
@@ -91,7 +92,12 @@ export function createOpMfaRouter(): Hono {
       userId,
       template: 'mfa_locked',
       issuer,
-      params: { name: account.name, when: new Date().toISOString().slice(0, 16).replace('T', ' ') },
+      params: {
+        name: account.name,
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        fromDevice: deviceSummary(clientInfo(c).userAgent),
+        fromIp: clientInfo(c).ip ?? '',
+      },
     })
   }
 
@@ -106,13 +112,23 @@ export function createOpMfaRouter(): Hono {
     const account = await getStore().getUserById(userId)
     if (!account) return
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
+    const info = clientInfo(c)
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId,
       template: notifyTemplate,
       issuer,
       // TODO.modern/06: the NEW DEVICE advisory rides the notice when
       // the assessment flagged the sighting (absent = unchanged mail).
-      params: { name: account.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), method: methodKey, ...(newDevice ? { newDevice: true } : {}) },
+      // 2026-10-13 (the GitHub/Google parity): the notice names WHAT and
+      // WHERE the act came from — the summarized device and the IP.
+      params: {
+        name: account.name,
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        method: methodKey,
+        fromDevice: deviceSummary(info.userAgent),
+        fromIp: info.ip ?? '',
+        ...(newDevice ? { newDevice: true } : {}),
+      },
     })
   }
 
