@@ -415,7 +415,7 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     }, { timeout: SETTLE, polling: 500 })
   })
 
-  it('leg 2 — BIML creates the org admin (the id-10 drive), then the org admin approves the officer: the EXISTING account joins directly', { timeout: 900_000 }, async () => {
+  it('leg 2 — BIML creates the org admin (the id-10 drive), then the org admin approves the officer: the membership waits for the holder\'s YES (the consent model)', { timeout: 900_000 }, async () => {
     // The org admin's creation (the scheme operator's console).
     await signOut(page)
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
@@ -433,8 +433,10 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     await signOut(page)
     await driveSetup(page, setupUrl, ORG_ADMIN_PASSWORD, ORG_ADMIN_EMAIL)
 
-    // The org admin's queue carries the officer's ask; the approval lands
-    // the membership directly (the account EXISTS — no setup link).
+    // The org admin's queue carries the officer's ask; the approval
+    // lands the membership INVITED (the consent model, 2026-10-13: the
+    // intake is anonymous — the org admin's approval never activates a
+    // membership over an existing account; the holder's YES activates).
     await signOut(page)
     await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await opPasswordSignIn(page, ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD)
@@ -452,6 +454,32 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     expect(notice).toContain('no new setup link')
     // NO one-time setup link card for the existing-account path.
     expect(await page.$('[data-testid="invite-setup-url"]')).toBeNull()
+
+    // THE HOLDER'S YES: the officer signs in and accepts the invitation
+    // from the account console's Organizations section — that consent
+    // is the activation.
+    await signOut(page)
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await opSignIn(page, OFFICER_EMAIL)
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
+    await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector(`[data-testid="account-org-invitation-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })
+    await page.evaluate((orgId) => {
+      (document.querySelector(`[data-testid="account-org-accept-${orgId}"]`) as HTMLElement).click()
+    }, UTILIZER_ID)
+    await page.waitForFunction((orgId) => {
+      const invited = document.querySelector(`[data-testid="account-org-invitation-${orgId}"]`)
+      return !invited
+    }, { timeout: SETTLE, polling: 500 }, UTILIZER_ID)
+
+    // Hand the browser back to the org admin: the people slice is the
+    // org console's read (the officer's session never sees it).
+    await signOut(page)
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await opPasswordSignIn(page, ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD)
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
+    await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="org-users-list"]', { timeout: SETTLE, polling: 500 })
 
     // The people slice lists the officer as a member with the per-org role.
     await page.waitForFunction(() => {
@@ -471,7 +499,8 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
     await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="account-organizations"]', { timeout: SETTLE, polling: 500 })
 
-    // BOTH memberships show (the ask's approval made it active directly).
+    // BOTH memberships show (the officer's own acceptance activated
+    // the second one in leg 2).
     await page.waitForSelector(`[data-testid="account-org-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })
 
     // The switch to the Utilizer: the page reloads under the new context.

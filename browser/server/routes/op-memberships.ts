@@ -40,6 +40,9 @@ import { orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { orgAuditSlice } from '../auth/op/org-audit'
 import { explainAccountOf, explainOrgMember } from '../auth/op/explain'
 import { sessionUser } from '../session'
+import { sendOpSecurityMail } from '../auth/op/mail'
+import type { MailEnv } from '../mailer'
+import { opRequestOrigin } from '../auth/op/config'
 
 /** The caller's grant over these routes: 'wide' (the identity admin) or
  *  'org' (the org admin, pinned to the org it acts AS). */
@@ -268,6 +271,26 @@ export function createOpMembershipsRouter(): Hono {
       return c.json({ error: `${email} already holds a membership in this organization` }, 409)
     }
     await audit(user, g, account.id, 'membership.invited', { email, org_id: scoped.orgId, roles })
+    // 0043 (2026-10-13, the consent pass): the holder learns by mail —
+    // an invited membership the holder never hears about is the silent
+    // affiliation the doors' consent model refuses. Never blocks the
+    // act (the mailer doctrine).
+    const invitedOrg = await store.getOrgRegistryOrg(scoped.orgId)
+    try {
+      await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+        userId: account.id,
+        template: 'membership_invited',
+        issuer: opRequestOrigin(c.req.raw),
+        params: {
+          name: account.name,
+          org: invitedOrg?.name ?? scoped.orgId,
+          roles: roles.join(', '),
+          when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        },
+      })
+    } catch (err) {
+      console.error('[op] the membership invite notice failed:', (err as Error).message)
+    }
     return c.json(await memberView(store, membership), 201)
   })
 

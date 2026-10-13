@@ -33,6 +33,8 @@
 // the admins promote from there.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import SelfRegisterFlow from './self-register-flow.vue'
 import BrandLogo from '../../components/BrandLogo.vue'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
@@ -41,6 +43,10 @@ import { t } from '../../i18n'
 import { orgKindLabelKey, orgRoleGlossKey } from '../../org-vocabulary'
 
 type JoinDoor = 'ia' | 'tl' | 'member' | 'manufacturer' | 'biml' | 'others'
+/** The registry-domain door is a HANDOFF, not a form: it routes to the
+ *  member-registry verification flow (/op/self-register — eligibility →
+ *  attribution → the emailed proof → setup; no queue when the domain
+ *  matches). It renders as the seventh card. */
 
 interface SelectorOrg {
   id: string
@@ -49,6 +55,7 @@ interface SelectorOrg {
   kind: 'member-state' | 'corresponding-member' | 'issuing-authority' | 'test-laboratory' | 'utilizer' | 'associate'
   country: string
   roles: string[]
+  email_domains: string[] | null
 }
 
 interface DoorDef {
@@ -77,6 +84,21 @@ const PICKER_KINDS: Partial<Record<JoinDoor, ReadonlyArray<string>>> = {
 
 const { branding } = useBranding()
 
+const route = useRoute()
+const router = useRouter()
+/** THE REGISTRY-VERIFIED MODE: the seventh door's flow renders INSIDE
+ *  this page (one front door). The mode arms from the query (the mailed
+ *  links land here directly: ?token/?setup/?sent/?error/?link) or from
+ *  picking the door. */
+const selfRegisterStates = ['token', 'setup', 'sent', 'error', 'link', 'selfregister']
+const selfRegisterMode = computed(() => selfRegisterStates.some(k => typeof route.query[k] === 'string'))
+function openRegistryDoor() {
+  router.replace({ path: '/op/join', query: { selfregister: '1' } })
+}
+function backToDoorsFromRegistry() {
+  router.replace({ path: '/op/join' })
+}
+
 const loading = ref(true)
 /** null while unknown; false when this instance is not the identity
  *  service (the feed 404s) — the page says so honestly. */
@@ -86,7 +108,8 @@ const orgs = ref<SelectorOrg[]>([])
 /** THE QUESTION: null = the door step. */
 const door = ref<JoinDoor | null>(null)
 
-const name = ref('')
+const givenName = ref('')
+const familyName = ref('')
 const email = ref('')
 const orgSearch = ref('')
 const selectedOrgId = ref<string | null>(null)
@@ -145,7 +168,7 @@ const selectedOrg = computed(() => orgs.value.find(o => o.id === selectedOrgId.v
 
 const canSubmit = computed(() => {
   if (submitting.value) return false
-  if (!name.value.trim() || !email.value.trim().includes('@')) return false
+  if (!givenName.value.trim() || !familyName.value.trim() || !email.value.trim().includes('@')) return false
   if (door.value === 'manufacturer' || door.value === 'others') return !!orgNameText.value.trim()
   if (door.value === 'biml') return true
   return !!selectedOrg.value && !!requestedRole.value
@@ -155,6 +178,15 @@ function pickOrg(id: string) {
   selectedOrgId.value = id
   requestedRole.value = ''
 }
+
+/** The typed address against the picked org's pre-approved domains —
+ *  tri-state: null = no data to compare (no notice). */
+const orgDomains = computed(() => selectedOrg.value?.email_domains ?? null)
+const emailDomain = computed(() => email.value.includes('@') ? email.value.split('@').pop()!.trim().toLowerCase() : '')
+const domainMatch = computed<boolean | null>(() => {
+  if (!orgDomains.value?.length || !emailDomain.value) return null
+  return orgDomains.value.includes(emailDomain.value)
+})
 
 function pickDoor(key: JoinDoor) {
   door.value = key
@@ -183,7 +215,7 @@ async function submit() {
         return
       }
     }
-    const shared = { name: name.value.trim(), email: email.value.trim(), note: note.value.trim() || undefined }
+    const shared = { given_name: givenName.value.trim(), family_name: familyName.value.trim(), email: email.value.trim(), note: note.value.trim() || undefined }
     const payload =
       door.value === 'manufacturer'
         ? { ...shared, org_kind: 'manufacturer', org_name_text: orgNameText.value.trim(), country: orgCountry.value.trim() || undefined }
@@ -291,6 +323,10 @@ onMounted(async () => {
         </p>
       </div>
 
+      <!-- THE REGISTRY-VERIFIED MODE: the seventh door's flow, on this
+           page (one front door; the mailed links land here directly). -->
+      <SelfRegisterFlow v-if="selfRegisterMode" />
+
       <template v-else>
         <!-- The honest framing: the answer decides where the request goes -->
         <div class="mb-4 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
@@ -306,7 +342,8 @@ onMounted(async () => {
           <p class="text-sm text-red-700 dark:text-red-300" data-testid="join-error">{{ error }}</p>
         </div>
 
-        <!-- THE QUESTION: six doors, the answer dictates the form -->
+        <!-- THE QUESTION: six doors + the registry handoff — the answer
+             dictates the form -->
         <div v-if="!door" role="radiogroup" aria-label="What best describes you?" data-testid="join-doors">
           <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">What best describes you?</h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -323,6 +360,17 @@ onMounted(async () => {
               <span class="block text-sm font-semibold text-slate-900 dark:text-white">{{ d.title }}</span>
               <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">{{ d.blurb }}</span>
             </button>
+            <!-- The seventh card: the registry-domain HANDOFF (the
+                 four-gate verification flow — no queue when the domain
+                 matches). -->
+            <router-link
+              to="/op/self-register"
+              data-testid="join-door-registry-domain"
+              class="text-left rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 p-4 hover:border-brand-500 dark:hover:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors sm:col-span-2"
+            >
+              <span class="block text-sm font-semibold text-brand-800 dark:text-brand-200">My organization is in the OIML registry — verify with my work email</span>
+              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">The verified door: pick your country and organization from the OIML registry, prove your address — your account opens without a waiting queue when your email's domain matches.</span>
+            </router-link>
           </div>
         </div>
 
@@ -338,17 +386,33 @@ onMounted(async () => {
             <h2 class="mt-1 text-sm font-semibold text-slate-900 dark:text-white" data-testid="join-door-title">{{ doorDef?.title }}</h2>
           </div>
 
-          <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-name">Full name</label>
-            <input
-              id="join-name"
-              v-model="name"
-              type="text"
-              required
-              data-testid="join-name"
-              class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="Dr. Jane Doe"
-            />
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-given-name">Given names</label>
+              <input
+                id="join-given-name"
+                v-model="givenName"
+                type="text"
+                required
+                autocomplete="given-name"
+                data-testid="join-given-name"
+                class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="Jane"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-family-name">Family name</label>
+              <input
+                id="join-family-name"
+                v-model="familyName"
+                type="text"
+                required
+                autocomplete="family-name"
+                data-testid="join-family-name"
+                class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="Doe"
+              />
+            </div>
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-email">Work email</label>
@@ -388,7 +452,7 @@ onMounted(async () => {
                   @click="pickOrg(org.id)"
                 >
                   <span class="font-medium text-slate-900 dark:text-white">{{ org.name }}</span>
-                  <span class="block text-[11px] text-slate-400 dark:text-slate-500">{{ kindLabel(org.kind) }}<template v-if="org.country"> · {{ org.country }}</template></span>
+                  <span class="block text-[11px] text-slate-400 dark:text-slate-500">{{ kindLabel(org.kind) }}<template v-if="org.country"> · {{ org.country }}</template><template v-if="org.email_domains?.length"> · <span data-testid="join-org-domain">@{{ org.email_domains[0] }}</span></template></span>
                 </button>
               </li>
             </ul>
@@ -463,6 +527,23 @@ onMounted(async () => {
               Your request goes to the <strong>BIML secretariat</strong>: they verify organizations joining
               the OIML-CS (the participation procedures PD-03/PD-09). Once your organization is registered,
               you become its organization administrator.
+            </p>
+          </div>
+
+          <!-- THE PRE-APPROVED DOMAIN (0043): the picked org's verified
+               domains, shown and honestly compared with the typed
+               address. A mismatch never blocks — the request files and
+               the deciding admin sees the same comparison. -->
+          <div v-if="pickerKinds && selectedOrg && orgDomains?.length" class="text-xs rounded-lg p-3" :class="domainMatch === false ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200' : 'bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'" data-testid="join-domain-check">
+            <p>
+              <span class="font-medium">{{ selectedOrg.name }}</span>’s pre-approved domain{{ orgDomains.length > 1 ? 's' : '' }}:
+              <span class="font-mono" data-testid="join-domain-list">{{ orgDomains.map(d => '@' + d).join(', ') }}</span>
+            </p>
+            <p v-if="domainMatch === true" class="mt-1 text-emerald-700 dark:text-emerald-300" data-testid="join-domain-match">
+              ✓ your address is on the pre-approved domain — the request goes straight to your administrator.
+            </p>
+            <p v-else-if="domainMatch === false" class="mt-1" data-testid="join-domain-mismatch">
+              Your address is <strong>not</strong> on the pre-approved domain — the request still files, and the administrator will verify your role in the organization before approving.
             </p>
           </div>
 

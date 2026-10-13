@@ -620,6 +620,8 @@ import type { OrgJoinRequest } from '../../store'
 interface OrgJoinRequestRow {
   id: string
   name: string
+  given_name: string | null
+  family_name: string | null
   email: string
   org_id: string | null
   org_name_text: string | null
@@ -637,6 +639,8 @@ function joinRequestPayload(row: OrgJoinRequestRow): OrgJoinRequest {
   return {
     id: row.id,
     name: row.name,
+    givenName: row.given_name ?? null,
+    familyName: row.family_name ?? null,
     email: row.email,
     orgId: row.org_id,
     orgNameText: row.org_name_text,
@@ -653,6 +657,8 @@ function joinRequestPayload(row: OrgJoinRequestRow): OrgJoinRequest {
 
 export function createOrgJoinRequest(db: Database.Database, input: {
   name: string
+  givenName?: string | null
+  familyName?: string | null
   email: string
   orgId: string | null
   orgNameText: string | null
@@ -661,9 +667,9 @@ export function createOrgJoinRequest(db: Database.Database, input: {
 }): OrgJoinRequest {
   const id = randomUUID()
   db.prepare(
-    `INSERT INTO org_join_requests (id, name, email, org_id, org_name_text, requested_role, note)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, input.name, input.email, input.orgId, input.orgNameText, input.requestedRole, input.note ?? null)
+    `INSERT INTO org_join_requests (id, name, given_name, family_name, email, org_id, org_name_text, requested_role, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, input.name, input.givenName ?? null, input.familyName ?? null, input.email, input.orgId, input.orgNameText, input.requestedRole, input.note ?? null)
   return joinRequestPayload(db.prepare('SELECT * FROM org_join_requests WHERE id = ?').get(id) as OrgJoinRequestRow)
 }
 
@@ -950,6 +956,7 @@ interface OrgRegistryRow {
   proposed_by: string | null
   cs_status: string | null
   ror_id: string | null
+  email_domains: string | null
   state: OrgRegistryState
   created_at: string
   created_by: string | null
@@ -975,11 +982,24 @@ export function parseOrgContacts(json: string | null): OrgRegistryContact[] {
   }
 }
 
+/** 0043: the email_domains column's defensive parse (the contacts
+ *  pattern — malformed reads as null, never trusted). */
+function parseEmailDomains(json: string | null): string[] | null {
+  if (!json) return null
+  try {
+    const parsed = JSON.parse(json) as unknown
+    if (!Array.isArray(parsed)) return null
+    const domains = parsed.filter((d): d is string => typeof d === 'string' && /^[a-z0-9.-]+$/i.test(d.trim())).map(d => d.trim().toLowerCase())
+    return domains.length ? domains : null
+  } catch { return null }
+}
+
 function orgRegistryPayload(row: OrgRegistryRow): OrgRegistryOrg {
   return {
     id: row.id,
     name: row.name,
     shortName: row.short_name,
+    emailDomains: parseEmailDomains(row.email_domains),
     kind: row.kind,
     country: row.country,
     contacts: parseOrgContacts(row.contacts),
@@ -1013,6 +1033,7 @@ export function createOrgRegistryOrg(db: Database.Database, input: {
   id: string
   name: string
   shortName?: string | null
+  emailDomains?: string[] | null
   kind?: string | null
   country?: string | null
   contacts?: OrgRegistryContact[]
@@ -1024,12 +1045,13 @@ export function createOrgRegistryOrg(db: Database.Database, input: {
   createdBy?: string | null
 }): OrgRegistryOrg | null {
   const res = db.prepare(
-    `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, ror_id, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO org_registry (id, name, short_name, kind, country, contacts, participant_ref, designated_by, proposed_by, cs_status, ror_id, created_by, email_domains)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.id, input.name, input.shortName ?? null, input.kind ?? null, input.country ?? null,
     JSON.stringify(input.contacts ?? []), input.participantRef ?? null,
     input.designatedBy ?? null, input.proposedBy ?? null, input.csStatus ?? null, input.rorId ?? null, input.createdBy ?? null,
+    input.emailDomains?.length ? JSON.stringify(input.emailDomains) : null,
   )
   if (res.changes === 0) return null
   return getOrgRegistryOrg(db, input.id)
@@ -1042,6 +1064,7 @@ export function updateOrgRegistryOrg(db: Database.Database,
   patch: {
     name?: string
     shortName?: string | null
+    emailDomains?: string[] | null
     kind?: string | null
     country?: string | null
     contacts?: OrgRegistryContact[]
@@ -1057,6 +1080,7 @@ export function updateOrgRegistryOrg(db: Database.Database,
   const params: unknown[] = []
   if (patch.name !== undefined) { sets.push('name = ?'); params.push(patch.name) }
   if (patch.shortName !== undefined) { sets.push('short_name = ?'); params.push(patch.shortName) }
+  if (patch.emailDomains !== undefined) { sets.push('email_domains = ?'); params.push(patch.emailDomains?.length ? JSON.stringify(patch.emailDomains) : null) }
   if (patch.kind !== undefined) { sets.push('kind = ?'); params.push(patch.kind) }
   if (patch.country !== undefined) { sets.push('country = ?'); params.push(patch.country) }
   if (patch.contacts !== undefined) { sets.push('contacts = ?'); params.push(JSON.stringify(patch.contacts)) }

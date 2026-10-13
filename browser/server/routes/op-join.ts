@@ -96,7 +96,7 @@ import {
 } from '../auth/org-registry'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { OP_ENROLLMENT_TTL_MS } from '../auth/op/accounts'
-import { sendOpMail } from '../auth/op/mail'
+import { sendOpMail, sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import { sessionUser } from '../session'
@@ -207,6 +207,10 @@ export function createOpJoinRouter(): Hono {
       kind: o.kind,
       country: o.country,
       roles: o.roles,
+      // 0043: the org's VERIFIED email domains (the pre-approved domain
+      // the join page shows and honestly compares) — public registry
+      // data, ops-managed.
+      email_domains: o.emailDomains,
     })))
   })
 
@@ -222,6 +226,8 @@ export function createOpJoinRouter(): Hono {
   router.post('/api/op/join-requests', async (c) => {
     const body = await c.req.json<{
       name?: string
+      given_name?: string
+      family_name?: string
       email?: string
       org_id?: string | null
       org_kind?: string | null
@@ -230,7 +236,11 @@ export function createOpJoinRouter(): Hono {
       requested_role?: string
       note?: string | null
     }>().catch(() => null)
-    const name = body?.name?.trim() ?? ''
+    // 0043: the doors collect the structured names (the OIDC claims'
+    // vocabulary); a bare `name` (the legacy/API shape) still works.
+    const givenName = body?.given_name?.trim() || null
+    const familyName = body?.family_name?.trim() || null
+    const name = body?.name?.trim() || [givenName, familyName].filter(Boolean).join(' ').trim()
     const email = body?.email?.trim().toLowerCase() ?? ''
     if (!body || !name || !email.includes('@')) {
       return c.json({ error: 'name and a work email are required' }, 400)
@@ -263,7 +273,7 @@ export function createOpJoinRouter(): Hono {
         }, 400)
       }
       const request = await getStore().createOrgJoinRequest({
-        name, email, orgId, orgNameText: null, requestedRole: role, note,
+        name, givenName, familyName, email, orgId, orgNameText: null, requestedRole: role, note,
       })
       return c.json(request, 201)
     }
@@ -311,6 +321,8 @@ export function createOpJoinRouter(): Hono {
       const invite = await issueAccountInvite(getStore(), {
         email,
         name,
+        givenName,
+        familyName,
         role: 'viewer',
         roles: ['viewer'],
         orgId: profile.identity.org_id,
@@ -367,7 +379,7 @@ export function createOpJoinRouter(): Hono {
       const match = domainMatches.find(o => o.name.toLowerCase() === orgNameText.toLowerCase()) ?? domainMatches[0] ?? null
       if (match) {
         const request = await store.createOrgJoinRequest({
-          name, email, orgId: match.id, orgNameText: null, requestedRole: 'applicant', note,
+          name, givenName, familyName, email, orgId: match.id, orgNameText: null, requestedRole: 'applicant', note,
         })
         return c.json({ ...request, organization: { id: match.id, name: match.name, created: false } }, 201)
       }
@@ -396,7 +408,7 @@ export function createOpJoinRouter(): Hono {
         metadata: { name: orgNameText, kind: 'manufacturer', participant_ref: null, self_registered: true, email },
       }))
       const request = await store.createOrgJoinRequest({
-        name, email, orgId: id, orgNameText: null, requestedRole: 'org_admin', note,
+        name, givenName, familyName, email, orgId: id, orgNameText: null, requestedRole: 'org_admin', note,
       })
       return c.json({ ...request, organization: { id, name: orgNameText, created: true } }, 201)
     }
@@ -409,7 +421,7 @@ export function createOpJoinRouter(): Hono {
       return c.json({ error: 'name your organization, or pick it from the register' }, 400)
     }
     const request = await getStore().createOrgJoinRequest({
-      name, email, orgId: null, orgNameText, requestedRole: 'org_admin', note,
+      name, givenName, familyName, email, orgId: null, orgNameText, requestedRole: 'org_admin', note,
     })
     return c.json(request, 201)
   })
@@ -509,13 +521,16 @@ export function createOpJoinRouter(): Hono {
     }
 
     // TODO.identity/11 — the EXISTING account joins the org (the
-    // multi-org model): no second account, no enrollment link. The
-    // membership lands directly ACTIVE — the holder asked, the org's
-    // admin approved: both consents are on record. An existing
-    // membership decides honestly: the ACTIVE one is the conflict; the
-    // invited one settles (both consents now present); the disabled one
-    // is the org's deliberate re-admission (the role set follows the
-    // approval).
+    // multi-org model): no second account, no enrollment link. THE
+    // CONSENT MODEL (2026-10-13, the cold-eyes audit's finding): the
+    // intake is ANONYMOUS — the filer's "the holder asked" proves
+    // nothing, and an approval landing DIRECTLY ACTIVE would let an
+    // org admin silently attach any account to their org. The
+    // membership lands INVITED — the holder's yes is the activation
+    // (the account console's Organizations section: accept / decline),
+    // and the holder learns by mail. An existing ACTIVE membership is
+    // the conflict; an invited or disabled one refreshes the role set
+    // and waits for the holder's yes again.
     const existingAccount = await store.findUserByEmail(request.email)
     if (existingAccount) {
       const existingMembership = await store.getOrgMembership(existingAccount.id, orgId)
@@ -524,15 +539,16 @@ export function createOpJoinRouter(): Hono {
       }
       if (existingMembership) {
         await store.setOrgMembershipRoles(existingAccount.id, orgId, [role])
-        await store.setOrgMembershipState(existingAccount.id, orgId, 'active', user.email)
+        await store.setOrgMembershipState(existingAccount.id, orgId, 'invited', user.email)
       } else {
         const created = await store.createOrgMembership({
-          userId: existingAccount.id, orgId, roles: [role], state: 'active', invitedBy: user.email,
+          userId: existingAccount.id, orgId, roles: [role], state: 'invited', invitedBy: user.email,
         })
         if (!created) {
-          // A concurrent approval created it first — settle honestly.
+          // A concurrent approval created it first — it waits for the
+          // holder's yes exactly the same.
           await store.setOrgMembershipRoles(existingAccount.id, orgId, [role])
-          await store.setOrgMembershipState(existingAccount.id, orgId, 'active', user.email)
+          await store.setOrgMembershipState(existingAccount.id, orgId, 'invited', user.email)
         }
       }
       const decided = await store.decideOrgJoinRequest(request.id, {
@@ -546,10 +562,29 @@ export function createOpJoinRouter(): Hono {
         role,
         org_id: orgId,
         existing_account: true,
+        consent: 'invited',
       })
+      // The holder learns by mail (the account console holds the
+      // accept/decline). Never blocks the act (the mailer doctrine).
+      const approvedOrg = await resolveRegistryOrg(store, orgId)
+      try {
+        await sendOpSecurityMail(runtimeEnv<MailEnv>(c), store, {
+          userId: existingAccount.id,
+          template: 'membership_invited',
+          issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer,
+          params: {
+            name: existingAccount.name,
+            org: approvedOrg?.name ?? orgId,
+            roles: role,
+            when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+          },
+        })
+      } catch (err) {
+        console.error('[op] the approval notice failed:', (err as Error).message)
+      }
       return c.json({
         ...decided,
-        membership: { userId: existingAccount.id, orgId, roles: [role], state: 'active' },
+        membership: { userId: existingAccount.id, orgId, roles: [role], state: 'invited' },
       })
     }
 
@@ -564,6 +599,8 @@ export function createOpJoinRouter(): Hono {
     const invite = await issueAccountInvite(store, {
       email: request.email,
       name: request.name,
+      givenName: request.givenName,
+      familyName: request.familyName,
       role,
       roles: [role],
       orgId,

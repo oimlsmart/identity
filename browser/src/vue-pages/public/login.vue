@@ -1030,22 +1030,12 @@ async function submitReset() {
            an organization, or self-registered on the registered
            domain. The invited path has no self-service act — the card
            names the human to ask. -->
+      <!-- MECE (2026-10-13, the owner's ruling): a bare "Sign up"
+           link — the doors page carries ALL the ways in, named once. -->
       <div class="mt-6" data-testid="login-paths">
-        <p class="text-center text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2" data-testid="login-paths-title">{{ t('login.paths.title') }}</p>
-        <div class="space-y-2">
-          <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3" data-testid="login-path-invited">
-            <p class="text-sm font-medium text-slate-900 dark:text-white">{{ t('login.paths.invited.title') }}</p>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.invited.body') }}</p>
-          </div>
-          <router-link to="/op/join" class="block rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50/50 dark:hover:bg-slate-800 transition-colors" data-testid="login-path-join">
-            <p class="text-sm font-medium text-brand-700 dark:text-brand-300">{{ t('login.paths.join.title') }} <span aria-hidden="true">→</span></p>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.join.body') }}</p>
-          </router-link>
-          <router-link to="/op/self-register" class="block rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50/50 dark:hover:bg-slate-800 transition-colors" data-testid="login-path-selfregister">
-            <p class="text-sm font-medium text-brand-700 dark:text-brand-300">{{ t('login.paths.selfregister.title') }} <span aria-hidden="true">→</span></p>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ t('login.paths.selfregister.body') }}</p>
-          </router-link>
-        </div>
+        <p class="text-center text-sm text-slate-600 dark:text-slate-400">
+          <router-link to="/op/join" class="font-medium text-brand-600 dark:text-brand-300 hover:underline" data-testid="login-path-join">{{ t('login.paths.account.title') }} <span aria-hidden="true">→</span></router-link>
+        </p>
       </div>
 
       <p v-if="branding.supportUrl" class="mt-4 text-center text-sm text-slate-600 dark:text-slate-400">

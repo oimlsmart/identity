@@ -146,6 +146,11 @@ export async function seedOrgRegistryFromSnapshot(store: ServerStore): Promise<n
         contacts: typeof contact.email === 'string' && contact.email
           ? [{ name: typeof contact.person === 'string' ? contact.person : null, email: contact.email }]
           : [],
+        // 0043: the demonstration IA carries a demo domain so the join
+        // page's pre-approved-domain display + comparison is legible in
+        // every environment (the real rows import from the pipeline's
+        // artifact — scripts/import-org-domains.ts).
+        emailDomains: id === 'EX1' ? ['bmd.example'] : null,
         // §4: the participant org's id IS its code; participant_ref
         // documents the participant record the row mirrors.
         participantRef: id,

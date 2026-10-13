@@ -292,7 +292,8 @@ describe('TODO.identity-features/10 — the OIML Member category (the identity p
     expect(await page.$('[data-testid="join-org-option-XX1"]')).toBeNull()
 
     // The member state's personnel file against their member org.
-    await page.type('[data-testid="join-name"]', 'Ms. Ingrid Halvorsen')
+    await page.type('[data-testid="join-given-name"]', 'Ingrid')
+      await page.type('[data-testid="join-family-name"]', 'Halvorsen')
     await page.type('[data-testid="join-email"]', MEMBER_PERSONNEL_EMAIL)
     await page.evaluate(() => (document.querySelector('[data-testid="join-org-option-ms-example"]') as HTMLElement).click())
     // The role selector carries ONLY the read/access posture (the member

@@ -820,8 +820,10 @@ audited (`email.rate_limited`, the `lane` named).
 
 ### The public join doors (2026-10-13)
 
-The join page leads with a question — six doors, and the answer dictates
-the form and the lane:
+The join page leads with a question — the account-creation front door
+(the sign-in page's single "Request an account" card lands here). Seven
+entries: six doors whose answer dictates the form and the lane, plus
+the registry-verified handoff:
 
 | Door | Form | Lane |
 |---|---|---|
@@ -829,8 +831,36 @@ the form and the lane:
 | An OIML-CS Test Laboratory | the register picker, TL orgs only | the org's administrator approves |
 | An OIML Member (Member State or Corresponding Member) | the register picker, the four member kinds; the read/access roles only | the org's administrator approves |
 | A manufacturer of measuring instruments | the organization's name + country; the domain hint decides who decides | its manufacturer org's administrator, or BIML for the founding |
-| I work for the OIML/BIML | name + work email | **no queue** — see below |
+| I work for the OIML/BIML | given names + family name + work email | **no queue** — see below |
 | Others | the organization's name; the note | BIML verifies the participation (PD-03/PD-09) |
+| **My organization is in the OIML registry — verify with my work email** | hands off to `/op/self-register` (the four-gate flow: eligibility → attribution → the emailed proof → setup) | the member-domains registry verifies; no queue when the domain matches |
+
+**The pre-approved domain (0043):** the register picker's cards show the
+org's verified email domains (`org_registry.email_domains`, imported
+from the member-domains pipeline's artifact — 161 of 174 member rows
+carry at least one; the rest honestly show none until the artifact
+lists them). The form compares the typed address live: on the domain,
+the request goes straight to the administrator; off it, the request
+still files and the administrator sees the same mismatch (the queue's
+domain hint). Refresh after a pipeline sync:
+
+    npx tsx -e "…" # the match is by normalized org name, then the
+                   # ISO suffix (cm-<iso>/ms-<iso>); regenerate
+                   # UPDATE org_registry SET email_domains = … rows
+                   # from src/generated/domains.json and run them
+                   # through wrangler d1 execute --remote
+
+**Structured names (0043):** every door collects given names + family
+name (the OIDC claims' vocabulary); the queue row carries them and the
+approval mints the account with the columns set — `users.name` stays
+the derived display string. The legacy single-string `name` shape still
+answers on the API (the admin invite is unchanged).
+
+**The roster is the real one:** the demonstration cast (EX1, XX1,
+mfr-acme) is DISABLED on the production registry — the public picker
+lists 14 Issuing Authorities (the full OIML-CS roster), 33 test
+laboratories, and the 174 member organizations. The demo cast lives in
+the seeds and the e2e fixtures, never on the public roster.
 
 **The BIML door** is the operator's own, domain-proven: the intake
 accepts `org_kind: 'biml'`, checks the address's domain against

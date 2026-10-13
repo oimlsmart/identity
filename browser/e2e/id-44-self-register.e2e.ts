@@ -241,7 +241,7 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     page.on('pageerror', e => console.log(`[leg] PAGEERROR ${String(e).slice(0, 400)}`))
     page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[leg] CONSOLE ${m.type()} ${m.text().slice(0, 300)}`) })
     page.on('response', r => { if (r.status() >= 400) console.log(`[leg] HTTP ${r.status()} ${r.url()}`) })
-    await page.goto(`${stack.base}/op/self-register`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/op/join?selfregister=1`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="selfreg-country"]', { timeout: SETTLE, polling: 500 })
     await pickCountry(page, 'United States')
     await page.select('[data-testid="selfreg-org"]', 'National Institute of Standards and Technology (NIST)')
@@ -282,7 +282,7 @@ ${stack.logs.join('').slice(-1500)}`)
     }
     await page.waitForSelector('[data-testid="selfreg-sent-screen"] [data-testid="selfreg-dev-link"] a', { timeout: SETTLE, polling: 500 })
     const devLinkHref = await page.$eval('[data-testid="selfreg-sent-screen"] [data-testid="selfreg-dev-link"] a', el => (el as HTMLAnchorElement).href)
-    expect(devLinkHref).toContain('/op/self-register?token=')
+    expect(devLinkHref).toContain('/op/join?token=')
 
     // THE SETUP: the link proves the mailbox — and demands the SECOND
     // verification (the 2026-09-29 ruling): one more sign-in from the
@@ -344,7 +344,7 @@ ${stack.logs.join('').slice(-1500)}`)
   it('leg 2 — the rejections: the mismatch names the owner; the unmatched domain queues without an account', { timeout: 900_000 }, async () => {
     const page = await browser.newPage()
     await page.setViewport({ width: 1440, height: 900 })
-    await page.goto(`${stack.base}/op/self-register`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.goto(`${stack.base}/op/join?selfregister=1`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="selfreg-country"]', { timeout: SETTLE, polling: 500 })
 
     // The mismatch: the US/NIST pick with a Czech address names the

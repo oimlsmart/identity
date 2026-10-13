@@ -71,6 +71,8 @@ function toEnrollmentToken(row: Record<string, unknown>): EnrollmentToken {
 export function createOpAccount(db: Database.Database, input: {
   email: string
   name: string
+  givenName?: string | null
+  familyName?: string | null
   role: string
   createdBy?: string | null
   orgId?: string
@@ -83,9 +85,9 @@ export function createOpAccount(db: Database.Database, input: {
   const rolesJson = input.roles?.length ? JSON.stringify(input.roles) : null
   try {
     db.prepare(
-      `INSERT INTO users (id, email, name, provider, role, org_id, roles, email_verified_at)
-       VALUES (?, ?, ?, 'password', ?, ?, ?, CASE WHEN ? THEN datetime('now') ELSE NULL END)`,
-    ).run(id, input.email.trim().toLowerCase(), input.name.trim(), input.role, input.orgId ?? null, rolesJson, input.emailVerified ? 1 : 0)
+      `INSERT INTO users (id, email, name, given_name, family_name, provider, role, org_id, roles, email_verified_at)
+       VALUES (?, ?, ?, ?, ?, 'password', ?, ?, ?, CASE WHEN ? THEN datetime('now') ELSE NULL END)`,
+    ).run(id, input.email.trim().toLowerCase(), input.name.trim(), input.givenName ?? null, input.familyName ?? null, input.role, input.orgId ?? null, rolesJson, input.emailVerified ? 1 : 0)
   } catch (e) {
     if (String((e as Error).message).includes('UNIQUE')) return null
     throw e

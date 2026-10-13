@@ -1238,6 +1238,10 @@ export interface DeviceAuthorization {
 export interface OrgJoinRequest {
   id: string
   name: string
+  /** 0043 (2026-10-13): the structured names — the doors collect them;
+   *  the approve carries them into the account. NULL on legacy rows. */
+  givenName: string | null
+  familyName: string | null
   email: string
   /** The selected registry org (NULL = the not-listed path). */
   orgId: string | null
@@ -1463,6 +1467,10 @@ export interface OrgRegistryOrg {
   /** The display name. */
   name: string
   shortName: string | null
+  /** 0043 (2026-10-13): the org's VERIFIED email domains (the
+   *  member-domains pipeline's artifact) — the join page's pre-approved
+   *  domain, shown and honestly compared. NULL/empty = none declared. */
+  emailDomains: string[] | null
   /** The participant kind ('issuing-authority' | 'test-laboratory' |
    *  'utilizer' | 'associate' on the OIML-CS program, 'member-state' |
    *  'corresponding-member' on the OIML Member category), NULL for a
@@ -2098,6 +2106,8 @@ export interface ServerStore {
   createOpAccount(input: {
     email: string
     name: string
+    givenName?: string | null
+    familyName?: string | null
     role: string
     createdBy?: string | null
     orgId?: string
@@ -2534,6 +2544,8 @@ export interface ServerStore {
   /** File a join request (the public "Request an account" page). */
   createOrgJoinRequest(input: {
     name: string
+    givenName?: string | null
+    familyName?: string | null
     email: string
     orgId: string | null
     orgNameText: string | null
@@ -2658,6 +2670,7 @@ export interface ServerStore {
     id: string
     name: string
     shortName?: string | null
+    emailDomains?: string[] | null
     kind?: string | null
     country?: string | null
     contacts?: OrgRegistryContact[]
@@ -2676,6 +2689,7 @@ export interface ServerStore {
     patch: {
       name?: string
       shortName?: string | null
+      emailDomains?: string[] | null
       kind?: string | null
       country?: string | null
       contacts?: OrgRegistryContact[]

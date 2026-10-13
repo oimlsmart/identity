@@ -104,7 +104,7 @@ import { getInstanceProfile } from '../../profile'
 import { clearMailBudgetFor, mailerFor, type MailEnv, type MailPosture } from '../../mailer'
 import type { ServerStore } from '../../store'
 
-export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'self_register_verify' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_edited' | 'pat_expiring'
+export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'membership_invited' | 'self_register_verify' | 'verify_email' | 'verify_added_email' | 'verify_primary_email' | 'mfa_locked' | 'pat_minted' | 'pat_edited' | 'pat_expiring'
   // TODO.identity-sso/04 slice D: the account-lifecycle security notices
   // (each a pure notification — never a primary button; the "was this
   // you?" reset pointer rides the secondary block, the `reset` flag).
@@ -168,6 +168,7 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   invite: { subject: 'mail.invite.subject', preheader: 'mail.invite.preheader', heading: 'mail.invite.heading', body: 'mail.invite.body', why: 'mail.invite.why', action: 'mail.invite.action', link: true },
   reset: { subject: 'mail.reset.subject', preheader: 'mail.reset.preheader', heading: 'mail.reset.heading', body: 'mail.reset.body', why: 'mail.reset.why', action: 'mail.reset.action', link: true },
   signin: { subject: 'mail.signin.subject', preheader: 'mail.signin.preheader', heading: 'mail.signin.heading', body: 'mail.signin.body', why: 'mail.signin.why', link: false, reset: true },
+  membership_invited: { subject: 'mail.membershipInvited.subject', preheader: 'mail.membershipInvited.preheader', heading: 'mail.membershipInvited.heading', body: 'mail.membershipInvited.body', why: 'mail.membershipInvited.why', link: false, reset: true },
   self_register_verify: { subject: 'mail.selfRegister.subject', preheader: 'mail.selfRegister.preheader', heading: 'mail.selfRegister.heading', body: 'mail.selfRegister.body', why: 'mail.selfRegister.why', action: 'mail.selfRegister.action', link: true },
   verify_email: { subject: 'mail.verifyEmail.subject', preheader: 'mail.verifyEmail.preheader', heading: 'mail.verifyEmail.heading', body: 'mail.verifyEmail.body', why: 'mail.verifyEmail.why', action: 'mail.verifyEmail.action', link: true },
   // TODO.identity-features/01: the added address's own verification —

@@ -212,18 +212,36 @@ describe('the join page’s doors (the question before the form)', () => {
 
       // The IA door: the picker, titled for the authority.
       await openDoor(page, 'ia')
-      await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
+      await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
       expect((await page.$eval('[data-testid="join-door-title"]', el => el.textContent ?? ''))).toContain('Issuing Authority')
       expect(await page.$('[data-testid="join-org-search"]'), 'the register doors pick from the register').toBeTruthy()
 
       // The TL door: its own title, the picker again.
       await openDoor(page, 'tl')
-      await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
+      await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
       expect((await page.$eval('[data-testid="join-door-title"]', el => el.textContent ?? ''))).toContain('Test Laboratory')
+
+      // THE PRE-APPROVED DOMAIN (0043): the seeded demonstration IA
+      // carries @bmd.example — the card shows it, the comparison runs
+      // live against the typed address, and the mismatch routes honestly.
+      await openDoor(page, 'ia')
+      await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
+      await page.waitForSelector('[data-testid="join-org-option-EX1"]', { timeout: SETTLE, polling: 500 })
+      const optionText = await page.$eval('[data-testid="join-org-option-EX1"]', el => el.textContent ?? '')
+      expect(optionText).toContain('@bmd.example')
+      await page.evaluate(() => (document.querySelector('[data-testid="join-org-option-EX1"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="join-domain-check"]', { timeout: SETTLE, polling: 500 })
+      await page.type('[data-testid="join-given-name"]', 'Domain')
+      await page.type('[data-testid="join-family-name"]', 'Probe')
+      await page.type('[data-testid="join-email"]', 'domain.probe@bmd.example')
+      await page.waitForSelector('[data-testid="join-domain-match"]', { timeout: SETTLE, polling: 500 })
+      await page.click('[data-testid="join-email"]', { clickCount: 3 })
+      await page.type('[data-testid="join-email"]', 'domain.probe@elsewhere.example')
+      await page.waitForSelector('[data-testid="join-domain-mismatch"]', { timeout: SETTLE, polling: 500 })
 
       // The member door: the OIML Member title.
       await openDoor(page, 'member')
-      await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
+      await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
       expect((await page.$eval('[data-testid="join-door-title"]', el => el.textContent ?? ''))).toContain('OIML Member')
 
       // The manufacturer door: the declared-standing form, no picker.
@@ -258,7 +276,7 @@ describe('the join page’s doors (the question before the form)', () => {
     const refused = await fetch(`${stack!.apiBase}/api/op/join-requests`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Not Bureau', email: 'impostor@example.com', org_kind: 'biml' }),
+      body: JSON.stringify({ given_name: 'Not', family_name: 'Bureau', email: 'impostor@example.com', org_kind: 'biml' }),
     })
     expect(refused.status).toBe(400)
     const refusedBody = await refused.json() as { error?: string }
@@ -268,7 +286,7 @@ describe('the join page’s doors (the question before the form)', () => {
     const asked = await fetch(`${stack!.apiBase}/api/op/join-requests`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Ingrid Pettersson', email: STAFF_EMAIL, org_kind: 'biml' }),
+      body: JSON.stringify({ given_name: 'Ingrid', family_name: 'Pettersson', email: STAFF_EMAIL, org_kind: 'biml' }),
     })
     expect(asked.status).toBe(201)
     const askedBody = await asked.json() as { invited?: boolean; org?: string }
@@ -314,7 +332,7 @@ describe('the join page’s doors (the question before the form)', () => {
     const second = await fetch(`${stack!.apiBase}/api/op/join-requests`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Ingrid Pettersson', email: STAFF_EMAIL, org_kind: 'biml' }),
+      body: JSON.stringify({ given_name: 'Ingrid', family_name: 'Pettersson', email: STAFF_EMAIL, org_kind: 'biml' }),
     })
     expect(second.status).toBe(409)
     const secondBody = await second.json() as { error?: string }

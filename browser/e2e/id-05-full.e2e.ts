@@ -614,8 +614,9 @@ describe('TODO.identity/05: the full identity arc, OP-side (real OP, fixture RP,
       await page.goto(`${op.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
       await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
       await page.evaluate(() => (document.querySelector('[data-testid="join-door-member"]') as HTMLElement).click())
-      await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
-      await page.type('[data-testid="join-name"]', PRIYA.name)
+      await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
+      await page.type('[data-testid="join-given-name"]', 'Priya')
+      await page.type('[data-testid="join-family-name"]', 'van der Berg')
       await page.type('[data-testid="join-email"]', PRIYA.email)
       await page.evaluate((id) => {
         (document.querySelector(`[data-testid="join-org-option-${id}"]`) as HTMLElement).click()

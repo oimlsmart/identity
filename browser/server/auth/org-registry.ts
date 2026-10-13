@@ -237,6 +237,10 @@ export interface RegistryOrg {
   /** The first contact's email domain when declared — the email-domain
    *  HINT the deciding admin sees (a hint, never the proof). */
   emailDomain: string | null
+  /** 0043 (2026-10-13): the org's VERIFIED domains (the member-domains
+   *  pipeline's artifact on the row) — the join page's pre-approved
+   *  domains, shown and honestly compared. NULL = none declared. */
+  emailDomains: string[] | null
   /** The participant-link annotation (which participant record the org
    *  mirrors — documentation, never resolved). */
   participantRef: string | null
@@ -426,6 +430,7 @@ function projectOrg(row: OrgRegistryOrg, endorsedBy: string[] = []): RegistryOrg
     country: row.country ?? '',
     contacts: row.contacts,
     emailDomain: row.contacts.length ? emailDomain(row.contacts[0]!.email) || null : null,
+    emailDomains: row.emailDomains ?? null,
     participantRef: row.participantRef,
     designatedBy: row.designatedBy ?? null,
     proposedBy: row.proposedBy ?? null,

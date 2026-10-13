@@ -46,6 +46,8 @@ export async function issueAccountInvite(
   input: {
     email: string
     name: string
+    givenName?: string | null
+    familyName?: string | null
     role: string
     roles?: string[]
     orgId: string | null
@@ -60,6 +62,8 @@ export async function issueAccountInvite(
   const account = await store.createOpAccount({
     email: input.email,
     name: input.name,
+    givenName: input.givenName,
+    familyName: input.familyName,
     role: input.role,
     createdBy: input.invitedBy,
   })

@@ -200,7 +200,7 @@ describe('the self-registration attribution return', () => {
       const fast = await runFlow('/op/upstream/fixture-idp/signin?mode=attribute&email=member%40nist.gov', 'nist')
       expect(fast.status).toBe(302)
       const fastTo = fast.headers.get('location')!
-      expect(fastTo.startsWith('/op/self-register?token=')).toBe(true)
+      expect(fastTo.startsWith('/op/join?token=')).toBe(true)
 
       // The mail leg: the target differs from the upstream's own
       // address — the confirmation email is the only mailbox proof
@@ -208,7 +208,7 @@ describe('the self-registration attribution return', () => {
       const mailed = await runFlow('/op/upstream/fixture-idp/signin?mode=attribute&email=other%40nist.gov', 'nist')
       expect(mailed.status).toBe(302)
       const mailedTo = mailed.headers.get('location')!
-      expect(mailedTo.startsWith('/op/self-register?sent=1&link=')).toBe(true)
+      expect(mailedTo.startsWith('/op/join?sent=1&link=')).toBe(true)
 
       // The law: NOTHING was created by either leg.
       expect(await store.findUserByEmail('member@nist.gov')).toBeNull()

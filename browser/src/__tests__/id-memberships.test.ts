@@ -495,7 +495,7 @@ describe('the org-admin delegation is bounded', () => {
 // ── the join-request flow for an EXISTING account ────────────────────
 
 describe('the join-request flow for an existing account', () => {
-  it('the holder asks from the account console; the org admin approves; the membership lands directly (no second account)', async () => {
+  it('the holder asks from the account console; the org admin approves; the membership waits for the holder\'s YES (the consent model)', async () => {
     const officerCookie = await demoLogin('tl@oimlsmart.org') // the TL operator, primary org 21
     const adminCookie = await demoLogin('admin@lmi.example.org')
     const tlUser = (await store.findUserByEmail('tl@oimlsmart.org'))!
@@ -516,7 +516,11 @@ describe('the join-request flow for an existing account', () => {
     expect(dupe.status).toBe(409)
 
     // The org's queue carries it; the approval lands the membership
-    // directly (the account EXISTS — no invite, no setup link).
+    // INVITED (the consent model, 2026-10-13): the intake is anonymous —
+    // the filer's "the holder asked" proves nothing, so the org admin's
+    // approval NEVER activates a membership over an existing account.
+    // The holder's yes (the account console's accept) is the
+    // activation.
     const queue = await json(await app.request(`${ISSUER}/api/op/join-requests`, { headers: { cookie: adminCookie } }), 200)
     const row = queue.requests.find((r: any) => r.id === request.id)
     expect(row?.orgName).toBe('Luggnagg Metrology Institute')
@@ -527,12 +531,20 @@ describe('the join-request flow for an existing account', () => {
     const decided = await json(approve, 200)
     expect(decided.status).toBe('approved')
     expect(decided.invite).toBeUndefined()
-    expect(decided.membership).toMatchObject({ userId: tlUser.id, orgId: 'ut-lmi-xg', roles: ['viewer'], state: 'active' })
-    // The membership is ACTIVE (both consents were on record) — no
-    // invitation waits.
-    expect((await store.getOrgMembership(tlUser.id, 'ut-lmi-xg'))?.state).toBe('active')
+    expect(decided.membership).toMatchObject({ userId: tlUser.id, orgId: 'ut-lmi-xg', roles: ['viewer'], state: 'invited' })
+    // The membership WAITS — no org context, no people-list presence,
+    // until the holder accepts.
+    expect((await store.getOrgMembership(tlUser.id, 'ut-lmi-xg'))?.state).toBe('invited')
     // And the account list never grew a second row for the email.
     expect((await store.listUsers()).filter(u => u.email === 'tl@oimlsmart.org').length).toBe(1)
+
+    // THE HOLDER'S YES: the accept act (the account console's
+    // Organizations section) is the activation.
+    const accepted = await app.request(`${ISSUER}/api/op/account/memberships/ut-lmi-xg/accept`, {
+      method: 'POST', headers: jsonHeaders(officerCookie),
+    })
+    await json(accepted, 200)
+    expect((await store.getOrgMembership(tlUser.id, 'ut-lmi-xg'))?.state).toBe('active')
 
     // Approving AGAIN (a fresh ask while the membership is active) is the
     // honest 409. The console's ask refuses a second membership ask for

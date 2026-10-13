@@ -18,8 +18,7 @@
 // never a writer, until then.
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import BrandLogo from '../../components/BrandLogo.vue'
+import { useRoute, useRouter } from 'vue-router'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { t } from '../../i18n'
@@ -28,6 +27,7 @@ interface PickerOrg { name: string; domains: string[]; website_domains?: string[
 interface PickerCountry { country: string; country_fr: string; iso?: string; orgs: PickerOrg[] }
 
 const route = useRoute()
+const router = useRouter()
 
 const loading = ref(true)
 const busy = ref(false)
@@ -265,13 +265,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-cream dark:bg-slate-900">
-    <div class="w-full max-w-md" data-testid="selfreg-page">
-      <div class="text-center mb-8">
-        <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-2xl font-serif font-bold text-slate-900 dark:text-white" data-testid="selfreg-heading">{{ t('selfreg.heading') }}</h1>
-        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400" data-testid="selfreg-subtitle">{{ t('selfreg.subtitle') }}</p>
-      </div>
+  <div>
+    <div class="w-full" data-testid="selfreg-page">
 
       <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
         <p class="text-sm text-red-700 dark:text-red-300" data-testid="selfreg-error">{{ error }}</p>
