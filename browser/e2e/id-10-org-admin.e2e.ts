@@ -317,19 +317,27 @@ describe('TODO.identity/10 — delegated organization administration (the identi
     await page.waitForSelector('[data-testid="login-path-join"]', { timeout: SETTLE, polling: 500 })
 
     await page.goto(`${stack.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await page.waitForSelector('[data-testid="op-join"]', { timeout: SETTLE, polling: 500 })
-    // The register's orgs render: the Utilizer (signed Declaration) and
-    // the IA are offered; the mid-pipeline IA (XX1, draft Declaration)
-    // is NOT — only registered orgs are selectable.
+    await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
+    // THE DOORS: the member door's picker carries the Utilizer (signed
+    // Declaration) — and NEVER a participant org or the mid-pipeline IA
+    // (XX1, draft Declaration) — only registered orgs are selectable.
+    await page.evaluate(() => (document.querySelector('[data-testid="join-door-member"]') as HTMLElement).click())
     await page.waitForSelector(`[data-testid="join-org-option-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })
-    await page.waitForSelector('[data-testid="join-org-option-EX1"]', { timeout: SETTLE, polling: 500 })
+    expect(await page.$('[data-testid="join-org-option-EX1"]')).toBeNull()
     expect(await page.$('[data-testid="join-org-option-XX1"]')).toBeNull()
-    // The search narrows the list.
+    // The search narrows the member list.
     await page.type('[data-testid="join-org-search"]', 'Luggnagg')
-    await page.waitForFunction(() => {
+    await page.waitForFunction((uid) => {
       const list = document.querySelector('[data-testid="join-org-options"]')
-      return list && list.textContent?.includes('Luggnagg') && !list.textContent?.includes('Issuing Authority')
-    }, { timeout: SETTLE, polling: 500 })
+      return !!list && !!list.querySelector(`[data-testid="join-org-option-${uid}"]`)
+    }, { timeout: SETTLE, polling: 500 }, UTILIZER_ID)
+    // The IA door's picker carries the IA — and never the member org.
+    await page.evaluate(() => (document.querySelector('[data-testid="join-door-back"]') as HTMLElement).click())
+    await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
+    await page.evaluate(() => (document.querySelector('[data-testid="join-door-ia"]') as HTMLElement).click())
+    await page.waitForSelector('[data-testid="join-org-option-EX1"]', { timeout: SETTLE, polling: 500 })
+    expect(await page.$(`[data-testid="join-org-option-${UTILIZER_ID}"]`)).toBeNull()
+    expect(await page.$('[data-testid="join-org-option-XX1"]')).toBeNull()
   })
 
   it('leg 2 — BIML creates the org admin for the registered Utilizer (the enrollment link sets her password)', { timeout: 900_000 }, async () => {
@@ -361,6 +369,9 @@ describe('TODO.identity/10 — delegated organization administration (the identi
   it('leg 3 — the reviewer requests an account, picking THEIR org from the register', { timeout: 900_000 }, async () => {
     await signOut(page)
     await page.goto(`${stack.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
+    await page.evaluate(() => (document.querySelector('[data-testid="join-door-member"]') as HTMLElement).click())
+    await page.waitForSelector(`[data-testid="join-org-option-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })
     await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
     await page.type('[data-testid="join-name"]', 'Mr. Willem Jansen')
     await page.type('[data-testid="join-email"]', REVIEWER_EMAIL)
@@ -458,12 +469,13 @@ describe('TODO.identity/10 — delegated organization administration (the identi
   })
 
   it('leg 6 — a fake-organization request lands in BIML’s queue and is refused with the pointer', { timeout: 900_000 }, async () => {
-    // The not-listed path on the public join page.
+    // The not-listed path on the public join page (the Others door).
     await page.goto(`${stack.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
+    await page.evaluate(() => (document.querySelector('[data-testid="join-door-others"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
     await page.type('[data-testid="join-name"]', 'Ms. Nobody Real')
     await page.type('[data-testid="join-email"]', FAKE_ORG_EMAIL)
-    await page.evaluate(() => (document.querySelector('[data-testid="join-not-listed"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="join-org-name-text"]', { timeout: SETTLE, polling: 500 })
     await page.type('[data-testid="join-org-name-text"]', FAKE_ORG_NAME)
     await page.evaluate(() => (document.querySelector('[data-testid="join-submit"]') as HTMLElement).click())

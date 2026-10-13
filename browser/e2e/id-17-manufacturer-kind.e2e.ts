@@ -297,12 +297,12 @@ describe('TODO.register/01 — the manufacturer org kind (the identity profile)'
 
   it('leg 1 — the public join page’s manufacturer path files the self-registration; the org is created with the declared standing', { timeout: 900_000 }, async () => {
     await page.goto(`${stack.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
-    await page.waitForSelector('[data-testid="op-join"]', { timeout: SETTLE, polling: 500 })
-    await page.waitForSelector('[data-testid="join-manufacturer"]', { timeout: SETTLE, polling: 500 })
+    await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
 
+    await page.evaluate(() => (document.querySelector('[data-testid="join-door-manufacturer"]') as HTMLElement).click())
+    await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
     await page.type('[data-testid="join-name"]', 'Dr. Sofia Mercer')
     await page.type('[data-testid="join-email"]', FOUNDER_EMAIL)
-    await page.evaluate(() => (document.querySelector('[data-testid="join-manufacturer"]') as HTMLElement).click())
     await page.waitForSelector('[data-testid="join-mfr-name"]', { timeout: SETTLE, polling: 500 })
     // The honest framing: the declared standing, never a participation.
     const note = await page.$eval('[data-testid="join-mfr-note"]', el => el.textContent ?? '')

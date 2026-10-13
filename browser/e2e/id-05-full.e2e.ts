@@ -612,6 +612,8 @@ describe('TODO.identity/05: the full identity arc, OP-side (real OP, fixture RP,
     // is viewer + scheme_participant; she asks for the viewer role.
     await withPage(async (page) => {
       await page.goto(`${op.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="join-doors"]', { timeout: SETTLE, polling: 500 })
+      await page.evaluate(() => (document.querySelector('[data-testid="join-door-member"]') as HTMLElement).click())
       await page.waitForSelector('[data-testid="join-name"]', { timeout: SETTLE, polling: 500 })
       await page.type('[data-testid="join-name"]', PRIYA.name)
       await page.type('[data-testid="join-email"]', PRIYA.email)

@@ -173,6 +173,11 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
       // refuses mail-less deployments, the join queue does not).
       await page.goto(`${stack!.base}/op/join`, { waitUntil: 'domcontentloaded', timeout: 240_000 })
       flog(page, 'join page loaded')
+      // The door step: the Others door (the not-listed path — the
+      // probe's form), whose form carries the widget.
+      await page.waitForSelector('[data-testid="join-doors"]', { timeout: 120_000 })
+      await page.evaluate(() => (document.querySelector('[data-testid="join-door-others"]') as HTMLElement).click())
+      flog(page, 'the Others door picked')
 
       // The widget container mounts (the armed projection drove it).
       await page.waitForSelector('[data-testid="turnstile-widget"]', { timeout: 120_000 })
@@ -204,7 +209,6 @@ describe('the Turnstile golden path (the always-pass test pair)', () => {
       })
       page.on('console', m => { if (m.type() === 'error') flog(page, `console ${m.text().slice(0, 200)}`) })
       // The not-listed path: a typed org name — no register search.
-      await page.click('[data-testid="join-not-listed"]')
       await page.type('[data-testid="join-name"]', 'Turnstile Probe')
       await page.type('[data-testid="join-email"]', `turnstile-probe-${Date.now()}@example.org`)
       await page.type('[data-testid="join-org-name-text"]', 'The Probe Cooperation')
