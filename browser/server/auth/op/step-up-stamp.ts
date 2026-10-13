@@ -64,3 +64,30 @@ export function presentedStepUpStamp(headerValue: string | undefined, cookieValu
 export async function stepUpKey(env: Record<string, string | undefined>): Promise<OpSigningKey> {
   return resolveOpSigningKey(env)
 }
+
+/** The stamp's cookie posture (the op-accounts shape, shared — 2026-10-13:
+ *  every fresh sign-in mints the stamp, so the console's sensitive acts
+ *  — factor enrollment among them — ride the fresh-proof window). */
+export function stepUpCookieOpts(origin: string) {
+  return {
+    httpOnly: true,
+    sameSite: 'Lax' as const,
+    path: '/',
+    maxAge: Math.floor(STEP_UP_TTL_MS / 1000),
+    ...(origin.startsWith('https://') ? { secure: true } : {}),
+  }
+}
+
+/** The gate's shared shape: mint + set, given the acting context's
+ *  pieces (the sign-in completions call this — one line per site). */
+export async function mintAndSetStepUpStamp(
+  env: Record<string, string | undefined>,
+  userId: string,
+  amr: 'pwd' | 'passkey' | 'upstream',
+  setCookieFn: (name: string, value: string, opts: ReturnType<typeof stepUpCookieOpts>) => void,
+  origin: string,
+): Promise<void> {
+  const key = await stepUpKey(env)
+  const stamp = await mintStepUpStamp(key, userId, amr)
+  setCookieFn(STEP_UP_COOKIE, stamp, stepUpCookieOpts(origin))
+}

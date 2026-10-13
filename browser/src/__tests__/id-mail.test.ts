@@ -266,9 +266,14 @@ describe('createMailer — the transport and the guards', () => {
     expect((await mailer.send(msg, { template: 'reset' })).rateLimited).toBeUndefined()
     expect((await mailer.send(msg, { template: 'email_otp' })).rateLimited).toBeUndefined()
     expect((await mailer.send(msg, { template: 'invite' })).rateLimited).toBeUndefined() // the first-run door too
-    // The critical lane is still a lane (a mailbox-flood cap for the
-    // provider's sake) — its own budget refuses honestly.
+    // Each critical CLASS is its own lane (2026-10-13): the reset
+    // class's own budget refuses after ITS capacity — the sign-in codes
+    // and the invites stay deliverable no matter the reset flood.
+    expect((await mailer.send(msg, { template: 'reset' })).rateLimited).toBeUndefined()
+    expect((await mailer.send(msg, { template: 'reset' })).rateLimited).toBeUndefined()
     expect((await mailer.send(msg, { template: 'reset' })).rateLimited).toBe(true)
+    expect((await mailer.send(msg, { template: 'email_otp' })).rateLimited).toBeUndefined()
+    expect((await mailer.send(msg, { template: 'invite' })).rateLimited).toBeUndefined()
   })
 
   it('THE LOGIN CLEAR (2026-10-10): a completed sign-in clears the recipient\'s budgets — the real holder\'s return ends the counted flood', async () => {
@@ -780,5 +785,21 @@ demo_personas: true
       expect(b.message, target).toContain('If an account exists')
     }
     expect(stub.messages).toHaveLength(0)
+  })
+})
+
+describe('the critical lanes are PER CLASS (2026-10-13, the cold-eyes audit)', () => {
+  it('a reset flood burns only the reset lane — the sign-in codes stay deliverable', async () => {
+    const { createMailer } = await import('../../server/mailer')
+    const m = createMailer({ posture: 'console', from: 'test@oimlsmart.org', binding: null, providerUrl: null, providerKey: null, rateLimit: { capacity: 100, windowMs: 3_600_000, criticalCapacity: 2 }, problems: [] })
+    const send = (template: string) => m.send({ to: 'flooded@example.org', subject: template, text: template }, { template })
+    // The reset lane trips at its own capacity…
+    expect((await send('reset')).rateLimited).toBeFalsy()
+    expect((await send('reset')).rateLimited).toBeFalsy()
+    const third = await send('reset')
+    expect(third.rateLimited, 'the third reset is refused').toBe(true)
+    // …but the OTHER classes stand.
+    expect((await send('email_otp')).rateLimited, 'the sign-in code is deliverable').toBeFalsy()
+    expect((await send('invite')).rateLimited, 'the invite is deliverable').toBeFalsy()
   })
 })

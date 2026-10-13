@@ -65,6 +65,7 @@ import { generateRecoveryCodes, hashRecoveryCode } from '../auth/op/recovery'
 import { verifyRegistration, CeremonyError } from '../auth/op/webauthn'
 import {
   auditFactor,
+  FRESH_SESSION_MS,
   factorCounts,
   MFA_FAILURE_CAP,
   recoveryCodesAtFirstFactor,
@@ -76,6 +77,9 @@ import {
 import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
 import { base64urlEncode } from '../auth/op/webauthn'
+
+import { presentedStepUpStamp, stepUpSatisfied, STEP_UP_COOKIE } from '../auth/op/step-up-stamp'
+import { SESSION_COOKIE } from '../session'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -221,11 +225,42 @@ export function createOpFactorsRouter(): Hono {
 
   // POST /api/op/account/factors/totp — start the enrollment: the pending
   // row + the otpauth:// URI + the manual secret, answered ONCE.
+  /** THE FRESH-PROOF GATE (2026-10-13, the cold-eyes audit's residual):
+   *  factor enrollment is the attacker's persistence play — a hijacked
+   *  session (the cookie without the credentials) planting a passkey
+   *  survives every session sweep until the victim resets. The proof is
+   *  FRESHNESS: a session born within the last five minutes was minted
+   *  by a real credential act, and the step-up stamp (the account
+   *  console's re-entry — /api/op/step-up's signed stamp) extends the
+   *  window on demand. A stale session demands the re-entry; the
+   *  holder's ordinary flow never sees it. */
+  async function demandFreshProof(c: Context, userId: string): Promise<Response | null> {
+    const stamp = presentedStepUpStamp(c.req.header('x-op-step-up'), getCookie(c, STEP_UP_COOKIE))
+    if (stamp && await stepUpSatisfied(runtimeEnv<Record<string, string | undefined>>(c), stamp, userId)) {
+      return null
+    }
+    const sessionToken = getCookie(c, SESSION_COOKIE) ?? ''
+    const sessions = await getStore().listUserSessions(userId, sessionToken)
+    const current = sessions.find(s => s.current) ?? sessions[0]
+    // The sqlite datetime carries no zone marker — parse it as UTC (the
+    // wall clock IS utc; a local read skews the age by the zone offset).
+    if (current && Date.now() - new Date(current.createdAt.replace(' ', 'T') + 'Z').getTime() < FRESH_SESSION_MS) {
+      return null
+    }
+    await auditFactor('factor.enrollment_step_up', userId, { userId }, { demanded: true })
+    return c.json({
+      error: 'this act needs a fresh proof of you — sign in again (or verify your current password on the account page), then add the factor',
+      step_up: 'required',
+    }, 403)
+  }
+
   factors.post('/api/op/account/factors/totp', async (c) => {
     const { user, error } = await requireUser(c)
     if (error || !user) return error!
     const refused = requireVerified(c, user)
     if (refused) return refused
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const store = getStore()
     const id = crypto.randomUUID()
     const secret = generateTotpSecret()
@@ -323,6 +358,8 @@ export function createOpFactorsRouter(): Hono {
     if (error || !user) return error!
     const refused = requireVerified(c, user)
     if (refused) return refused
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const store = getStore()
     const binding = webauthnBindingFor(c)
     const challenge = opRandomToken()
@@ -363,6 +400,8 @@ export function createOpFactorsRouter(): Hono {
     if (error || !user) return error!
     const refused = requireVerified(c, user)
     if (refused) return refused
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const body = await c.req.json<{
       name?: string
       credential?: { id?: string; response?: { clientDataJSON?: string; attestationObject?: string } }
@@ -480,6 +519,8 @@ export function createOpFactorsRouter(): Hono {
     if (error || !user) return error!
     const refused = requireVerified(c, user)
     if (refused) return refused
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const store = getStore()
     const counts = await factorCounts(store, user.id)
     if (counts.passkeys + counts.totp === 0) {
