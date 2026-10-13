@@ -472,6 +472,15 @@ describe('TODO.identity/11 — the multi-organization membership model (the iden
       return !invited
     }, { timeout: SETTLE, polling: 500 }, UTILIZER_ID)
 
+    // Hand the browser back to the org admin: the people slice is the
+    // org console's read (the officer's session never sees it).
+    await signOut(page)
+    await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await opPasswordSignIn(page, ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD)
+    await page.waitForFunction(() => window.location.pathname !== '/', { timeout: SETTLE, polling: 500 })
+    await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+    await page.waitForSelector('[data-testid="org-users-list"]', { timeout: SETTLE, polling: 500 })
+
     // The people slice lists the officer as a member with the per-org role.
     await page.waitForFunction(() => {
       const list = document.querySelector('[data-testid="org-users-list"]')
