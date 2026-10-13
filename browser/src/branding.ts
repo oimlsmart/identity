@@ -33,8 +33,8 @@ export interface IdentityBranding {
 
 /** The default brand — the identity service's own. */
 export const DEFAULT_BRANDING: IdentityBranding = {
-  productName: 'OIML SMART Identity',
-  shortName: 'OIML SMART Identity',
+  productName: 'OIML SMART Identity Service',
+  shortName: 'OIML SMART Identity Service',
   logoLight: '/oiml-logo-light.svg',
   logoDark: '/oiml-logo-dark.svg',
   markLight: '/oiml-logo-cs-light.svg',
