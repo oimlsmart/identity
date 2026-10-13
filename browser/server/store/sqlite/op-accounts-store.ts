@@ -132,6 +132,20 @@ export function getPasswordLogin(db: Database.Database, email: string): { userId
   return { userId: row.user_id as string, hash: row.hash as string, active: row.active !== 0 }
 }
 
+/** The password history (0044, the GitHub/Google parity): the last
+ *  FIVE hashes per account, oldest-pruned on every push. The landing
+ *  surfaces verify the candidate against these before overwriting. */
+export function getPasswordHistory(db: Database.Database, userId: string): Array<{ hash: string }> {
+  return db.prepare('SELECT hash FROM password_history WHERE user_id = ? ORDER BY id DESC LIMIT 5').all(userId) as Array<{ hash: string }>
+}
+
+export function addPasswordHistory(db: Database.Database, userId: string, hash: string): void {
+  db.prepare('INSERT INTO password_history (user_id, hash) VALUES (?, ?)').run(userId, hash)
+  db.prepare(
+    'DELETE FROM password_history WHERE user_id = ? AND id NOT IN (SELECT id FROM password_history WHERE user_id = ? ORDER BY id DESC LIMIT 5)',
+  ).run(userId, userId)
+}
+
 export function setPasswordHash(db: Database.Database, userId: string, hash: string, setBy?: string | null): void {
   db.prepare(
     `INSERT INTO passwords (user_id, hash, set_by) VALUES (?, ?, ?)

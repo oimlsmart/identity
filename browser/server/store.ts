@@ -2128,6 +2128,13 @@ export interface ServerStore {
   /** Set/replace the account's password credential (enrollment
    *  completion, the account page's change). */
   setPasswordHash(userId: string, hash: string, setBy?: string | null): Promise<void>
+  /** 0044 (the GitHub/Google parity): the last FIVE hashes, oldest-
+   *  pruned — the landing surfaces verify the candidate against these
+   *  before overwriting (reset-to-the-compromised-password is refused). */
+  getPasswordHistory(userId: string): Promise<Array<{ hash: string }>>
+  /** Push the OUTGOING hash (the one being replaced) before the set; the
+   *  prune keeps the last five. */
+  addPasswordHistory(userId: string, hash: string): Promise<void>
   /** Stamp the primary address verified (the account seed's declared
    *  personas — the operator's declaration IS the proof; the ceremony
    *  paths carry their own inline stamps). */

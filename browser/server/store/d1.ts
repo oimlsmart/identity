@@ -243,6 +243,7 @@ interface EnsureMemos {
   usersColumns: Promise<void> | null
   userNameColumns: Promise<void> | null
   orgJoinRequestsNameColumns: Promise<void> | null
+  passwordHistorySupport: Promise<void> | null
   mfaEmailColumns: Promise<void> | null
   mfaTrustedDeviceSupport: Promise<void> | null
   sessionColumns: Promise<void> | null
@@ -270,7 +271,7 @@ function ensured(binding: D1Database, slot: keyof EnsureMemos, run: () => Promis
   let memos = ensureMemosByBinding.get(binding)
   if (!memos) {
     memos = {
-      usersColumns: null, userNameColumns: null, orgJoinRequestsNameColumns: null, mfaEmailColumns: null, mfaTrustedDeviceSupport: null, sessionColumns: null, membershipSupport: null,
+      usersColumns: null, userNameColumns: null, orgJoinRequestsNameColumns: null, passwordHistorySupport: null, mfaEmailColumns: null, mfaTrustedDeviceSupport: null, sessionColumns: null, membershipSupport: null,
       orgRegistrySupport: null, holderAttributionSupport: null,
       instrumentRegistrationSupport: null, oidcColumns: null,
       personalAccessTokenSupport: null, consentGrantSupport: null,
@@ -2037,6 +2038,38 @@ export class D1ServerStore implements ServerStore {
     }
     if (!row) return null
     return { userId: row.user_id, hash: row.hash, active: row.active !== 0 }
+  }
+
+  // 0044 (2026-10-13, the GitHub/Google parity): the password history
+  // arrives with the migration — the landing surfaces ensure it
+  // defensively (the memoized posture).
+  private ensurePasswordHistorySupport(): Promise<void> {
+    return ensured(this.binding, 'passwordHistorySupport', async () => {
+      await this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS password_history (
+           id INTEGER PRIMARY KEY AUTOINCREMENT,
+           user_id TEXT NOT NULL,
+           hash TEXT NOT NULL,
+           created_at TEXT NOT NULL DEFAULT (datetime('now'))
+         )`,
+      ).run()
+      await this.db.prepare('CREATE INDEX IF NOT EXISTS idx_password_history_user ON password_history (user_id, id)').run()
+    })
+  }
+
+  async getPasswordHistory(userId: string): Promise<Array<{ hash: string }>> {
+    await this.ensurePasswordHistorySupport()
+    const res = await this.stmt('SELECT hash FROM password_history WHERE user_id = ? ORDER BY id DESC LIMIT 5', userId).all<{ hash: string }>()
+    return res.results
+  }
+
+  async addPasswordHistory(userId: string, hash: string): Promise<void> {
+    await this.ensurePasswordHistorySupport()
+    await this.stmt('INSERT INTO password_history (user_id, hash) VALUES (?, ?)', userId, hash).run()
+    await this.stmt(
+      'DELETE FROM password_history WHERE user_id = ? AND id NOT IN (SELECT id FROM password_history WHERE user_id = ? ORDER BY id DESC LIMIT 5)',
+      userId, userId,
+    ).run()
   }
 
   async setPasswordHash(userId: string, hash: string, setBy?: string | null): Promise<void> {

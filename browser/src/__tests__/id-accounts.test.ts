@@ -959,3 +959,64 @@ describe('the password-identity check (2026-10-13, the GitHub/Google parity)', (
     expect(ok.status, 'the 2-char local part is not a poison string').toBe(200)
   })
 })
+
+describe('the password history (0044, the GitHub/Google parity)', () => {
+  it('reset-to-the-compromised-password is refused; the fifth password back is allowed (the prune)', async () => {
+    const { setupUrl } = await invite('hist@example.org', 'Hilda History')
+    const token = new URL(setupUrl).searchParams.get('token')!
+    const enroll = (pw: string) => app.request(`/api/op/enroll/${token}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    })
+    expect((await enroll('hilda one has a proper passphrase')).status).toBe(200)
+    // The RESET to the SAME password: refused (the compromised hash is
+    // exactly what the reset exists to retire).
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const fresh = await app.request(`/api/op/accounts/${(await store.findUserByEmail('hist@example.org'))!.id}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+    const token2 = new URL(((await fresh.json()) as { setupUrl: string }).setupUrl).searchParams.get('token')!
+    const same = await app.request(`/api/op/enroll/${token2}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'hilda one has a proper passphrase' }),
+    })
+    expect(same.status).toBe(400)
+    expect((await same.json()).error).toContain('used recently')
+    // The rotation: two -> three -> four -> five, each accepted…
+    const passwords = [
+      'hilda two has a proper passphrase',
+      'hilda three has a proper passphrase',
+      'hilda four has a proper passphrase',
+      'hilda five has a proper passphrase',
+    ]
+    for (const pw of passwords) {
+      const f = await app.request(`/api/op/accounts/${(await store.findUserByEmail('hist@example.org'))!.id}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+      const t = new URL(((await f.json()) as { setupUrl: string }).setupUrl).searchParams.get('token')!
+      expect((await app.request(`/api/op/enroll/${t}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: pw }) })).status).toBe(200)
+    }
+    // …and the SIXTH rotation back to the FIRST password: refused — the
+    // window holds five RETIRED hashes (one..five) and the CURRENT (six
+    // is being set now, so one is still inside). The prune's bound: the
+    // store never carries more than five rows.
+    const f6 = await app.request(`/api/op/accounts/${(await store.findUserByEmail('hist@example.org'))!.id}/enrollment`, { method: 'POST', headers: { cookie: admin } })
+    const t6 = new URL(((await f6.json()) as { setupUrl: string }).setupUrl).searchParams.get('token')!
+    const back = await app.request(`/api/op/enroll/${t6}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'hilda one has a proper passphrase' }),
+    })
+    expect(back.status, 'the first password is still inside the window').toBe(400)
+    const { default: Database } = await import('better-sqlite3')
+    const db = new Database(process.env.DATABASE_PATH!)
+    const rows = db.prepare('SELECT count(*) AS n FROM password_history WHERE user_id = ?').get((await store.findUserByEmail('hist@example.org'))!.id) as { n: number }
+    db.close()
+    expect(rows.n, 'the prune keeps five').toBeLessThanOrEqual(5)
+  })
+  it('the console change refuses the immediate reuse too', async () => {
+    const { setupUrl } = await invite('hugh@example.org', 'Hugh History')
+    const cookie = await enroll(setupUrl, 'hugh one has a proper passphrase')
+    const change = await app.request('/api/op/account/password', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ current: 'hugh one has a proper passphrase', next: 'hugh one has a proper passphrase' }),
+    })
+    expect(change.status).toBe(400)
+    expect((await change.json()).error).toContain('used recently')
+  })
+})
