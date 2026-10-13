@@ -806,6 +806,49 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/api/op/account/security-checkup': {
+      get: {
+        tags: ['Account'], operationId: 'getSecurityCheckup', summary: 'The account\'s security checkup (the guided review)',
+        description:
+          'One scored read over the account\'s hygiene (2026-10-13, the Google parity): the second factor, the verified address, '
+          + 'the recovery codes\' availability, the untouched 90-day sessions, the pending email change — every check names its '
+          + 'finding and the act that settles it. The acts live in the account console\'s sections (the checkup links there).',
+        security: [{ sessionCookie: [] }],
+        responses: {
+          200: {
+            description: 'The checkup aggregate.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    score: { type: 'integer', description: '0-100: the passing fraction of the checks.' },
+                    checks: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          ok: { type: 'boolean' },
+                          detail: { type: 'object' },
+                          act: { type: 'string', description: 'The console anchor that settles the check.' },
+                          label: { type: 'string' },
+                          fix: { type: 'string' },
+                        },
+                      },
+                    },
+                    sessions: { type: 'array', items: { type: 'object' } },
+                    grants: { type: 'array', items: { type: 'object' } },
+                    factors: { type: 'integer' },
+                  },
+                },
+              },
+            },
+          },
+          401: { description: 'No session.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/api/op/account/profile': {
       post: {
         tags: ['Session'], operationId: 'updateAccount', summary: 'Update the profile (the name; the password change)',

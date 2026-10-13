@@ -747,3 +747,28 @@ describe('the structured names + the pre-approved domains (0043, 2026-10-13)', (
     expect(feed.find(o => o.id === 'EX1')?.email_domains ?? null).toBeNull()
   })
 })
+
+describe('the security checkup aggregate (2026-10-13, the Google parity)', () => {
+  it('scores the account hygiene: the missing second factor fails, the verified address passes, the acts point at the console', async () => {
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const res = await app.request(`${ORIGIN}/api/op/account/security-checkup`, { headers: { cookie: admin } })
+    expect(res.status).toBe(200)
+    const body = await res.json() as {
+      score: number
+      checks: Array<{ id: string; ok: boolean; act: string }>
+      factors: number
+    }
+    const byId = new Map(body.checks.map(c => [c.id, c]))
+    expect(byId.get('verified_email'), 'the verified-address check answers').toBeTruthy()
+    expect(typeof byId.get('verified_email')!.ok).toBe('boolean')
+    expect(byId.get('second_factor')?.ok, 'the factors read answers').toBeDefined()
+    expect(byId.get('no_pending_email_change')?.ok).toBe(true)
+    expect(body.score, 'the score is the passing fraction').toBe(Math.round(100 * body.checks.filter(c => c.ok).length / body.checks.length))
+    expect(byId.get('second_factor')?.act).toBe('/op/account#factors')
+    void admin
+  })
+  it('refuses the anonymous read (the session gate)', async () => {
+    const res = await app.request(`${ORIGIN}/api/op/account/security-checkup`)
+    expect(res.status).toBe(401)
+  })
+})

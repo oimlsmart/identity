@@ -1040,6 +1040,56 @@ export type GetAccountResponses = {
 
 export type GetAccountResponse = GetAccountResponses[keyof GetAccountResponses];
 
+export type GetSecurityCheckupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/account/security-checkup';
+};
+
+export type GetSecurityCheckupErrors = {
+    /**
+     * No session.
+     */
+    401: Error;
+};
+
+export type GetSecurityCheckupError = GetSecurityCheckupErrors[keyof GetSecurityCheckupErrors];
+
+export type GetSecurityCheckupResponses = {
+    /**
+     * The checkup aggregate.
+     */
+    200: {
+        /**
+         * 0-100: the passing fraction of the checks.
+         */
+        score?: number;
+        checks?: Array<{
+            id?: string;
+            ok?: boolean;
+            detail?: {
+                [key: string]: unknown;
+            };
+            /**
+             * The console anchor that settles the check.
+             */
+            act?: string;
+            label?: string;
+            fix?: string;
+        }>;
+        sessions?: Array<{
+            [key: string]: unknown;
+        }>;
+        grants?: Array<{
+            [key: string]: unknown;
+        }>;
+        factors?: number;
+    };
+};
+
+export type GetSecurityCheckupResponse = GetSecurityCheckupResponses[keyof GetSecurityCheckupResponses];
+
 export type UpdateAccountData = {
     body: {
         name?: string;
