@@ -226,6 +226,7 @@ describe('the join page’s doors (the question before the form)', () => {
       // live against the typed address, and the mismatch routes honestly.
       await openDoor(page, 'ia')
       await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
+      await page.focus('[data-testid="join-org-search"]')
       await page.waitForSelector('[data-testid="join-org-option-EX1"]', { timeout: SETTLE, polling: 500 })
       const optionText = await page.$eval('[data-testid="join-org-option-EX1"]', el => el.textContent ?? '')
       expect(optionText).toContain('@bmd.example')

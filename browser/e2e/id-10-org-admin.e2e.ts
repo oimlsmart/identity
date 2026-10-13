@@ -322,6 +322,7 @@ describe('TODO.identity/10 — delegated organization administration (the identi
     // Declaration) — and NEVER a participant org or the mid-pipeline IA
     // (XX1, draft Declaration) — only registered orgs are selectable.
     await page.evaluate(() => (document.querySelector('[data-testid="join-door-member"]') as HTMLElement).click())
+    await page.focus('[data-testid="join-org-search"]')
     await page.waitForSelector(`[data-testid="join-org-option-${UTILIZER_ID}"]`, { timeout: SETTLE, polling: 500 })
     expect(await page.$('[data-testid="join-org-option-EX1"]')).toBeNull()
     expect(await page.$('[data-testid="join-org-option-XX1"]')).toBeNull()
