@@ -403,6 +403,28 @@ export function createOpAccountsRouter(): Hono {
     })
   }
 
+  /** THE PASSWORD HISTORY GATE (0044, the GitHub/Google parity): the
+   *  candidate is verified against the account's last FIVE hashes —
+   *  reset-to-the-compromised-password defeats the reset's own sweep,
+   *  so it is refused exactly as Google and GitHub refuse it. The
+   *  outgoing hash is pushed BEFORE the set (the caller's job at each
+   *  surface). */
+  async function passwordHistoryRefusal(store: ReturnType<typeof getStore>, userId: string, email: string, candidate: string): Promise<string | null> {
+    // The CURRENT hash counts too: the reset-to-the-compromised-password
+    // case is exactly 'the new password equals the one being replaced'.
+    const current = (await store.getPasswordLogin(email))?.hash ?? null
+    if (current && await verifyPasswordLogin(candidate, current)) {
+      return 'this password was used recently for this account — choose a different one'
+    }
+    const history = await store.getPasswordHistory(userId)
+    for (const row of history) {
+      if (await verifyPasswordLogin(candidate, row.hash)) {
+        return 'this password was used recently for this account — choose a different one'
+      }
+    }
+    return null
+  }
+
   /** The password-set/changed notice (TODO.identity-sso/04 slice D): the
    *  enrollment completion and the console change share it — one copy
    *  ("set or changed") for both ceremonies. Never blocks the path (the
@@ -1307,6 +1329,16 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
     }
     const store = getStore()
+    // THE PASSWORD HISTORY GATE (0044): the candidate is verified
+    // against the account's last five hashes; the refusal leaves the
+    // link unburned. The outgoing hash (when one exists) pushes into
+    // the history beside the set.
+    if (peekUser) {
+      const historyRefusal = await passwordHistoryRefusal(store, peekUser.id, peekUser.email, body.password)
+      if (historyRefusal) return c.json({ error: historyRefusal }, 400)
+      const outgoing = await store.getPasswordLogin(peekUser.email)
+      if (outgoing) await store.addPasswordHistory(peekUser.id, outgoing.hash)
+    }
     const result = await store.completeEnrollment(c.req.param('token'), await hashPassword(body.password), 'enrollment')
     if (result.kind === 'expired') {
       return c.json({ error: 'This setup link has expired (setup links live 24 hours). Ask your administrator for a fresh one.' }, 410)
@@ -2118,6 +2150,8 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: `The password needs ${policy.problems.join(' and ')}.` }, 400)
     }
     const store = getStore()
+    const historyRefusal = await passwordHistoryRefusal(store, user.id, user.email, body.next)
+    if (historyRefusal) return c.json({ error: historyRefusal }, 400)
     const methods = await store.countSignInMethods(user.id)
     if (methods.password) {
       const cred = await store.getPasswordLogin(user.email)
@@ -2132,7 +2166,9 @@ export function createOpAccountsRouter(): Hono {
     if (breach === 'breached') {
       return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
     }
+    const outgoingHash = (await store.getPasswordLogin(user.email))?.hash ?? null
     await store.setPasswordHash(user.id, await hashPassword(body.next), user.email)
+    if (outgoingHash) await store.addPasswordHistory(user.id, outgoingHash)
     await store.revokeMfaTrustedDevicesForUser(user.id)
     // THE CONSOLE CHANGE'S FULL MEANING (2026-10-12, the cold-eyes
     // audit): the reset doctrine, kept — every delegated chain minted

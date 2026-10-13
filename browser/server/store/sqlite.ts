@@ -152,6 +152,8 @@ import {
   revokeOpUserFactors,
   setOpClientRoles,
   setPasswordHash,
+  getPasswordHistory,
+  addPasswordHistory,
   setPrimaryAccountEmail,
   setUserAvatar,
   updateOpAccount,
@@ -683,6 +685,12 @@ export class SqliteServerStore implements ServerStore {
   }
   async setPasswordHash(userId: string, hash: string, setBy?: string | null): Promise<void> {
     setPasswordHash(this.db, userId, hash, setBy)
+  }
+  async getPasswordHistory(userId: string): Promise<Array<{ hash: string }>> {
+    return getPasswordHistory(this.db, userId)
+  }
+  async addPasswordHistory(userId: string, hash: string): Promise<void> {
+    return addPasswordHistory(this.db, userId, hash)
   }
   async markPrimaryEmailVerified(userId: string): Promise<void> {
     markPrimaryEmailVerified(this.db, userId)
