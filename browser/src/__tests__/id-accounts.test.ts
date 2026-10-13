@@ -841,14 +841,14 @@ describe('the account erasure (DELETE /api/op/accounts/:id)', () => {
   it('the full erasure: every credential, link-token and grant goes; the row is an anonymized tombstone; the email is free again', async () => {
     const admin = await demoLogin('admin@oimlsmart.org')
     const invited = await invite('quentin@example.org', 'Quentin Erased')
-    const cookie = await enroll(invited.setupUrl, 'quentin has a proper passphrase')
+    const cookie = await enroll(invited.setupUrl, 'the erased one has a proper passphrase')
     const id = invited.account.id
 
     const res = await app.request(`/api/op/accounts/${id}`, { method: 'DELETE', headers: { cookie: admin } })
     expect(res.status).toBe(200)
 
     // Sign-ins refuse (the credential is gone) and the session is dead.
-    const login = await passwordLogin('quentin@example.org', 'quentin has a proper passphrase')
+    const login = await passwordLogin('quentin@example.org', 'the erased one has a proper passphrase')
     expect(login.status).toBe(401)
     const deadSession = await app.request('/api/op/account', { headers: { cookie } })
     expect(deadSession.status).toBe(401)
@@ -918,5 +918,44 @@ describe('the OP_ACCOUNT_SEED declaration', () => {
     expect(() => parseOpAccountSeed('{"email":"x@y.org"}')).toThrow('JSON array')
     expect(() => parseOpAccountSeed('[{"name":"No email"}]')).toThrow('email is required')
     expect(() => parseOpAccountSeed('[{"email":"x@y.org"}]')).toThrow('name is required')
+  })
+})
+
+describe('the password-identity check (2026-10-13, the GitHub/Google parity)', () => {
+  it('a password containing the holder’s address is refused — everywhere', async () => {
+    const { setupUrl, account } = await invite('stella@example.org', 'Stella Identity')
+    const token = new URL(setupUrl).searchParams.get('token')!
+    // The enroll: the address inside the password is the first thing an
+    // attacker who knows the address tries.
+    const refused = await app.request(`/api/op/enroll/${token}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'my stella@example.org pass 123' }),
+    })
+    expect(refused.status).toBe(400)
+    expect((await refused.json()).error).toContain('must not contain your email')
+    // The link survives the refusal (a refused password never burns it).
+    const ok = await app.request(`/api/op/enroll/${token}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'a proper unrelated passphrase' }),
+    })
+    expect(ok.status).toBe(200)
+    // The console change: the same gate reads the SESSION's address.
+    const cookie = ok.headers.get('set-cookie')!.split(';')[0]!
+    const change = await app.request('/api/op/account/password', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ current: 'stella has a proper passphrase', next: 'x stella@example.org x 123' }),
+    })
+    expect(change.status).toBe(400)
+    expect((await change.json()).error).toContain('must not contain your email')
+    void account
+  })
+  it('a short local part never condemns an unrelated password', async () => {
+    const { setupUrl } = await invite('al@short.example', 'Al Short')
+    const token = new URL(setupUrl).searchParams.get('token')!
+    const ok = await app.request(`/api/op/enroll/${token}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'al works fine as a passphrase' }),
+    })
+    expect(ok.status, 'the 2-char local part is not a poison string').toBe(200)
   })
 })

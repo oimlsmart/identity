@@ -49,7 +49,7 @@ const RP_CLIENT_ID = 'fixture-rp'
 const RP_CLIENT_SECRET = 'fixture-rp-secret'
 
 const ROOT = { email: 'root@oimlsmart.org', name: 'Root Operator', password: 'the root operator passphrase' }
-const APPLICANT = { email: 'applicant@example.org', name: 'Applicant Example', password: 'an applicant passphrase' }
+const APPLICANT = { email: 'applicant@example.org', name: 'Applicant Example', password: 'a proper unrelated passphrase' }
 
 interface Stack {
   api: ChildProcess

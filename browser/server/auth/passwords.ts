@@ -86,13 +86,31 @@ export interface PasswordPolicy {
 }
 
 /** The gate: length ≥ 12, length ≤ the bound. Nothing else refuses. */
-export function passwordPolicy(password: string): PasswordPolicy {
+export function passwordPolicy(password: string, identity?: { email?: string | null; name?: string | null }): PasswordPolicy {
   const problems: string[] = []
   if (password.length < PASSWORD_MIN_LENGTH) {
     problems.push(`at least ${PASSWORD_MIN_LENGTH} characters`)
   }
   if (password.length > PASSWORD_MAX_LENGTH) {
     problems.push(`at most ${PASSWORD_MAX_LENGTH} characters`)
+  }
+  // THE IDENTITY CHECK (2026-10-13, the GitHub/Google parity): a
+  // password that CONTAINS the holder's address (or its local part) is
+  // the first thing an attacker who knows the address tries. The
+  // comparison is case-folded and boundary-honest: a short local part
+  // (a.b@) never condemns an unrelated password.
+  if (identity?.email) {
+    const email = identity.email.trim().toLowerCase()
+    const local = email.split('@')[0] ?? ''
+    const lowered = password.toLowerCase()
+    // The local-part arm demands SIX characters — a real name fragment,
+    // never a two-letter initial (a.b@) or a common short name that
+    // would condemn unrelated passphrases.
+    if (email.length >= 6 && lowered.includes(email)) {
+      problems.push('the password must not contain your email address')
+    } else if (local.length >= 6 && lowered.includes(local)) {
+      problems.push('the password must not contain your email address')
+    }
   }
   return { ok: problems.length === 0, problems }
 }

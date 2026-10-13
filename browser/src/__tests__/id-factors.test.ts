@@ -905,7 +905,7 @@ describe('the email sign-in fallback', () => {
   })
 
   it('THE TRUSTED LIST MARKS THIS BROWSER (24): the presented cookie hashes against the rows — the holder knows which entry they read from', { timeout: 30_000 }, async () => {
-    const MARK = { email: 'marcus@factors.test', name: 'Marcus Mark', password: 'marcus has a proper passphrase' }
+    const MARK = { email: 'marcus@factors.test', name: 'Marcus Mark', password: 'the marker has a proper passphrase' }
     const { id } = await accountWithTotp(MARK.email, MARK.name, MARK.password)
     const login = await passwordLogin(MARK.email, MARK.password)
     const { getStore } = await import('../../server/store')
