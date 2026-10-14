@@ -48,9 +48,11 @@ onMounted(() => { void resolveBranding() })
            on the credential surface. -->
       <a v-if="branding.supportUrl" :href="branding.supportUrl" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-support">{{ t('shell.footer.supportPrompt') }}</a>
       <!-- The live status pill (the ISO-benchmark structural item 1):
-           the register's own status projection replaces the raw health
-           JSON link — green only on real probe data, "status unknown"
-           honestly when unreachable. -->
+           the register's own status projection — green only on real
+           probe data, "status unknown" honestly when unreachable. -->
+      <StatusPill />
+      <!-- The live status pill ends the declared surfaces; the divider
+           separates the controls. -->
       <span class="mx-1 h-3 w-px bg-slate-300 dark:bg-slate-600" aria-hidden="true" />
       <LocaleSwitch />
       <ThemeToggle v-if="bare" />
