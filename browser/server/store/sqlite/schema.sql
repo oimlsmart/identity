@@ -1148,3 +1148,15 @@ CREATE TABLE IF NOT EXISTS pushed_authorization_requests (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+
+-- 0044 (2026-10-13, the GitHub/Google parity): the password history —
+-- the last FIVE hashes per account, checked at every landing surface
+-- (reset-to-the-compromised-password is refused like Google and GitHub
+-- refuse it). The prune rides the insert.
+CREATE TABLE IF NOT EXISTS password_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_password_history_user ON password_history (user_id, id);

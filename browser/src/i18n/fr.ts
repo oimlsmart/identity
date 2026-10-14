@@ -1090,6 +1090,8 @@ export const fr: Record<MessageKey, string> = {
   "mail.membershipInvited.heading": "L'adhésion attend votre accord",
   "mail.membershipInvited.body": "Un administrateur de {org} a approuvé une demande associant votre compte à l'organisation. Rien n'est actif pour l'instant : l'adhésion attend VOTRE consentement. Acceptez-la (ou refusez-la) depuis la section Organisations de votre compte.",
   "mail.membershipInvited.why": "Vous recevez ceci parce que votre compte a été nommé dans une demande d'adhésion d'une organisation.",
+  "mail.context.deviceOnly": "Depuis : {device}.",
+  "mail.context.from": "Depuis : {device} — IP {ip}.",
   "mail.selfRegister.subject": "Terminez la création de votre compte {product}",
   "mail.selfRegister.preheader": "Confirmez l’adresse de votre inscription {product} — le lien est valable 24 heures.",
   "mail.selfRegister.heading": "Confirmez votre inscription",

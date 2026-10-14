@@ -163,6 +163,7 @@ import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markB
 import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
 import { issueAccountInvite } from '../auth/op/enrollment'
 import { clearMailBudgetForAccount, sendOpMail, sendOpSecurityMail, type OpMailResult } from '../auth/op/mail'
+import { deviceSummary } from '../auth/op/device-summary'
 import { resolveMailerConfig, type MailEnv } from '../mailer'
 import { isActiveRegistryOrg, listRegistryOrganizations, orgAssignableRoles, resolveRegistryOrg } from '../auth/org-registry'
 import { parseOpClientSeed, seedOidcClientsFromEnv } from '../auth/op/registry'
@@ -382,6 +383,7 @@ export function createOpAccountsRouter(): Hono {
    *  primary PLUS every verified additional (the "was this you?" must
    *  reach every proven mailbox — auth/op/mail.ts's sendOpSecurityMail). */
   async function notifySignIn(c: Context, user: { id: string; email: string; name: string }, newDevice = false): Promise<void> {
+    const info = clientInfo(c)
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId: user.id,
@@ -389,15 +391,46 @@ export function createOpAccountsRouter(): Hono {
       issuer,
       // TODO.modern/06: the NEW DEVICE advisory rides the notice when
       // the assessment flagged the sighting (absent = unchanged mail).
-      params: { name: user.name, when: new Date().toISOString().slice(0, 16).replace('T', ' '), ...(newDevice ? { newDevice: true } : {}) },
+      // 2026-10-13 (the GitHub/Google parity): the notice names WHAT and
+      // WHERE the act came from.
+      params: {
+        name: user.name,
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        fromDevice: deviceSummary(info.userAgent),
+        fromIp: info.ip ?? '',
+        ...(newDevice ? { newDevice: true } : {}),
+      },
     })
+  }
+
+  /** THE PASSWORD HISTORY GATE (0044, the GitHub/Google parity): the
+   *  candidate is verified against the account's last FIVE hashes —
+   *  reset-to-the-compromised-password defeats the reset's own sweep,
+   *  so it is refused exactly as Google and GitHub refuse it. The
+   *  outgoing hash is pushed BEFORE the set (the caller's job at each
+   *  surface). */
+  async function passwordHistoryRefusal(store: ReturnType<typeof getStore>, userId: string, email: string, candidate: string): Promise<string | null> {
+    // The CURRENT hash counts too: the reset-to-the-compromised-password
+    // case is exactly 'the new password equals the one being replaced'.
+    const current = (await store.getPasswordLogin(email))?.hash ?? null
+    if (current && await verifyPasswordLogin(candidate, current)) {
+      return 'this password was used recently for this account — choose a different one'
+    }
+    const history = await store.getPasswordHistory(userId)
+    for (const row of history) {
+      if (await verifyPasswordLogin(candidate, row.hash)) {
+        return 'this password was used recently for this account — choose a different one'
+      }
+    }
+    return null
   }
 
   /** The password-set/changed notice (TODO.identity-sso/04 slice D): the
    *  enrollment completion and the console change share it — one copy
    *  ("set or changed") for both ceremonies. Never blocks the path (the
    *  notifySignIn rule: a mail failure is never the flow's failure). */
-  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }, opts: { emailFallbackHour?: boolean; factorsRevoked?: boolean } = {}): Promise<void> {
+  async function notifyPasswordChanged(c: Context, user: { id: string; name: string }, opts: { emailFallbackHour?: boolean; factorsRevoked?: boolean; otherSessionsRevoked?: number } = {}): Promise<void> {
+    const info = clientInfo(c)
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
       userId: user.id,
@@ -406,6 +439,9 @@ export function createOpAccountsRouter(): Hono {
       params: {
         name: user.name,
         when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        fromDevice: deviceSummary(info.userAgent),
+        fromIp: info.ip ?? '',
+        ...(opts.otherSessionsRevoked !== undefined ? { otherSessionsRevoked: opts.otherSessionsRevoked } : {}),
         ...(opts.emailFallbackHour ? { emailFallbackHour: true } : {}),
         ...(opts.factorsRevoked ? { factorsRevoked: true } : {}),
       },
@@ -706,7 +742,13 @@ export function createOpAccountsRouter(): Hono {
         to: email,
         template: 'reset',
         issuer,
-        params: { name: account.name, setupUrl, hours: Math.round(OP_ENROLLMENT_TTL_MS / 3_600_000) },
+        params: {
+          name: account.name,
+          setupUrl,
+          hours: Math.round(OP_ENROLLMENT_TTL_MS / 3_600_000),
+          fromDevice: deviceSummary(clientInfo(c).userAgent),
+          fromIp: clientInfo(c).ip ?? '',
+        },
       })
       // The account's own activity feed shows the request (the holder
       // learns of it, whoever asked); the send's own audit rides the
@@ -1287,6 +1329,16 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
     }
     const store = getStore()
+    // THE PASSWORD HISTORY GATE (0044): the candidate is verified
+    // against the account's last five hashes; the refusal leaves the
+    // link unburned. The outgoing hash (when one exists) pushes into
+    // the history beside the set.
+    if (peekUser) {
+      const historyRefusal = await passwordHistoryRefusal(store, peekUser.id, peekUser.email, body.password)
+      if (historyRefusal) return c.json({ error: historyRefusal }, 400)
+      const outgoing = await store.getPasswordLogin(peekUser.email)
+      if (outgoing) await store.addPasswordHistory(peekUser.id, outgoing.hash)
+    }
     const result = await store.completeEnrollment(c.req.param('token'), await hashPassword(body.password), 'enrollment')
     if (result.kind === 'expired') {
       return c.json({ error: 'This setup link has expired (setup links live 24 hours). Ask your administrator for a fresh one.' }, 410)
@@ -2098,6 +2150,8 @@ export function createOpAccountsRouter(): Hono {
       return c.json({ error: `The password needs ${policy.problems.join(' and ')}.` }, 400)
     }
     const store = getStore()
+    const historyRefusal = await passwordHistoryRefusal(store, user.id, user.email, body.next)
+    if (historyRefusal) return c.json({ error: historyRefusal }, 400)
     const methods = await store.countSignInMethods(user.id)
     if (methods.password) {
       const cred = await store.getPasswordLogin(user.email)
@@ -2112,7 +2166,9 @@ export function createOpAccountsRouter(): Hono {
     if (breach === 'breached') {
       return c.json({ error: HIBP_BREACHED_REFUSAL }, 400)
     }
+    const outgoingHash = (await store.getPasswordLogin(user.email))?.hash ?? null
     await store.setPasswordHash(user.id, await hashPassword(body.next), user.email)
+    if (outgoingHash) await store.addPasswordHistory(user.id, outgoingHash)
     await store.revokeMfaTrustedDevicesForUser(user.id)
     // THE CONSOLE CHANGE'S FULL MEANING (2026-10-12, the cold-eyes
     // audit): the reset doctrine, kept — every delegated chain minted
@@ -2152,8 +2208,9 @@ export function createOpAccountsRouter(): Hono {
     })
     if (breach === 'unknown') await markBreachRecheck(store, user.id)
     // TODO.identity-sso/04 slice D: the password-changed notice (the
-    // "was this you?" for the credential change itself).
-    await notifyPasswordChanged(c, user)
+    // "was this you?" for the credential change itself — with the
+    // act's context and the survived-session count).
+    await notifyPasswordChanged(c, user, { otherSessionsRevoked })
     return c.json({ ok: true, otherSessionsRevoked })
   })
 

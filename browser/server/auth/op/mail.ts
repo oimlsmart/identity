@@ -283,12 +283,18 @@ export function renderOpMail(
   // factor registry with the credential — the notice names it, the
   // holder learns to re-enroll (the setup page they're on offers it).
   const factorsRevoked = template === 'password_changed' && params.factorsRevoked === true
+  // 2026-10-13 (the GitHub/Google parity): every security notice names
+  // WHAT and WHERE the act came from — the summarized device and the
+  // IP (the params the callers carry). Absent = the notice stays as it
+  // was.
+  const actContext = params.fromDevice !== undefined
 
   // ── The plain-text part: the message IS the text. The expiry note sits
   //    right after the action link; the footer mirrors the HTML footer. ──
   const textBody = raw(keys.body).split(/\n\n+/).flatMap((p) =>
     actionUrl && p.trim() === String(params[actionKey]) ? [p, raw('mail.link.once')] : [p])
-  const text = [...textBody, ...(newDevice ? [raw('mail.signin.newDevice')] : []), ...(fallbackHour ? [raw('mail.passwordChanged.fallbackHour')] : []), ...(factorsRevoked ? [raw('mail.passwordChanged.factorsRevoked')] : []), ...(resetUrl ? [raw('mail.resetLink.text')] : []), '--', raw(keys.why), raw('mail.footer'), raw('mail.footer.support')].join('\n\n')
+  const contextLine = actContext ? (params.fromIp ? raw('mail.context.from') : raw('mail.context.deviceOnly')) : null
+  const text = [...textBody, ...(contextLine ? [contextLine] : []), ...(newDevice ? [raw('mail.signin.newDevice')] : []), ...(fallbackHour ? [raw('mail.passwordChanged.fallbackHour')] : []), ...(factorsRevoked ? [raw('mail.passwordChanged.factorsRevoked')] : []), ...(resetUrl ? [raw('mail.resetLink.text')] : []), '--', raw(keys.why), raw('mail.footer'), raw('mail.footer.support')].join('\n\n')
   const subject = raw(keys.subject)
 
   // ── The HTML shell. The primary action: the bulletproof button (a
@@ -320,7 +326,9 @@ export function renderOpMail(
     // block in place — everything else is a body paragraph.
     if (actionUrl && p.trim() === escapeHtml(actionUrl)) return actionBlock
     return `<p style="margin:0 0 16px;font-family:${SANS};font-size:15px;line-height:1.6;color:#1d1d1b">${p.replace(/\n/g, '<br>')}</p>`
-  }).join('') + newDeviceBlock + fallbackHourBlock + factorsRevokedBlock
+  }).join('') + (actContext
+    ? '<p style="margin:14px 0 0;font-family:' + SANS + ';font-size:12px;line-height:1.5;color:#5b6b7f">' + esc(params.fromIp ? 'mail.context.from' : 'mail.context.deviceOnly') + '</p>'
+    : '') + newDeviceBlock + fallbackHourBlock + factorsRevokedBlock
 
   // The reset pointer's HTML: the copy line with its URL wrapped in a
   // plain anchor (the escaped-interpolation trick: the escaped URL is a
