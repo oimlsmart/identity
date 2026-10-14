@@ -149,7 +149,7 @@ export function createOpJoinRouter(): Hono {
    *  their mailbox accepts). Never fails the filing (the mailer never
    *  throws); the BIML door files no ack — its setup link IS the
    *  receipt. */
-  async function sendFilingAck(c: Context, input: { name: string; email: string; org: string; destination: string }): Promise<void> {
+  async function sendFilingAck(c: Context, input: { name: string; email: string; org: string; destination: string; requestId: string }): Promise<void> {
     await sendOpMail(runtimeEnv<MailEnv>(c), {
       to: input.email,
       template: 'join_received',
@@ -159,6 +159,7 @@ export function createOpJoinRouter(): Hono {
         org: input.org,
         destination: input.destination,
         when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        statusUrl: `${opRequestOrigin(c.req.raw)}/op/join?request=${encodeURIComponent(input.requestId)}`,
       },
     })
   }
@@ -330,7 +331,7 @@ export function createOpJoinRouter(): Hono {
       const request = await getStore().createOrgJoinRequest({
         name, givenName, familyName, email, orgId, orgNameText: null, requestedRole: role, note,
       })
-      await sendFilingAck(c, { name, email, org: org.name, destination: "the organization's administrator" })
+      await sendFilingAck(c, { name, email, org: org.name, destination: "the organization's administrator", requestId: request.id })
       await notifyDeciders(c, { orgId, orgName: org.name, requesterName: name, requesterEmail: email, role })
       return c.json(request, 201)
     }
@@ -438,7 +439,7 @@ export function createOpJoinRouter(): Hono {
         const request = await store.createOrgJoinRequest({
           name, givenName, familyName, email, orgId: match.id, orgNameText: null, requestedRole: 'applicant', note,
         })
-        await sendFilingAck(c, { name, email, org: match.name, destination: "the organization's administrator" })
+        await sendFilingAck(c, { name, email, org: match.name, destination: "the organization's administrator", requestId: request.id })
         await notifyDeciders(c, { orgId: match.id, orgName: match.name, requesterName: name, requesterEmail: email, role: 'applicant' })
         return c.json({ ...request, organization: { id: match.id, name: match.name, created: false } }, 201)
       }
@@ -469,7 +470,7 @@ export function createOpJoinRouter(): Hono {
       const request = await store.createOrgJoinRequest({
         name, givenName, familyName, email, orgId: id, orgNameText: null, requestedRole: 'org_admin', note,
       })
-      await sendFilingAck(c, { name, email, org: orgNameText, destination: 'the BIML secretariat' })
+      await sendFilingAck(c, { name, email, org: orgNameText, destination: 'the BIML secretariat', requestId: request.id })
       await notifyDeciders(c, { orgId: null, orgName: orgNameText, requesterName: name, requesterEmail: email, role: 'org_admin' })
       return c.json({ ...request, organization: { id, name: orgNameText, created: true } }, 201)
     }
@@ -484,7 +485,7 @@ export function createOpJoinRouter(): Hono {
     const request = await getStore().createOrgJoinRequest({
       name, givenName, familyName, email, orgId: null, orgNameText, requestedRole: 'org_admin', note,
     })
-    await sendFilingAck(c, { name, email, org: orgNameText, destination: 'the BIML secretariat' })
+    await sendFilingAck(c, { name, email, org: orgNameText, destination: 'the BIML secretariat', requestId: request.id })
     await notifyDeciders(c, { orgId: null, orgName: orgNameText, requesterName: name, requesterEmail: email, role: 'org_admin' })
     return c.json(request, 201)
   })
@@ -543,6 +544,24 @@ export function createOpJoinRouter(): Hono {
     }
     return { request }
   }
+
+  // GET /api/op/join-requests/:id/status — the requester's track link
+  // (2026-10-14): the decision loop travels by mail, and mail is lossy
+  // — the id (a UUID, the ack's own capability) answers the honest
+  // state. The refusal REASON never rides this surface (the reason is
+  // the mail's content); an id that names nothing answers the uniform
+  // 404. The OP rate limiter bounds it like every join path.
+  router.get('/api/op/join-requests/:id/status', async (c) => {
+    const request = await getStore().getOrgJoinRequest(c.req.param('id'))
+    if (!request) return c.json({ error: 'no request answers this id — check the link in your mail' }, 404)
+    const org = request.orgId ? await resolveRegistryOrg(getStore(), request.orgId) : null
+    return c.json({
+      status: request.status,
+      orgName: org?.name ?? request.orgNameText ?? null,
+      filedAt: request.createdAt,
+      decidedAt: request.decidedAt,
+    })
+  })
 
   // POST /api/op/join-requests/:id/approve — the invite is issued (the
   // 02 enrollment seam) and the row decided. For the UNREGISTERED queue
@@ -739,6 +758,7 @@ export function createOpJoinRouter(): Hono {
         org: org?.name ?? request.orgNameText ?? 'your organization',
         reason,
         when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        statusUrl: `${opRequestOrigin(c.req.raw)}/op/join?request=${encodeURIComponent(request.id)}`,
       },
     })
     await audit(user, request, 'org_join_request.refused', { reason, notice_delivery: refusalMail.sent ? 'email' : 'skipped' })

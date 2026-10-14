@@ -19,7 +19,12 @@
 //             required reason — email is the only channel that reaches
 //             an account that does not exist yet;
 //   APPROVED  the approve path keeps its invite mail (the regression
-//             guard).
+//             guard);
+//   STATUS    the ack and the refusal carry the track link, and the
+//             public status endpoint answers the honest state — pending
+//             with the org's name, decided without the reason (the
+//             reason travels by mail only), and a uniform 404 for an
+//             id that names nothing.
 // ─────────────────────────────────────────────────────────────────────
 
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -128,6 +133,9 @@ describe('the join decision loop closes by mail', () => {
     expect(acks[0]!.text).toContain('Example Issuing Authority')
     expect(acks[0]!.text).toContain("organization's administrator")
     expect(acks[0]!.text).toContain('did not file')
+    // The track link rides the ack (the mail-loss hole's answer).
+    const filed = await res.json() as { id: string }
+    expect(acks[0]!.text).toContain(`/op/join?request=${filed.id}`)
     // THE DOORBELL: the org's decider learns a request waits.
     const bells = stub.messages.filter(m => m.to === 'gatekeeper@eia.example')
     expect(bells.length, 'exactly one decider notice').toBe(1)
@@ -199,6 +207,40 @@ describe('the join decision loop closes by mail', () => {
     expect((notices[0]!.subject ?? '').toLowerCase()).toContain('declined')
     expect(notices[0]!.text).toContain('Example Issuing Authority')
     expect(notices[0]!.text).toContain('ask your team lead to file with their address')
+    // The track link rides the refusal too.
+    expect(notices[0]!.text).toContain(`/op/join?request=${request.id}`)
+  })
+
+  it('STATUS: the public endpoint answers the honest state — the reason stays out', async () => {
+    const filed = await fileRequest({ given_name: 'Stu', family_name: 'Status', email: 'stu@eia.example', org_id: 'EX1', requested_role: 'viewer' })
+    expect(filed.status).toBe(201)
+    const { id } = await filed.json() as { id: string }
+
+    const pending = await app.request(`${ORIGIN}/api/op/join-requests/${id}/status`)
+    expect(pending.status).toBe(200)
+    const body = await pending.json() as { status: string; orgName?: string; reason?: string }
+    expect(body.status).toBe('pending')
+    expect(body.orgName).toBe('Example Issuing Authority')
+    expect(body.reason, 'the reason never rides the public surface').toBeUndefined()
+
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const refused = await app.request(`${ORIGIN}/api/op/join-requests/${id}/refuse`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ reason: 'the secret reason text' }),
+    })
+    expect(refused.status).toBe(200)
+
+    const decided = await app.request(`${ORIGIN}/api/op/join-requests/${id}/status`)
+    expect(decided.status).toBe(200)
+    const decidedBody = await decided.json() as { status: string; reason?: string }
+    expect(decidedBody.status).toBe('refused')
+    expect(JSON.stringify(decidedBody), 'the reason stays out of the answer').not.toContain('secret reason text')
+  })
+
+  it('STATUS: an id that names nothing answers the uniform 404', async () => {
+    const missing = await app.request(`${ORIGIN}/api/op/join-requests/${crypto.randomUUID()}/status`)
+    expect(missing.status).toBe(404)
   })
 
   it('APPROVED: the approve path keeps its invite mail', async () => {
