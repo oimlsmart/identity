@@ -1556,7 +1556,7 @@ export const en = {
   "shell.footer.privacy": "Privacy",
   "shell.footer.status": "Service status",
   "shell.footer.supportPrompt": "Need help?",
-  "shell.footer.tagline": "OIML SMART Identity — the sign-in service for the OIML-CS register and the OIML SMART platform",
+  "shell.footer.tagline": "OIML SMART Identity — the sign-in service for OIML SMART",
   "shell.footer.terms": "Terms",
   "shell.locale.label": "Language",
   "shell.nav.admin": "Administration",
