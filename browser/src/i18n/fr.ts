@@ -140,6 +140,7 @@ export const fr: Record<MessageKey, string> = {
   "account.activity.newDevice": "nouvel appareil",
   "account.activity.title": "Activité récente",
   "account.description": "Votre identité OIML SMART : le profil, les méthodes de connexion, les sessions et l’activité du compte, gérés par vous.",
+  "account.linkError.linkFreshProof": "Avant de lier {name}, prouvez que c’est bien vous : reconnectez-vous (page de connexion), puis relancez la liaison depuis cette page.",
   "account.linkError.generic": "La liaison n’a pas pu aboutir. Réessayez.",
   "account.linkError.link_session": "La session de connexion a changé pendant le flux de liaison. Recommencez la liaison.",
   "account.linkError.link_taken": "Ce compte {name} est déjà lié à un autre compte OIML SMART. Contactez votre administrateur si vous pensez qu’il s’agit d’une erreur.",

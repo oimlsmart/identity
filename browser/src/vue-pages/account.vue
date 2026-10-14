@@ -749,6 +749,7 @@ function activityLabel(event: ActivityEvent): string {
  *  plain language, never a stack trace (08's mapping, keyed now). */
 function linkErrorMessage(key: string, providerId: string): string {
   const name = providers.value.find(p => p.id === providerId)?.displayName ?? providerId
+  if (key === 'link_fresh_proof') return t('account.linkError.linkFreshProof', { name })
   if (key === 'link_taken' || key === 'provider_linked' || key === 'link_session') {
     return t(`account.linkError.${key}` as MessageKey, { name })
   }

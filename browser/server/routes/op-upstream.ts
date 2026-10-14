@@ -71,6 +71,7 @@ import {
 import { generateAppleClientSecret, resolveAppleSecretConfig } from '../auth/upstream/apple'
 import { buildGitHubAuthorizeUrl, fetchGitHubIdentity, gitHubEndpoints, GitHubUpstreamError } from '../auth/upstream/github-client'
 import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
+import { demandFreshProof } from '../auth/op/fresh-proof'
 import { touchAccountJar } from '../auth/op/account-jar'
 
 type EnvLike = Record<string, string | undefined>
@@ -332,6 +333,16 @@ export function createOpUpstreamRouter(): Hono {
     const mine = await getStore().listIdentityLinks(user.id)
     if (mine.some(l => l.provider === provider.id)) {
       return c.redirect(linkErrorRedirect(origin, 'provider_linked', provider.id))
+    }
+    // THE FRESH-PROOF WALL (2026-10-15): linking an upstream identity is
+    // the PERMANENT-takeover chain's first half — the attacker's own
+    // GitHub approves in their own browser, and the unlink gate's
+    // password factor cannot undo a link that now serves as the primary
+    // sign-in. A stale session lands back on the account page with the
+    // honest demand: sign in again, then link.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) {
+      return c.redirect(linkErrorRedirect(origin, 'link_fresh_proof', provider.id))
     }
     try {
       return await startFlow(c, provider, 'link', { linkUserId: user.id })

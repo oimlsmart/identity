@@ -113,12 +113,22 @@ demo_personas: true
   const { createOpAccountsRouter } = await import('../../server/routes/op-accounts')
   const { createOpFactorsRouter } = await import('../../server/routes/op-factors')
   const { createOpTokensRouter } = await import('../../server/routes/op-tokens')
+  const { createOpUpstreamRouter } = await import('../../server/routes/op-upstream')
   const root = new Hono()
   root.route('/api/auth', createAuthLeanRouter({ autoSeedDemo: true }))
   root.route('/', createOpAccountsRouter())
   root.route('/', createOpFactorsRouter())
   root.route('/', createOpTokensRouter())
+  root.route('/', createOpUpstreamRouter())
   app = root
+
+  // The link wall's provider row (the link start's round trip never
+  // fires in these legs — the gate answers first).
+  await store.upsertIdentityProvider({
+    id: 'github', kind: 'github', displayName: 'GitHub', brandMark: 'github',
+    issuer: null, clientId: 'test-client', clientSecretRef: 'env:GITHUB_UPSTREAM_CLIENT_SECRET',
+    scopes: null, enabled: true, createdBy: 'the fresh-proof harness',
+  })
 
   // The holder: enrolled (the credential proves the mailbox).
   const admin = await demoLogin('admin@oimlsmart.org')
@@ -201,6 +211,39 @@ describe('the fresh-proof gate on the sensitive console acts', () => {
     })
     if (retry.status !== 201) console.log('PAT-RETRY', retry.status, JSON.stringify(await retry.clone().json().catch(() => null)))
     expect(retry.status, 'the stamped mint lands').toBe(201)
+  })
+
+  it('STALE: the password removal demands the proof (the takeover chain\'s second half)', async () => {
+    const cookie = await login(WILLA.email, WILLA.password)
+    backdateSessions(WILLA.email)
+    const stale = await app.request(`${ORIGIN}/api/op/account/password`, { method: 'DELETE', headers: { cookie } })
+    expect(stale.status).toBe(403)
+    expect(((await stale.json()) as { step_up?: string }).step_up).toBe('required')
+    // The stamp buys the removal… but the leg keeps the password (the
+    // honest 409 answer is fine — the WALL is the assertion, and the
+    // act's own only-method guard may refuse a bare account).
+    const stamp = await stepUp(cookie, WILLA.password)
+    const retry = await app.request(`${ORIGIN}/api/op/account/password`, {
+      method: 'DELETE',
+      headers: { cookie, 'x-op-step-up': stamp },
+    })
+    expect([200, 409], 'past the wall; the method guard may still speak').toContain(retry.status)
+  })
+
+  it('STALE: the upstream LINK start demands the proof (the takeover chain\'s first half)', async () => {
+    const cookie = await login(WILLA.email, WILLA.password)
+    // Fresh: the start proceeds to the provider round trip (the 302 to
+    // GitHub's authorize URL).
+    const fresh = await app.request(`${ORIGIN}/op/upstream/github/link`, { headers: { cookie }, redirect: 'manual' })
+    expect(fresh.status, 'the fresh session links').toBe(302)
+    expect(fresh.headers.get('location') ?? '').toContain('github.com')
+
+    // Stale: the wall redirects to the account page with the honest
+    // demand — never the provider round trip.
+    backdateSessions(WILLA.email)
+    const stale = await app.request(`${ORIGIN}/op/upstream/github/link`, { headers: { cookie }, redirect: 'manual' })
+    expect(stale.status).toBe(302)
+    expect((stale.headers.get('location') ?? '')).toContain('error=link_fresh_proof')
   })
 
   it('STALE: the factor revoke demands the proof (the victim\'s MFA is never stripped silently)', async () => {

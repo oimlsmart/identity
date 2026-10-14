@@ -2309,6 +2309,13 @@ export function createOpAccountsRouter(): Hono {
   accounts.delete('/api/op/account/password', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    // THE FRESH-PROOF WALL (2026-10-15): the removal is the
+    // permanent-takeover chain's second half — the attacker links their
+    // own identity (the link start's wall), then strips the password so
+    // no reset ever reaches the victim again. A stale session demands
+    // the re-entry.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const store = getStore()
     const methods = await store.countSignInMethods(user.id)
     if (!methods.password) return c.json({ error: 'No password is set on this account.' }, 404)

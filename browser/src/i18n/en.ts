@@ -138,6 +138,7 @@ export const en = {
   "account.activity.newDevice": "new device",
   "account.activity.title": "Recent activity",
   "account.description": "Your OIML SMART identity: the profile, the sign-in methods, the sessions and the activity on it, all managed by you.",
+  "account.linkError.linkFreshProof": "Before linking {name}, prove it is really you: sign in again (the sign-in page), then start the link from this page.",
   "account.linkError.generic": "The link could not be completed. Try again.",
   "account.linkError.link_session": "The sign-in session changed during the linking flow. Start the link again.",
   "account.linkError.link_taken": "That {name} account is already linked to a different OIML SMART account. Contact your administrator if you believe this is wrong.",
