@@ -58,6 +58,13 @@ async function fileRequest(body: Record<string, unknown>): Promise<Response> {
 beforeAll(async () => {
   const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
+  // The composition root's own act (server/index.ts installs the map
+  // at boot; a harness that skips it inherits whatever the previous
+  // suite installed). The identity profile declares no rbac section, so
+  // the default map stands — install it explicitly, never inherit.
+  const { installRbacMap } = await import('../../server/rbac')
+  const { DEFAULT_ROLE_PERMISSIONS } = await import('../../server/vocab/rbac')
+  installRbacMap(DEFAULT_ROLE_PERMISSIONS)
   const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
@@ -85,8 +92,15 @@ demo_personas: true
   root.route('/', createOpJoinRouter())
   app = root
 
-  // The register: one active IA (the register door's target).
+  // The register: one active IA (the register door's target) + its
+  // organization administrator (the queue's decider).
   await store.createOrgRegistryOrg({ id: 'EX1', name: 'Example Issuing Authority', shortName: 'EIA', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia.example.org' }], participantRef: 'EX1' })
+  const created = await store.createOpAccount({ email: 'gatekeeper@eia.example', name: 'Gate Keeper', role: 'org_admin', roles: ['org_admin'], orgId: 'EX1', emailVerified: true })
+  expect(created, 'the org admin seeds').toBeTruthy()
+  // The demo cast seeds on the first AUTH request in production — the
+  // doorbell legs file before any login, so the wide deciders must
+  // exist here.
+  await store.seedDemoAccounts()
 })
 
 afterAll(async () => {
@@ -96,6 +110,8 @@ afterAll(async () => {
   mailerMod.resetMailerForTest()
   const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
+  const { installRbacMap: resetRbac } = await import('../../server/rbac')
+  resetRbac(null)
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.DATABASE_PATH
   delete process.env.OP_ISSUER
@@ -112,6 +128,14 @@ describe('the join decision loop closes by mail', () => {
     expect(acks[0]!.text).toContain('Example Issuing Authority')
     expect(acks[0]!.text).toContain("organization's administrator")
     expect(acks[0]!.text).toContain('did not file')
+    // THE DOORBELL: the org's decider learns a request waits.
+    const bells = stub.messages.filter(m => m.to === 'gatekeeper@eia.example')
+    expect(bells.length, 'exactly one decider notice').toBe(1)
+    expect((bells[0]!.subject ?? '')).toContain('awaits review')
+    expect(bells[0]!.text).toContain('Example Issuing Authority')
+    expect(bells[0]!.text).toContain('Rita')
+    expect(bells[0]!.text).toContain('ia_officer')
+    expect(bells[0]!.text).toContain('review')
   })
 
   it('FILED: the not-listed door acks — the BIML secretariat decides', async () => {
@@ -123,6 +147,11 @@ describe('the join decision loop closes by mail', () => {
     expect(acks[0]!.text).toContain('New Metrology Institute')
     expect(acks[0]!.text).toContain('BIML secretariat')
     expect(acks[0]!.text).toContain('did not file')
+    // The secretariat queue's deciders (the users.manage holders) hear
+    // the doorbell too.
+    const bells = stub.messages.filter(m => m.to === 'admin@oimlsmart.org')
+    expect(bells.length, 'the wide decider is rung').toBe(1)
+    expect(bells[0]!.text).toContain('New Metrology Institute')
   })
 
   it('FILED: the manufacturer founding acks — the BIML secretariat confirms', async () => {

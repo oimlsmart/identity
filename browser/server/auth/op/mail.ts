@@ -114,7 +114,7 @@ export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'membership_invited
   // refusal — the only channel that reaches an account that does not
   // exist yet) and the failed-sign-in advisory (the GitHub parity, the
   // per-account hour throttle rides the caller).
-  | 'join_received' | 'join_refused' | 'signin_failed'
+  | 'join_received' | 'join_refused' | 'join_admin_notice' | 'signin_failed'
   // 0041 (the email sign-in fallback): the mailed second-factor code —
   // a transactional single-target send (the primary mailbox), carrying
   // the "was this you?" reset pointer (someone with the password asked
@@ -208,6 +208,7 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   client_roles_granted: { subject: 'mail.clientRolesGranted.subject', preheader: 'mail.clientRolesGranted.preheader', heading: 'mail.clientRolesGranted.heading', body: 'mail.clientRolesGranted.body', why: 'mail.clientRolesGranted.why', link: false, reset: true },
   join_received: { subject: 'mail.joinReceived.subject', preheader: 'mail.joinReceived.preheader', heading: 'mail.joinReceived.heading', body: 'mail.joinReceived.body', why: 'mail.joinReceived.why', link: false },
   join_refused: { subject: 'mail.joinRefused.subject', preheader: 'mail.joinRefused.preheader', heading: 'mail.joinRefused.heading', body: 'mail.joinRefused.body', why: 'mail.joinRefused.why', link: false },
+  join_admin_notice: { subject: 'mail.joinAdminNotice.subject', preheader: 'mail.joinAdminNotice.preheader', heading: 'mail.joinAdminNotice.heading', body: 'mail.joinAdminNotice.body', why: 'mail.joinAdminNotice.why', link: false },
   signin_failed: { subject: 'mail.signinFailed.subject', preheader: 'mail.signinFailed.preheader', heading: 'mail.signinFailed.heading', body: 'mail.signinFailed.body', why: 'mail.signinFailed.why', link: false, reset: true },
 }
 

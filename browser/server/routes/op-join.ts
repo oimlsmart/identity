@@ -163,6 +163,41 @@ export function createOpJoinRouter(): Hono {
     })
   }
 
+  /** The deciders' doorbell (the queue's other half, 2026-10-14): the
+   *  people who can act learn by mail that a request waits — the org's
+   *  org.users.manage holders for an org-bound request, the
+   *  users.manage holders for the secretariat queues. Never fails the
+   *  filing (each send is its own try; the mailer never throws). */
+  async function notifyDeciders(c: Context, input: { orgId: string | null; orgName: string; requesterName: string; requesterEmail: string; role: string }): Promise<void> {
+    const env = runtimeEnv<Record<string, string | undefined>>(c)
+    const map = effectiveRbacMap(env)
+    const users = await getStore().listUsers()
+    const wanted = input.orgId
+      ? users.filter(u => u.active && u.orgId === input.orgId && u.roles.some(r => (map[r] ?? []).includes('org.users.manage')))
+      : users.filter(u => u.active && u.roles.some(r => (map[r] ?? []).includes('users.manage')))
+    const reviewPath = input.orgId ? '/op/admin/organization' : '/op/admin/users'
+    const issuer = opRequestOrigin(c.req.raw)
+    for (const decider of wanted) {
+      try {
+        await sendOpMail(runtimeEnv<MailEnv>(c), {
+          to: decider.email,
+          template: 'join_admin_notice',
+          issuer,
+          params: {
+            org: input.orgName,
+            name: input.requesterName,
+            from: input.requesterEmail,
+            role: input.role,
+            when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+            reviewUrl: `${issuer}${reviewPath}`,
+          },
+        })
+      } catch {
+        /* one decider's unreachable mailbox never blanks the others */
+      }
+    }
+  }
+
   /** The decision audit (actor + the request + the outcome). */
   async function audit(actor: AuthUserPayload, request: OrgJoinRequest, action: string, metadata: Record<string, unknown>): Promise<void> {    const id = crypto.randomUUID()
     await getStore().putEntity('auditEvents', id, null, JSON.stringify({
@@ -296,6 +331,7 @@ export function createOpJoinRouter(): Hono {
         name, givenName, familyName, email, orgId, orgNameText: null, requestedRole: role, note,
       })
       await sendFilingAck(c, { name, email, org: org.name, destination: "the organization's administrator" })
+      await notifyDeciders(c, { orgId, orgName: org.name, requesterName: name, requesterEmail: email, role })
       return c.json(request, 201)
     }
 
@@ -403,6 +439,7 @@ export function createOpJoinRouter(): Hono {
           name, givenName, familyName, email, orgId: match.id, orgNameText: null, requestedRole: 'applicant', note,
         })
         await sendFilingAck(c, { name, email, org: match.name, destination: "the organization's administrator" })
+        await notifyDeciders(c, { orgId: match.id, orgName: match.name, requesterName: name, requesterEmail: email, role: 'applicant' })
         return c.json({ ...request, organization: { id: match.id, name: match.name, created: false } }, 201)
       }
 
@@ -433,6 +470,7 @@ export function createOpJoinRouter(): Hono {
         name, givenName, familyName, email, orgId: id, orgNameText: null, requestedRole: 'org_admin', note,
       })
       await sendFilingAck(c, { name, email, org: orgNameText, destination: 'the BIML secretariat' })
+      await notifyDeciders(c, { orgId: null, orgName: orgNameText, requesterName: name, requesterEmail: email, role: 'org_admin' })
       return c.json({ ...request, organization: { id, name: orgNameText, created: true } }, 201)
     }
 
@@ -447,6 +485,7 @@ export function createOpJoinRouter(): Hono {
       name, givenName, familyName, email, orgId: null, orgNameText, requestedRole: 'org_admin', note,
     })
     await sendFilingAck(c, { name, email, org: orgNameText, destination: 'the BIML secretariat' })
+    await notifyDeciders(c, { orgId: null, orgName: orgNameText, requesterName: name, requesterEmail: email, role: 'org_admin' })
     return c.json(request, 201)
   })
 
