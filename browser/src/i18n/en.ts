@@ -908,6 +908,7 @@ export const en = {
   "login.upstream.exchange": "{provider} did not complete the sign-in. Please try again — if it keeps failing, contact your administrator.",
   "login.upstream.issuerMismatch": "{provider} answered with an unexpected identity. Contact your administrator.",
   "login.upstream.notLinked": "Your {provider} account is not linked to an OIML SMART account — ask your administrator, or sign in another way and link it from your account page.",
+  "login.upstream.deactivated": "This account is deactivated. Contact your administrator.",
   "login.upstream.refused": "{provider} did not complete the sign-in (access was declined). Please try again.",
   "login.upstream.state": "Your sign-in session expired or did not match. Please try again.",
   "login.upstream.tokenAlg": "{provider} signed its response with an unsupported algorithm. Contact your administrator.",

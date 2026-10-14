@@ -910,6 +910,7 @@ export const fr: Record<MessageKey, string> = {
   "login.upstream.exchange": "{provider} n’a pas terminé la connexion. Réessayez — si l’échec persiste, contactez votre administrateur.",
   "login.upstream.issuerMismatch": "{provider} a répondu avec une identité inattendue. Contactez votre administrateur.",
   "login.upstream.notLinked": "Votre compte {provider} n’est pas lié à un compte OIML SMART — demandez à votre administrateur, ou connectez-vous autrement et liez-le depuis votre page de compte.",
+  "login.upstream.deactivated": "Ce compte est désactivé. Contactez votre administrateur.",
   "login.upstream.refused": "{provider} n’a pas terminé la connexion (accès refusé). Réessayez.",
   "login.upstream.state": "Votre session de connexion a expiré ou ne correspond pas. Réessayez.",
   "login.upstream.tokenAlg": "{provider} a signé sa réponse avec un algorithme non pris en charge. Contactez votre administrateur.",

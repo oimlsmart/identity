@@ -195,6 +195,7 @@ const upstreamError = (key: string, provider: string): string | null => {
   const keys: Record<string, Parameters<typeof t>[0]> = {
     upstream_unknown: 'login.upstream.unknown',
     upstream_not_linked: 'login.upstream.notLinked',
+    upstream_deactivated: 'login.upstream.deactivated',
     upstream_refused: 'login.upstream.refused',
     upstream_state: 'login.upstream.state',
     upstream_config: 'login.upstream.config',

@@ -633,4 +633,79 @@ describe('TODO.identity/02 — the OP account model (the identity profile)', () 
     expect(who.lastError).toBeNull()
     expect(who.userinfo).toMatchObject({ email: WILLA.email, roles: ['viewer'] })
   })
+
+  it("leg 8 — the deactivated account's GitHub sign-in is refused (the wall holds the upstream lane)", { timeout: 900_000 }, async () => {
+    // Re-link GitHub (leg 6 unlinked it — the wall needs the linked
+    // lane): the console's own link act, WILLA's session.
+    const willaCookie = await passwordCookie(stack.base, WILLA.email, WILLA.password)
+    await withPage(async (page) => {
+      await signInViaCookie(page, stack.base, willaCookie)
+      await page.goto(`${stack.base}/op/account`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="op-account-link-github-action"]', { timeout: APP_COLD, polling: 500 })
+      await interceptStubGitHub(page, GH_WILLA.login)
+      try {
+        await page.evaluate(() => (document.querySelector('[data-testid="op-account-link-github-action"]') as HTMLElement).click())
+        await page.waitForFunction(
+          () => window.location.pathname === '/op/account' && window.location.search.includes('linked=github'),
+          { timeout: SETTLE, polling: 500 },
+        )
+        await page.waitForSelector('[data-testid="account-name"]', { timeout: SETTLE, polling: 500 })
+      } finally {
+        await stopIntercepting(page)
+      }
+      flog(page, 'leg8: re-linked')
+    })
+
+    // The admin deactivates WILLA (the password lane's own honest 403
+    // message documents the posture; the UPSTREAM lane owes the same
+    // wall — a deactivation kills every way in).
+    const adminCookie = await passwordCookie(stack.base, ROOT.email, ROOT.password)
+    const users = await (await fetch(`${stack.apiBase}/api/users`, { headers: { cookie: `oiml-session=${adminCookie}` } })).json() as Array<{ id: string; email: string }>
+    const willa = users.find(u => u.email === WILLA.email)
+    expect(willa, 'WILLA rows').toBeTruthy()
+    const deact = await fetch(`${stack.apiBase}/api/users/${willa!.id}/active`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${adminCookie}` },
+      body: JSON.stringify({ active: false }),
+    })
+    expect(deact.status, 'the deactivation lands').toBe(200)
+
+    await withPage(async (page) => {
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="upstream-login-github"]', { timeout: SETTLE, polling: 500 })
+      await interceptStubGitHub(page, GH_WILLA.login)
+      try {
+        await page.evaluate(() => (document.querySelector('[data-testid="upstream-login-github"]') as HTMLElement).click())
+        // The wall: back on the sign-in page with the honest refusal —
+        // never a session, never the role home.
+        try {
+          await page.waitForFunction(
+            () => window.location.pathname === '/' && window.location.search.includes('error=upstream_deactivated'),
+            { timeout: 20_000, polling: 500 },
+          )
+        } catch {
+          console.log('LEG8-LANDED', page.url())
+          throw new Error(`the wall did not answer — landed on ${page.url()}`)
+        }
+        await page.waitForSelector('[data-testid="login-error"]', { timeout: SETTLE, polling: 500 })
+        const box = await page.$eval('[data-testid="login-error"]', el => el.textContent ?? '')
+        expect(box.toLowerCase()).toContain('deactivated')
+      } finally {
+        await stopIntercepting(page)
+      }
+    })
+
+    // The session the wall refused: none (the session seam answers the
+    // honest null-401 to a bare fetch — no cookie was ever set).
+    const probe = await fetch(`${stack.apiBase}/api/auth/session`)
+    expect(probe.status, 'no session rode the refused sign-in').toBe(401)
+
+    // The reactivation (the leg's cleanup — the file's DB is throwaway,
+    // the honest posture is the point).
+    await fetch(`${stack.apiBase}/api/users/${willa!.id}/active`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: `oiml-session=${adminCookie}` },
+      body: JSON.stringify({ active: true }),
+    })
+  })
 })

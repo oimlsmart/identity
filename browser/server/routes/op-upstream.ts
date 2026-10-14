@@ -542,6 +542,18 @@ export function createOpUpstreamRouter(): Hono {
       })
       return c.redirect(loginErrorRedirect(origin, 'not_linked', provider.displayName))
     }
+    // THE DEACTIVATION WALL (2026-10-14 — the password lane's own rule):
+    // a deactivation kills EVERY way in — sessions, factors, the
+    // password, and the linked upstream identities too. Without this
+    // check a deactivated account walked right back in through its
+    // linked GitHub/Google, defeating the deactivation's whole meaning.
+    if (!(await store.isUserActive(user.id))) {
+      console.warn(`[op] upstream sign-in refused: ${providerId} identity ${JSON.stringify(identity.handle)} names a deactivated account`)
+      await audit('upstream_refused', providerId, { userName: identity.handle }, {
+        provider: providerId, handle: identity.handle, reason: 'deactivated',
+      })
+      return c.redirect(loginErrorRedirect(origin, 'deactivated', provider.displayName))
+    }
 
     await clearMailBudgetForAccount(store, user.id)
     const token = await store.createSession(user.id, clientInfo(c))
