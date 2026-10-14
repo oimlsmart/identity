@@ -28,9 +28,14 @@ onMounted(() => { void resolveBranding() })
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400" data-testid="shell-footer">
-    <span>{{ t('shell.footer.tagline') }}</span>
-    <span class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-5 text-xs text-slate-600 dark:text-slate-400" data-testid="shell-footer">
+    <!-- Row 1: the identity line, alone and muted — it is a statement,
+         not a navigation item. -->
+    <p class="mb-2 leading-5">{{ t('shell.footer.tagline') }}</p>
+    <!-- Row 2: the actions — the status reassurance leads, the legal
+         links follow, the controls sit grouped at the end behind a
+         divider. -->
+    <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
       <!-- The product home: the one cross-property link the credential
            surface carries (the TODO.public/03 registry's platform row). -->
       <a href="https://platform.oimlsmart.org" target="_blank" rel="noopener" class="hover:underline" data-testid="shell-platform">{{ t('shell.footer.platform') }}</a>
@@ -46,9 +51,9 @@ onMounted(() => { void resolveBranding() })
            the register's own status projection replaces the raw health
            JSON link — green only on real probe data, "status unknown"
            honestly when unreachable. -->
-      <StatusPill />
+      <span class="mx-1 h-3 w-px bg-slate-300 dark:bg-slate-600" aria-hidden="true" />
       <LocaleSwitch />
       <ThemeToggle v-if="bare" />
-    </span>
+    </div>
   </div>
 </template>
