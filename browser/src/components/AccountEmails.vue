@@ -41,7 +41,7 @@ defineProps<{
   emails: AccountEmailRow[]
 }>()
 
-const emit = defineEmits<{ changed: [] }>()
+const emit = defineEmits<{ changed: []; stepup: [retry: () => Promise<void>] }>()
 
 const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
@@ -55,15 +55,27 @@ const draftValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.value.
  *  amber one. */
 const addResult = ref<{ email: string; delivery: 'mailer' | 'unavailable' } | null>(null)
 
-async function act(key: string, run: () => Promise<Response>, onOk: (body: Record<string, unknown>) => string): Promise<void> {
+async function act(key: string, run: (stamp: string) => Promise<Response>, onOk: (body: Record<string, unknown>) => string): Promise<void> {
   if (busy.value) return
   busy.value = key
   error.value = null
   notice.value = null
+  // The stamp rides when the console holds one (the dialog's mint);
+  // the retry closure goes to the parent's dialog on a fresh demand.
+  const stamp = (() => { try { return sessionStorage.getItem('op_step_up') ?? '' } catch { return '' } })()
   try {
-    const res = await run()
+    const res = await run(stamp)
     const body = await res.json().catch(() => null) as Record<string, unknown> | null
     if (!res.ok) {
+      if ((body as { step_up?: string } | null)?.step_up === 'required') {
+        if (stamp) {
+          error.value = ((body?.error as string | undefined) ?? t('account.networkError')) + ' ' + t('stepup.expired')
+        } else {
+          emit('stepup', () => act(key, run, onOk))
+        }
+        busy.value = null
+        return
+      }
       error.value = (body?.error as string | undefined) ?? t('account.networkError')
       busy.value = null
       return
@@ -84,10 +96,10 @@ async function add(): Promise<void> {
     return
   }
   addResult.value = null
-  await act('add', () => fetch('/api/op/account/emails', {
+  await act('add', (stamp) => fetch('/api/op/account/emails', {
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(stamp ? { 'x-op-step-up': stamp } : {}) },
     body: JSON.stringify({ email }),
   }), (body) => {
     const delivery = body.delivery === 'mailer' ? 'mailer' : 'unavailable'
@@ -98,25 +110,27 @@ async function add(): Promise<void> {
 }
 
 async function resend(email: string): Promise<void> {
-  await act(`resend:${email}`, () => fetch(`/api/op/account/emails/${encodeURIComponent(email)}/verification`, {
+  await act(`resend:${email}`, (stamp) => fetch(`/api/op/account/emails/${encodeURIComponent(email)}/verification`, {
     method: 'POST',
     credentials: 'include',
+    headers: stamp ? { 'x-op-step-up': stamp } : {},
   }), () => t('account.emails.resent', { email }))
 }
 
 async function makePrimary(email: string): Promise<void> {
-  await act(`primary:${email}`, () => fetch('/api/op/account/emails/primary', {
+  await act(`primary:${email}`, (stamp) => fetch('/api/op/account/emails/primary', {
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(stamp ? { 'x-op-step-up': stamp } : {}) },
     body: JSON.stringify({ email }),
   }), () => t('account.emails.switched', { email }))
 }
 
 async function remove(email: string): Promise<void> {
-  await act(`remove:${email}`, () => fetch(`/api/op/account/emails/${encodeURIComponent(email)}`, {
+  await act(`remove:${email}`, (stamp) => fetch(`/api/op/account/emails/${encodeURIComponent(email)}`, {
     method: 'DELETE',
     credentials: 'include',
+    headers: stamp ? { 'x-op-step-up': stamp } : {},
   }), () => t('account.emails.removed', { email }))
 }
 </script>

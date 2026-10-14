@@ -158,6 +158,7 @@ import { opRandomToken } from '../auth/op/keys'
 import { prepareBackchannelLogout } from '../auth/op/logout'
 import { TRUST_COOKIE } from './op-trust'
 import { mintStepUpStamp, STEP_UP_COOKIE, STEP_UP_TTL_MS, stepUpKey } from '../auth/op/step-up-stamp'
+import { demandFreshProof } from '../auth/op/fresh-proof'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
 import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
@@ -2048,6 +2049,12 @@ export function createOpAccountsRouter(): Hono {
   accounts.post('/api/op/account/emails', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    // THE FRESH-PROOF GATE (2026-10-14, the GitHub sudo-mode parity):
+    // an added address is the hijack chain's first step — verified in
+    // the ATTACKER'S mailbox, then promoted, then the reset owns the
+    // account. A stale session demands the re-entry.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const body = await c.req.json<{ email?: string }>().catch(() => null)
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     if (!email || !email.includes('@') || email.length > 254) {
@@ -2129,6 +2136,10 @@ export function createOpAccountsRouter(): Hono {
   accounts.post('/api/op/account/emails/primary', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    // The crown jewel of the chain: the primary steers the reset. The
+    // same wall (2026-10-14).
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const body = await c.req.json<{ email?: string }>().catch(() => null)
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     if (!email) return c.json({ error: 'email is required' }, 400)
@@ -2152,6 +2163,10 @@ export function createOpAccountsRouter(): Hono {
   accounts.delete('/api/op/account/emails/:email', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    // Stripping the holder's recovery addresses: the same wall
+    // (2026-10-14).
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const email = c.req.param('email').trim().toLowerCase()
     const result = await getStore().removeAccountEmail(user.id, email)
     if (result === 'primary') {

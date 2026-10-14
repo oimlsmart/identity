@@ -1484,6 +1484,7 @@ export const fr: Record<MessageKey, string> = {
   "stepup.cancel": "Annuler",
   "stepup.working": "Vérification…",
   "stepup.wrong": "Le mot de passe ne correspond pas — réessayez.",
+  "stepup.expired": "La vérification a expiré — confirmez à nouveau.",
 "admin.org.title": "Votre organisation",
   "admin.org.pickOrg": "Choisissez l'organisation que vous administrez",
   "admin.org.members": "Membres",

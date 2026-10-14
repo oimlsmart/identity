@@ -1367,6 +1367,7 @@ async function signOutAll() {
         <AccountEmails
           :emails="context.emails"
           @changed="loadQuiet"
+          @stepup="demandStepUp"
         />
 
         <!-- 2 · The organizations (TODO.identity/11 — the multi-org model). -->
@@ -1707,6 +1708,7 @@ async function signOutAll() {
         <AccountTokens
           :tokens="tokens"
           @changed="loadQuiet"
+          @stepup="demandStepUp"
         />
 
         <!-- 3⅝ · The outbound webhooks (TODO.modern/08): the event

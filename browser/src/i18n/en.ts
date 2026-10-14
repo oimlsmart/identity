@@ -1482,6 +1482,7 @@ export const en = {
   "stepup.cancel": "Cancel",
   "stepup.working": "Verifying…",
   "stepup.wrong": "The password does not match — try again.",
+  "stepup.expired": "The verification aged out — confirm once more.",
 "admin.org.title": "Your organization",
   "admin.org.pickOrg": "Choose the organization you administer",
   "admin.org.members": "Members",
