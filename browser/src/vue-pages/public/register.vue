@@ -11,6 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../../components/BrandLogo.vue'
+import NameFields from '../../components/NameFields.vue'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
 
@@ -31,7 +32,8 @@ import { t } from '../../i18n'
 
 const { branding } = useBranding()
 
-const name = ref('')
+const givenName = ref('')
+const familyName = ref('')
 const email = ref('')
 const password = ref('')
 const submitting = ref(false)
@@ -50,7 +52,8 @@ onMounted(async () => {
 
 const canSubmit = computed(() =>
   !submitting.value
-  && name.value.trim() !== ''
+  && givenName.value.trim() !== ''
+  && familyName.value.trim() !== ''
   && email.value.includes('@')
   && password.value.length >= 12,
 )
@@ -72,7 +75,7 @@ async function submit() {
     const res = await fetch('/api/op/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: name.value.trim(), email: email.value.trim(), password: password.value, ...(turnstileToken !== undefined ? { 'cf-turnstile-response': turnstileToken } : {}) }),
+      body: JSON.stringify({ name: [givenName.value.trim(), familyName.value.trim()].filter(Boolean).join(' '), given_name: givenName.value.trim(), family_name: familyName.value.trim(), email: email.value.trim(), password: password.value, ...(turnstileToken !== undefined ? { 'cf-turnstile-response': turnstileToken } : {}) }),
     })
     if (res.status !== 201) turnstileField.value?.reset()
     if (res.status === 201) {
@@ -133,17 +136,7 @@ async function submit() {
           </div>
 
           <form class="mt-6 space-y-4" @submit.prevent="submit">
-            <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300" for="register-name">{{ t('register.name.label') }}</label>
-              <input
-                id="register-name"
-                v-model="name"
-                type="text"
-                autocomplete="name"
-                data-testid="register-name"
-                class="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+            <NameFields v-model:given="givenName" v-model:family="familyName" tid="register" />
             <div>
               <label class="block text-sm font-medium text-slate-700 dark:text-slate-300" for="register-email">{{ t('register.email.label') }}</label>
               <input

@@ -60,6 +60,10 @@ export interface RegistrationTokenPayload {
   /** The applicant's name (the start form's own claim, signed and
    *  carried to the setup step — no state between the legs). */
   n?: string
+  /** 0043 (2026-10-14): the structured names ride beside the composed
+   *  one — the completion populates the account's columns. */
+  g?: string
+  f?: string
   /** The upstream ATTRIBUTION binding: the salted hash of
    *  (provider, upstream account id) — the second sign-in must
    *  reproduce it, so a forwarded link is unwired and one upstream
@@ -95,11 +99,15 @@ export async function mintRegistrationToken(
   ttlMs: number = REGISTRATION_TTL_MS,
   name?: string,
   at?: string,
+  given?: string,
+  family?: string,
 ): Promise<string> {
   const payload: RegistrationTokenPayload = {
     e: email,
     ...(name ? { n: name } : {}),
     ...(at ? { a: at } : {}),
+    ...(given ? { g: given } : {}),
+    ...(family ? { f: family } : {}),
     iat: now,
     exp: now + ttlMs,
   }
@@ -119,11 +127,15 @@ export async function mintSetupProofToken(
   ttlMs: number = SETUP_PROOF_TTL_MS,
   name?: string,
   upstream?: { provider: string; accountId: string },
+  given?: string,
+  family?: string,
 ): Promise<string> {
   const payload: RegistrationTokenPayload = {
     e: email, a: at, s: true,
     ...(name ? { n: name } : {}),
     ...(upstream ? { p: upstream.provider, u: upstream.accountId } : {}),
+    ...(given ? { g: given } : {}),
+    ...(family ? { f: family } : {}),
     iat: now,
     exp: now + ttlMs,
   }
@@ -138,7 +150,7 @@ export async function verifySetupProof(
   secretMaterial: string,
   presented: string,
   opts?: { now?: number },
-): Promise<{ email: string; at: string; name: string | null; upstream: { provider: string; accountId: string } | null } | null> {
+): Promise<{ email: string; at: string; name: string | null; given: string | null; family: string | null; upstream: { provider: string; accountId: string } | null } | null> {
   const parts = presented.split('.')
   if (parts.length !== 2 || !parts[0] || !parts[1]) return null
   let payload: RegistrationTokenPayload
@@ -157,6 +169,8 @@ export async function verifySetupProof(
     email: payload.e,
     at: payload.a,
     name: typeof payload.n === 'string' && payload.n.trim() ? payload.n.trim() : null,
+    given: typeof payload.g === 'string' && payload.g.trim() ? payload.g.trim() : null,
+    family: typeof payload.f === 'string' && payload.f.trim() ? payload.f.trim() : null,
     upstream: typeof payload.p === 'string' && typeof payload.u === 'string' ? { provider: payload.p, accountId: payload.u } : null,
   }
 }
@@ -193,7 +207,7 @@ export async function verifyRegistrationPayload(
   secretMaterial: string,
   presented: string,
   opts?: { now?: number },
-): Promise<{ email: string; name: string | null; at: string | null; secondProof: boolean } | null> {
+): Promise<{ email: string; name: string | null; given: string | null; family: string | null; at: string | null; secondProof: boolean } | null> {
   const email = await verifyRegistrationToken(secretMaterial, presented, opts)
   if (!email) return null
   const parts = presented.split('.')
@@ -202,10 +216,12 @@ export async function verifyRegistrationPayload(
     return {
       email,
       name: typeof payload.n === 'string' && payload.n.trim() ? payload.n.trim() : null,
+      given: typeof payload.g === 'string' && payload.g.trim() ? payload.g.trim() : null,
+      family: typeof payload.f === 'string' && payload.f.trim() ? payload.f.trim() : null,
       at: typeof payload.a === 'string' ? payload.a : null,
       secondProof: payload.s === true,
     }
   } catch {
-    return { email, name: null, at: null, secondProof: false }
+    return { email, name: null, given: null, family: null, at: null, secondProof: false }
   }
 }

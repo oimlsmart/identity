@@ -211,7 +211,7 @@ export function createOpUpstreamRouter(): Hono {
     c: Context,
     provider: IdentityProvider,
     mode: 'login' | 'link' | 'attribute',
-    extra: { linkUserId?: string; redirect?: string; prompt?: string; attributeEmail?: string; attributeName?: string; proofToken?: string },
+    extra: { linkUserId?: string; redirect?: string; prompt?: string; attributeEmail?: string; attributeName?: string; attributeGivenName?: string; attributeFamilyName?: string; proofToken?: string },
   ): Promise<Response> {
     const env = runtimeEnv<EnvLike>(c)
     const origin = opRequestOrigin(c.req.raw)
@@ -223,6 +223,7 @@ export function createOpUpstreamRouter(): Hono {
         p: provider.id, m: mode,
         ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}),
         ...(extra.attributeEmail ? { e: extra.attributeEmail } : {}), ...(extra.attributeName ? { nm: extra.attributeName } : {}),
+        ...(extra.attributeGivenName ? { gn: extra.attributeGivenName } : {}), ...(extra.attributeFamilyName ? { fn: extra.attributeFamilyName } : {}),
         ...(extra.proofToken ? { t: extra.proofToken } : {}),
       })
       return c.redirect(buildGitHubAuthorizeUrl(gitHubEndpoints(env), {
@@ -240,6 +241,7 @@ export function createOpUpstreamRouter(): Hono {
       p: provider.id, m: mode, n: nonce, v: pkce.verifier,
       ...(extra.linkUserId ? { u: extra.linkUserId } : {}), ...(extra.redirect ? { r: extra.redirect } : {}),
       ...(extra.attributeEmail ? { e: extra.attributeEmail } : {}), ...(extra.attributeName ? { nm: extra.attributeName } : {}),
+      ...(extra.attributeGivenName ? { gn: extra.attributeGivenName } : {}), ...(extra.attributeFamilyName ? { fn: extra.attributeFamilyName } : {}),
       ...(extra.proofToken ? { t: extra.proofToken } : {}),
     })
     return c.redirect(buildUpstreamAuthorizationUrl(provider, metadata, {
@@ -286,8 +288,15 @@ export function createOpUpstreamRouter(): Hono {
         return c.redirect(loginErrorRedirect(origin, 'state'))
       }
       const name = c.req.query('n')?.trim() ?? ''
+      const given = c.req.query('gn')?.trim() ?? ''
+      const family = c.req.query('fn')?.trim() ?? ''
       try {
-        return await startFlow(c, provider, 'attribute', { attributeEmail: email, ...(name ? { attributeName: name } : {}) })
+        return await startFlow(c, provider, 'attribute', {
+          attributeEmail: email,
+          ...(name ? { attributeName: name } : {}),
+          ...(given ? { attributeGivenName: given } : {}),
+          ...(family ? { attributeFamilyName: family } : {}),
+        })
       } catch (err) {
         const reason = err instanceof OidcError ? err.reason : 'config'
         console.error(`[op] upstream attribution start failed (${provider.id}/${reason}):`, (err as Error).message)
@@ -474,7 +483,7 @@ export function createOpUpstreamRouter(): Hono {
       // nothing is written except the email itself.
       const target = payload.t
         ? await continueSelfRegisterSecondProof(c, origin, payload.t, provider?.displayName ?? payload.p, identity.handle, providerId, identity.accountId)
-        : await continueSelfRegisterAttribution(c, origin, payload.e, provider?.displayName ?? payload.p, identity.handle, identity.email, { provider: providerId, accountId: identity.accountId, name: payload.nm })
+        : await continueSelfRegisterAttribution(c, origin, payload.e, provider?.displayName ?? payload.p, identity.handle, identity.email, { provider: providerId, accountId: identity.accountId, name: payload.nm, given: payload.gn, family: payload.fn })
       return c.redirect(target)
     }
 

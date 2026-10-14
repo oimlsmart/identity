@@ -245,7 +245,8 @@ describe('id-44 — the member tier\'s self-enrollment (the four gates)', () => 
     await page.waitForSelector('[data-testid="selfreg-country"]', { timeout: SETTLE, polling: 500 })
     await pickCountry(page, 'United States')
     await page.select('[data-testid="selfreg-org"]', 'National Institute of Standards and Technology (NIST)')
-    await page.type('[data-testid="selfreg-name"]', MEMBER.name)
+    await page.type('[data-testid="selfreg-given-name"]', 'NIST')
+    await page.type('[data-testid="selfreg-family-name"]', 'Member')
     await page.type('[data-testid="selfreg-email"]', MEMBER.email)
     // The gate solves before the submit (the always-pass pair
     // auto-solves; the token must STAND in the form or the start
@@ -351,7 +352,8 @@ ${stack.logs.join('').slice(-1500)}`)
     // owning organization.
     await pickCountry(page, 'United States')
     await page.select('[data-testid="selfreg-org"]', 'National Institute of Standards and Technology (NIST)')
-    await page.type('[data-testid="selfreg-name"]', 'X')
+    await page.type('[data-testid="selfreg-given-name"]', 'X')
+    await page.type('[data-testid="selfreg-family-name"]', 'Y')
     await page.type('[data-testid="selfreg-email"]', 'someone@cmi.gov.cz')
     // The gate solves first (the armed stack): the mismatch verdict
     // lives PAST the bot gate.

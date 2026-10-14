@@ -354,7 +354,8 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
 
       // The invite: name + email + the OP default role → the setup link
       // card, shown once.
-      await page.type('[data-testid="op-reg-invite-name"]', ERIN.name)
+      await page.type('[data-testid="op-reg-invite-given-name"]', 'Ms. Erin')
+      await page.type('[data-testid="op-reg-invite-family-name"]', 'Registry')
       await page.type('[data-testid="op-reg-invite-email"]', ERIN.email)
       await page.select('[data-testid="op-reg-invite-role"]', 'viewer')
       await page.evaluate(() => (document.querySelector('[data-testid="op-reg-invite-submit"]') as HTMLElement).click())

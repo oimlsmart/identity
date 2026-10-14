@@ -20,6 +20,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
+import NameFields from '../../components/NameFields.vue'
 import { useBranding } from '../../branding'
 import { t } from '../../i18n'
 import type { MessageKey } from '../../i18n/en'
@@ -201,10 +202,12 @@ interface InviteMail {
 const lastInvite = ref<{ email: string; name: string; setupUrl: string; expiresAt: string; mail?: InviteMail | null } | null>(null)
 
 // The invite forms.
-const inviteName = ref('')
+const inviteGivenName = ref('')
+const inviteFamilyName = ref('')
 const inviteEmail = ref('')
 const inviteRole = ref('')
-const orgAdminName = ref('')
+const orgAdminGivenName = ref('')
+const orgAdminFamilyName = ref('')
 const orgAdminEmail = ref('')
 const orgAdminOrg = ref('')
 
@@ -212,13 +215,15 @@ const orgAdminOrg = ref('')
 //    account surface: invite, edit, per-client roles, deactivation ──
 const registry = ref<RegistryAccount[]>([])
 const clients = ref<RegistryClient[]>([])
-const regInviteName = ref('')
+const regInviteGivenName = ref('')
+const regInviteFamilyName = ref('')
 const regInviteEmail = ref('')
 const regInviteRole = ref('viewer')
 const regInviteOrg = ref('')
 /** The inline edit: the account being edited + the draft fields. */
 const editingId = ref<string | null>(null)
-const editName = ref('')
+const editGivenName = ref('')
+const editFamilyName = ref('')
 const editEmail = ref('')
 /** The per-client roles editor (one account at a time); the working
  *  drafts key `${accountId}::${clientId}` → the checked roles. */
@@ -421,7 +426,7 @@ async function inviteColleague() {
     const res = await api('/api/op/org-invites', {
       method: 'POST',
       body: JSON.stringify({
-        name: inviteName.value.trim(),
+        name: [inviteGivenName.value.trim(), inviteFamilyName.value.trim()].filter(Boolean).join(' '),
         email: inviteEmail.value.trim(),
         role: inviteRole.value,
       }),
@@ -436,9 +441,10 @@ async function inviteColleague() {
       lastInvite.value = { email: created.user.email, name: created.user.name, setupUrl: created.invite.setupUrl, expiresAt: created.invite.expiresAt ?? '', mail: created.invite.mail ?? null }
     }
     notice.value = created.invite?.mail?.sent
-      ? `${inviteName.value.trim()} is invited: the setup email is on its way to ${created.user.email} (the link lives 24 h).`
-      : `${inviteName.value.trim()} is invited: hand over the one-time setup link below (24 h).`
-    inviteName.value = ''
+      ? `${[inviteGivenName.value.trim(), inviteFamilyName.value.trim()].filter(Boolean).join(' ')} is invited: the setup email is on its way to ${created.user.email} (the link lives 24 h).`
+      : `${[inviteGivenName.value.trim(), inviteFamilyName.value.trim()].filter(Boolean).join(' ')} is invited: hand over the one-time setup link below (24 h).`
+    inviteGivenName.value = ''
+    inviteFamilyName.value = ''
     inviteEmail.value = ''
     inviteRole.value = ''
     await load()
@@ -459,7 +465,7 @@ async function createOrgAdmin() {
     const res = await api('/api/op/org-invites', {
       method: 'POST',
       body: JSON.stringify({
-        name: orgAdminName.value.trim(),
+        name: [orgAdminGivenName.value.trim(), orgAdminFamilyName.value.trim()].filter(Boolean).join(' '),
         email: orgAdminEmail.value.trim(),
         role: 'org_admin',
         org_id: orgAdminOrg.value,
@@ -476,9 +482,10 @@ async function createOrgAdmin() {
     }
     const orgName = registryOrgs.value.find(o => o.id === orgAdminOrg.value)?.name ?? orgAdminOrg.value
     notice.value = created.invite?.mail?.sent
-      ? `${orgAdminName.value.trim()} is ${orgName}'s organization administrator: the setup email is on its way to ${created.user.email} (the link lives 24 h).`
-      : `${orgAdminName.value.trim()} is ${orgName}'s organization administrator: hand over the one-time setup link below (24 h).`
-    orgAdminName.value = ''
+      ? `${[orgAdminGivenName.value.trim(), orgAdminFamilyName.value.trim()].filter(Boolean).join(' ')} is ${orgName}'s organization administrator: the setup email is on its way to ${created.user.email} (the link lives 24 h).`
+      : `${[orgAdminGivenName.value.trim(), orgAdminFamilyName.value.trim()].filter(Boolean).join(' ')} is ${orgName}'s organization administrator: hand over the one-time setup link below (24 h).`
+    orgAdminGivenName.value = ''
+    orgAdminFamilyName.value = ''
     orgAdminEmail.value = ''
     orgAdminOrg.value = ''
     await load()
@@ -545,7 +552,7 @@ async function registryInvite() {
     const res = await api('/api/op/accounts', {
       method: 'POST',
       body: JSON.stringify({
-        name: regInviteName.value.trim(),
+        name: [regInviteGivenName.value.trim(), regInviteFamilyName.value.trim()].filter(Boolean).join(' '),
         email: regInviteEmail.value.trim(),
         role: regInviteRole.value,
         roles: [regInviteRole.value],
@@ -569,7 +576,8 @@ async function registryInvite() {
     notice.value = created.mail?.sent
       ? `${created.account.name} is invited: the setup email is on its way to ${created.account.email} (the link lives 24 h), then assign their roles per client.`
       : `${created.account.name} is invited: hand over the one-time setup link below (24 h), then assign their roles per client.`
-    regInviteName.value = ''
+    regInviteGivenName.value = ''
+    regInviteFamilyName.value = ''
     regInviteEmail.value = ''
     regInviteRole.value = 'viewer'
     regInviteOrg.value = ''
@@ -583,7 +591,8 @@ async function registryInvite() {
 
 function startEdit(acc: RegistryAccount) {
   editingId.value = acc.id
-  editName.value = acc.name
+  editGivenName.value = acc.name.split(' ').slice(0, -1).join(' ') || acc.name
+    editFamilyName.value = acc.name.split(' ').slice(-1)[0] ?? ''
   editEmail.value = acc.email
 }
 
@@ -595,14 +604,14 @@ async function saveEdit(acc: RegistryAccount) {
   try {
     const res = await api(`/api/op/accounts/${encodeURIComponent(acc.id)}`, {
       method: 'PUT',
-      body: JSON.stringify({ name: editName.value.trim(), email: editEmail.value.trim() }),
+      body: JSON.stringify({ name: [editGivenName.value.trim(), editFamilyName.value.trim()].filter(Boolean).join(' '), email: editEmail.value.trim() }),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as { error?: string }
       error.value = body.error ?? t('admin.users.editFailed', { status: res.status })
       return
     }
-    notice.value = t('admin.users.updatedNotice', { name: editName.value.trim() })
+    notice.value = t('admin.users.updatedNotice', { name: [editGivenName.value.trim(), editFamilyName.value.trim()].filter(Boolean).join(' ') })
     editingId.value = null
     await load()
   } catch {
@@ -1531,13 +1540,7 @@ onMounted(async () => {
           <div v-if="grant === 'org'" class="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4" data-testid="org-invite">
             <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.users.inviteColleague') }}</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input
-                v-model="inviteName"
-                type="text"
-                data-testid="invite-name"
-                class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                :placeholder="t('admin.users.namePlaceholder')"
-              />
+              <NameFields v-model:given="inviteGivenName" v-model:family="inviteFamilyName" tid="invite" class="sm:col-span-2" />
               <input
                 v-model="inviteEmail"
                 type="email"
@@ -1554,7 +1557,7 @@ onMounted(async () => {
                 <option v-for="role in Object.keys(roleMap)" :key="role" :value="role">{{ role }}</option>
               </select>
               <button
-                :disabled="acting === 'invite' || !inviteName.trim() || !inviteEmail.includes('@') || !inviteRole"
+                :disabled="acting === 'invite' || ![inviteGivenName.trim(), inviteFamilyName.trim()].filter(Boolean).join(' ') || !inviteEmail.includes('@') || !inviteRole"
                 data-testid="invite-submit"
                 class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                 @click="inviteColleague"
@@ -1615,13 +1618,7 @@ onMounted(async () => {
           <div class="mb-4 border border-slate-100 dark:border-slate-700 rounded-lg p-3" data-testid="registry-invite">
             <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t('admin.users.inviteAccount') }}</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input
-                v-model="regInviteName"
-                type="text"
-                data-testid="registry-invite-name"
-                class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                :placeholder="t('admin.users.namePlaceholder')"
-              />
+              <NameFields v-model:given="regInviteGivenName" v-model:family="regInviteFamilyName" tid="registry-invite" class="sm:col-span-2" />
               <input
                 v-model="regInviteEmail"
                 type="email"
@@ -1647,7 +1644,7 @@ onMounted(async () => {
                 </optgroup>
               </select>
               <button
-                :disabled="acting === 'registry-invite' || !regInviteName.trim() || !regInviteEmail.includes('@')"
+                :disabled="acting === 'registry-invite' || ![regInviteGivenName.trim(), regInviteFamilyName.trim()].filter(Boolean).join(' ') || !regInviteEmail.includes('@')"
                 data-testid="registry-invite-submit"
                 class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 sm:col-span-2"
                 @click="registryInvite"
@@ -1751,13 +1748,7 @@ onMounted(async () => {
               <!-- The inline edit -->
               <div v-if="editingId === acc.id" class="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2" :data-testid="`registry-edit-form-${acc.id}`">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <input
-                    v-model="editName"
-                    type="text"
-                    :data-testid="`registry-edit-name-${acc.id}`"
-                    class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    :placeholder="t('admin.users.namePlaceholder')"
-                  />
+                  <NameFields v-model:given="editGivenName" v-model:family="editFamilyName" :tid="`registry-edit-${acc.id}`" compact class="min-w-64" />
                   <input
                     v-model="editEmail"
                     type="email"
@@ -1767,7 +1758,7 @@ onMounted(async () => {
                   />
                   <button
                     :data-testid="`registry-edit-save-${acc.id}`"
-                    :disabled="acting === acc.id || !editName.trim() || !editEmail.includes('@')"
+                    :disabled="acting === acc.id || ![editGivenName.trim(), editFamilyName.trim()].filter(Boolean).join(' ') || !editEmail.includes('@')"
                     class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
                     @click="saveEdit(acc)"
                   >Save</button>
@@ -1924,13 +1915,7 @@ onMounted(async () => {
           </div>
           <p v-else class="text-xs text-slate-500 dark:text-slate-400 mb-3">None yet.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <input
-              v-model="orgAdminName"
-              type="text"
-              data-testid="orgadmin-name"
-              class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              :placeholder="t('admin.users.namePlaceholder')"
-            />
+            <NameFields v-model:given="orgAdminGivenName" v-model:family="orgAdminFamilyName" tid="orgadmin" class="sm:col-span-2" />
             <input
               v-model="orgAdminEmail"
               type="email"
@@ -1949,7 +1934,7 @@ onMounted(async () => {
               </optgroup>
             </select>
             <button
-              :disabled="acting === 'orgadmin' || !orgAdminName.trim() || !orgAdminEmail.includes('@') || !orgAdminOrg"
+              :disabled="acting === 'orgadmin' || ![orgAdminGivenName.trim(), orgAdminFamilyName.trim()].filter(Boolean).join(' ') || !orgAdminEmail.includes('@') || !orgAdminOrg"
               data-testid="orgadmin-submit"
               class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
               @click="createOrgAdmin"

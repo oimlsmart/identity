@@ -468,6 +468,25 @@ export function createOpAccountsRouter(): Hono {
 
   // ── the password sign-in ───────────────────────────────────────────
 
+  /** The failed-signin notice's per-account marker (2026-10-14, the
+   *  GitHub parity): one notice per account per hour — the marker rides
+   *  the generic entity store keyed by the presented address, and a
+   *  corrupt or unreadable row errs toward sending (the notice is the
+   *  honest posture; the hour bounds it). */
+  const SIGNIN_FAILED_NOTICE_STORE = 'opSignInFailedNotice'
+  const SIGNIN_FAILED_NOTICE_WINDOW_MS = 3_600_000
+  function signinFailedNoticeDue(row: { data: string } | undefined): boolean {
+    if (!row) return true
+    try {
+      const sentAt = String((JSON.parse(row.data) as { sentAt?: unknown }).sentAt ?? '')
+      const at = Date.parse(sentAt)
+      if (!Number.isFinite(at)) return true
+      return Date.now() - at >= SIGNIN_FAILED_NOTICE_WINDOW_MS
+    } catch {
+      return true
+    }
+  }
+
   // POST /api/op/login — email + password. The failure classes are
   // deliberately indistinguishable (unknown account / no credential /
   // wrong password) AND timing-uniform (verifyPasswordLogin always runs
@@ -506,9 +525,15 @@ export function createOpAccountsRouter(): Hono {
     // still lands in the answer's timing — the reads' order changes
     // nothing observable.
     const baseMs = resolveLoginBackoffBaseMs(runtimeEnv<EnvLike>(c)).baseMs
-    const [throttleRow, cred] = await Promise.all([
+    const [throttleRow, cred, failedNoticeRow] = await Promise.all([
       readLoginThrottleRow(store, loginEmail),
       store.getPasswordLogin(body.email),
+      // The failed-signin notice's throttle marker (2026-10-14, the
+      // GitHub parity): read in this phase so the failure branch never
+      // pays a serial extra round trip for it. The read never fails the
+      // path (an outage degrades to no-marker; the answer stays the
+      // uniform 401 — the id-store-unavailable posture).
+      store.getEntity(SIGNIN_FAILED_NOTICE_STORE, loginEmail).catch(() => undefined),
     ])
     await delayMs(loginThrottleWaitMsForRow(throttleRow, baseMs))
     const ok = await verifyPasswordLogin(body.password, cred?.hash ?? null)
@@ -525,9 +550,21 @@ export function createOpAccountsRouter(): Hono {
       const action = isStatusProbe(c.req.raw, runtimeEnv<EnvLike>(c))
         ? 'account.sign_in_probe'
         : 'account.sign_in_failed'
+      // The failed-signin notice (the GitHub parity, 2026-10-14): a KNOWN
+      // address with a wrong password mails the holder — never the probe
+      // (the synthetic check stays silent), never an unknown address (no
+      // account, no enumeration oracle), and at most one per account per
+      // hour (the marker; the general mail lane can never be starved by
+      // a failure flood). The send is fire-and-forget: the answer's
+      // timing-uniformity contract stays intact (waitUntil on the
+      // Worker, a floating promise on node/tests).
+      const notifyThisFailure = cred !== undefined
+        && action === 'account.sign_in_failed'
+        && signinFailedNoticeDue(failedNoticeRow)
       // The ladder's rung climbs off the request's own read and the
       // audit lands — one phase (the chain stays the durable record;
-      // the row is the timing one).
+      // the row is the timing one). The notice's marker stamp rides the
+      // same phase when this failure mails.
       await Promise.all([
         recordLoginThrottleFailure(store, loginEmail, throttleRow),
         audit(action, cred?.userId ?? loginEmail, {}, {
@@ -535,7 +572,26 @@ export function createOpAccountsRouter(): Hono {
           email: loginEmail,
           reason: 'invalid_credentials',
         }, 'auth'),
+        ...(notifyThisFailure ? [store.putEntity(SIGNIN_FAILED_NOTICE_STORE, loginEmail, null, JSON.stringify({ sentAt: new Date().toISOString() })).catch(() => {})] : []),
       ])
+      if (notifyThisFailure && cred) {
+        const info = clientInfo(c)
+        const notice = sendOpMail(runtimeEnv<MailEnv>(c), {
+          to: loginEmail,
+          template: 'signin_failed',
+          issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer,
+          params: {
+            when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+            fromDevice: deviceSummary(info.userAgent),
+            fromIp: info.ip ?? '',
+          },
+        })
+        try {
+          c.executionCtx.waitUntil(notice) // the Worker keeps it alive past the answer
+        } catch {
+          void notice // no execution context (the node/test posture) — the promise rides the process
+        }
+      }
       return c.json({ error: 'Invalid email or password' }, 401)
     }
     if (!cred.active) {
@@ -1441,8 +1497,14 @@ export function createOpAccountsRouter(): Hono {
         error: 'Self-registration is not offered on this service — request an account instead (approval comes from your organization).',
       }, 403)
     }
-    const body = await c.req.json<{ name?: string; email?: string; password?: string }>().catch(() => null)
-    const name = typeof body?.name === 'string' ? body.name.trim() : ''
+    const body = await c.req.json<{ name?: string; email?: string; password?: string; given_name?: string; family_name?: string }>().catch(() => null)
+    // 0043 (2026-10-14): the structured names are the form's own shape
+    // (the shared NameFields pair); a bare `name` still composes.
+    const givenName = typeof body?.given_name === 'string' ? body.given_name.trim() : ''
+    const familyName = typeof body?.family_name === 'string' ? body.family_name.trim() : ''
+    const name = typeof body?.name === 'string' && body.name.trim()
+      ? body.name.trim()
+      : [givenName, familyName].filter(Boolean).join(' ')
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     if (!name || !email.includes('@') || email.length > 254) {
       return c.json({ error: 'A name and a valid email address are required.' }, 400)
@@ -1468,7 +1530,7 @@ export function createOpAccountsRouter(): Hono {
       }, 503)
     }
     const store = getStore()
-    const created = await store.createOpAccount({ email, name, role: 'viewer', createdBy: null })
+    const created = await store.createOpAccount({ email, name, givenName: givenName || null, familyName: familyName || null, role: 'viewer', createdBy: null })
     if (!created) {
       // The honest conflict (the invite route's own 409 posture): the
       // address already names an account, so the act is a sign-in or a
