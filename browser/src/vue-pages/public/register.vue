@@ -12,6 +12,7 @@
 import { computed, onMounted, ref } from 'vue'
 import BrandLogo from '../../components/BrandLogo.vue'
 import NameFields from '../../components/NameFields.vue'
+import PasswordStrength from '../../components/PasswordStrength.vue'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
 
@@ -159,6 +160,7 @@ async function submit() {
                 class="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">{{ t('register.password.hint') }}</p>
+              <PasswordStrength :password="password" tid="register" />
             </div>
             <TurnstileField v-if="turnstileSiteKey" ref="turnstileField" :site-key="turnstileSiteKey" />
             <button

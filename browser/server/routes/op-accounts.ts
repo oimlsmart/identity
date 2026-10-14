@@ -382,7 +382,7 @@ export function createOpAccountsRouter(): Hono {
    *  failure. TODO.identity-features/01: the notice fans out to the
    *  primary PLUS every verified additional (the "was this you?" must
    *  reach every proven mailbox — auth/op/mail.ts's sendOpSecurityMail). */
-  async function notifySignIn(c: Context, user: { id: string; email: string; name: string }, newDevice = false): Promise<void> {
+  async function notifySignIn(c: Context, user: { id: string; email: string; name: string }, risk: { newDevice: boolean; countryChanged: boolean } | null = null): Promise<void> {
     const info = clientInfo(c)
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
@@ -392,13 +392,16 @@ export function createOpAccountsRouter(): Hono {
       // TODO.modern/06: the NEW DEVICE advisory rides the notice when
       // the assessment flagged the sighting (absent = unchanged mail).
       // 2026-10-13 (the GitHub/Google parity): the notice names WHAT and
-      // WHERE the act came from.
+      // WHERE the act came from. 2026-10-14 (the Google parity): the
+      // COUNTRY-CHANGE advisory rides too, naming the country.
       params: {
         name: user.name,
         when: new Date().toISOString().slice(0, 16).replace('T', ' '),
         fromDevice: deviceSummary(info.userAgent),
         fromIp: info.ip ?? '',
-        ...(newDevice ? { newDevice: true } : {}),
+        fromCountry: countryOf({ req: c.req.raw }) ?? '',
+        ...(risk?.newDevice ? { newDevice: true } : {}),
+        ...(risk?.countryChanged ? { countryChanged: true } : {}),
       },
     })
   }
@@ -721,6 +724,10 @@ export function createOpAccountsRouter(): Hono {
     await audit('account.sign_in', cred.userId, { userId: cred.userId }, {
       method: 'password', amr: ['pwd'],
       newDevice: risk.newDevice, countryChanged: risk.countryChanged,
+      // 2026-10-14: the feed names WHAT and WHERE — the console's
+      // activity view renders the same summary the notices carry.
+      fromDevice: deviceSummary(info.userAgent), fromIp: info.ip ?? '',
+      fromCountry: countryOf({ req: c.req.raw }) ?? '',
     })
     // TODO.identity/09 — the account holder learns of every entry. The
     // notification never blocks or fails the sign-in (sendOpMail's
@@ -731,7 +738,7 @@ export function createOpAccountsRouter(): Hono {
     // mailer's own results are honest (it never throws); waitUntil, when
     // the runtime provides it, keeps the promise alive past the response.
     if (user) {
-      const notice = notifySignIn(c, user, risk.newDevice)
+      const notice = notifySignIn(c, user, risk)
       try {
         c.executionCtx.waitUntil(notice) // the Worker keeps it alive past the answer
       } catch {

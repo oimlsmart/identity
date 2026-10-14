@@ -13,6 +13,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandLogo from '../../components/BrandLogo.vue'
+import PasswordStrength from '../../components/PasswordStrength.vue'
 import { t } from '../../i18n'
 
 interface SetupContext {
@@ -36,25 +37,6 @@ const password = ref('')
 const confirm = ref('')
 const submitting = ref(false)
 const error = ref<string | null>(null)
-
-// The meter mirrors server/auth/passwords.ts's classes — DISPLAY only
-// (the server re-judges the policy at submit; a drift here can only ever
-// under-advise, never admit a weaker password).
-const strength = computed(() => {
-  const pw = password.value
-  const len = pw.length
-  let variety = 0
-  if (/[a-z]/.test(pw)) variety++
-  if (/[A-Z]/.test(pw)) variety++
-  if (/[0-9]/.test(pw)) variety++
-  if (/[^a-zA-Z0-9]/.test(pw)) variety++
-  if (len < 12) return { score: 0, label: 'Too short', hint: `Passwords here are at least 12 characters — ${12 - len} more to go.` }
-  if (len < 16 && variety < 3) return { score: 1, label: t('setup.strength.fair'), hint: t('setup.strength.fair.hint') }
-  if (len < 20) return { score: 2, label: t('setup.strength.good'), hint: variety < 3 ? t('setup.strength.good.hintMix') : t('setup.strength.good.hintMore') }
-  return { score: 3, label: t('setup.strength.strong'), hint: '' }
-})
-
-const METER_COLORS = ['bg-red-400', 'bg-amber-400', 'bg-brand-400', 'bg-green-500']
 
 onMounted(async () => {
   const token = route.query.token as string | undefined
@@ -159,20 +141,7 @@ async function submit() {
               placeholder="at least 12 characters"
             />
             <!-- The honest meter: length carries the score. -->
-            <div v-if="password" class="mt-2" data-testid="op-setup-meter">
-              <div class="flex gap-1 mb-1">
-                <div
-                  v-for="step in 4"
-                  :key="step"
-                  class="h-1 flex-1 rounded-full"
-                  :class="step - 1 <= strength.score && password.length >= 12 ? METER_COLORS[strength.score] : (strength.score === 0 && step === 1 ? METER_COLORS[0] : 'bg-slate-200 dark:bg-slate-700')"
-                />
-              </div>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                <span class="font-medium" data-testid="op-setup-meter-label">{{ strength.label }}</span>
-                <span v-if="strength.hint"> — {{ strength.hint }}</span>
-              </p>
-            </div>
+            <PasswordStrength :password="password" tid="op-setup" />
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('setup.password.repeat') }}</label>
