@@ -210,11 +210,25 @@ describe('the join page’s doors (the question before the form)', () => {
         expect(await page.$(`[data-testid="join-door-${key}"]`), `the ${key} door renders`).toBeTruthy()
       }
 
+      // The seventh card arms the registry mode IN THIS PAGE — a button,
+      // and the page never links to a separate self-register surface.
+      const seventh = await page.$eval('[data-testid="join-door-registry-domain"]', el => ({ tag: el.tagName, text: el.textContent ?? '' }))
+      expect(seventh.tag, 'the registry door is the in-page arm, not a handoff link').toBe('BUTTON')
+      const strayLinks = await page.evaluate(() => Array.from(document.querySelectorAll('a[href*="self-register"]')).length)
+      expect(strayLinks, 'the join page never links to the old self-register surface').toBe(0)
+
       // The IA door: the picker, titled for the authority.
       await openDoor(page, 'ia')
       await page.waitForSelector('[data-testid="join-given-name"]', { timeout: SETTLE, polling: 500 })
       expect((await page.$eval('[data-testid="join-door-title"]', el => el.textContent ?? ''))).toContain('Issuing Authority')
       expect(await page.$('[data-testid="join-org-search"]'), 'the register doors pick from the register').toBeTruthy()
+
+      // The idle picker shows no register dump; its empty state names the
+      // door's own kind of organization and the support path.
+      const idleEmpty = await page.$eval('[data-testid="join-org-empty"]', el => el.textContent ?? '')
+      expect(idleEmpty).toContain('an OIML-CS Issuing Authority')
+      expect(idleEmpty).toContain('contact support')
+      expect(await page.$('[data-testid="join-org-options"]'), 'the register never dumps before the search engages').toBeNull()
 
       // The TL door: its own title, the picker again.
       await openDoor(page, 'tl')
@@ -239,6 +253,20 @@ describe('the join page’s doors (the question before the form)', () => {
       await page.click('[data-testid="join-email"]', { clickCount: 3 })
       await page.type('[data-testid="join-email"]', 'domain.probe@elsewhere.example')
       await page.waitForSelector('[data-testid="join-domain-mismatch"]', { timeout: SETTLE, polling: 500 })
+
+      // The picked organization REPLACES the search field (the owner's
+      // 2026-10-13 ruling); Change brings the field back, and picking
+      // again resumes the form.
+      expect(await page.$('[data-testid="join-org-search"]'), 'the picked card replaces the search field').toBeNull()
+      await page.waitForSelector('[data-testid="join-org-picked"]', { timeout: SETTLE, polling: 500 })
+      expect((await page.$eval('[data-testid="join-org-change"]', el => el.textContent ?? ''))).toBe('Change')
+      await page.evaluate(() => (document.querySelector('[data-testid="join-org-change"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="join-org-search"]', { timeout: SETTLE, polling: 500 })
+      expect(await page.$('[data-testid="join-org-picked"]')).toBeNull()
+      await page.focus('[data-testid="join-org-search"]')
+      await page.waitForSelector('[data-testid="join-org-option-EX1"]', { timeout: SETTLE, polling: 500 })
+      await page.evaluate(() => (document.querySelector('[data-testid="join-org-option-EX1"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="join-org-picked"]', { timeout: SETTLE, polling: 500 })
 
       // The member door: the OIML Member title.
       await openDoor(page, 'member')

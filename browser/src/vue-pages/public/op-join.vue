@@ -65,13 +65,21 @@ interface DoorDef {
 }
 
 const DOORS: ReadonlyArray<DoorDef> = [
-  { key: 'ia', title: 'My organization is an OIML-CS Issuing Authority', blurb: 'Your authority issues OIML-CS certificates. Pick it from the register, then ask for your staff role.' },
-  { key: 'tl', title: 'My organization is an OIML-CS Test Laboratory', blurb: 'Your laboratory tests measuring instruments for the OIML-CS. Pick it from the register, then ask for your staff role.' },
-  { key: 'member', title: 'My organization is an OIML Member (a Member State or a Corresponding Member)', blurb: 'Your national body participates in the OIML. Its personnel join on the read/access posture.' },
-  { key: 'manufacturer', title: 'My company manufactures measuring instruments', blurb: 'Your company applies for OIML-CS certificates for measuring instruments as an applicant or manufacturer.' },
-  { key: 'biml', title: 'I work for the OIML/BIML', blurb: 'Bureau and OIML staff hold an @oiml.org address. The one-time setup link proves the mailbox — no waiting queue.' },
-  { key: 'others', title: 'Something else', blurb: 'None of these — name your organization and the BIML secretariat verifies the participation.' },
+  { key: 'ia', title: 'An OIML-CS Issuing Authority', blurb: 'Your authority issues OIML-CS certificates for measuring instruments. You select it from the participants register and request your staff role.' },
+  { key: 'tl', title: 'An OIML-CS Test Laboratory', blurb: 'Your laboratory tests measuring instruments for the OIML-CS. You select it from the participants register and request your staff role.' },
+  { key: 'member', title: 'An OIML Member (a Member State or a Corresponding Member)', blurb: 'Your national body participates in the OIML. Its personnel join with read access to the platform.' },
+  { key: 'manufacturer', title: 'A manufacturer of measuring instruments', blurb: 'Your company applies for OIML-CS certificates for measuring instruments as an applicant or manufacturer.' },
+  { key: 'biml', title: 'A member of the OIML or BIML staff', blurb: 'You hold an @oiml.org address. The one-time setup link proves your mailbox, and your account opens without a waiting queue.' },
+  { key: 'others', title: 'Another organization', blurb: 'Your organization does not appear in the descriptions above. You name your organization, and the BIML secretariat verifies its participation in the OIML-CS.' },
 ]
+
+/** The empty state names the door's own kind of organization when the
+ *  register offers nothing (the owner's wording, 2026-10-13). */
+const DOOR_ORG_NOUN: Partial<Record<JoinDoor, string>> = {
+  ia: 'an OIML-CS Issuing Authority',
+  tl: 'an OIML-CS Test Laboratory',
+  member: 'an OIML Member',
+}
 
 /** The register doors' picker filters (the org kinds each door offers).
  *  The manufacturer never picks from the register; the BIML and Others
@@ -145,6 +153,7 @@ function roleGloss(role: string): string {
 }
 
 const doorDef = computed(() => DOORS.find(d => d.key === door.value) ?? null)
+const doorOrgNoun = computed(() => (door.value ? DOOR_ORG_NOUN[door.value] ?? null : null))
 const pickerKinds = computed(() => (door.value ? PICKER_KINDS[door.value] ?? null : null))
 /** The picker's visible options: THIS door's kinds only. */
 const doorOrgs = computed(() => {
@@ -297,7 +306,7 @@ onMounted(async () => {
       <div v-if="served === false" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
         <p class="text-sm text-slate-700 dark:text-slate-300" data-testid="join-unavailable">
           This instance does not serve account requests. Accounts are issued by the OIML SMART
-          identity service — your administrator will point you to it.
+          identity service, and your administrator can give you its address.
         </p>
       </div>
 
@@ -305,29 +314,28 @@ onMounted(async () => {
       <div v-else-if="filed" class="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-5" data-testid="join-success">
         <h2 class="text-sm font-semibold text-emerald-900 dark:text-emerald-200 mb-1">Your request is filed</h2>
         <p v-if="filed.queue === 'org'" class="text-sm text-emerald-800 dark:text-emerald-300">
-          Your request is with <strong>{{ filed.orgName }}</strong>’s administrator. Approval comes from
-          your organization — you will receive your invite when they approve it.
+          Your request is with <strong>{{ filed.orgName }}</strong>’s administrator. You will receive
+          your invite when the administrator approves your request.
         </p>
         <p v-else-if="filed.queue === 'biml-invite'" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-biml-invite">
-          Your setup link is on its way to <strong>{{ filed.email }}</strong> — it works once and stays
-          valid for 24 hours. Until you complete it, the account cannot sign in: the link <em>is</em> the
-          decision — the mailbox proof. No queue, no waiting. If the mail does not arrive, check the spam
-          folder and file again.
+          Your setup link is on its way to <strong>{{ filed.email }}</strong>. The link works once and
+          stays valid for 24 hours. The account cannot sign in until you complete the setup. If the mail
+          does not arrive, check the spam folder and file the request again.
         </p>
         <p v-else-if="filed.queue === 'manufacturer' && filed.orgCreated" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-manufacturer-created">
           <strong>{{ filed.orgName }}</strong> is registered on the identity service with the
-          <strong>declared</strong> manufacturer standing (not an OIML-CS participation). Your request to
-          become its organization administrator is with the BIML secretariat — you will receive your
-          invite once they approve it.
+          <strong>declared</strong> manufacturer standing. A manufacturer is not an OIML-CS participant.
+          Your request to become the organization administrator is with the BIML secretariat. You will
+          receive your invite once the secretariat approves it.
         </p>
         <p v-else-if="filed.queue === 'manufacturer'" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-manufacturer-join">
-          Your work email’s domain matches <strong>{{ filed.orgName }}</strong>’s declared domain — your
-          request to join it is with its administrator. Approval comes from your organization.
+          Your work email’s domain matches <strong>{{ filed.orgName }}</strong>’s declared domain. Your
+          request to join is with its administrator, and approval comes from your organization.
         </p>
         <p v-else class="text-sm text-emerald-800 dark:text-emerald-300">
           <strong>{{ filed.orgName }}</strong> is not on the participants register, so your request is with
-          the BIML secretariat. They verify organizations joining the OIML-CS; once the participation is
-          registered you become its organization administrator.
+          the BIML secretariat. The secretariat verifies organizations joining the OIML-CS. You become the
+          organization administrator once the participation is registered.
         </p>
       </div>
 
@@ -336,24 +344,14 @@ onMounted(async () => {
       <SelfRegisterFlow v-if="selfRegisterMode" />
 
       <template v-else>
-        <!-- The honest framing: the answer decides where the request goes -->
-        <div class="mb-4 p-3 rounded-lg bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
-          <p class="text-sm text-brand-900 dark:text-brand-200" data-testid="join-framing">
-            Pick the description that matches you — it decides what the form asks and where the request
-            goes: your <strong>organization’s administrator</strong>, the <strong>BIML secretariat</strong>,
-            or (BIML and OIML staff) straight to your mailbox.
-          </p>
-        </div>
-
         <!-- Error -->
         <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
           <p class="text-sm text-red-700 dark:text-red-300" data-testid="join-error">{{ error }}</p>
         </div>
 
-        <!-- THE QUESTION: six doors + the registry handoff — the answer
-             dictates the form -->
-        <div v-if="!door" role="radiogroup" aria-label="What best describes you?" data-testid="join-doors">
-          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">What best describes you?</h2>
+        <!-- The doors: the answer dictates the form -->
+        <div v-if="!door" role="radiogroup" aria-label="The description that matches you" data-testid="join-doors">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">Choose the description that matches you</h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               v-for="d in DOORS"
@@ -370,15 +368,17 @@ onMounted(async () => {
             </button>
             <!-- The seventh card: the registry-domain HANDOFF (the
                  four-gate verification flow — no queue when the domain
-                 matches). -->
-            <router-link
-              to="/op/self-register"
+                 matches). It arms the in-page mode; the page never
+                 links to a separate self-register surface. -->
+            <button
+              type="button"
               data-testid="join-door-registry-domain"
               class="text-left rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 p-4 hover:border-brand-500 dark:hover:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors sm:col-span-2"
+              @click="openRegistryDoor()"
             >
-              <span class="block text-sm font-semibold text-brand-800 dark:text-brand-200">My organization is in the OIML registry — verify with my work email</span>
-              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">The verified door: pick your country and organization from the OIML registry, prove your address — your account opens without a waiting queue when your email's domain matches.</span>
-            </router-link>
+              <span class="block text-sm font-semibold text-brand-800 dark:text-brand-200">A work email registered in the OIML registry</span>
+              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">You choose your country and organization from the OIML registry and confirm your work email. Your account opens without a waiting queue when your email domain matches the registered domain.</span>
+            </button>
           </div>
         </div>
 
@@ -435,29 +435,48 @@ onMounted(async () => {
             />
           </div>
 
+          <!-- The pre-approved domain (0043): stated as soon as the
+               organization is picked, beside the address it compares
+               against. A mismatch never blocks; the deciding
+               administrator sees the same comparison. -->
+          <div v-if="pickerKinds && selectedOrg && orgDomains?.length" class="text-xs rounded-lg p-3" :class="domainMatch === false ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200' : 'bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'" data-testid="join-domain-check">
+            <p>
+              Email addresses on the {{ orgDomains.length > 1 ? 'domains' : 'domain' }}
+              <span class="font-mono" data-testid="join-domain-list">{{ orgDomains.map(d => '@' + d).join(', ') }}</span>
+              are approved automatically. Any other email address needs approval by the organization administrator.
+            </p>
+            <p v-if="domainMatch === true" class="mt-1 text-emerald-700 dark:text-emerald-300" data-testid="join-domain-match">
+              ✓ Your email address is on the pre-approved domain.
+            </p>
+            <p v-else-if="domainMatch === false" class="mt-1" data-testid="join-domain-mismatch">
+              Your email address is not on the pre-approved domain. The organization administrator approves your request.
+            </p>
+          </div>
+
           <!-- The register doors: the organization selector (the register,
-               never a typed name), THIS door's kinds only -->
+               never a typed name), THIS door's kinds only. The picked
+               organization REPLACES the search field; the options render
+               only while the searcher is engaged and collapse on pick. -->
           <div v-if="pickerKinds">
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-org-search">Organization</label>
             <input
+              v-if="!selectedOrg || orgOpen"
               id="join-org-search"
               v-model="orgSearch"
               type="text"
               data-testid="join-org-search"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="Click and type to search the participants register…"
+              placeholder="Type to search the participants register."
               @focus="orgOpen = true"
             />
-            <!-- The picked organization stands in the field's place (the
-                 list collapsed the moment it was chosen). -->
-            <div v-if="selectedOrg && !orgOpen" class="mt-2 rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 px-3 py-2 flex items-center justify-between gap-2" data-testid="join-org-picked">
+            <div v-if="selectedOrg && !orgOpen" class="rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 px-3 py-2 flex items-center justify-between gap-2" data-testid="join-org-picked">
               <span class="text-sm text-slate-900 dark:text-white">
                 <span class="font-medium">{{ selectedOrg.name }}</span>
                 <span class="block text-[11px] text-slate-400 dark:text-slate-500">
                   {{ kindLabel(selectedOrg.kind) }}<template v-if="selectedOrg.country"> · {{ selectedOrg.country }}</template><template v-if="selectedOrg.email_domains?.length"> · <span class="font-mono">@{{ selectedOrg.email_domains[0] }}</span></template>
                 </span>
               </span>
-              <button type="button" class="text-xs text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-org-change" @click="orgOpen = true; selectedOrgId = null; requestedRole = ''">{{ t('checkup.fix') }}</button>
+              <button type="button" class="text-xs text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-org-change" @click="orgOpen = true; selectedOrgId = null; requestedRole = ''">Change</button>
             </div>
             <ul v-else-if="filteredOrgs.length" class="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700" data-testid="join-org-options">
               <li v-for="org in filteredOrgs" :key="org.id">
@@ -476,12 +495,9 @@ onMounted(async () => {
                 </button>
               </li>
             </ul>
-            <p v-if="!filteredOrgs.length" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-org-empty">
-              <template v-if="orgSearch">No organization of this kind matches — check the spelling.</template>
-              <template v-else>Start typing to search the register.</template>
-              If your organization should be here, use the
-              <button type="button" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-others-from-picker" @click="pickDoor('others')">Others</button>
-              door.
+            <p v-if="(!selectedOrg || orgOpen) && !filteredOrgs.length" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-org-empty">
+              <template v-if="orgSearch">No organization of this kind matches your search. </template>
+              <template v-if="doorOrgNoun">If your organization is {{ doorOrgNoun }} but is not listed here, <a v-if="branding.supportUrl" :href="branding.supportUrl" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline">contact support</a><template v-else>contact support</template>.</template>
             </p>
           </div>
 
@@ -510,23 +526,23 @@ onMounted(async () => {
               placeholder="e.g. Example Member State"
             />
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-mfr-note">
-              Your organization is registered with the <strong>declared</strong> manufacturer standing — a
-              manufacturer is <strong>not an OIML-CS participant</strong> (no peer assessment, no scope).
-              An Issuing Authority you applied to can endorse the relationship, upgrading the standing to
-              <strong>IA-endorsed</strong>. If your work email’s domain matches an already-registered
-              manufacturer organization, your request goes to its administrator to join it; otherwise the
-              organization is created and you become its administrator once the BIML secretariat confirms
-              the founding.
+              Your organization is registered with the <strong>declared</strong> manufacturer standing. A
+              manufacturer is <strong>not an OIML-CS participant</strong>; the standing carries no peer
+              assessment and no scope. An Issuing Authority that you applied to can endorse the
+              relationship and upgrade the standing to <strong>IA-endorsed</strong>. When your work
+              email’s domain matches a registered manufacturer organization, your request goes to its
+              administrator. Otherwise the organization is created, and you become its administrator once
+              the BIML secretariat confirms the founding.
             </p>
           </div>
 
           <!-- The BIML door: the domain is the claim, the link is the proof -->
           <div v-else-if="door === 'biml'">
             <p class="text-xs text-slate-500 dark:text-slate-400" data-testid="join-biml-note">
-              BIML and OIML staff hold an <strong>@oiml.org</strong> address. Filing here mints your account
-              immediately and mails the one-time setup link to that address — the mailbox proof. The link
-              works once and stays valid for 24 hours. The account starts with the floor role in the
-              operator’s organization; the administrators grant more as your work requires.
+              BIML and OIML staff hold an <strong>@oiml.org</strong> address. Filing here creates your
+              account and sends the one-time setup link to that address. The link works once and stays
+              valid for 24 hours. Your account starts with read-only access, and the administrators grant
+              more as your work requires.
             </p>
           </div>
 
@@ -543,26 +559,9 @@ onMounted(async () => {
               placeholder="e.g. National Metrology Institute of …"
             />
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-not-listed-note">
-              Your request goes to the <strong>BIML secretariat</strong>: they verify organizations joining
-              the OIML-CS (the participation procedures PD-03/PD-09). Once your organization is registered,
-              you become its organization administrator.
-            </p>
-          </div>
-
-          <!-- THE PRE-APPROVED DOMAIN (0043): the picked org's verified
-               domains, shown and honestly compared with the typed
-               address. A mismatch never blocks — the request files and
-               the deciding admin sees the same comparison. -->
-          <div v-if="pickerKinds && selectedOrg && orgDomains?.length" class="text-xs rounded-lg p-3" :class="domainMatch === false ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200' : 'bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'" data-testid="join-domain-check">
-            <p>
-              <span class="font-medium">{{ selectedOrg.name }}</span>’s pre-approved domain{{ orgDomains.length > 1 ? 's' : '' }}:
-              <span class="font-mono" data-testid="join-domain-list">{{ orgDomains.map(d => '@' + d).join(', ') }}</span>
-            </p>
-            <p v-if="domainMatch === true" class="mt-1 text-emerald-700 dark:text-emerald-300" data-testid="join-domain-match">
-              ✓ Emails with <span class="font-mono">{{ orgDomains.map(d => '@' + d).join(', ') }}</span> are auto-approved — your request goes straight to the organization's administrator.
-            </p>
-            <p v-else-if="domainMatch === false" class="mt-1" data-testid="join-domain-mismatch">
-              Your address is <strong>not</strong> on the pre-approved domain — any other email address will need to be approved by the organization's administrator.
+              Your request goes to the <strong>BIML secretariat</strong>. The secretariat verifies
+              organizations joining the OIML-CS under the participation procedures PD-03 and PD-09. You
+              become the organization administrator once your organization is registered.
             </p>
           </div>
 
@@ -582,7 +581,7 @@ onMounted(async () => {
               </option>
             </select>
             <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-              The options are bounded by the organization’s kind ({{ kindLabel(selectedOrg.kind) }}); your
+              Your organization’s kind bounds the options ({{ kindLabel(selectedOrg.kind) }}). The
               administrator confirms the assignment.
             </p>
           </div>
@@ -597,7 +596,7 @@ onMounted(async () => {
               rows="2"
               data-testid="join-note"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              :placeholder="door === 'biml' ? 'Anything that helps the administrators recognize you (your team, your role at the Bureau).' : 'Anything that helps your administrator recognize the request (your team, your manager).'            "
+              :placeholder="door === 'biml' ? 'Anything that helps the administrators recognize you (your team, your role at the Bureau).' : 'Anything that helps your administrator recognize the request (your team, your manager).'"
             />
           </div>
 
@@ -610,12 +609,12 @@ onMounted(async () => {
             class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            {{ submitting ? 'Filing…' : (door === 'biml' ? 'Request my setup link' : (domainMatch === false ? 'Request account (administrator approval)' : 'Request account')) }}
+            {{ submitting ? 'Filing…' : (door === 'biml' ? 'Request my setup link' : 'Request account') }}
           </button>
         </form>
 
         <p class="mt-4 text-center text-[10px] text-slate-400 dark:text-slate-500">
-          Already have an account? <router-link to="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-signin">Sign in</router-link>
+          If you already have an account, <router-link to="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-signin">sign in</router-link>.
         </p>
       </template>
     </div>

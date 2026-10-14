@@ -360,7 +360,7 @@ describe('TODO.identity-features/11 — the ISO-benchmark quick wins', () => {
         pressed: document.querySelector('[data-testid="locale-fr"]')?.getAttribute('aria-pressed'),
       }))
       expect(french.submit).toContain('Se connecter')
-      expect(french.footer).toContain('authentification unique')
+      expect(french.footer).toContain('le service de connexion d’OIML SMART')
       expect(french.ribbon).toContain('Preview') // the label stays the deployment's own word
       expect(french.ribbon).toContain('pas le service de production')
       expect(french.legitimacy).toContain('métrologie légale')
