@@ -20,6 +20,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TurnstileField from '../../components/TurnstileField.vue'
+import NameFields from '../../components/NameFields.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { t } from '../../i18n'
 
@@ -39,8 +40,10 @@ const devLink = ref<string | null>(null)
 const countries = ref<PickerCountry[]>([])
 const country = ref('')
 const org = ref('')
-const name = ref('')
+const givenName = ref('')
+const familyName = ref('')
 const email = ref('')
+const fullName = computed(() => [givenName.value.trim(), familyName.value.trim()].filter(Boolean).join(' '))
 const turnstileSiteKey = ref<string | null>(null)
 const turnstileField = ref<InstanceType<typeof TurnstileField> | null>(null)
 
@@ -146,7 +149,7 @@ async function start(): Promise<void> {
     const res = await fetch('/api/op/self-register/start', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ country: country.value, org: org.value, name: name.value, email: email.value, ...(turnstileToken !== undefined ? { 'cf-turnstile-response': turnstileToken } : {}) }),
+      body: JSON.stringify({ country: country.value, org: org.value, name: fullName.value, given_name: givenName.value.trim(), family_name: familyName.value.trim(), email: email.value, ...(turnstileToken !== undefined ? { 'cf-turnstile-response': turnstileToken } : {}) }),
     })
     const body = await res.json() as { ok?: boolean; providers?: AttributionProvider[]; queued?: boolean; error?: string }
     if (res.status === 403) turnstileField.value?.reset() // a spent token never repeats
@@ -421,14 +424,7 @@ onMounted(async () => {
             {{ t('selfreg.orgDomains', { domains: orgDomains.join(', ') }) }}
           </p>
         </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-name">{{ t('selfreg.nameLabel') }}</label>
-          <input
-            id="selfreg-name" v-model="name" type="text" required
-            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-            data-testid="selfreg-name"
-          />
-        </div>
+        <NameFields v-model:given="givenName" v-model:family="familyName" tid="selfreg" />
         <div>
           <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="selfreg-email">{{ t('selfreg.emailLabel') }}</label>
           <input

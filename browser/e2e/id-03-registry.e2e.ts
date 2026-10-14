@@ -366,7 +366,8 @@ describe('TODO.identity/03 — the central user registry + the per-client role c
     await page.waitForSelector('[data-testid="registry"]', { timeout: SETTLE, polling: 500 })
 
     // The invite (the registry form): name + email + the OP default role.
-    await page.type('[data-testid="registry-invite-name"]', ERIN.name)
+    await page.type('[data-testid="registry-invite-given-name"]', 'Ms. Erin')
+    await page.type('[data-testid="registry-invite-family-name"]', 'Registry')
     await page.type('[data-testid="registry-invite-email"]', ERIN.email)
     await page.select('[data-testid="registry-invite-role"]', 'viewer')
     await page.evaluate(() => (document.querySelector('[data-testid="registry-invite-submit"]') as HTMLElement).click())

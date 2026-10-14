@@ -349,7 +349,8 @@ describe('TODO.identity/10 — delegated organization administration (the identi
 
     await page.goto(`${stack.base}/op/admin/users`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
     await page.waitForSelector('[data-testid="biml-org-admins"]', { timeout: SETTLE, polling: 500 })
-    await page.type('[data-testid="orgadmin-name"]', 'Ms. Sanne de Vries')
+    await page.type('[data-testid="orgadmin-given-name"]', 'Ms. Sanne de')
+    await page.type('[data-testid="orgadmin-family-name"]', 'Vries')
     await page.type('[data-testid="orgadmin-email"]', ORG_ADMIN_EMAIL)
     await page.select('[data-testid="orgadmin-org"]', UTILIZER_ID)
     await page.evaluate(() => (document.querySelector('[data-testid="orgadmin-submit"]') as HTMLElement).click())

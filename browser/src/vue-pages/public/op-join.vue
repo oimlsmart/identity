@@ -36,6 +36,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SelfRegisterFlow from './self-register-flow.vue'
 import BrandLogo from '../../components/BrandLogo.vue'
+import NameFields from '../../components/NameFields.vue'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { useBranding } from '../../branding'
@@ -394,34 +395,7 @@ onMounted(async () => {
             <h2 class="mt-1 text-sm font-semibold text-slate-900 dark:text-white" data-testid="join-door-title">{{ doorDef?.title }}</h2>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-given-name">Given names</label>
-              <input
-                id="join-given-name"
-                v-model="givenName"
-                type="text"
-                required
-                autocomplete="given-name"
-                data-testid="join-given-name"
-                class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="Jane"
-              />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-family-name">Family name</label>
-              <input
-                id="join-family-name"
-                v-model="familyName"
-                type="text"
-                required
-                autocomplete="family-name"
-                data-testid="join-family-name"
-                class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                placeholder="Doe"
-              />
-            </div>
-          </div>
+          <NameFields v-model:given="givenName" v-model:family="familyName" tid="join" />
           <div>
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-email">Work email</label>
             <input

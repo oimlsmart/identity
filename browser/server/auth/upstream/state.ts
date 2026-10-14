@@ -81,6 +81,10 @@ export interface UpstreamStatePayload {
    *  claim, signed through the state to the emailed link. (`nm`: `n`
    *  is the OIDC nonce's.) */
   nm?: string
+  /** 0043 (2026-10-14): the structured names ride beside the composed
+   *  one — the account's columns keep the distinction end to end. */
+  gn?: string
+  fn?: string
   /** The presented LINK token (mode 'attribute', the second proof):
    *  the setup step's "verify once more" carries it through the
    *  bounce; the callback re-proofs the SAME upstream identity. */

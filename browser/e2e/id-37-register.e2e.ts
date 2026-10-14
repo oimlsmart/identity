@@ -261,7 +261,8 @@ async function rpRoundTrip(page: Page, rp: StubRp): Promise<void> {
 /** The register form's fill + submit, over the REAL page. */
 async function fillRegister(page: Page, name: string, email: string, password: string): Promise<void> {
   await page.waitForSelector('[data-testid="register-form"], [data-testid="register"] form', { timeout: SETTLE, polling: 500 })
-  await page.type('[data-testid="register-name"]', name)
+  await page.type('[data-testid="register-given-name"]', name.split(' ').slice(0, -1).join(' ') || name)
+  await page.type('[data-testid="register-family-name"]', name.split(' ').slice(-1)[0] ?? '')
   await page.type('[data-testid="register-email"]', email)
   await page.type('[data-testid="register-password"]', password)
   // The gate solves before the submit (the armed stack's always-pass

@@ -142,9 +142,29 @@ export function createOpJoinRouter(): Hono {
     return { error: c.json({ error: 'missing permission: org.users.manage', permission: 'org.users.manage' }, 403) }
   }
 
+  /** The filing ack (the decision loop's first half, 2026-10-14): the
+   *  requester learns by mail that the request stands and who decides —
+   *  and a stranger whose address someone named learns it too, to
+   *  ignore safely (nothing proceeds without the invitation that only
+   *  their mailbox accepts). Never fails the filing (the mailer never
+   *  throws); the BIML door files no ack — its setup link IS the
+   *  receipt. */
+  async function sendFilingAck(c: Context, input: { name: string; email: string; org: string; destination: string }): Promise<void> {
+    await sendOpMail(runtimeEnv<MailEnv>(c), {
+      to: input.email,
+      template: 'join_received',
+      issuer: opRequestOrigin(c.req.raw),
+      params: {
+        name: input.name,
+        org: input.org,
+        destination: input.destination,
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      },
+    })
+  }
+
   /** The decision audit (actor + the request + the outcome). */
-  async function audit(actor: AuthUserPayload, request: OrgJoinRequest, action: string, metadata: Record<string, unknown>): Promise<void> {
-    const id = crypto.randomUUID()
+  async function audit(actor: AuthUserPayload, request: OrgJoinRequest, action: string, metadata: Record<string, unknown>): Promise<void> {    const id = crypto.randomUUID()
     await getStore().putEntity('auditEvents', id, null, JSON.stringify({
       id,
       timestamp: new Date().toISOString(),
@@ -275,6 +295,7 @@ export function createOpJoinRouter(): Hono {
       const request = await getStore().createOrgJoinRequest({
         name, givenName, familyName, email, orgId, orgNameText: null, requestedRole: role, note,
       })
+      await sendFilingAck(c, { name, email, org: org.name, destination: "the organization's administrator" })
       return c.json(request, 201)
     }
 
@@ -381,6 +402,7 @@ export function createOpJoinRouter(): Hono {
         const request = await store.createOrgJoinRequest({
           name, givenName, familyName, email, orgId: match.id, orgNameText: null, requestedRole: 'applicant', note,
         })
+        await sendFilingAck(c, { name, email, org: match.name, destination: "the organization's administrator" })
         return c.json({ ...request, organization: { id: match.id, name: match.name, created: false } }, 201)
       }
 
@@ -410,6 +432,7 @@ export function createOpJoinRouter(): Hono {
       const request = await store.createOrgJoinRequest({
         name, givenName, familyName, email, orgId: id, orgNameText: null, requestedRole: 'org_admin', note,
       })
+      await sendFilingAck(c, { name, email, org: orgNameText, destination: 'the BIML secretariat' })
       return c.json({ ...request, organization: { id, name: orgNameText, created: true } }, 201)
     }
 
@@ -423,6 +446,7 @@ export function createOpJoinRouter(): Hono {
     const request = await getStore().createOrgJoinRequest({
       name, givenName, familyName, email, orgId: null, orgNameText, requestedRole: 'org_admin', note,
     })
+    await sendFilingAck(c, { name, email, org: orgNameText, destination: 'the BIML secretariat' })
     return c.json(request, 201)
   })
 
@@ -662,7 +686,23 @@ export function createOpJoinRouter(): Hono {
       refusalReason: reason,
     })
     if (!decided) return c.json({ error: 'this request was already decided' }, 409)
-    await audit(user, request, 'org_join_request.refused', { reason })
+    // The refusal notice (the decision loop's second half, 2026-10-14):
+    // email is the only channel that reaches an account that does not
+    // exist yet — the required reason travels by mail, never a silent
+    // wait. Never fails the answer (the mailer never throws).
+    const org = request.orgId ? await resolveRegistryOrg(getStore(), request.orgId) : null
+    const refusalMail = await sendOpMail(runtimeEnv<MailEnv>(c), {
+      to: request.email,
+      template: 'join_refused',
+      issuer: opRequestOrigin(c.req.raw),
+      params: {
+        name: request.name,
+        org: org?.name ?? request.orgNameText ?? 'your organization',
+        reason,
+        when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      },
+    })
+    await audit(user, request, 'org_join_request.refused', { reason, notice_delivery: refusalMail.sent ? 'email' : 'skipped' })
     return c.json(decided)
   })
 

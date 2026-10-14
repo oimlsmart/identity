@@ -15,6 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { onMounted, ref, watch } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
+import NameFields from '../../components/NameFields.vue'
 import { useBranding } from '../../branding'
 import { api } from '../../lib/api-client'
 import { t } from '../../i18n'
@@ -54,7 +55,8 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 // (TODO.identity/02's enrollment — no mailer is in scope; the admin
 // copies the link and hands it over). Shown once, cleared on the next
 // action.
-const inviteName = ref('')
+const inviteGivenName = ref('')
+const inviteFamilyName = ref('')
 const inviteEmail = ref('')
 const inviteRole = ref('viewer')
 const inviting = ref(false)
@@ -94,7 +96,7 @@ async function invite() {
     const res = await api('/api/op/accounts', {
       method: 'POST',
       body: JSON.stringify({
-        name: inviteName.value.trim(),
+        name: [inviteGivenName.value.trim(), inviteFamilyName.value.trim()].filter(Boolean).join(' '),
         email: inviteEmail.value.trim(),
         role: inviteRole.value,
       }),
@@ -116,7 +118,8 @@ async function invite() {
       expiresAt: created.expiresAt,
     }
     notice.value = t('admin.reg.invited', { name: created.account.name })
-    inviteName.value = ''
+    inviteGivenName.value = ''
+    inviteFamilyName.value = ''
     inviteEmail.value = ''
     await load()
   } catch {
@@ -215,13 +218,7 @@ onMounted(async () => {
       <section class="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6" data-testid="op-reg-invite">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">{{ t('admin.reg.inviteTitle') }}</h2>
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-          <input
-            v-model="inviteName"
-            type="text"
-            data-testid="op-reg-invite-name"
-            class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            :placeholder="t('admin.reg.fieldName')"
-          />
+          <NameFields v-model:given="inviteGivenName" v-model:family="inviteFamilyName" tid="op-reg-invite" class="sm:col-span-2" />
           <input
             v-model="inviteEmail"
             type="email"
@@ -237,7 +234,7 @@ onMounted(async () => {
             <option v-for="r in roleOptions" :key="r" :value="r">{{ r }}</option>
           </select>
           <button
-            :disabled="inviting || !inviteName.trim() || !inviteEmail.includes('@')"
+            :disabled="inviting || !([inviteGivenName.trim(), inviteFamilyName.trim()].filter(Boolean).join(' ')) || !inviteEmail.includes('@')"
             data-testid="op-reg-invite-submit"
             class="py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
             @click="invite"

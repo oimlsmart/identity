@@ -110,6 +110,11 @@ export type OpMailTemplate = 'invite' | 'reset' | 'signin' | 'membership_invited
   // you?" reset pointer rides the secondary block, the `reset` flag).
   | 'password_changed' | 'email_changed' | 'linked_method_added' | 'linked_method_removed'
   | 'factor_enrolled' | 'factor_revoked' | 'recovery_code_used' | 'client_roles_granted'
+  // 2026-10-14: the join decision loop's mails (the filing ack + the
+  // refusal — the only channel that reaches an account that does not
+  // exist yet) and the failed-sign-in advisory (the GitHub parity, the
+  // per-account hour throttle rides the caller).
+  | 'join_received' | 'join_refused' | 'signin_failed'
   // 0041 (the email sign-in fallback): the mailed second-factor code —
   // a transactional single-target send (the primary mailbox), carrying
   // the "was this you?" reset pointer (someone with the password asked
@@ -201,6 +206,9 @@ const TEMPLATE_KEYS: Record<OpMailTemplate, {
   email_otp: { subject: 'mail.emailOtp.subject', preheader: 'mail.emailOtp.preheader', heading: 'mail.emailOtp.heading', body: 'mail.emailOtp.body', why: 'mail.emailOtp.why', link: false, reset: true },
   email_fallback_granted: { subject: 'mail.emailFallbackGranted.subject', preheader: 'mail.emailFallbackGranted.preheader', heading: 'mail.emailFallbackGranted.heading', body: 'mail.emailFallbackGranted.body', why: 'mail.emailFallbackGranted.why', link: false, reset: true },
   client_roles_granted: { subject: 'mail.clientRolesGranted.subject', preheader: 'mail.clientRolesGranted.preheader', heading: 'mail.clientRolesGranted.heading', body: 'mail.clientRolesGranted.body', why: 'mail.clientRolesGranted.why', link: false, reset: true },
+  join_received: { subject: 'mail.joinReceived.subject', preheader: 'mail.joinReceived.preheader', heading: 'mail.joinReceived.heading', body: 'mail.joinReceived.body', why: 'mail.joinReceived.why', link: false },
+  join_refused: { subject: 'mail.joinRefused.subject', preheader: 'mail.joinRefused.preheader', heading: 'mail.joinRefused.heading', body: 'mail.joinRefused.body', why: 'mail.joinRefused.why', link: false },
+  signin_failed: { subject: 'mail.signinFailed.subject', preheader: 'mail.signinFailed.preheader', heading: 'mail.signinFailed.heading', body: 'mail.signinFailed.body', why: 'mail.signinFailed.why', link: false, reset: true },
 }
 
 export type MailLocale = 'en' | 'fr'

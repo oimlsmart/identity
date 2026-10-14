@@ -124,10 +124,17 @@ export function createSelfRegisterRouter(): Hono {
     const captcha = await turnstileGate(c)
     if (captcha) return captcha
 
-    const body = await c.req.json<{ country?: unknown; org?: unknown; name?: unknown; email?: unknown }>().catch(() => null)
+    const body = await c.req.json<{ country?: unknown; org?: unknown; name?: unknown; email?: unknown; given_name?: unknown; family_name?: unknown }>().catch(() => null)
     const country = typeof body?.country === 'string' ? body.country.trim() : ''
     const org = typeof body?.org === 'string' ? body.org.trim() : ''
-    const name = typeof body?.name === 'string' ? body.name.trim() : ''
+    // 0043 (2026-10-14): the structured names are the form's own shape
+    // (the join doors'); a bare `name` (the legacy/API shape) still
+    // composes.
+    const givenName = typeof body?.given_name === 'string' ? body.given_name.trim() : ''
+    const familyName = typeof body?.family_name === 'string' ? body.family_name.trim() : ''
+    const name = typeof body?.name === 'string' && body.name.trim()
+      ? body.name.trim()
+      : [givenName, familyName].filter(Boolean).join(' ').trim()
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     if (!country || !org || !name || !email.includes('@')) {
       return selfRegisterError(c, 400, 'your country, your organization, your name, and an email address are all required — pick from the lists and use your work address')
@@ -171,7 +178,7 @@ export function createSelfRegisterRouter(): Hono {
       .map(p => ({
         id: p.id,
         name: p.displayName ?? p.id,
-        next: `${opRequestOrigin(c.req.raw)}/op/upstream/${p.id}/signin?mode=attribute&email=${encodeURIComponent(email)}&n=${encodeURIComponent(name)}`,
+        next: `${opRequestOrigin(c.req.raw)}/op/upstream/${p.id}/signin?mode=attribute&email=${encodeURIComponent(email)}&n=${encodeURIComponent(name)}${givenName ? `&gn=${encodeURIComponent(givenName)}` : ''}${familyName ? `&fn=${encodeURIComponent(familyName)}` : ''}`,
       }))
     if (!providers.length) {
       return selfRegisterError(c, 503, 'the registration attribution providers are not configured on this deployment — request an account through the join queue instead')
@@ -284,7 +291,7 @@ export function createSelfRegisterRouter(): Hono {
     if (!proof.upstream || (await attributionHash(key.secretMaterial, proof.upstream.provider, proof.upstream.accountId)) !== proof.at) {
       return selfRegisterError(c, 400, 'the second verification does not match this registration — start the registration again')
     }
-    const verified = { email: proof.email, name: proof.name, at: proof.at, secondProof: true }
+    const verified = { email: proof.email, name: proof.name, given: proof.given, family: proof.family, at: proof.at, secondProof: true }
     const resolved = resolveOrgDomain(verified.email)
     if (!resolved) {
       return selfRegisterError(c, 403, 'this email domain is not in the member-domains registry — submit your request through the join queue, where an administrator reviews it')
@@ -337,6 +344,8 @@ export function createSelfRegisterRouter(): Hono {
     const account = await store.createOpAccount({
       email: verified.email,
       name,
+      givenName: verified.given ?? null,
+      familyName: verified.family ?? null,
       role: 'user',
       createdBy: 'self-register',
       orgId: domain,
@@ -437,7 +446,7 @@ export async function continueSelfRegisterSecondProof(
     console.warn(`[op] self-register second-proof MISMATCH: ${providerName} (${handle}) does not reproduce the link's binding`)
     return done('?error=second-proof')
   }
-  const proof = await mintSetupProofToken(key.secretMaterial, link.email, link.at, Date.now(), undefined, link.name ?? undefined, { provider, accountId })
+  const proof = await mintSetupProofToken(key.secretMaterial, link.email, link.at, Date.now(), undefined, link.name ?? undefined, { provider, accountId }, link.given ?? undefined, link.family ?? undefined)
   console.warn(`[op] self-register second-proof OK: ${providerName} (${handle}) reproduced the binding for ${link.email}`)
   return done(`?setup=${encodeURIComponent(proof)}`)
 }
@@ -455,7 +464,7 @@ export async function continueSelfRegisterAttribution(
   providerName: string,
   handle: string,
   assertedEmail?: string,
-  upstream?: { provider: string; accountId: string; name?: string },
+  upstream?: { provider: string; accountId: string; name?: string; given?: string; family?: string },
 ): Promise<string> {
   const config = resolveSelfRegisterConfig(runtimeEnv<EnvLike>(c))
   const done = (fragment: string): string => `/op/join${fragment}`
@@ -483,7 +492,7 @@ export async function continueSelfRegisterAttribution(
   // hash of the upstream identity that proved this attribution — the
   // completion's second sign-in must reproduce it. Never the raw id.
   const at = upstream ? await attributionHash(key.secretMaterial, upstream.provider, upstream.accountId) : undefined
-  const token = await mintRegistrationToken(key.secretMaterial, email, Date.now(), 24 * 60 * 60 * 1000, upstream?.name, at)
+  const token = await mintRegistrationToken(key.secretMaterial, email, Date.now(), 24 * 60 * 60 * 1000, upstream?.name, at, upstream?.given, upstream?.family)
   const verifyUrl = `${origin}/op/join?token=${encodeURIComponent(token)}`
 
   const mail = await sendOpMail(runtimeEnv<Record<string, string | undefined>>(c) as never, {
