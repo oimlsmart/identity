@@ -201,7 +201,7 @@ describe('TODO.identity-extract/02a — the identity-native frontend surface', (
     // assertion takes either posture (the static link pre-probe, the
     // pill after) — the affordance's presence is the contract.
     const footer = await page.evaluate(() => document.querySelector('footer')?.textContent ?? '')
-    expect(footer).toContain('the single sign-on service for the oimlsmart.org register')
+    expect(footer).toContain('the sign-in service for the OIML-CS register and the OIML SMART platform')
     expect(await page.$('[data-testid="shell-status"], [data-testid="shell-status-pill"]')).not.toBeNull()
     // No platform chrome: no federation nav, no manifest link.
     const platformChrome = await page.evaluate(() => ({

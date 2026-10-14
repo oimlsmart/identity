@@ -1558,7 +1558,7 @@ export const fr: Record<MessageKey, string> = {
   "shell.footer.privacy": "Confidentialité",
   "shell.footer.status": "État du service",
   "shell.footer.supportPrompt": "Besoin d’aide ?",
-  "shell.footer.tagline": "OIML SMART Identity : le service d’authentification unique de l’écosystème oimlsmart.org",
+  "shell.footer.tagline": "OIML SMART Identity — le service de connexion du registre OIML-CS et de la plateforme OIML SMART",
   "shell.footer.terms": "Conditions",
   "shell.locale.label": "Langue",
   "shell.nav.admin": "Administration",
