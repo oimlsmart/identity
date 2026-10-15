@@ -2191,15 +2191,51 @@ export function createOpAccountsRouter(): Hono {
     if (!body || typeof body.password !== 'string' || !body.password) {
       return c.json({ error: 'the current password is required' }, 400)
     }
-    const cred = await getStore().getPasswordLogin(user.email)
+    const store = getStore()
+    const baseMs = resolveLoginBackoffBaseMs(runtimeEnv<EnvLike>(c)).baseMs
+    const [throttleRow, cred, failedNoticeRow] = await Promise.all([
+      readLoginThrottleRow(store, user.email),
+      store.getPasswordLogin(user.email),
+      store.getEntity(SIGNIN_FAILED_NOTICE_STORE, user.email).catch(() => undefined),
+    ])
+    await delayMs(loginThrottleWaitMsForRow(throttleRow, baseMs))
     if (!cred) {
       return c.json({ error: 'this account holds no password — use a linked sign-in method, or ask for a reset' }, 403)
     }
     const ok = await verifyPasswordLogin(body.password, cred.hash ?? null)
     if (!ok) {
-      await audit('account.step_up_refused', user.id, { userId: user.id, userName: user.name }, {})
+      // The wrong password (2026-10-15): the rung climbs, the audit
+      // lands, and the holder is told — the same throttled notice the
+      // login fires (the hour marker bounds it; the fire-and-forget
+      // keeps the answer's shape). Without this the endpoint was a
+      // password oracle outside every control.
+      const notifyThisFailure = signinFailedNoticeDue(failedNoticeRow)
+      await Promise.all([
+        recordLoginThrottleFailure(store, user.email, throttleRow),
+        audit('account.step_up_refused', user.id, { userId: user.id, userName: user.name }, {}),
+        ...(notifyThisFailure ? [store.putEntity(SIGNIN_FAILED_NOTICE_STORE, user.email, null, JSON.stringify({ sentAt: new Date().toISOString() })).catch(() => {})] : []),
+      ])
+      if (notifyThisFailure) {
+        const info = clientInfo(c)
+        const notice = sendOpMail(runtimeEnv<MailEnv>(c), {
+          to: user.email,
+          template: 'signin_failed',
+          issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer,
+          params: {
+            when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+            fromDevice: deviceSummary(info.userAgent),
+            fromIp: info.ip ?? '',
+          },
+        })
+        try {
+          c.executionCtx.waitUntil(notice)
+        } catch {
+          void notice
+        }
+      }
       return c.json({ error: 'the current password does not match' }, 403)
     }
+    await clearLoginThrottle(store, user.email)
     const key = await stepUpKey(runtimeEnv<EnvLike>(c) as Record<string, string | undefined>)
     const stamp = await mintStepUpStamp(key, user.id, 'pwd')
     setCookie(c, STEP_UP_COOKIE, stamp, {
