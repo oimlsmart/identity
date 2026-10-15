@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "i18n:gen": "tsx scripts/i18n-gen.ts",
     "dev": "concurrently -k \"astro dev\" \"tsx watch server/serve.ts\"",
     "dev:astro": "concurrently -k \"astro dev\" \"tsx watch server/serve.ts\"",
     "dev:server": "tsx watch server/serve.ts",
