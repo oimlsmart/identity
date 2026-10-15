@@ -63,6 +63,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import UpstreamProviderIcon from '../components/UpstreamProviderIcon.vue'
 import AvatarCropDialog from '../components/AvatarCropDialog.vue'
+import PasswordStrength from '../components/PasswordStrength.vue'
 import { AVATAR_ACCEPT_TYPES } from '../lib/avatar-crop'
 import AccountFactors, { type FactorsPayload } from '../components/AccountFactors.vue'
 import AccountTokens, { type TokensPayload } from '../components/AccountTokens.vue'
@@ -715,23 +716,8 @@ async function removeAvatar() {
   }
 }
 
-// The meter mirrors server/auth/passwords.ts's classes — DISPLAY only
-// (the server re-judges the policy at submit; a drift here can only ever
-// under-advise, never admit a weaker password).
-const strength = computed(() => {
-  const pw = nextPassword.value
-  const len = pw.length
-  let variety = 0
-  if (/[a-z]/.test(pw)) variety++
-  if (/[A-Z]/.test(pw)) variety++
-  if (/[0-9]/.test(pw)) variety++
-  if (/[^a-zA-Z0-9]/.test(pw)) variety++
-  if (len < 12) return { score: 0, label: t('account.password.strength.tooShort'), hint: t('account.password.strength.hintShort', { count: 12 - len }) }
-  if (len < 16 && variety < 3) return { score: 1, label: t('account.password.strength.fair'), hint: t('account.password.strength.hintLonger') }
-  if (len < 20) return { score: 2, label: t('account.password.strength.good'), hint: variety < 3 ? t('account.password.strength.hintMix') : t('account.password.strength.hintMore') }
-  return { score: 3, label: t('account.password.strength.strong'), hint: '' }
-})
-const METER_COLORS = ['bg-red-400', 'bg-amber-400', 'bg-brand-400', 'bg-green-500']
+// The meter lives in components/PasswordStrength.vue (the one honest
+// meter; the DRY ruling).
 
 /** The activity row's label: the catalog's per-action copy when it
  *  exists, the raw action otherwise (the feed never renders blank).
@@ -763,6 +749,7 @@ function activityLabel(event: ActivityEvent): string {
  *  plain language, never a stack trace (08's mapping, keyed now). */
 function linkErrorMessage(key: string, providerId: string): string {
   const name = providers.value.find(p => p.id === providerId)?.displayName ?? providerId
+  if (key === 'link_fresh_proof') return t('account.linkError.linkFreshProof', { name })
   if (key === 'link_taken' || key === 'provider_linked' || key === 'link_session') {
     return t(`account.linkError.${key}` as MessageKey, { name })
   }
@@ -1381,6 +1368,7 @@ async function signOutAll() {
         <AccountEmails
           :emails="context.emails"
           @changed="loadQuiet"
+          @stepup="demandStepUp"
         />
 
         <!-- 2 · The organizations (TODO.identity/11 — the multi-org model). -->
@@ -1721,6 +1709,7 @@ async function signOutAll() {
         <AccountTokens
           :tokens="tokens"
           @changed="loadQuiet"
+          @stepup="demandStepUp"
         />
 
         <!-- 3⅝ · The outbound webhooks (TODO.modern/08): the event
@@ -1772,20 +1761,7 @@ async function signOutAll() {
                 :placeholder="t('account.password.policy')"
               />
               <!-- The honest meter: length carries the score. -->
-              <div v-if="nextPassword" class="mt-2" data-testid="account-password-meter">
-                <div class="flex gap-1 mb-1">
-                  <div
-                    v-for="step in 4"
-                    :key="step"
-                    class="h-1 flex-1 rounded-full"
-                    :class="step - 1 <= strength.score && nextPassword.length >= 12 ? METER_COLORS[strength.score] : (strength.score === 0 && step === 1 ? METER_COLORS[0] : 'bg-slate-200 dark:bg-slate-700')"
-                  />
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                  <span class="font-medium" data-testid="account-password-meter-label">{{ strength.label }}</span>
-                  <span v-if="strength.hint"> · {{ strength.hint }}</span>
-                </p>
-              </div>
+              <PasswordStrength :password="nextPassword" tid="account-password" />
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ t('account.password.confirmLabel') }}</label>

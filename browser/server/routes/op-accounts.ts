@@ -158,6 +158,7 @@ import { opRandomToken } from '../auth/op/keys'
 import { prepareBackchannelLogout } from '../auth/op/logout'
 import { TRUST_COOKIE } from './op-trust'
 import { mintStepUpStamp, STEP_UP_COOKIE, STEP_UP_TTL_MS, stepUpKey } from '../auth/op/step-up-stamp'
+import { demandFreshProof } from '../auth/op/fresh-proof'
 import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
 import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
@@ -382,7 +383,7 @@ export function createOpAccountsRouter(): Hono {
    *  failure. TODO.identity-features/01: the notice fans out to the
    *  primary PLUS every verified additional (the "was this you?" must
    *  reach every proven mailbox — auth/op/mail.ts's sendOpSecurityMail). */
-  async function notifySignIn(c: Context, user: { id: string; email: string; name: string }, newDevice = false): Promise<void> {
+  async function notifySignIn(c: Context, user: { id: string; email: string; name: string }, risk: { newDevice: boolean; countryChanged: boolean } | null = null): Promise<void> {
     const info = clientInfo(c)
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
     await sendOpSecurityMail(runtimeEnv<MailEnv>(c), getStore(), {
@@ -392,13 +393,16 @@ export function createOpAccountsRouter(): Hono {
       // TODO.modern/06: the NEW DEVICE advisory rides the notice when
       // the assessment flagged the sighting (absent = unchanged mail).
       // 2026-10-13 (the GitHub/Google parity): the notice names WHAT and
-      // WHERE the act came from.
+      // WHERE the act came from. 2026-10-14 (the Google parity): the
+      // COUNTRY-CHANGE advisory rides too, naming the country.
       params: {
         name: user.name,
         when: new Date().toISOString().slice(0, 16).replace('T', ' '),
         fromDevice: deviceSummary(info.userAgent),
         fromIp: info.ip ?? '',
-        ...(newDevice ? { newDevice: true } : {}),
+        fromCountry: countryOf({ req: c.req.raw }) ?? '',
+        ...(risk?.newDevice ? { newDevice: true } : {}),
+        ...(risk?.countryChanged ? { countryChanged: true } : {}),
       },
     })
   }
@@ -721,6 +725,10 @@ export function createOpAccountsRouter(): Hono {
     await audit('account.sign_in', cred.userId, { userId: cred.userId }, {
       method: 'password', amr: ['pwd'],
       newDevice: risk.newDevice, countryChanged: risk.countryChanged,
+      // 2026-10-14: the feed names WHAT and WHERE — the console's
+      // activity view renders the same summary the notices carry.
+      fromDevice: deviceSummary(info.userAgent), fromIp: info.ip ?? '',
+      fromCountry: countryOf({ req: c.req.raw }) ?? '',
     })
     // TODO.identity/09 — the account holder learns of every entry. The
     // notification never blocks or fails the sign-in (sendOpMail's
@@ -731,7 +739,7 @@ export function createOpAccountsRouter(): Hono {
     // mailer's own results are honest (it never throws); waitUntil, when
     // the runtime provides it, keeps the promise alive past the response.
     if (user) {
-      const notice = notifySignIn(c, user, risk.newDevice)
+      const notice = notifySignIn(c, user, risk)
       try {
         c.executionCtx.waitUntil(notice) // the Worker keeps it alive past the answer
       } catch {
@@ -2041,6 +2049,12 @@ export function createOpAccountsRouter(): Hono {
   accounts.post('/api/op/account/emails', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    // THE FRESH-PROOF GATE (2026-10-14, the GitHub sudo-mode parity):
+    // an added address is the hijack chain's first step — verified in
+    // the ATTACKER'S mailbox, then promoted, then the reset owns the
+    // account. A stale session demands the re-entry.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const body = await c.req.json<{ email?: string }>().catch(() => null)
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     if (!email || !email.includes('@') || email.length > 254) {
@@ -2122,6 +2136,10 @@ export function createOpAccountsRouter(): Hono {
   accounts.post('/api/op/account/emails/primary', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    // The crown jewel of the chain: the primary steers the reset. The
+    // same wall (2026-10-14).
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const body = await c.req.json<{ email?: string }>().catch(() => null)
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     if (!email) return c.json({ error: 'email is required' }, 400)
@@ -2145,6 +2163,10 @@ export function createOpAccountsRouter(): Hono {
   accounts.delete('/api/op/account/emails/:email', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    // Stripping the holder's recovery addresses: the same wall
+    // (2026-10-14).
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const email = c.req.param('email').trim().toLowerCase()
     const result = await getStore().removeAccountEmail(user.id, email)
     if (result === 'primary') {
@@ -2169,15 +2191,51 @@ export function createOpAccountsRouter(): Hono {
     if (!body || typeof body.password !== 'string' || !body.password) {
       return c.json({ error: 'the current password is required' }, 400)
     }
-    const cred = await getStore().getPasswordLogin(user.email)
+    const store = getStore()
+    const baseMs = resolveLoginBackoffBaseMs(runtimeEnv<EnvLike>(c)).baseMs
+    const [throttleRow, cred, failedNoticeRow] = await Promise.all([
+      readLoginThrottleRow(store, user.email),
+      store.getPasswordLogin(user.email),
+      store.getEntity(SIGNIN_FAILED_NOTICE_STORE, user.email).catch(() => undefined),
+    ])
+    await delayMs(loginThrottleWaitMsForRow(throttleRow, baseMs))
     if (!cred) {
       return c.json({ error: 'this account holds no password — use a linked sign-in method, or ask for a reset' }, 403)
     }
     const ok = await verifyPasswordLogin(body.password, cred.hash ?? null)
     if (!ok) {
-      await audit('account.step_up_refused', user.id, { userId: user.id, userName: user.name }, {})
+      // The wrong password (2026-10-15): the rung climbs, the audit
+      // lands, and the holder is told — the same throttled notice the
+      // login fires (the hour marker bounds it; the fire-and-forget
+      // keeps the answer's shape). Without this the endpoint was a
+      // password oracle outside every control.
+      const notifyThisFailure = signinFailedNoticeDue(failedNoticeRow)
+      await Promise.all([
+        recordLoginThrottleFailure(store, user.email, throttleRow),
+        audit('account.step_up_refused', user.id, { userId: user.id, userName: user.name }, {}),
+        ...(notifyThisFailure ? [store.putEntity(SIGNIN_FAILED_NOTICE_STORE, user.email, null, JSON.stringify({ sentAt: new Date().toISOString() })).catch(() => {})] : []),
+      ])
+      if (notifyThisFailure) {
+        const info = clientInfo(c)
+        const notice = sendOpMail(runtimeEnv<MailEnv>(c), {
+          to: user.email,
+          template: 'signin_failed',
+          issuer: resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer,
+          params: {
+            when: new Date().toISOString().slice(0, 16).replace('T', ' '),
+            fromDevice: deviceSummary(info.userAgent),
+            fromIp: info.ip ?? '',
+          },
+        })
+        try {
+          c.executionCtx.waitUntil(notice)
+        } catch {
+          void notice
+        }
+      }
       return c.json({ error: 'the current password does not match' }, 403)
     }
+    await clearLoginThrottle(store, user.email)
     const key = await stepUpKey(runtimeEnv<EnvLike>(c) as Record<string, string | undefined>)
     const stamp = await mintStepUpStamp(key, user.id, 'pwd')
     setCookie(c, STEP_UP_COOKIE, stamp, {
@@ -2287,6 +2345,13 @@ export function createOpAccountsRouter(): Hono {
   accounts.delete('/api/op/account/password', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
+    // THE FRESH-PROOF WALL (2026-10-15): the removal is the
+    // permanent-takeover chain's second half — the attacker links their
+    // own identity (the link start's wall), then strips the password so
+    // no reset ever reaches the victim again. A stale session demands
+    // the re-entry.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const store = getStore()
     const methods = await store.countSignInMethods(user.id)
     if (!methods.password) return c.json({ error: 'No password is set on this account.' }, 404)

@@ -154,9 +154,23 @@ describe('the failed-sign-in notice (the GitHub parity, throttled per account)',
     expect(failedNotices().length, 'no account, no notice').toBe(2)
   })
 
-  it('SILENT: the correct password mails nothing', { timeout: 120_000 }, async () => {
+  it('SILENT: the correct password mails nothing; the audit names WHAT and WHERE', { timeout: 120_000 }, async () => {
     const res = await login(VICTIM, PASS)
     expect(res.status).toBe(200)
     expect(failedNotices().length, 'the holder entering is not a notice').toBe(2)
+    // 2026-10-14: the sign_in audit carries the device summary, the IP
+    // and the resolved country — the console's activity feed renders
+    // the same what/where the notices carry.
+    const accountId = (await store.findUserByEmail(VICTIM))!.id
+    const rows = (await store.listEntities('auditEvents'))
+      .map(row => JSON.parse(row.data) as { action: string; entity_id: string; metadata?: Record<string, unknown> })
+      .filter(e => e.action === 'account.sign_in' && e.entity_id === accountId)
+    const mine = rows.at(-1)
+    expect(mine, 'the success lands on the chain').toBeTruthy()
+    expect(mine!.metadata).toMatchObject({
+      method: 'password',
+      fromDevice: expect.stringContaining('unrecognized'),
+      fromIp: expect.any(String),
+    })
   })
 })

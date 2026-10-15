@@ -27,6 +27,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { closeBrowser, delay } from './helpers'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
 
@@ -366,5 +367,30 @@ describe('the join page’s doors (the question before the form)', () => {
     expect(second.status).toBe(409)
     const secondBody = await second.json() as { error?: string }
     expect(secondBody.error).toContain('already hold an account')
+  })
+
+  it("leg 3 — the request tracker: the link answers the honest state", { timeout: 900_000 }, async () => {
+    await withPage(async (page) => {
+      // An id that names nothing answers the honest not-found panel.
+      await page.goto(`${stack!.base}/op/join?request=${randomUUID()}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="join-track"]', { timeout: SETTLE, polling: 500 })
+      await page.waitForSelector('[data-testid="join-track"]', { timeout: SETTLE, polling: 500 })
+      const lost = await page.evaluate(() => document.querySelector('[data-testid="join-track"]')?.textContent ?? '')
+      expect(lost).toContain('could not find this request')
+
+      // A real filing tracks as pending with the org's name.
+      const filed = await fetch(`${stack!.apiBase}/api/op/join-requests`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ given_name: 'Trina', family_name: 'Tracker', email: 'trina.track@bmd.example', org_id: 'EX1', requested_role: 'viewer' }),
+      })
+      expect(filed.status).toBe(201)
+      const { id } = await filed.json() as { id: string }
+      await page.goto(`${stack!.base}/op/join?request=${encodeURIComponent(id)}`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.waitForSelector('[data-testid="join-track-pending"]', { timeout: SETTLE, polling: 500 })
+      const pending = await page.evaluate(() => document.querySelector('[data-testid="join-track"]')?.textContent ?? '')
+      expect(pending).toContain('Brobdingnag Legal Metrology Authority')
+      expect(pending).toContain('organization administrator')
+    })
   })
 })

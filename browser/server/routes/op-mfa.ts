@@ -108,7 +108,7 @@ export function createOpMfaRouter(): Hono {
    *  OWN notice ('recovery_code_used' — the spent code IS the news, and
    *  the reset pointer is urgent there) INSTEAD of the generic sign-in
    *  mail; every other completion keeps 'signin'. */
-  async function notifySignIn(c: Context, userId: string, methodKey: string, notifyTemplate: 'signin' | 'recovery_code_used' = 'signin', newDevice = false): Promise<void> {
+  async function notifySignIn(c: Context, userId: string, methodKey: string, notifyTemplate: 'signin' | 'recovery_code_used' = 'signin', risk: { newDevice: boolean; countryChanged: boolean } | null = null): Promise<void> {
     const account = await getStore().getUserById(userId)
     if (!account) return
     const issuer = resolveOpConfig(runtimeEnv<EnvLike>(c), opRequestOrigin(c.req.raw)).issuer
@@ -121,13 +121,17 @@ export function createOpMfaRouter(): Hono {
       // the assessment flagged the sighting (absent = unchanged mail).
       // 2026-10-13 (the GitHub/Google parity): the notice names WHAT and
       // WHERE the act came from — the summarized device and the IP.
+      // 2026-10-14 (the Google parity): the COUNTRY-CHANGE advisory
+      // rides too, naming the country.
       params: {
         name: account.name,
         when: new Date().toISOString().slice(0, 16).replace('T', ' '),
         method: methodKey,
         fromDevice: deviceSummary(info.userAgent),
         fromIp: info.ip ?? '',
-        ...(newDevice ? { newDevice: true } : {}),
+        fromCountry: countryOf({ req: c.req.raw }) ?? '',
+        ...(risk?.newDevice ? { newDevice: true } : {}),
+        ...(risk?.countryChanged ? { countryChanged: true } : {}),
       },
     })
   }
@@ -205,7 +209,7 @@ export function createOpMfaRouter(): Hono {
     // The mailer's results are honest (it never throws); waitUntil,
     // when the runtime provides it, keeps the promise alive past the
     // response.
-    const notice = notifySignIn(c, pending.userId, methodKey, notifyTemplate, risk.newDevice)
+    const notice = notifySignIn(c, pending.userId, methodKey, notifyTemplate, risk)
     try {
       c.executionCtx.waitUntil(notice)
     } catch {

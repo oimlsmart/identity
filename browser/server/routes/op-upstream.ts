@@ -71,6 +71,7 @@ import {
 import { generateAppleClientSecret, resolveAppleSecretConfig } from '../auth/upstream/apple'
 import { buildGitHubAuthorizeUrl, fetchGitHubIdentity, gitHubEndpoints, GitHubUpstreamError } from '../auth/upstream/github-client'
 import { SESSION_COOKIE, sessionCookieOpts, sessionUser } from '../session'
+import { demandFreshProof } from '../auth/op/fresh-proof'
 import { touchAccountJar } from '../auth/op/account-jar'
 
 type EnvLike = Record<string, string | undefined>
@@ -333,6 +334,16 @@ export function createOpUpstreamRouter(): Hono {
     if (mine.some(l => l.provider === provider.id)) {
       return c.redirect(linkErrorRedirect(origin, 'provider_linked', provider.id))
     }
+    // THE FRESH-PROOF WALL (2026-10-15): linking an upstream identity is
+    // the PERMANENT-takeover chain's first half — the attacker's own
+    // GitHub approves in their own browser, and the unlink gate's
+    // password factor cannot undo a link that now serves as the primary
+    // sign-in. A stale session lands back on the account page with the
+    // honest demand: sign in again, then link.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) {
+      return c.redirect(linkErrorRedirect(origin, 'link_fresh_proof', provider.id))
+    }
     try {
       return await startFlow(c, provider, 'link', { linkUserId: user.id })
     } catch (err) {
@@ -541,6 +552,18 @@ export function createOpUpstreamRouter(): Hono {
         provider: providerId, handle: identity.handle, reason: link ? 'account_gone' : 'not_linked',
       })
       return c.redirect(loginErrorRedirect(origin, 'not_linked', provider.displayName))
+    }
+    // THE DEACTIVATION WALL (2026-10-14 — the password lane's own rule):
+    // a deactivation kills EVERY way in — sessions, factors, the
+    // password, and the linked upstream identities too. Without this
+    // check a deactivated account walked right back in through its
+    // linked GitHub/Google, defeating the deactivation's whole meaning.
+    if (!(await store.isUserActive(user.id))) {
+      console.warn(`[op] upstream sign-in refused: ${providerId} identity ${JSON.stringify(identity.handle)} names a deactivated account`)
+      await audit('upstream_refused', providerId, { userName: identity.handle }, {
+        provider: providerId, handle: identity.handle, reason: 'deactivated',
+      })
+      return c.redirect(loginErrorRedirect(origin, 'deactivated', provider.displayName))
     }
 
     await clearMailBudgetForAccount(store, user.id)

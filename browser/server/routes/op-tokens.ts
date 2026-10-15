@@ -62,6 +62,7 @@ import { getInstanceProfile } from '../profile'
 import { sessionUser } from '../session'
 import { emitWebhookEvent } from '../webhooks/deliver'
 import { requireFreshAuth } from '../auth/op/step-up'
+import { demandFreshProof } from '../auth/op/fresh-proof'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import {
   fetchPermissionsCatalog,
@@ -154,6 +155,10 @@ export function createOpTokensRouter(): Hono {
   tokens.post('/api/op/account/tokens', async (c) => {
     const { user, error } = await requireUser(c)
     if (error || !user) return error!
+    // A minted token SURVIVES every session sweep — the hijack's most
+    // durable prize. The fresh-proof wall (2026-10-14) stands here too.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const body = await c.req.json<{ name?: unknown; scopes?: unknown; expiresInDays?: unknown; permissions?: unknown }>().catch(() => null)
     const name = typeof body?.name === 'string' ? body.name.trim() : ''
     if (name.length < 1 || name.length > 60) {

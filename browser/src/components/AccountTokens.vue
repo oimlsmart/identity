@@ -73,7 +73,7 @@ const props = defineProps<{
   tokens: TokensPayload | null
 }>()
 
-const emit = defineEmits<{ changed: [] }>()
+const emit = defineEmits<{ changed: []; stepup: [retry: () => Promise<void>] }>()
 
 const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
@@ -231,9 +231,13 @@ async function mint() {
     const scopes = Object.entries(mintScopes.value)
       .filter(([, action]) => action !== '')
       .map(([service, action]) => `${service}:${action}`)
-    const res = await fetch('/api/op/account/tokens', {
+    // The stamp rides when the console holds one; a fresh demand hands
+    // the retry to the parent's dialog (the mint is a durable
+    // credential — the wall is 2026-10-14's).
+    const stamp = (() => { try { return sessionStorage.getItem('op_step_up') ?? '' } catch { return '' } })()
+    const run = (s: string) => fetch('/api/op/account/tokens', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(s ? { 'x-op-step-up': s } : {}) },
       credentials: 'include',
       body: JSON.stringify({
         name: mintName.value.trim(),
@@ -242,7 +246,20 @@ async function mint() {
         ...(chosenPermissions.value.length ? { permissions: chosenPermissions.value } : {}),
       }),
     })
-    const body = await res.json().catch(() => null) as { token?: TokenRow & { plaintext?: string }; error?: string } | null
+    let res = await run(stamp)
+    let body = await res.json().catch(() => null) as { token?: TokenRow & { plaintext?: string }; error?: string; step_up?: string } | null
+    if (!res.ok && body?.step_up === 'required') {
+      if (stamp) {
+        error.value = (body.error ?? t('account.networkError')) + ' ' + t('stepup.expired')
+        busy.value = false
+        return
+      }
+      // The parent's dialog re-invokes mint() — the second pass reads
+      // the freshly minted stamp from sessionStorage.
+      emit('stepup', async () => { await mint() })
+      busy.value = false
+      return
+    }
     if (!res.ok) {
       error.value = body?.error ?? t('account.networkError')
       busy.value = false

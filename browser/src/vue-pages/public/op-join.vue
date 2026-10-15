@@ -101,6 +101,26 @@ const router = useRouter()
  *  picking the door. */
 const selfRegisterStates = ['token', 'setup', 'sent', 'error', 'link', 'selfregister']
 const selfRegisterMode = computed(() => selfRegisterStates.some(k => typeof route.query[k] === 'string'))
+
+/** THE REQUEST TRACKER (2026-10-14): ?request=<id> — the ack mail's
+ *  link. The decision loop travels by mail, and mail is lossy; the
+ *  id (a UUID, the ack's own capability) answers the honest state.
+ *  The refusal's reason stays out (the mail's content). */
+const trackId = computed(() => (typeof route.query.request === 'string' && route.query.request ? route.query.request : null))
+const trackState = ref<{ status: 'pending' | 'approved' | 'refused' | 'unknown'; orgName: string | null; decidedAt: string | null } | null>(null)
+onMounted(async () => {
+  if (!trackId.value) return
+  try {
+    const res = await fetch(`/api/op/join-requests/${encodeURIComponent(trackId.value)}/status`)
+    if (!res.ok) {
+      trackState.value = { status: 'unknown', orgName: null, decidedAt: null }
+      return
+    }
+    trackState.value = await res.json() as { status: 'pending' | 'approved' | 'refused'; orgName: string | null; decidedAt: string | null }
+  } catch {
+    trackState.value = { status: 'unknown', orgName: null, decidedAt: null }
+  }
+})
 function openRegistryDoor() {
   router.replace({ path: '/op/join', query: { selfregister: '1' } })
 }
@@ -342,7 +362,31 @@ onMounted(async () => {
 
       <!-- THE REGISTRY-VERIFIED MODE: the seventh door's flow, on this
            page (one front door; the mailed links land here directly). -->
-      <SelfRegisterFlow v-if="selfRegisterMode" />
+      <!-- The request tracker: the ack mail's link answers the honest
+           state — the reason stays in the mail. -->
+      <div v-else-if="trackId" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5" data-testid="join-track">
+        <template v-if="trackState === null">
+          <p class="text-sm text-slate-500 dark:text-slate-400">Checking your request…</p>
+        </template>
+        <template v-else-if="trackState.status === 'unknown'">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">We could not find this request</h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400">Check the link in your mail, or file the request again from the start.</p>
+        </template>
+        <template v-else>
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">Your account request{{ trackState.orgName ? ` for ${trackState.orgName}` : '' }}</h2>
+          <p v-if="trackState.status === 'pending'" class="text-sm text-slate-600 dark:text-slate-400" data-testid="join-track-pending">
+            The request is with the organization administrator. You will receive a message when it is decided.
+          </p>
+          <p v-else-if="trackState.status === 'approved'" class="text-sm text-emerald-700 dark:text-emerald-300" data-testid="join-track-approved">
+            The request was approved. Your invitation is in your mailbox — complete the one-time setup to open your account.
+          </p>
+          <p v-else class="text-sm text-slate-600 dark:text-slate-400" data-testid="join-track-refused">
+            The organization declined the request. The reason is in the mail the decision sent. If the reason no longer applies, contact the organization's administrator and file the request again.
+          </p>
+        </template>
+      </div>
+
+      <SelfRegisterFlow v-else-if="selfRegisterMode" />
 
       <template v-else>
         <!-- Error -->

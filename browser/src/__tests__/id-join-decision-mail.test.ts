@@ -19,7 +19,12 @@
 //             required reason — email is the only channel that reaches
 //             an account that does not exist yet;
 //   APPROVED  the approve path keeps its invite mail (the regression
-//             guard).
+//             guard);
+//   STATUS    the ack and the refusal carry the track link, and the
+//             public status endpoint answers the honest state — pending
+//             with the org's name, decided without the reason (the
+//             reason travels by mail only), and a uniform 404 for an
+//             id that names nothing.
 // ─────────────────────────────────────────────────────────────────────
 
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -58,6 +63,13 @@ async function fileRequest(body: Record<string, unknown>): Promise<Response> {
 beforeAll(async () => {
   const { installSqliteStore } = await import('../../server/store/sqlite')
   store = installSqliteStore()
+  // The composition root's own act (server/index.ts installs the map
+  // at boot; a harness that skips it inherits whatever the previous
+  // suite installed). The identity profile declares no rbac section, so
+  // the default map stands — install it explicitly, never inherit.
+  const { installRbacMap } = await import('../../server/rbac')
+  const { DEFAULT_ROLE_PERMISSIONS } = await import('../../server/vocab/rbac')
+  installRbacMap(DEFAULT_ROLE_PERMISSIONS)
   const profileMod = await import('../../server/profile')
   profileMod.installInstanceProfile(profileMod.parseInstanceProfile(`
 identity:
@@ -85,8 +97,15 @@ demo_personas: true
   root.route('/', createOpJoinRouter())
   app = root
 
-  // The register: one active IA (the register door's target).
+  // The register: one active IA (the register door's target) + its
+  // organization administrator (the queue's decider).
   await store.createOrgRegistryOrg({ id: 'EX1', name: 'Example Issuing Authority', shortName: 'EIA', kind: 'issuing-authority', country: 'Example Member State', contacts: [{ name: null, email: 'office@eia.example.org' }], participantRef: 'EX1' })
+  const created = await store.createOpAccount({ email: 'gatekeeper@eia.example', name: 'Gate Keeper', role: 'org_admin', roles: ['org_admin'], orgId: 'EX1', emailVerified: true })
+  expect(created, 'the org admin seeds').toBeTruthy()
+  // The demo cast seeds on the first AUTH request in production — the
+  // doorbell legs file before any login, so the wide deciders must
+  // exist here.
+  await store.seedDemoAccounts()
 })
 
 afterAll(async () => {
@@ -96,6 +115,8 @@ afterAll(async () => {
   mailerMod.resetMailerForTest()
   const { resetInstanceProfileForTest } = await import('../../server/profile')
   resetInstanceProfileForTest()
+  const { installRbacMap: resetRbac } = await import('../../server/rbac')
+  resetRbac(null)
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.DATABASE_PATH
   delete process.env.OP_ISSUER
@@ -112,6 +133,17 @@ describe('the join decision loop closes by mail', () => {
     expect(acks[0]!.text).toContain('Example Issuing Authority')
     expect(acks[0]!.text).toContain("organization's administrator")
     expect(acks[0]!.text).toContain('did not file')
+    // The track link rides the ack (the mail-loss hole's answer).
+    const filed = await res.json() as { id: string }
+    expect(acks[0]!.text).toContain(`/op/join?request=${filed.id}`)
+    // THE DOORBELL: the org's decider learns a request waits.
+    const bells = stub.messages.filter(m => m.to === 'gatekeeper@eia.example')
+    expect(bells.length, 'exactly one decider notice').toBe(1)
+    expect((bells[0]!.subject ?? '')).toContain('awaits review')
+    expect(bells[0]!.text).toContain('Example Issuing Authority')
+    expect(bells[0]!.text).toContain('Rita')
+    expect(bells[0]!.text).toContain('ia_officer')
+    expect(bells[0]!.text).toContain('review')
   })
 
   it('FILED: the not-listed door acks — the BIML secretariat decides', async () => {
@@ -123,6 +155,11 @@ describe('the join decision loop closes by mail', () => {
     expect(acks[0]!.text).toContain('New Metrology Institute')
     expect(acks[0]!.text).toContain('BIML secretariat')
     expect(acks[0]!.text).toContain('did not file')
+    // The secretariat queue's deciders (the users.manage holders) hear
+    // the doorbell too.
+    const bells = stub.messages.filter(m => m.to === 'admin@oimlsmart.org')
+    expect(bells.length, 'the wide decider is rung').toBe(1)
+    expect(bells[0]!.text).toContain('New Metrology Institute')
   })
 
   it('FILED: the manufacturer founding acks — the BIML secretariat confirms', async () => {
@@ -170,6 +207,40 @@ describe('the join decision loop closes by mail', () => {
     expect((notices[0]!.subject ?? '').toLowerCase()).toContain('declined')
     expect(notices[0]!.text).toContain('Example Issuing Authority')
     expect(notices[0]!.text).toContain('ask your team lead to file with their address')
+    // The track link rides the refusal too.
+    expect(notices[0]!.text).toContain(`/op/join?request=${request.id}`)
+  })
+
+  it('STATUS: the public endpoint answers the honest state — the reason stays out', async () => {
+    const filed = await fileRequest({ given_name: 'Stu', family_name: 'Status', email: 'stu@eia.example', org_id: 'EX1', requested_role: 'viewer' })
+    expect(filed.status).toBe(201)
+    const { id } = await filed.json() as { id: string }
+
+    const pending = await app.request(`${ORIGIN}/api/op/join-requests/${id}/status`)
+    expect(pending.status).toBe(200)
+    const body = await pending.json() as { status: string; orgName?: string; reason?: string }
+    expect(body.status).toBe('pending')
+    expect(body.orgName).toBe('Example Issuing Authority')
+    expect(body.reason, 'the reason never rides the public surface').toBeUndefined()
+
+    const admin = await demoLogin('admin@oimlsmart.org')
+    const refused = await app.request(`${ORIGIN}/api/op/join-requests/${id}/refuse`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: admin },
+      body: JSON.stringify({ reason: 'the secret reason text' }),
+    })
+    expect(refused.status).toBe(200)
+
+    const decided = await app.request(`${ORIGIN}/api/op/join-requests/${id}/status`)
+    expect(decided.status).toBe(200)
+    const decidedBody = await decided.json() as { status: string; reason?: string }
+    expect(decidedBody.status).toBe('refused')
+    expect(JSON.stringify(decidedBody), 'the reason stays out of the answer').not.toContain('secret reason text')
+  })
+
+  it('STATUS: an id that names nothing answers the uniform 404', async () => {
+    const missing = await app.request(`${ORIGIN}/api/op/join-requests/${crypto.randomUUID()}/status`)
+    expect(missing.status).toBe(404)
   })
 
   it('APPROVED: the approve path keeps its invite mail', async () => {

@@ -78,7 +78,7 @@ import { sendOpSecurityMail } from '../auth/op/mail'
 import type { MailEnv } from '../mailer'
 import { base64urlEncode } from '../auth/op/webauthn'
 
-import { presentedStepUpStamp, stepUpSatisfied, STEP_UP_COOKIE } from '../auth/op/step-up-stamp'
+import { demandFreshProof } from '../auth/op/fresh-proof'
 import { SESSION_COOKIE } from '../session'
 
 type EnvLike = Record<string, string | undefined>
@@ -225,34 +225,8 @@ export function createOpFactorsRouter(): Hono {
 
   // POST /api/op/account/factors/totp — start the enrollment: the pending
   // row + the otpauth:// URI + the manual secret, answered ONCE.
-  /** THE FRESH-PROOF GATE (2026-10-13, the cold-eyes audit's residual):
-   *  factor enrollment is the attacker's persistence play — a hijacked
-   *  session (the cookie without the credentials) planting a passkey
-   *  survives every session sweep until the victim resets. The proof is
-   *  FRESHNESS: a session born within the last five minutes was minted
-   *  by a real credential act, and the step-up stamp (the account
-   *  console's re-entry — /api/op/step-up's signed stamp) extends the
-   *  window on demand. A stale session demands the re-entry; the
-   *  holder's ordinary flow never sees it. */
-  async function demandFreshProof(c: Context, userId: string): Promise<Response | null> {
-    const stamp = presentedStepUpStamp(c.req.header('x-op-step-up'), getCookie(c, STEP_UP_COOKIE))
-    if (stamp && await stepUpSatisfied(runtimeEnv<Record<string, string | undefined>>(c), stamp, userId)) {
-      return null
-    }
-    const sessionToken = getCookie(c, SESSION_COOKIE) ?? ''
-    const sessions = await getStore().listUserSessions(userId, sessionToken)
-    const current = sessions.find(s => s.current) ?? sessions[0]
-    // The sqlite datetime carries no zone marker — parse it as UTC (the
-    // wall clock IS utc; a local read skews the age by the zone offset).
-    if (current && Date.now() - new Date(current.createdAt.replace(' ', 'T') + 'Z').getTime() < FRESH_SESSION_MS) {
-      return null
-    }
-    await auditFactor('factor.enrollment_step_up', userId, { userId }, { demanded: true })
-    return c.json({
-      error: 'this act needs a fresh proof of you — sign in again (or verify your current password on the account page), then add the factor',
-      step_up: 'required',
-    }, 403)
-  }
+  // THE FRESH-PROOF GATE: the shared seam (auth/op/fresh-proof.ts —
+  // ONE gate for every sensitive console act since 2026-10-14).
 
   factors.post('/api/op/account/factors/totp', async (c) => {
     const { user, error } = await requireUser(c)
@@ -337,6 +311,10 @@ export function createOpFactorsRouter(): Hono {
   factors.delete('/api/op/account/factors/totp/:id', async (c) => {
     const { user, error } = await requireUser(c)
     if (error || !user) return error!
+    // The strip is the attacker's play too (2026-10-14): a hijacked
+    // session never silently removes the victim's second factors.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const store = getStore()
     const row = await store.getTotpSecret(c.req.param('id'))
     if (!row || row.userId !== user.id) return c.json({ error: 'no such authenticator' }, 404)
@@ -493,6 +471,9 @@ export function createOpFactorsRouter(): Hono {
   factors.delete('/api/op/account/factors/passkeys/:id', async (c) => {
     const { user, error } = await requireUser(c)
     if (error || !user) return error!
+    // The strip is the attacker's play too (2026-10-14): the same wall.
+    const proofRefusal = await demandFreshProof(c, user.id)
+    if (proofRefusal) return proofRefusal
     const store = getStore()
     const cred = await store.getWebauthnCredential(c.req.param('id'))
     if (!cred || cred.userId !== user.id) return c.json({ error: 'no such passkey' }, 404)
