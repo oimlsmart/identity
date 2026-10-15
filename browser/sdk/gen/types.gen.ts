@@ -1015,6 +1015,62 @@ export type AccountStepUpResponses = {
 
 export type AccountStepUpResponse = AccountStepUpResponses[keyof AccountStepUpResponses];
 
+export type AccountStepUpPasskeyOptionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/step-up/passkey/options';
+};
+
+export type AccountStepUpPasskeyOptionsErrors = {
+    /**
+     * No session.
+     */
+    401: unknown;
+    /**
+     * The account holds no passkey — sign in again to refresh the session.
+     */
+    404: unknown;
+};
+
+export type AccountStepUpPasskeyOptionsResponses = {
+    /**
+     * The ceremony options (the PublicKeyCredentialRequestOptions JSON).
+     */
+    200: unknown;
+};
+
+export type AccountStepUpPasskeyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/op/step-up/passkey';
+};
+
+export type AccountStepUpPasskeyErrors = {
+    /**
+     * The assertion does not verify.
+     */
+    401: unknown;
+    /**
+     * The account is deactivated.
+     */
+    403: unknown;
+};
+
+export type AccountStepUpPasskeyResponses = {
+    /**
+     * The stamp cookie stands (op_step_up, five minutes).
+     */
+    200: {
+        ok?: boolean;
+        stamp?: string;
+        expiresInSec?: number;
+    };
+};
+
+export type AccountStepUpPasskeyResponse = AccountStepUpPasskeyResponses[keyof AccountStepUpPasskeyResponses];
+
 export type GetAccountData = {
     body?: never;
     path?: never;

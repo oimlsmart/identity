@@ -40,7 +40,7 @@ import { getStore, type AuthUserPayload } from '../store'
 import { getInstanceProfile } from '../profile'
 import { effectiveRolesOf } from '../vocab'
 import { sessionUser } from '../session'
-import { requireFreshAuth } from '../auth/op/step-up'
+import { demandFreshProof } from '../auth/op/fresh-proof'
 import { isActiveRegistryOrg, resolveRegistryOrg } from '../auth/org-registry'
 import {
   listOrgSigningKeys,
@@ -205,8 +205,12 @@ export function createOpKeysRouter(): Hono {
   router.post('/api/op/org-keys/:orgId/:kid/rotate', async (c) => {
     // The freshness gate (TODO.modern/06's open half): the rotation is
     // a bank-grade act — it fires on the SESSION's age, before any
-    // target lookup (the refusal carries no target information).
-    const stale = await requireFreshAuth(c)
+    // target lookup (the refusal carries no target information). The
+    // ONE seam (2026-10-15): the step-up stamp extends the window like
+    // every other sensitive act.
+    const sessionUsr = await sessionUser(c)
+    if (!sessionUsr) return c.json({ error: 'authentication required' }, 401)
+    const stale = await demandFreshProof(c, sessionUsr.id)
     if (stale) return stale
     const orgId = c.req.param('orgId')
     const kid = c.req.param('kid')

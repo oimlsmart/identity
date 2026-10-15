@@ -304,10 +304,78 @@ async function submitStepUp(password: string): Promise<void> {
       body: JSON.stringify({ password }),
     })
     if (!res.ok) {
-      stepUpError.value = t('stepup.wrong')
+      const body = await res.json().catch(() => null) as { error?: string } | null
+      stepUpError.value = body?.error ?? t('stepup.wrong')
       return
     }
     const body = await res.json().catch(() => null) as { stamp?: string; expiresInSec?: number } | null
+    if (body?.stamp) {
+      try { sessionStorage.setItem('op_step_up', body.stamp) } catch { /* private mode: the cookie fallback */ }
+      if (body.expiresInSec) {
+        try { setTimeout(() => sessionStorage.removeItem('op_step_up'), body.expiresInSec * 1000) } catch { /* same */ }
+      }
+    }
+    stepUpOpen.value = false
+    await stepUpRetry.value?.()
+  } catch {
+    stepUpError.value = t('account.networkError')
+  } finally {
+    stepUpBusy.value = false
+  }
+}
+
+// The passkey half of the re-entry (2026-10-15): a passwordless
+// account (the password removed; a passkey the remaining factor) could
+// never satisfy the password step-up. The ceremony is the login's own
+// — the options scoped to this account's credentials, the assertion
+// verified server-side, the stamp minted with the amr the proof used.
+const stepUpPasskeyUsable = computed(() => passkeyCount.value > 0)
+async function verifyStepUpPasskey(): Promise<void> {
+  stepUpBusy.value = true
+  stepUpError.value = null
+  try {
+    const optionsRes = await fetch('/api/op/step-up/passkey/options', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: '{}',
+    })
+    if (!optionsRes.ok) {
+      const body = await optionsRes.json().catch(() => null) as { error?: string } | null
+      stepUpError.value = body?.error ?? t('account.networkError')
+      return
+    }
+    const { publicKey } = await optionsRes.json() as { publicKey: { challenge: string; rpId: string; allowCredentials?: Array<{ type: 'public-key'; id: string; transports?: AuthenticatorTransport[] }>; userVerification: UserVerificationRequirement; timeout: number } }
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        ...publicKey,
+        challenge: Uint8Array.from(atob(publicKey.challenge.replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0)),
+        allowCredentials: publicKey.allowCredentials?.map(a => ({ ...a, id: Uint8Array.from(atob(a.id.replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0)) })),
+      },
+    }) as PublicKeyCredential | null
+    if (!assertion) {
+      stepUpError.value = t('stepup.passkeyCancelled')
+      return
+    }
+    const r = (assertion.response as AuthenticatorAssertionResponse)
+    const b64 = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    const verifyRes = await fetch('/api/op/step-up/passkey', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({
+        credential: {
+          id: assertion.id,
+          response: {
+            clientDataJSON: b64(r.clientDataJSON),
+            authenticatorData: b64(r.authenticatorData),
+            signature: b64(r.signature),
+            userHandle: r.userHandle ? b64(r.userHandle) : null,
+          },
+        },
+      }),
+    })
+    if (!verifyRes.ok) {
+      const body = await verifyRes.json().catch(() => null) as { error?: string } | null
+      stepUpError.value = body?.error ?? t('account.networkError')
+      return
+    }
+    const body = await verifyRes.json() as { stamp?: string; expiresInSec?: number }
     if (body?.stamp) {
       try { sessionStorage.setItem('op_step_up', body.stamp) } catch { /* private mode: the cookie fallback */ }
       if (body.expiresInSec) {
@@ -1928,7 +1996,7 @@ async function signOutAll() {
     <div class="w-full max-w-sm bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
       <h2 class="text-base font-serif font-bold text-slate-900 dark:text-white" data-testid="step-up-title">{{ t('stepup.title') }}</h2>
       <p class="mt-2 text-sm text-slate-600 dark:text-slate-400" data-testid="step-up-why">{{ t('stepup.why') }}</p>
-      <form class="mt-4" @submit.prevent="submitStepUp(stepUpPassword)">
+      <form v-if="context?.passwordSet !== false" class="mt-4" @submit.prevent="submitStepUp(stepUpPassword)">
         <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1" for="step-up-password">{{ t('stepup.passwordLabel') }}</label>
         <input
           id="step-up-password" v-model="stepUpPassword" type="password" required
@@ -1950,6 +2018,15 @@ async function signOutAll() {
           >{{ t('stepup.cancel') }}</button>
         </div>
       </form>
+      <div v-if="stepUpPasskeyUsable" class="mt-3">
+        <button
+          type="button" :disabled="stepUpBusy"
+          class="w-full px-4 py-2 rounded-lg text-sm border border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 disabled:opacity-50"
+          data-testid="step-up-passkey"
+          @click="verifyStepUpPasskey()"
+        >{{ stepUpBusy ? t('stepup.working') : t('stepup.passkey') }}</button>
+      </div>
+      <p v-if="context?.passwordSet === false && stepUpPasskeyUsable" class="mt-2 text-xs text-slate-400 dark:text-slate-500">{{ t('stepup.passkeyOnly') }}</p>
     </div>
   </div>
 </template>

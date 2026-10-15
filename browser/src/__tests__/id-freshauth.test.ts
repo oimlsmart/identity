@@ -2,7 +2,7 @@
 // TODO.modern/06's open half — the per-route freshness gate (the
 // "confirm it's you"): the bank-grade acts (the token-scope WIDEN, the
 // org-key rotation) demand a recently-authenticated session; a stale
-// one refuses with the DISTINCT fresh_auth_required shape (the console
+// one refuses with the step-up demand (the console's dialog answers it —
 // routes the holder through sign-in again — prompt=login's own path).
 // The REAL app factory + the REAL store; staleness is injected by
 // backdating the session row itself.
@@ -108,8 +108,8 @@ describe('the widening PATCH demands fresh proof', () => {
     backdate(cookie.split('=')[1]!, 2 * 60 * 60)
     const refused = await patchScopes(cookie, id, [`${HUB.client_id}:read`, `${HUB.client_id}:write`])
     expect(refused.status).toBe(403)
-    expect(refused.body.code).toBe('fresh_auth_required')
-    expect(JSON.stringify(refused.body)).toContain('sign in again')
+    expect((refused.body as { step_up?: string }).step_up).toBe('required')
+    expect(JSON.stringify(refused.body)).toContain('fresh proof')
   })
 
   it('a NARROWING edit is never gated (friction only where the risk is)', async () => {
@@ -145,14 +145,14 @@ describe('the org-key rotation demands fresh proof', () => {
     backdate(cookie.split('=')[1]!, 2 * 60 * 60)
     const res = await rotate(cookie)
     expect(res.status).toBe(403)
-    const body = await res.json() as { code?: string }
-    expect(body.code).toBe('fresh_auth_required')
+    const body = await res.json() as { step_up?: string }
+    expect(body.step_up).toBe('required')
   })
 
   it('a FRESH session proceeds past the freshness gate (its own honest refusal for the unknown key)', async () => {
     const cookie = await demoLogin('ia@oimlsmart.org')
     const res = await rotate(cookie)
-    const body = await res.json().catch(() => ({})) as { code?: string }
-    expect(body.code).not.toBe('fresh_auth_required')
+    const body = await res.json().catch(() => ({})) as { step_up?: string }
+    expect(body.step_up).toBeUndefined()
   })
 })

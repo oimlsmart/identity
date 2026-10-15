@@ -796,6 +796,30 @@ export const OPENAPI_SPEC = {
         },
       },
     },
+    '/api/op/step-up/passkey/options': {
+      post: {
+        tags: ['Account'], operationId: 'accountStepUpPasskeyOptions', summary: 'The passkey re-entry\'s ceremony options',
+        description: 'The passkey half of the fresh-proof re-entry (2026-10-15): a passwordless account (the password removed; a passkey or a linked identity the remaining way in) answers the sudo demand with its passkey. The challenge is one-time and bound to the session user\'s registered credentials.',
+        security: [{ opSession: [] }],
+        responses: {
+          200: { description: 'The ceremony options (the PublicKeyCredentialRequestOptions JSON).' },
+          401: { description: 'No session.' },
+          404: { description: 'The account holds no passkey — sign in again to refresh the session.' },
+        },
+      },
+    },
+    '/api/op/step-up/passkey': {
+      post: {
+        tags: ['Account'], operationId: 'accountStepUpPasskey', summary: 'Answer the fresh-proof demand with the passkey',
+        description: 'The assertion verifies through the shared ceremony (the one-time challenge, the ownership, the origin, the clone guard); the account\'s standing re-checks; the stamp mints with the amr the proof used.',
+        security: [{ opSession: [] }],
+        responses: {
+          200: { description: 'The stamp cookie stands (op_step_up, five minutes).', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, stamp: { type: 'string' }, expiresInSec: { type: 'integer' } } } } } },
+          401: { description: 'The assertion does not verify.' },
+          403: { description: 'The account is deactivated.' },
+        },
+      },
+    },
     '/api/op/account': {
       get: {
         tags: ['Session'], operationId: 'getAccount', summary: 'The account profile',
@@ -1260,7 +1284,7 @@ export const OPENAPI_SPEC = {
       patch: {
         tags: ['Tokens'], operationId: 'manageToken', summary: 'The management act — rename, edit the scopes, edit the permissions (issue #115 + TODO.openapi/03)',
         description:
-          'The managed-token act. The rename is presentation-only (from→to on the audit). The scope edit is the complete replacement set, the mint\'s validation exactly — safe both ways because the exchange re-judges standing on every use. Widening is audited (and mailed) distinctly. The permissions edit replaces the pinned catalog-id set, validated against the scoped instances\' served catalogs (fail closed); ADDING a permission is the widening-sensitive act (a stale session refuses with fresh_auth_required). A revoked or expired token refuses edits.',
+          'The managed-token act. The rename is presentation-only (from→to on the audit). The scope edit is the complete replacement set, the mint\'s validation exactly — safe both ways because the exchange re-judges standing on every use. Widening is audited (and mailed) distinctly. The permissions edit replaces the pinned catalog-id set, validated against the scoped instances\' served catalogs (fail closed); ADDING a permission is the widening-sensitive act (a stale session refuses with the step-up demand — the console dialog answers it, or a fresh sign-in). A revoked or expired token refuses edits.',
         security: [{ sessionCookie: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
         requestBody: {

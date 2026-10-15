@@ -821,6 +821,30 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
       expect(rowName).toBe('Root’s YubiKey')
       flog(page, 'leg4: the passkey registered (the virtual authenticator)')
 
+      // THE PASSKEY STEP-UP (2026-10-15): the sudo dialog's passkey
+      // re-entry, driven by the SAME virtual authenticator. The session
+      // is backdated (the raw DB row) so the next sensitive act demands
+      // the fresh proof; the dialog opens; the passkey answers; the act
+      // lands through the stamped retry.
+      const { default: Database } = await import('better-sqlite3')
+      const raw = new Database(join(DB_DIR, 'identity.db'))
+      raw.prepare("UPDATE sessions SET created_at = datetime('now', '-30 minutes') WHERE user_id = (SELECT id FROM users WHERE email = ?)").run(ROOT.email)
+      raw.close()
+      await page.type('[data-testid="emails-add-input"]', 'stepup.probe@example.org')
+      await page.evaluate(() => (document.querySelector('[data-testid="emails-add-submit"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="step-up-modal"]', { timeout: 60_000, polling: 500 })
+      flog(page, 'leg4: the sudo dialog opened on the stale session')
+      await page.waitForSelector('[data-testid="step-up-passkey"]', { timeout: 30_000, polling: 500 })
+      await page.evaluate(() => (document.querySelector('[data-testid="step-up-passkey"]') as HTMLElement).click())
+      // The virtual authenticator answers the ceremony (auto-approve);
+      // the stamped retry lands the email add.
+      await page.waitForSelector('[data-testid="emails-notice"]', { timeout: 120_000, polling: 500 })
+      const notice = await page.$eval('[data-testid="emails-notice"]', el => el.textContent ?? '')
+      expect(notice).toContain('stepup.probe@example.org')
+      const stamp = await page.evaluate(() => sessionStorage.getItem('op_step_up'))
+      expect(stamp, 'the stamp rode the sessionStorage').toBeTruthy()
+      flog(page, 'leg4: the passkey step-up landed the act')
+
       // Sign out (the page's own channel), then the passwordless path.
       // THE HARNESS NOTE: with the virtual authenticator attached, the
       // page's conditional-UI autofill answers on its own (the simulated

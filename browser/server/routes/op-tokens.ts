@@ -61,7 +61,6 @@ import { getStore, normalizePatScopes, type OrgContextResolution } from '../stor
 import { getInstanceProfile } from '../profile'
 import { sessionUser } from '../session'
 import { emitWebhookEvent } from '../webhooks/deliver'
-import { requireFreshAuth } from '../auth/op/step-up'
 import { demandFreshProof } from '../auth/op/fresh-proof'
 import { opRequestOrigin, resolveOpConfig } from '../auth/op/config'
 import {
@@ -343,9 +342,11 @@ export function createOpTokensRouter(): Hono {
       }
       // The freshness gate (TODO.modern/06's open half): a WIDENING
       // edit is a bank-grade act — a stale session refuses with the
-      // distinct fresh_auth_required shape (narrow/rename never gated).
+      // step-up demand (narrow/rename never gated). The ONE seam
+      // (2026-10-15): the stamp extends the window like every other
+      // sensitive act.
       if (widenedAny) {
-        const stale = await requireFreshAuth(c)
+        const stale = await demandFreshProof(c, user.id)
         if (stale) return stale
       }
       if (added.length || removed.length) {
@@ -392,10 +393,10 @@ export function createOpTokensRouter(): Hono {
       if (addedPerms.length || removedPerms.length) {
         // The widening-sensitive act (the scope edit's doctrine): ADDING
         // a catalog permission widens what the instance will let the
-        // token do — a stale session refuses with the distinct
-        // fresh_auth_required shape; a removal-only edit never gates.
+        // token do — a stale session refuses with the step-up demand;
+        // a removal-only edit never gates.
         if (addedPerms.length) {
-          const stale = await requireFreshAuth(c)
+          const stale = await demandFreshProof(c, user.id)
           if (stale) return stale
         }
         updated = (await store.updatePersonalAccessTokenPermissions(pat.id, user.id, nextPermissions))!
