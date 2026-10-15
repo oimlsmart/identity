@@ -40,7 +40,7 @@ import NameFields from '../../components/NameFields.vue'
 import TurnstileField from '../../components/TurnstileField.vue'
 import { fetchTurnstileSiteKey } from '../../components/turnstile'
 import { useBranding } from '../../branding'
-import { t } from '../../i18n'
+import { t, type MessageKey } from '../../i18n'
 import { orgKindLabelKey, orgRoleGlossKey } from '../../org-vocabulary'
 
 type JoinDoor = 'ia' | 'tl' | 'member' | 'manufacturer' | 'biml' | 'others'
@@ -61,25 +61,24 @@ interface SelectorOrg {
 
 interface DoorDef {
   key: JoinDoor
-  title: string
-  blurb: string
+}
+function doorTitle(key: JoinDoor): string {
+  return t(`join.door.${key}.title` as MessageKey)
+}
+function doorBlurb(key: JoinDoor): string {
+  return t(`join.door.${key}.blurb` as MessageKey)
 }
 
 const DOORS: ReadonlyArray<DoorDef> = [
-  { key: 'ia', title: 'An OIML-CS Issuing Authority', blurb: 'Your authority issues OIML-CS certificates for measuring instruments. You select it from the participants register and request your staff role.' },
-  { key: 'tl', title: 'An OIML-CS Test Laboratory', blurb: 'Your laboratory tests measuring instruments for the OIML-CS. You select it from the participants register and request your staff role.' },
-  { key: 'member', title: 'An OIML Member (a Member State or a Corresponding Member)', blurb: 'Your national body participates in the OIML. Its personnel join with read access to the platform.' },
-  { key: 'manufacturer', title: 'A manufacturer of measuring instruments', blurb: 'Your company applies for OIML-CS certificates for measuring instruments as an applicant or manufacturer.' },
-  { key: 'biml', title: 'A member of the OIML or BIML staff', blurb: 'You hold an @oiml.org address. The one-time setup link proves your mailbox, and your account opens without a waiting queue.' },
-  { key: 'others', title: 'Another organization', blurb: 'Your organization does not appear in the descriptions above. You name your organization, and the BIML secretariat verifies its participation in the OIML-CS.' },
+  { key: 'ia' }, { key: 'tl' }, { key: 'member' }, { key: 'manufacturer' }, { key: 'biml' }, { key: 'others' },
 ]
 
 /** The empty state names the door's own kind of organization when the
  *  register offers nothing (the owner's wording, 2026-10-13). */
-const DOOR_ORG_NOUN: Partial<Record<JoinDoor, string>> = {
-  ia: 'an OIML-CS Issuing Authority',
-  tl: 'an OIML-CS Test Laboratory',
-  member: 'an OIML Member',
+const DOOR_ORG_NOUN: Partial<Record<JoinDoor, MessageKey>> = {
+  ia: 'join.door.ia.noun',
+  tl: 'join.door.tl.noun',
+  member: 'join.door.member.noun',
 }
 
 /** The register doors' picker filters (the org kinds each door offers).
@@ -174,7 +173,7 @@ function roleGloss(role: string): string {
 }
 
 const doorDef = computed(() => DOORS.find(d => d.key === door.value) ?? null)
-const doorOrgNoun = computed(() => (door.value ? DOOR_ORG_NOUN[door.value] ?? null : null))
+const doorOrgNoun = computed(() => (door.value ? (DOOR_ORG_NOUN[door.value] ? t(DOOR_ORG_NOUN[door.value]!) : null) : null))
 const pickerKinds = computed(() => (door.value ? PICKER_KINDS[door.value] ?? null : null))
 /** The picker's visible options: THIS door's kinds only. */
 const doorOrgs = computed(() => {
@@ -248,7 +247,7 @@ async function submit() {
     if (turnstileSiteKey.value) {
       turnstileToken = turnstileField.value?.getToken() ?? ''
       if (!turnstileToken) {
-        error.value = 'Complete the verification challenge, then file the request again.'
+        error.value = t('join.form.turnstile')
         submitting.value = false
         return
       }
@@ -270,7 +269,7 @@ async function submit() {
     if (!res.ok) {
       turnstileField.value?.reset()
       const body = await res.json().catch(() => ({})) as { error?: string }
-      error.value = body.error ?? `The request could not be filed (${res.status}).`
+      error.value = body.error ?? t('join.form.fileFailed', { status: String(res.status) })
       return
     }
     if (door.value === 'manufacturer') {
@@ -319,44 +318,34 @@ onMounted(async () => {
     <div v-else class="w-full max-w-lg" data-testid="op-join">
       <div class="text-center mb-8">
         <BrandLogo kind="logo" class="h-10 mx-auto mb-4" />
-        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">Request an account</h1>
+        <h1 class="text-xl font-serif font-bold text-slate-900 dark:text-white">{{ t('join.title') }}</h1>
         <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ branding.productName }}</p>
       </div>
 
       <!-- Not the identity service -->
       <div v-if="served === false" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
         <p class="text-sm text-slate-700 dark:text-slate-300" data-testid="join-unavailable">
-          This instance does not serve account requests. Accounts are issued by the OIML SMART
-          identity service, and your administrator can give you its address.
+          {{ t('join.unavailable') }}
         </p>
       </div>
 
       <!-- Filed: the honest success state -->
       <div v-else-if="filed" class="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-5" data-testid="join-success">
-        <h2 class="text-sm font-semibold text-emerald-900 dark:text-emerald-200 mb-1">Your request is filed</h2>
+        <h2 class="text-sm font-semibold text-emerald-900 dark:text-emerald-200 mb-1">{{ t('join.filed.title') }}</h2>
         <p v-if="filed.queue === 'org'" class="text-sm text-emerald-800 dark:text-emerald-300">
-          Your request is with <strong>{{ filed.orgName }}</strong>’s administrator. You will receive
-          your invite when the administrator approves your request.
+          {{ t('join.filed.org', { org: filed.orgName }) }}
         </p>
         <p v-else-if="filed.queue === 'biml-invite'" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-biml-invite">
-          Your setup link is on its way to <strong>{{ filed.email }}</strong>. The link works once and
-          stays valid for 24 hours. The account cannot sign in until you complete the setup. If the mail
-          does not arrive, check the spam folder and file the request again.
+          {{ t('join.filed.biml', { email: filed.email ?? '' }) }}
         </p>
         <p v-else-if="filed.queue === 'manufacturer' && filed.orgCreated" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-manufacturer-created">
-          <strong>{{ filed.orgName }}</strong> is registered on the identity service with the
-          <strong>declared</strong> manufacturer standing. A manufacturer is not an OIML-CS participant.
-          Your request to become the organization administrator is with the BIML secretariat. You will
-          receive your invite once the secretariat approves it.
+          {{ t('join.filed.mfrCreated', { org: filed.orgName }) }}
         </p>
         <p v-else-if="filed.queue === 'manufacturer'" class="text-sm text-emerald-800 dark:text-emerald-300" data-testid="join-success-manufacturer-join">
-          Your work email’s domain matches <strong>{{ filed.orgName }}</strong>’s declared domain. Your
-          request to join is with its administrator, and approval comes from your organization.
+          {{ t('join.filed.mfrJoined', { org: filed.orgName }) }}
         </p>
         <p v-else class="text-sm text-emerald-800 dark:text-emerald-300">
-          <strong>{{ filed.orgName }}</strong> is not on the participants register, so your request is with
-          the BIML secretariat. The secretariat verifies organizations joining the OIML-CS. You become the
-          organization administrator once the participation is registered.
+          {{ t('join.filed.others', { org: filed.orgName }) }}
         </p>
       </div>
 
@@ -366,22 +355,22 @@ onMounted(async () => {
            state — the reason stays in the mail. -->
       <div v-else-if="trackId" class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5" data-testid="join-track">
         <template v-if="trackState === null">
-          <p class="text-sm text-slate-500 dark:text-slate-400">Checking your request…</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('join.track.checking') }}</p>
         </template>
         <template v-else-if="trackState.status === 'unknown'">
-          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">We could not find this request</h2>
-          <p class="text-sm text-slate-600 dark:text-slate-400">Check the link in your mail, or file the request again from the start.</p>
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ t('join.track.notFound.title') }}</h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400">{{ t('join.track.notFound.body') }}</p>
         </template>
         <template v-else>
-          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">Your account request{{ trackState.orgName ? ` for ${trackState.orgName}` : '' }}</h2>
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-1">{{ trackState.orgName ? t('join.track.title.org', { org: trackState.orgName }) : t('join.track.title') }}</h2>
           <p v-if="trackState.status === 'pending'" class="text-sm text-slate-600 dark:text-slate-400" data-testid="join-track-pending">
-            The request is with the organization administrator. You will receive a message when it is decided.
+            {{ t('join.track.pending') }}
           </p>
           <p v-else-if="trackState.status === 'approved'" class="text-sm text-emerald-700 dark:text-emerald-300" data-testid="join-track-approved">
-            The request was approved. Your invitation is in your mailbox — complete the one-time setup to open your account.
+            {{ t('join.track.approved') }}
           </p>
           <p v-else class="text-sm text-slate-600 dark:text-slate-400" data-testid="join-track-refused">
-            The organization declined the request. The reason is in the mail the decision sent. If the reason no longer applies, contact the organization's administrator and file the request again.
+            {{ t('join.track.refused') }}
           </p>
         </template>
       </div>
@@ -395,8 +384,8 @@ onMounted(async () => {
         </div>
 
         <!-- The doors: the answer dictates the form -->
-        <div v-if="!door" role="radiogroup" aria-label="The description that matches you" data-testid="join-doors">
-          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">Choose the description that matches you</h2>
+        <div v-if="!door" role="radiogroup" :aria-label="t('join.doors.heading')" data-testid="join-doors">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">{{ t('join.doors.heading') }}</h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               v-for="d in DOORS"
@@ -408,8 +397,8 @@ onMounted(async () => {
               class="text-left rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 hover:border-brand-500 dark:hover:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
               @click="pickDoor(d.key)"
             >
-              <span class="block text-sm font-semibold text-slate-900 dark:text-white">{{ d.title }}</span>
-              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">{{ d.blurb }}</span>
+              <span class="block text-sm font-semibold text-slate-900 dark:text-white">{{ doorTitle(d.key) }}</span>
+              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">{{ doorBlurb(d.key) }}</span>
             </button>
             <!-- The seventh card: the registry-domain HANDOFF (the
                  four-gate verification flow — no queue when the domain
@@ -421,8 +410,8 @@ onMounted(async () => {
               class="text-left rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 p-4 hover:border-brand-500 dark:hover:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors sm:col-span-2"
               @click="openRegistryDoor()"
             >
-              <span class="block text-sm font-semibold text-brand-800 dark:text-brand-200">A work email registered in the OIML registry</span>
-              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">You choose your country and organization from the OIML registry and confirm your work email. Your account opens without a waiting queue when your email domain matches the registered domain.</span>
+              <span class="block text-sm font-semibold text-brand-800 dark:text-brand-200">{{ t('join.door.registry.title') }}</span>
+              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">{{ t('join.door.registry.blurb') }}</span>
             </button>
           </div>
         </div>
@@ -435,13 +424,13 @@ onMounted(async () => {
               class="text-xs text-brand-600 dark:text-brand-300 hover:underline"
               data-testid="join-door-back"
               @click="backToDoors"
-            >← Choose a different description</button>
-            <h2 class="mt-1 text-sm font-semibold text-slate-900 dark:text-white" data-testid="join-door-title">{{ doorDef?.title }}</h2>
+            >{{ t('join.back') }}</button>
+            <h2 class="mt-1 text-sm font-semibold text-slate-900 dark:text-white" data-testid="join-door-title">{{ door ? doorTitle(door) : '' }}</h2>
           </div>
 
           <NameFields v-model:given="givenName" v-model:family="familyName" tid="join" />
           <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-email">Work email</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-email">{{ t('join.form.email') }}</label>
             <input
               id="join-email"
               v-model="email"
@@ -449,7 +438,7 @@ onMounted(async () => {
               required
               data-testid="join-email"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              :placeholder="door === 'biml' ? 'jane.doe@oiml.org' : 'jane.doe@your-organization.example'"
+              :placeholder="door === 'biml' ? t('join.form.emailPlaceholderBiml') : t('join.form.emailPlaceholder')"
             />
           </div>
 
@@ -459,15 +448,13 @@ onMounted(async () => {
                administrator sees the same comparison. -->
           <div v-if="pickerKinds && selectedOrg && orgDomains?.length" class="text-xs rounded-lg p-3" :class="domainMatch === false ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200' : 'bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'" data-testid="join-domain-check">
             <p>
-              Email addresses on the {{ orgDomains.length > 1 ? 'domains' : 'domain' }}
-              <span class="font-mono" data-testid="join-domain-list">{{ orgDomains.map(d => '@' + d).join(', ') }}</span>
-              are approved automatically. Any other email address needs approval by the organization administrator.
+              {{ orgDomains.length > 1 ? t('join.form.domainNoticePlural', { domains: orgDomains.map(d => '@' + d).join(', ') }) : t('join.form.domainNotice', { domains: orgDomains.map(d => '@' + d).join(', ') }) }}
             </p>
             <p v-if="domainMatch === true" class="mt-1 text-emerald-700 dark:text-emerald-300" data-testid="join-domain-match">
-              ✓ Your email address is on the pre-approved domain.
+              ✓ {{ t('join.form.domainMatch') }}
             </p>
             <p v-else-if="domainMatch === false" class="mt-1" data-testid="join-domain-mismatch">
-              Your email address is not on the pre-approved domain. The organization administrator approves your request.
+              {{ t('join.form.domainMismatch') }}
             </p>
           </div>
 
@@ -476,7 +463,7 @@ onMounted(async () => {
                organization REPLACES the search field; the options render
                only while the searcher is engaged and collapse on pick. -->
           <div v-if="pickerKinds">
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-org-search">Organization</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-org-search">{{ t('join.form.org') }}</label>
             <input
               v-if="!selectedOrg || orgOpen"
               id="join-org-search"
@@ -484,7 +471,7 @@ onMounted(async () => {
               type="text"
               data-testid="join-org-search"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="Type to search the participants register."
+              :placeholder="t('join.form.orgPlaceholder')"
               @focus="orgOpen = true"
             />
             <div v-if="selectedOrg && !orgOpen" class="rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-900/10 px-3 py-2 flex items-center justify-between gap-2" data-testid="join-org-picked">
@@ -494,7 +481,7 @@ onMounted(async () => {
                   {{ kindLabel(selectedOrg.kind) }}<template v-if="selectedOrg.country"> · {{ selectedOrg.country }}</template><template v-if="selectedOrg.email_domains?.length"> · <span class="font-mono">@{{ selectedOrg.email_domains[0] }}</span></template>
                 </span>
               </span>
-              <button type="button" class="text-xs text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-org-change" @click="orgOpen = true; selectedOrgId = null; requestedRole = ''">Change</button>
+              <button type="button" class="text-xs text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-org-change" @click="orgOpen = true; selectedOrgId = null; requestedRole = ''">{{ t('join.form.change') }}</button>
             </div>
             <ul v-else-if="filteredOrgs.length" class="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700" data-testid="join-org-options">
               <li v-for="org in filteredOrgs" :key="org.id">
@@ -514,8 +501,8 @@ onMounted(async () => {
               </li>
             </ul>
             <p v-if="(!selectedOrg || orgOpen) && !filteredOrgs.length" class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-org-empty">
-              <template v-if="orgSearch">No organization of this kind matches your search. </template>
-              <template v-if="doorOrgNoun">If your organization is {{ doorOrgNoun }} but is not listed here, <a v-if="branding.supportUrl" :href="branding.supportUrl" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline">contact support</a><template v-else>contact support</template>.</template>
+              <template v-if="orgSearch">{{ t('join.form.noMatch') }} </template>
+              <template v-if="doorOrgNoun">{{ t('join.form.emptyState', { noun: doorOrgNoun }) }} <a v-if="branding.supportUrl" :href="branding.supportUrl" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-300 hover:underline">{{ t('join.form.contactSupport') }}</a><template v-else>{{ t('join.form.contactSupport') }}</template>.</template>
             </p>
           </div>
 
@@ -543,25 +530,12 @@ onMounted(async () => {
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="e.g. Example Member State"
             />
-            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-mfr-note">
-              Your organization is registered with the <strong>declared</strong> manufacturer standing. A
-              manufacturer is <strong>not an OIML-CS participant</strong>; the standing carries no peer
-              assessment and no scope. An Issuing Authority that you applied to can endorse the
-              relationship and upgrade the standing to <strong>IA-endorsed</strong>. When your work
-              email’s domain matches a registered manufacturer organization, your request goes to its
-              administrator. Otherwise the organization is created, and you become its administrator once
-              the BIML secretariat confirms the founding.
-            </p>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-mfr-note" v-html="t('join.notes.mfr')"></p>
           </div>
 
           <!-- The BIML door: the domain is the claim, the link is the proof -->
           <div v-else-if="door === 'biml'">
-            <p class="text-xs text-slate-500 dark:text-slate-400" data-testid="join-biml-note">
-              BIML and OIML staff hold an <strong>@oiml.org</strong> address. Filing here creates your
-              account and sends the one-time setup link to that address. The link works once and stays
-              valid for 24 hours. Your account starts with read-only access, and the administrators grant
-              more as your work requires.
-            </p>
+            <p class="text-xs text-slate-500 dark:text-slate-400" data-testid="join-biml-note" v-html="t('join.notes.biml')"></p>
           </div>
 
           <!-- The Others door (BIML's new-organizations queue) -->
@@ -576,16 +550,12 @@ onMounted(async () => {
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               placeholder="e.g. National Metrology Institute of …"
             />
-            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-not-listed-note">
-              Your request goes to the <strong>BIML secretariat</strong>. The secretariat verifies
-              organizations joining the OIML-CS under the participation procedures PD-03 and PD-09. You
-              become the organization administrator once your organization is registered.
-            </p>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="join-not-listed-note" v-html="t('join.notes.others')"></p>
           </div>
 
           <!-- The role asked for (the register doors, bounded by the org's kind) -->
           <div v-if="pickerKinds && selectedOrg">
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-role">Role you are asking for</label>
+            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-role">{{ t('join.form.role') }}</label>
             <select
               id="join-role"
               v-model="requestedRole"
@@ -593,20 +563,19 @@ onMounted(async () => {
               data-testid="join-role"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="" disabled>Choose a role…</option>
+              <option value="" disabled>{{ t('join.form.rolePlaceholder') }}</option>
               <option v-for="role in roleOptions" :key="role" :value="role" :data-testid="`join-role-option-${role}`">
                 {{ roleGloss(role) }}
               </option>
             </select>
             <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-              Your organization’s kind bounds the options ({{ kindLabel(selectedOrg.kind) }}). The
-              administrator confirms the assignment.
+              {{ t('join.form.roleHelper', { kind: kindLabel(selectedOrg.kind) }) }}
             </p>
           </div>
 
           <div>
             <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" for="join-note">
-              Note for the approver <span class="text-slate-400">(optional)</span>
+              {{ t('join.form.note') }} <span class="text-slate-400">({{ t('join.form.optional') }})</span>
             </label>
             <textarea
               id="join-note"
@@ -614,7 +583,7 @@ onMounted(async () => {
               rows="2"
               data-testid="join-note"
               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              :placeholder="door === 'biml' ? 'Anything that helps the administrators recognize you (your team, your role at the Bureau).' : 'Anything that helps your administrator recognize the request (your team, your manager).'"
+              :placeholder="door === 'biml' ? t('join.form.notePlaceholderBiml') : t('join.form.notePlaceholder')"
             />
           </div>
 
@@ -627,12 +596,12 @@ onMounted(async () => {
             class="w-full min-h-11 py-2 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <div v-if="submitting" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            {{ submitting ? 'Filing…' : (door === 'biml' ? 'Request my setup link' : 'Request account') }}
+            {{ submitting ? t('join.form.filing') : (door === 'biml' ? t('join.form.submitBiml') : t('join.form.submit')) }}
           </button>
         </form>
 
         <p class="mt-4 text-center text-[10px] text-slate-400 dark:text-slate-500">
-          If you already have an account, <router-link to="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-signin">sign in</router-link>.
+          {{ t('join.signinLine') }} <router-link to="/" class="text-brand-600 dark:text-brand-300 hover:underline" data-testid="join-signin">{{ t('join.signinLink') }}</router-link>.
         </p>
       </template>
     </div>
