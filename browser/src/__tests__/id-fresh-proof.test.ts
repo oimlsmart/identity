@@ -230,6 +230,21 @@ describe('the fresh-proof gate on the sensitive console acts', () => {
     expect([200, 409], 'past the wall; the method guard may still speak').toContain(retry.status)
   })
 
+  it('the passkey re-entry: the ceremony answers honestly without any passkey or with a garbage assertion', async () => {
+    const cookie = await login(WILLA.email, WILLA.password)
+    // WILLA holds no passkey: the options answer the honest 404.
+    const options = await app.request(`${ORIGIN}/api/op/step-up/passkey/options`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}',
+    })
+    expect(options.status).toBe(404)
+    // The verify's refusal is uniform for a garbage assertion.
+    const verify = await app.request(`${ORIGIN}/api/op/step-up/passkey`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ credential: { id: 'garbage', response: {} } }),
+    })
+    expect(verify.status).toBe(400)
+  })
+
   it('STALE: the upstream LINK start demands the proof (the takeover chain\'s first half)', async () => {
     const cookie = await login(WILLA.email, WILLA.password)
     // Fresh: the start proceeds to the provider round trip (the 302 to

@@ -771,7 +771,7 @@ describe('the introspection + the permissions (TODO.openapi/03)', () => {
     raw.close()
     const widened = await patch({ permissions: ['tl-workbench.runs.read', 'tl-workbench.runs.edit'] })
     expect(widened.status).toBe(403)
-    expect(((await widened.json()) as { code: string }).code).toBe('fresh_auth_required')
+    expect(((await widened.json()) as { step_up?: string }).step_up).toBe('required')
     // ...the REMOVAL applies (friction only where the risk is).
     const narrowed = await patch({ permissions: [] })
     expect(narrowed.status).toBe(200)

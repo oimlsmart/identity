@@ -1,0 +1,1760 @@
+account.activity.action.account.active_org: Organisation active changée ({org})
+account.activity.action.account.avatar: Image de profil mise à jour
+account.activity.action.account.avatar_removed: Image de profil supprimée
+account.activity.action.account.consent_granted: Accès autorisé pour {name} (mémorisé)
+account.activity.action.account.consent_revoked: Accès révoqué pour {name}
+account.activity.action.account.deleted: L’administrateur a effacé ce compte
+account.activity.action.account.email_added: 'Adresse e-mail ajoutée : {email}'
+account.activity.action.account.email_change_requested: Changement d’e-mail demandé pour {to}
+account.activity.action.account.email_changed: Adresse e-mail changée pour {to}
+account.activity.action.account.email_primary_changed: Adresse e-mail principale changée pour {to}
+account.activity.action.account.email_removed: 'Adresse e-mail retirée : {email}'
+account.activity.action.account.email_verification_requested: Lien de vérification envoyé pour {email}
+account.activity.action.account.email_verified: 'Adresse e-mail vérifiée : {email}'
+account.activity.action.account.enrolled: Compte configuré via le lien d’invitation
+account.activity.action.account.enrollment: Un nouveau lien de configuration a été émis
+account.activity.action.account.invite: L’administrateur a créé ce compte
+account.activity.action.account.membership_accepted: L’invitation à {org} a été acceptée
+account.activity.action.account.membership_declined: L’invitation à {org} a été déclinée
+account.activity.action.account.membership_requested: Demande d’adhésion à {org}
+account.activity.action.account.password: Mot de passe changé
+account.activity.action.account.password_breach_recheck: 'Le contrôle auprès du corpus de mots de passe compromis, injoignable lors de la définition du mot de passe, a été relancé à cette connexion : {outcome}'
+account.activity.action.account.password_removed: Mot de passe retiré
+account.activity.action.account.password_reset: Un e-mail de réinitialisation du mot de passe a été demandé pour ce compte
+account.activity.action.account.email_fallback_granted: La connexion par e-mail a été activée pour ce compte (par un administrateur)
+account.activity.action.account.email_fallback_revoked: La connexion par e-mail a été fermée pour ce compte
+account.activity.action.account.email_fallback_reset_granted: La connexion par e-mail a été ouverte une heure (la réinitialisation du mot de passe)
+account.activity.action.factor.email_otp_sent: Un code de connexion a été envoyé par e-mail à ce compte
+account.activity.action.account.sign_in.password_email_otp: Connexion avec le mot de passe + un code envoyé par e-mail
+account.activity.action.account.pat_exchange: 'Jeton de développement échangé contre un accès : {name}'
+account.activity.action.account.pat_exchange_narrowed: 'L''échange d''un jeton de développement s''est restreint au standing actuel du compte : {name}'
+account.activity.action.account.pat_exchange_refused: L'échange d'un jeton de développement a été refusé
+account.activity.action.account.pat_minted: 'Jeton de développement émis : {name}'
+account.activity.action.account.pat_revoked: 'Jeton de développement révoqué : {name}'
+account.activity.action.account.profile: Nom d’affichage mis à jour
+account.activity.action.account.self_registered: Compte créé par son titulaire (auto-enregistrement)
+account.activity.action.account.session_revoked: Une session a été révoquée
+account.activity.action.account.sessions_revoked: '{count} autre(s) session(s) déconnectée(s)'
+account.activity.action.account.sign_in: Connexion avec le mot de passe
+account.activity.action.account.sign_in_failed: Une tentative de connexion a échoué
+account.activity.action.account.sign_in.password_totp: Connexion avec le mot de passe + l'application d'authentification
+account.activity.action.account.sign_in.password_webauthn: Connexion avec le mot de passe + une clé d'accès
+account.activity.action.account.sign_in.password_recovery: Connexion avec le mot de passe + un code de récupération
+account.activity.action.account.sign_in.webauthn: Connexion avec une clé d'accès
+account.activity.action.factor.assertion_refused: Une réponse de clé d'accès a été refusée
+account.activity.action.factor.clone_refused: 'Une clé d''accès clonée a été refusée (compteur régressé) : {name}'
+account.activity.action.factor.mfa_failed: Une tentative de second facteur a échoué
+account.activity.action.factor.mfa_locked: 'Trop d''échecs au second facteur : la connexion a été fermée et vous avez été averti par e-mail'
+account.activity.action.factor.passkey_enrolled: 'Clé d''accès enregistrée : {name}'
+account.activity.action.factor.passkey_revoked: 'Clé d''accès révoquée : {name}'
+account.activity.action.factor.recovery_generated: Codes de récupération générés ({count})
+account.activity.action.factor.recovery_regenerated: Codes de récupération régénérés ({count}) ; l'ancien jeu a cessé de fonctionner
+account.activity.action.factor.recovery_used: Un code de récupération a été utilisé pour se connecter
+account.activity.action.factor.totp_enroll_expired: Une configuration d'application d'authentification a expiré avant son premier code
+account.activity.action.factor.totp_enroll_failed: Un code erroné pendant une configuration d'application d'authentification
+account.activity.action.factor.totp_enroll_locked: Une configuration d'application d'authentification a été abandonnée après trop de codes erronés
+account.activity.action.factor.totp_enrolled: 'Application d''authentification ajoutée : {name}'
+account.activity.action.factor.totp_revoked: 'Application d''authentification retirée : {name}'
+account.activity.action.upstream_link: '{provider} lié'
+account.activity.action.upstream_sign_in: Connexion avec {provider}
+account.activity.action.upstream_unlink: '{provider} dissocié'
+account.apps.description: Les services auxquels ce compte a autorisé l'accès. Une autorisation mémorisée permet au service de vous connecter sans redemander ; la révocation redemande à la prochaine connexion.
+account.apps.empty: Aucune application mémorisée — un service que vous autorisez apparaît ici.
+account.apps.granted: mémorisé le {date}
+account.apps.revoke: Révoquer l'accès
+account.apps.revoked: Accès révoqué — le service redemande à la prochaine connexion.
+account.apps.title: Applications avec accès
+account.activity.description: Les événements de connexion et de sécurité de votre propre compte, du plus récent au plus ancien.
+account.emails.addBusy: Ajout…
+account.emails.addLabel: Ajouter une adresse e-mail
+account.emails.addMailed: Le lien de vérification a été envoyé à {email} ; il ne fonctionne qu’une fois et reste valable 24 heures. L’adresse permettra de se connecter une fois confirmée.
+account.emails.addSubmit: Ajouter l’adresse
+account.emails.addUnavailable: '{email} a été ajoutée, mais ce déploiement ne peut pas envoyer d’e-mail — l’adresse reste non vérifiée (jamais utilisable pour se connecter) jusqu’à ce qu’un serveur de messagerie puisse porter le lien. Contactez l’administrateur.'
+account.emails.description: Les adresses qui permettent de se connecter à ce compte. L’adresse principale porte l’identité du compte auprès des services tiers ; chaque adresse vérifiée permet de se connecter et reçoit les avis de sécurité.
+account.emails.makePrimary: Rendre principale
+account.emails.makePrimaryBusy: Changement…
+account.emails.primaryBadge: Principale
+account.emails.primaryNote: L’adresse principale est l’adresse de référence du compte — elle n’est jamais retirée. Promouvez une autre adresse vérifiée pour la déplacer.
+account.emails.remove: Retirer
+account.emails.removeBusy: Suppression…
+account.emails.removed: '{email} a été retirée du compte.'
+account.emails.resend: Renvoyer le lien
+account.emails.resendBusy: Envoi…
+account.emails.resent: Le lien de vérification a été envoyé à {email}.
+account.emails.switched: '{email} est désormais l’adresse principale.'
+account.emails.title: Adresses e-mail
+error.network: Erreur réseau. Le serveur est-il lancé ?
+account.factors.added: ajouté le {date}
+account.factors.description: 'Les facteurs forts de ce compte : les clés d''accès (connexion résistante à l''hameçonnage), les applications d''authentification (les codes à six chiffres) et les codes de récupération qui vous font rentrer. Chacun est nommé et révocable.'
+account.factors.lastUsed: dernière utilisation {date}
+account.factors.neverUsed: jamais utilisé
+account.factors.passkeyAdd: Enregistrer une clé d'accès
+account.factors.passkeyCancelled: La cérémonie de clé d'accès n'a pas abouti (abandonnée ou refusée par l'appareil). Rien n'a été enregistré.
+account.factors.passkeyEmpty: Pas encore de clé d'accès. En enregistrer une pour se connecter sans mot de passe — ou comme second facteur après celui-ci.
+account.factors.passkeyEnrolled: La clé d'accès « {name} » est enregistrée.
+account.factors.passkeyNamePlaceholder: Un nom pour cette clé (Touch ID du MacBook, YubiKey 5…)
+account.factors.passkeyNameRequired: Nommez d'abord la clé d'accès (par exemple l'appareil qui la porte).
+account.factors.passkeyNoHint: l'appareil n'a déclaré aucune indication de transport
+account.factors.passkeyRegister: Enregistrer
+account.factors.passkeyRevoked: La clé d'accès a été révoquée ; elle ne peut plus ouvrir de session sur ce compte.
+account.factors.passkeyUnsupported: Ce navigateur ne prend pas les clés d'accès en charge ; l'enregistrement n'est pas disponible ici.
+account.factors.passkeysTitle: Clés d'accès
+account.factors.recoveryCopy: Copier les codes
+account.factors.recoveryCopied: Copiés
+account.factors.recoveryDialogFirst: Votre premier facteur est actif, donc ces codes de récupération ont été générés. Chacun ne fonctionne qu'une fois. Conservez-les en lieu sûr — c'est le chemin de retour quand un appareil est perdu. Ils ne seront plus jamais affichés.
+account.factors.recoveryDialogRegenerated: Les nouveaux codes remplacent l'ancien jeu (les anciens codes ont cessé de fonctionner). Chacun ne fonctionne qu'une fois ; ils ne seront plus jamais affichés.
+account.factors.recoveryDialogTitle: Vos codes de récupération
+account.factors.recoveryDismiss: Je les ai conservés
+account.factors.recoveryEmpty: 'Pas encore de codes de récupération : ils arrivent avec votre premier facteur.'
+account.factors.recoveryRegenerate: Régénérer les codes
+account.factors.recoveryState: '{remaining} codes sur {total} restants, générés le {date}. Régénérer remplace le jeu et révoque les anciens codes.'
+account.factors.recoveryTitle: Codes de récupération
+account.factors.revoke: Révoquer
+account.factors.title: Authentification forte
+account.factors.totpActivate: Activer
+account.factors.totpAdd: Ajouter une application d'authentification
+account.factors.totpCodeLabel: Le code à six chiffres actuel
+account.factors.totpEmpty: Pas encore d'application d'authentification. En ajouter une pour un second facteur à la connexion.
+account.factors.totpEnrollHint: Scannez le QR avec votre application d'authentification (ou saisissez le secret à la main), puis tapez le code actuel de l'application pour activer le facteur. Le secret est généré sur cette page et n'est envoyé nulle part ailleurs.
+account.factors.totpEnrolled: L'application d'authentification est active.
+account.factors.totpManual: Ou saisir le secret à la main
+account.factors.totpNameLabel: Un nom pour cette application
+account.factors.totpNamePlaceholder: Application d'authentification sur mon téléphone
+account.factors.totpRevoked: L'application d'authentification a été retirée ; elle ne peut plus répondre aux défis.
+account.factors.totpTitle: Applications d'authentification
+account.factors.unverifiedNote: 'Votre adresse e-mail principale n''est pas vérifiée, donc les facteurs forts sont verrouillés pour l''instant : le chemin de récupération passe par cette boîte. Vérifiez l''adresse depuis la section profil ci-dessus, puis inscrivez-vous.'
+account.factors.noneNote: Aucun second facteur fort (clé d'accès ou application d'authentification) n'est inscrit — à la connexion, un mot de passe volé suffirait à ouvrir ce compte. L'e-mail vérifié couvre la récupération et l'option du code par e-mail, jamais une épreuve propre. Inscrivez une clé d'accès ou ajoutez une application d'authentification ci-dessous ; les codes de récupération arrivent avec le premier facteur.
+account.activity.empty: 'Rien pour l’instant : les connexions, les changements de liens et de mot de passe apparaîtront ici.'
+account.activity.newDevice: nouvel appareil
+account.activity.title: Activité récente
+account.description: 'Votre identité OIML SMART : le profil, les méthodes de connexion, les sessions et l’activité du compte, gérés par vous.'
+account.linkError.linkFreshProof: "Avant de lier {name}, prouvez que c’est bien vous\_: reconnectez-vous (page de connexion), puis relancez la liaison depuis cette page."
+account.linkError.generic: La liaison n’a pas pu aboutir. Réessayez.
+account.linkError.link_session: La session de connexion a changé pendant le flux de liaison. Recommencez la liaison.
+account.linkError.link_taken: Ce compte {name} est déjà lié à un autre compte OIML SMART. Contactez votre administrateur si vous pensez qu’il s’agit d’une erreur.
+account.linkError.provider_linked: 'Votre compte possède déjà un lien {name} : dissociez-le d’abord.'
+account.linkError.upstream: Le flux {name} n’a pas abouti ({reason}). Réessayez ; si l’échec persiste, contactez votre administrateur.
+account.loadError: Le compte n’a pas pu être chargé. Le serveur est-il en cours d’exécution ?
+account.methods.accountId: identifiant de compte {id}
+account.methods.description: 'Tous les moyens de connexion de ce compte. Une connexion amont correspond uniquement à l’identifiant du compte lié, jamais à une adresse e-mail. Il reste toujours au moins une méthode : la console refuse de retirer votre dernier moyen de connexion.'
+account.methods.lastOne: 'C’est votre seul moyen de connexion : définissez un mot de passe ou liez un autre fournisseur avant de le retirer.'
+account.methods.linkAction: Lier {provider}
+account.methods.linkedAt: lié le {date}
+account.methods.linkedBy: par {by}
+account.methods.noLinks: Aucune identité amont n’est encore liée. Liez-en une ci-dessous pour vous connecter avec elle.
+account.methods.passwordLabel: Mot de passe
+account.methods.passwordRemoved: Le mot de passe a été retiré ; ce compte se connecte désormais avec ses identités liées.
+account.methods.passwordSet: Un mot de passe est défini.
+account.methods.passwordUnset: Aucun mot de passe défini. Définissez-en un ci-dessous pour disposer d’un second moyen de connexion.
+account.methods.remove: Retirer
+account.methods.removing: Retrait…
+account.methods.title: Méthodes de connexion
+account.methods.unlink: Dissocier
+account.methods.unlinked: Le lien a été retiré. Cette méthode de connexion n’atteint plus ce compte.
+account.networkError: Erreur réseau. Le serveur est-il en cours d’exécution ?
+account.notice.linked: 'Votre compte {name} est maintenant lié : vous pouvez vous connecter avec.'
+account.organizations.accept: Accepter
+account.organizations.accepted: Vous êtes maintenant membre de {org}.
+account.organizations.actingAs: 'Vous agissez en tant que {org} : vos connexions et jetons portent le jeu de rôles de cette organisation.'
+account.organizations.actingAsNone: Vous n’agissez au nom d’aucune organisation pour le moment.
+account.organizations.actingBadge: rôle actif
+account.organizations.decline: Décliner
+account.organizations.declined: L’invitation à {org} a été déclinée.
+account.organizations.description: 'Toutes les organisations auxquelles ce compte appartient. Vous agissez au nom d’une seule organisation à la fois : vos connexions et jetons portent le jeu de rôles de l’organisation active, et les services auxquels vous vous connectez ne voient jamais les autres.'
+account.organizations.disabledNote: Désactivée le {date} par {by}. L’administrateur de l’organisation peut réactiver l’adhésion.
+account.organizations.empty: Aucune adhésion à une organisation pour le moment. Demandez à rejoindre une organisation enregistrée ci-dessous.
+account.organizations.invitedNote: Invité par {by}. Acceptez pour devenir membre et agir au nom de cette organisation.
+account.organizations.keys.badgeActive: active
+account.organizations.keys.badgeRevoked: révoquée
+account.organizations.keys.badgeRotated: remplacée
+account.organizations.keys.close: Fermer
+account.organizations.keys.description: Les clés de signature de l’organisation (ES256). Ce service publie les moitiés publiques sur {url} pour tout vérificateur, avec le statut de l’organisation ; le matériel privé reste à l’organisation et n’est jamais stocké ici.
+account.organizations.keys.empty: Aucune clé de signature enregistrée pour l’instant.
+account.organizations.keys.fieldJwk: Le JWK PUBLIC (JSON — ES256 ; jamais la moitié privée)
+account.organizations.keys.fieldLabel: Le libellé de la clé
+account.organizations.keys.invalidJwk: Le JWK ne se lit pas comme une clé publique ES256 ({reason}).
+account.organizations.keys.item: enregistrée le {date} par {by}
+account.organizations.keys.privateRefusal: Ce JWK contient la moitié PRIVÉE (d) — ne la collez jamais ici ; ce service ne stocke que la moitié publique.
+account.organizations.keys.registerBusy: Enregistrement…
+account.organizations.keys.registerSubmit: Enregistrer la clé
+account.organizations.keys.registered: La clé de signature « {label} » est enregistrée — sa moitié publique est désormais publiée sur le point de résolution des clés.
+account.organizations.keys.revoke: Révoquer…
+account.organizations.keys.revokeBusy: Révocation…
+account.organizations.keys.revokeConfirm: 'Confirmer : révoquer la clé'
+account.organizations.keys.revokeNote: 'La révocation est terminale et immédiate — mais la ligne n’est jamais supprimée : un artefact signé AVANT la révocation reste résoluble, et la réponse nomme la date de révocation.'
+account.organizations.keys.revoked: La clé de signature « {label} » est révoquée — elle reste résoluble avec les marques de révocation.
+account.organizations.keys.rotate: Renouveler…
+account.organizations.keys.rotateBusy: Renouvellement…
+account.organizations.keys.rotateNote: 'Le renouvellement enregistre le successeur et marque cette clé (le recouvrement) : les deux restent résolubles, donc un artefact signé avant le renouvellement se vérifie toujours. Révoquez le prédécesseur délibérément une fois les signataires migrés.'
+account.organizations.keys.rotateSubmit: Renouveler vers le successeur
+account.organizations.keys.rotated: Renouvelée — le successeur « {label} » est actif ; le prédécesseur reste résoluble avec ses marques.
+account.organizations.keys.statusActive: active
+account.organizations.keys.statusRevoked: 'révoquée le {date} par {by} — la ligne reste : un artefact signé avant la révocation reste résoluble, avec la date nommée'
+account.organizations.keys.statusRotated: remplacée le {date} par {by} — le successeur est {successor} ; la ligne reste pour les artefacts signés avant
+account.organizations.keys.title: Clés de signature — {org}
+account.organizations.noRoles: aucun rôle d’organisation
+account.organizations.noteLabel: Une note pour l’administrateur de l’organisation (facultatif)
+account.organizations.orgLabel: Organisation
+account.organizations.primaryBadge: principale
+account.organizations.requestApproved: Approuvée
+account.organizations.requestBusy: Envoi…
+account.organizations.requested: Votre demande d’adhésion à {org} est entre les mains de son administrateur.
+account.organizations.requestPending: En attente de l’administrateur de l’organisation (demandé le {date})
+account.organizations.requestRefused: 'Refusée : {reason}'
+account.organizations.requestSubmit: Demander l’adhésion
+account.organizations.requestTitle: Rejoindre une autre organisation
+account.organizations.returnPrimary: Revenir à votre organisation principale
+account.organizations.roleLabel: Le rôle demandé
+account.organizations.stateDisabled: désactivée
+account.organizations.stateInvited: invitation
+account.organizations.switch: Agir en tant que {org}
+account.organizations.switchBusy: Changement…
+account.organizations.title: Organisations
+account.password.busy: Changement…
+account.password.changed: Votre mot de passe a été changé.
+account.password.changedRevoked: Votre mot de passe a été changé ; {count} autre(s) session(s) ont été déconnectées.
+account.password.confirmLabel: Répétez le nouveau mot de passe
+account.password.currentLabel: Mot de passe actuel
+account.password.mismatch: Les deux saisies du nouveau mot de passe ne correspondent pas.
+account.password.nextLabel: Nouveau mot de passe
+account.password.policy: Les mots de passe comptent au moins 12 caractères.
+account.password.revokeNote: Changer le mot de passe déconnecte toutes les autres sessions.
+account.password.stateSet: Un mot de passe est défini sur ce compte.
+account.password.stateUnset: Aucun mot de passe n’est encore défini sur ce compte.
+account.password.strength.fair: Passable
+account.password.strength.good: Bon
+account.password.strength.hintLonger: 'Plus long, plus fort : une phrase de plusieurs mots vaut mieux qu’un court charabia.'
+account.password.strength.hintMix: Ajoutez des chiffres ou des symboles, ou allongez simplement.
+account.password.strength.hintMore: Quelques caractères de plus le renforcent encore.
+account.password.strength.hintShort: 'Les mots de passe comptent ici au moins 12 caractères : encore {count}.'
+account.password.strength.strong: Fort
+account.password.strength.tooShort: Trop court
+account.password.submitChange: Changer le mot de passe
+account.password.submitSet: Définir un mot de passe
+account.password.title: Mot de passe
+account.password.tooShort: Le mot de passe doit compter au moins 12 caractères.
+account.profile.avatarBusy: Téléversement…
+account.profile.avatarChange: Changer l’image
+account.profile.avatarNote: L’avatar provient d’un fournisseur d’identité lié ; à défaut, vos initiales tiennent lieu d’avatar.
+account.profile.avatarNoteUpload: Téléversez votre propre image ({max} Mo au plus — PNG, JPEG, WebP ou GIF), ou l’avatar provient d’un fournisseur d’identité lié ; sans l’un ni l’autre, vos initiales tiennent lieu d’avatar.
+account.profile.avatarPublic: 'Votre image est publique par convention (le modèle des avatars GitHub) : les services où vous vous connectez la chargent depuis une URL publique ; ne téléversez qu’une image que vous montreriez partout.'
+account.profile.avatarRemove: Supprimer l’image
+account.profile.avatarRemoved: Votre image a été supprimée — vos initiales tiennent lieu d’avatar.
+account.profile.avatarSaved: Votre image a été mise à jour.
+account.profile.avatarTooLarge: L’image dépasse {max} Mo — choisissez-en une plus petite.
+account.profile.avatarWrongType: L’image doit être au format PNG, JPEG, WebP ou GIF.
+account.profile.cancel: Annuler
+account.profile.changeEmail: Changer l’adresse e-mail
+account.profile.cropConfirm: Utiliser cette image
+account.profile.cropDecodeError: Cette image n’a pas pu être lue. Choisissez un fichier PNG, JPEG, WebP ou GIF.
+account.profile.cropNote: Faites glisser pour positionner, zoomez pour cadrer. Le carré recadré (PNG de {size} px) est l’image téléversée ; le serveur accepte {max} Mo au plus.
+account.profile.cropPreview: Aperçu
+account.profile.cropTitle: Cadrez votre image
+account.profile.cropZoom: Zoom
+account.profile.edit: Modifier
+account.profile.emailBusy: Préparation…
+account.profile.emailChanged: Votre adresse e-mail a été changée pour {email}.
+account.profile.emailInvalid: Saisissez une adresse e-mail valide.
+account.profile.emailLabel: Adresse e-mail principale
+account.profile.emailMailed: Le lien de vérification a été envoyé à {email} ; il est valable 24 heures. Le changement s’applique lorsque vous l’ouvrez.
+account.profile.emailPending: Un changement vers {email} attend son lien de vérification (valide jusqu’au {expires}). Une nouvelle demande annule le lien précédent.
+account.profile.emailShown: 'Aucun serveur de messagerie n’est configuré sur ce déploiement : le lien de vérification est donc affiché ici au lieu d’être envoyé à la nouvelle adresse. L’ouvrir applique le changement sans prouver la boîte aux lettres ; l’adresse conserve son état « non vérifiée » jusqu’à ce qu’un lien envoyé par courriel la confirme.'
+account.profile.emailShownAction: Ouvrir le lien de vérification
+account.profile.emailSubmit: Commencer le changement
+account.profile.nameLabel: Nom d’affichage
+account.profile.nameRequired: Le nom d’affichage ne doit pas être vide.
+account.profile.newEmailLabel: Nouvelle adresse e-mail
+account.profile.roleLine: 'Rôle sur ce fournisseur d’identité : {role}'
+account.profile.save: Enregistrer le nom
+account.profile.saved: Votre nom d’affichage a été mis à jour.
+account.profile.saving: Enregistrement…
+account.profile.title: Profil
+account.profile.unverified: Non vérifiée
+account.profile.unverifiedNote: Rien n’a encore prouvé cette boîte aux lettres. Lorsque le service d’identité dispose d’un serveur de messagerie, un changement d’adresse confirme la nouvelle adresse par lien ; d’ici là, le lien est affiché à l’écran et l’état reste honnête.
+account.profile.verified: Vérifiée
+account.profile.verifiedNote: Confirmée par la cérémonie d’invitation ou par un lien de vérification envoyé par courriel.
+account.sessions.current: cette session
+account.sessions.description: Chaque navigateur connecté à ce compte. En révoquer une la déconnecte immédiatement ; révoquer la session courante vous déconnecte ici.
+account.sessions.expires: Expire le {date}
+account.sessions.lastActive: dernière activité {date}
+account.sessions.notRecorded: non enregistré
+account.sessions.onlyCurrent: Cette session est la seule active.
+account.sessions.revoke: Révoquer
+account.sessions.revokeOthers: Déconnecter toutes les autres
+account.sessions.revokeOthersBusy: Déconnexion des autres…
+account.sessions.revokeOthersDone: '{count} autre(s) session(s) déconnectée(s).'
+account.sessions.revoked: La session a été révoquée.
+account.sessions.signedIn: Connectée le {date}
+account.trusted.title: Navigateurs de confiance
+account.trusted.description: 'Les navigateurs marqués « Se souvenir de ce navigateur » à l''étape du second facteur : sur l''un d''eux, le mot de passe suffit (une apparition d''appareil ou de pays inconnue redemande le facteur). Révoquez tout navigateur que vous ne détenez plus.'
+account.trusted.empty: Aucun navigateur de confiance. La case « Se souvenir de ce navigateur » apparaît à l'étape du second facteur.
+account.trusted.unknownDevice: Un navigateur sans nom
+account.trusted.lastUsed: dernière utilisation {at}
+account.trusted.expires: de confiance jusqu'à {at}
+account.trusted.revoke: Révoquer
+account.trusted.currentBadge: ce navigateur
+account.sessions.title: Sessions actives
+account.signoutAll: Déconnecter tous les comptes
+account.signoutAllBusy: Déconnexion…
+account.switchAccount: Changer de compte
+account.tokens.busy: Émission…
+account.tokens.copied: Copié
+account.tokens.copy: Copier
+account.tokens.description: 'Les jetons d''accès personnels permettent à un script ou à une CLI d''agir au nom de ce compte sur les services de l''écosystème. Un jeton ne voyage jamais directement dans une requête — il s''échange contre un jeton d''accès de courte durée (RFC 8693) — et il ne fait que restreindre ce compte : ses portées sont un sous-ensemble de ce que vos rôles permettent. L''expiration est obligatoire.'
+account.tokens.empty: Aucun jeton de développement pour l'instant.
+account.tokens.expires: expire le {date}
+account.tokens.expiryDays: '{days} jours'
+account.tokens.fieldExpiry: Expiration
+account.tokens.fieldName: Nom du jeton
+account.tokens.fieldScopes: Portées (un jeton ne fait que restreindre ce compte)
+account.tokens.fieldPermissions: Permissions (le catalogue propre au service)
+account.tokens.permissionsCount: '{count} permissions'
+account.tokens.permissionsError: Le catalogue de permissions du service est indisponible — le serveur refuse une autorisation qu'il ne peut pas vérifier.
+account.tokens.permissionsLoading: Chargement du catalogue de permissions du service…
+account.tokens.permissionsNone: Aucune permission sélectionnée — le jeton s'échange exactement comme aujourd'hui.
+account.tokens.permStemGroup: service entier (subvention tige)
+account.tokens.permStemResource: toutes les actions (subvention tige)
+account.tokens.permImplied: couverte par la tige
+account.tokens.permColumnPermission: Permission
+account.tokens.permColumnAll: Tout
+account.tokens.permissionsSearch: Rechercher des permissions…
+account.tokens.lastUsed: dernière utilisation le {date}
+account.tokens.edit: Modifier
+account.tokens.mint: Émettre un jeton
+account.tokens.save: Enregistrer les modifications
+account.tokens.saved: Le jeton a été mis à jour.
+account.webhooks.title: Webhooks
+account.webhooks.description: 'Vos abonnements aux événements : ce service signe chaque livraison (Webhook-Signature, HMAC-SHA256) et ne bloque jamais l''acte qu''il rapporte. Vérifiez chaque livraison avec le secret affiché une seule fois, à l''abonnement.'
+account.webhooks.empty: Aucun abonnement pour l'instant.
+account.webhooks.subscribe: Abonner un point de terminaison
+account.webhooks.fieldUrl: https://votre-service.example/hooks
+account.webhooks.fieldEvents: Les événements (les propres noms du journal)
+account.webhooks.subscribed: Abonné — le secret de livraison est affiché une seule fois, maintenant.
+account.webhooks.revoked: Désabonné.
+account.webhooks.revoke: Se désabonner
+account.webhooks.since: Abonné le {date}
+account.webhooks.busy: En cours…
+account.webhooks.deliveries: Livraisons récentes
+account.webhooks.delivered: livré
+account.webhooks.deadLetter: lettre morte · {attempts} tentatives · HTTP {status}
+account.webhooks.onceTitle: Le secret de signature des livraisons
+account.webhooks.onceNote: Copiez-le maintenant — c'est la seule fois qu'il est affiché. Vérifiez l'en-tête Webhook-Signature de chaque livraison avec lui ; un secret perdu signifie se désabonner puis se réabonner.
+account.webhooks.verifyHint: 'Webhook-Signature : t=<horodatage>,v1=hex(HMAC-SHA256(secret, horodatage + ''.'' + corps)) — acceptez dans une fenêtre de 5 minutes.'
+account.webhooks.copied: Copié
+account.webhooks.copy: Copier
+account.tokens.minted: Jeton émis — copiez-le maintenant.
+account.tokens.neverUsed: jamais utilisé
+account.tokens.onceNote: Copiez-le maintenant — c'est la seule fois où il est affiché. Le service n'en conserve que l'empreinte ; un jeton perdu se révoque et se réémet, il ne se récupère jamais.
+account.tokens.onceTitle: Le jeton, affiché une seule fois
+account.tokens.revoke: Révoquer
+account.tokens.revoked: Le jeton a été révoqué.
+account.tokens.scopeAction.admin: admin
+account.tokens.scopeAction.read: lecture
+account.tokens.scopeAction.write: écriture
+account.tokens.scopeOff: non incluse
+account.tokens.stateActive: actif
+account.tokens.stateExpired: expiré
+account.tokens.stateRevoked: révoqué
+account.tokens.title: Jetons de développement
+account.title: Compte
+account.unavailable: 'Ce déploiement n’exécute pas le service d’identité OIML SMART : votre connexion est gérée par la configuration propre à cette instance (ses comptes de démonstration, GitHub ou l’authentification unique). La console du compte se trouve sur le fournisseur d’identité.'
+account.verification.bannerBody: 'Rien n’a encore prouvé cette boîte : les services où vous vous connectez sont informés que l’adresse n’est pas vérifiée, et les facteurs forts restent verrouillés (leur chemin de récupération passe par cette boîte). Envoyez-vous le lien de vérification — l’ouvrir prouve cette boîte — ou changez d’adresse ci-dessous ; le nouveau lien de configuration de votre administrateur la re-prouve aussi.'
+account.verification.bannerTitle: Votre adresse e-mail n’est pas vérifiée
+account.verification.resend: Recevoir un lien de vérification
+account.verification.resendSent: Le lien de vérification est en route vers {email} — ouvrez-le pour prouver cette boîte.
+admin.clients.backchannelNotAbsolute: L’URI backchannel doit être une URI http(s) absolue (le récepteur de déconnexion de la partie de confiance).
+admin.clients.backchannelUri: URI de déconnexion backchannel (le récepteur de la partie de confiance — l’OP y POSTe le logout_token quand les sessions du compte se terminent ; vide = pas de notification)
+admin.clients.classApp: Application — une partie de confiance (les flux avec utilisateur connecté)
+admin.clients.classDevice: Appareil — le cône machine (client_credentials uniquement, jamais de connexion)
+admin.clients.classLegend: classe du client (fixée à l’enregistrement)
+admin.clients.classService: Service — un appelant machine (client_credentials uniquement, jamais de connexion)
+admin.clients.deviceBadge: appareil
+admin.clients.deviceId: identifiant de l’appareil (le nom du jumeau — le sub du jeton)
+admin.clients.deviceIdRequired: L’identifiant de l’appareil est requis.
+admin.clients.deviceLegend: l’appareil auquel ce client est lié (les endpoints jumeaux consomment exactement ces claims)
+admin.clients.deviceLine: appareil {id} · org {org} · modèle {model}
+admin.clients.deviceModel: référence du modèle d’instrument (l’id du paquet de référence produit — p. ex. acme-lc500@2021)
+admin.clients.deviceModelRequired: La référence du modèle d’instrument est requise.
+admin.clients.deviceOrg: organisation (l’organisation du registre d’identité à laquelle l’appareil appartient)
+admin.clients.deviceOrgRequired: L’organisation est requise.
+admin.clients.deviceSecretNote: Un client appareil est toujours confidentiel — le secret est le justificatif de l’appareil (client_credentials au endpoint de jetons).
+admin.clients.governanceAuditEmpty: Aucun événement d’audit ne nomme encore ce client.
+admin.clients.governanceAuditLegend: 'l’extrait d’audit — les événements les plus récents nommant ce client (les actes côté client et les actes de consentement des comptes ; l’historique complet : le journal d’audit)'
+admin.clients.governanceButton: Gouvernance
+admin.clients.governanceFailed: La lecture de gouvernance a été refusée ({status}).
+admin.clients.governanceGrantLive: active
+admin.clients.governanceGrantRevoked: révoquée {at}
+admin.clients.governanceGrantsEmpty: Aucun compte ne détient d’autorisation avec ce client.
+admin.clients.governanceGrantsLegend: autorisations de consentement — l’historique complet (les consoles des comptes masquent les révoquées ; la gouvernance les montre)
+admin.clients.governanceHide: Masquer
+admin.clients.governanceLoading: Lecture de la vue de gouvernance…
+admin.clients.governanceRefresh: Actualiser
+admin.clients.governanceTokensLine: 'En ce moment : {access} jeton(s) de session · {refresh} autorisation(s) hors ligne — des comptages, jamais de valeurs'
+admin.clients.logoutLegend: 'surface de déconnexion (la déconnexion initiée par la partie de confiance : la liste des redirections autorisées + la notification backchannel)'
+admin.clients.logoutNote: Le endpoint de fin de session termine la session de l’OP dans tous les cas ; ces champs décident où l’utilisateur arrive ensuite et si cette partie de confiance reçoit la notification backchannel.
+admin.clients.logoutRedirectUris: URI de redirection post-déconnexion (exactes, une par ligne — la redirection de fin de session ne se fait que vers une URI enregistrée ; vide = la page de déconnexion honnête)
+admin.clients.logoutUriNotAbsolute: 'URI http(s) non absolue : {uri}'
+admin.clients.serviceAudience: audience (l’identifiant du service appelé — le aud du jeton)
+admin.clients.serviceAudienceRequired: L’audience est requise.
+admin.clients.serviceBadge: service
+admin.clients.serviceId: identifiant du service (le nom du compte de service — le sub du jeton)
+admin.clients.serviceIdRequired: L’identifiant du service est requis.
+admin.clients.serviceLegend: le compte de service auquel ce client est lié (le service appelé consomme exactement ces claims)
+admin.clients.serviceLine: service {id} · org {org} · audience {audience} · scopes {scopes}
+admin.clients.serviceOrg: organisation (l’organisation du registre d’identité à laquelle le service appartient)
+admin.clients.serviceOrgRequired: L’organisation est requise.
+admin.clients.serviceScopes: liste des scopes autorisés (le claim scope du jeton — séparés par espaces ou virgules)
+admin.clients.serviceScopesRequired: Au moins un scope est requis (la liste autorisée — le moindre privilège est la raison d’être de la classe).
+admin.clients.serviceSecretNote: Un client service est toujours confidentiel — le secret est le justificatif du compte de service (client_credentials au endpoint de jetons).
+admin.nav.activity: Activité
+admin.nav.clients: Clients
+admin.nav.label: Surfaces d’administration des identités
+admin.nav.overview: Aperçu
+admin.nav.providers: Fournisseurs
+admin.nav.registry: Comptes
+admin.nav.security: Sécurité
+admin.nav.sessions: Sessions
+admin.nav.users: Membres
+admin.org.activity.action.organization.added: a ajouté l’organisation
+admin.org.activity.action.organization.disabled: a désactivé l’organisation ({count} adhésion(s) désactivée(s) avec elle)
+admin.org.activity.action.organization.endorsement_revoked: a retiré la confirmation de {ia} pour le fabricant
+admin.org.activity.action.organization.endorsed: a enregistré la confirmation de {ia} pour le fabricant
+admin.org.activity.action.organization.key_registered: a enregistré la clé de signature {kid} (« {label} »)
+admin.org.activity.action.organization.key_revoked: a révoqué la clé de signature {kid}
+admin.org.activity.action.organization.key_rotated: a renouvelé la clé de signature {kid} → {successor}
+admin.org.activity.action.organization.reactivated: a réactivé l’organisation
+admin.org.activity.action.organization.removed: a définitivement retiré l’organisation
+admin.org.activity.action.organization.updated: a modifié l’organisation ({fields})
+admin.org.activity.empty: Rien encore au dossier pour cette organisation.
+admin.org.activity.title: Le dossier de l’organisation
+admin.org.acts.disable: Désactiver…
+admin.org.acts.disableConfirm: Confirmer la désactivation de l’organisation
+admin.org.acts.disableNote: 'La désactivation est le retrait honnête : les adhésions actives se désactivent avec elle (les sessions des membres cessent d’agir en son nom et les nouveaux jetons ne portent plus les rôles de l’organisation) ; les invitations en attente restent suspendues. L’historique est conservé et la réactivation ne restaure jamais les adhésions — chacune est réactivée délibérément.'
+admin.org.acts.disabled: 'Désactivée : {count} adhésion(s) désactivée(s) avec elle ; les rôles de l’organisation ont cessé d’être portés.'
+admin.org.acts.edit: Modifier…
+admin.org.acts.reactivate: Réactiver
+admin.org.acts.reactivated: Active à nouveau. {count} adhésion(s) restent désactivées — réactivez chacune délibérément depuis la liste des membres.
+admin.org.acts.remove: Retirer définitivement…
+admin.org.acts.removeConfirm: 'Confirmer : retirer définitivement l’organisation'
+admin.org.acts.removeNote: La suppression définitive n’existe que parce que cette organisation n’a jamais tenu d’adhésion et qu’aucune demande d’adhésion ne la nomme. L’action est auditée ; la ligne disparaît.
+admin.org.acts.removed: Retirée du registre.
+admin.org.acts.save: Enregistrer l’organisation
+admin.org.acts.saved: L’organisation est à jour.
+admin.org.acts.saving: Enregistrement…
+admin.org.chain.designatedByLabel: Désigné par
+admin.org.chain.designatedByOption: '{name} ({id})'
+admin.org.chain.designatesLabel: Désigne (utilisateurs / associés)
+admin.org.chain.designatesNone: ne désigne aucun utilisateur ni associé — un membre simple est un état légitime
+admin.org.chain.associatedTlsLabel: Laboratoires d’essais associés
+admin.org.chain.associatedTlsNone: aucun associé
+admin.org.chain.notRecorded: non enregistré
+admin.org.chain.proposedByLabel: Proposé par
+admin.org.chain.proposedByOption: '{name} ({id})'
+admin.org.chain.proposesLabel: Propose (autorités de délivrance)
+admin.org.chain.proposesNone: ne propose aucune autorité de délivrance — pas de participation à l’OIML-CS de ce côté
+admin.org.chain.title: Chaîne de désignation
+admin.org.csStatus.none: non enregistré
+admin.org.csStatus.signedActive: Déclaration signée — active
+admin.org.csStatus.suspended: Déclaration suspendue
+admin.org.csStatus.withdrawn: Déclaration retirée
+admin.org.details.contactsEmpty: Aucun contact au dossier.
+admin.org.details.contactsLabel: Contacts
+admin.org.details.countryLabel: Pays
+admin.org.details.csStatusLabel: Statut CS
+admin.org.details.disabledBy: désactivée le {date} par {by}
+admin.org.details.idLabel: Id
+admin.org.details.kindLabel: Nature
+admin.org.details.participantRefLabel: Dossier participant
+admin.org.details.participantRefNone: non liée à un dossier participant
+admin.org.details.rorIdLabel: Identifiant ROR
+admin.org.details.rorIdNone: non apparié
+admin.org.details.stateLabel: État
+admin.org.details.standingLabel: Statut
+admin.org.details.title: Organisation
+admin.org.details.updatedBy: modifiée le {date} par {by}
+admin.org.endorsements.empty: Aucune autorité d’évaluation n’a encore confirmé ce fabricant — le statut reste déclaré.
+admin.org.endorsements.item: confirmé le {date} par {by}
+admin.org.endorsements.title: Confirmations des autorités d’évaluation
+admin.org.keys.badgeActive: active
+admin.org.keys.badgeRevoked: révoquée
+admin.org.keys.badgeRotated: remplacée
+admin.org.keys.description: Les clés de signature de l’organisation (ES256) — les moitiés publiques sont publiées anonymement sur {url} avec le statut de l’organisation ; le matériel privé reste à l’organisation, jamais stocké ici.
+admin.org.keys.empty: Aucune clé de signature enregistrée pour l’instant.
+admin.org.keys.fieldJwk: Le JWK PUBLIC (JSON — ES256 ; jamais la moitié privée)
+admin.org.keys.fieldLabel: Le libellé de la clé
+admin.org.keys.invalidJwk: Le JWK ne se lit pas comme une clé publique ES256 ({reason}).
+admin.org.keys.item: enregistrée le {date} par {by}
+admin.org.keys.privateRefusal: Ce JWK contient la moitié PRIVÉE (d) — ne l’acceptez jamais ; ce service ne stocke que la moitié publique.
+admin.org.keys.registerBusy: Enregistrement…
+admin.org.keys.registerSubmit: Enregistrer la clé
+admin.org.keys.registerTitle: Enregistrer une clé de signature
+admin.org.keys.registered: La clé de signature « {label} » est enregistrée — sa moitié publique est désormais publiée sur le point de résolution des clés.
+admin.org.keys.revoke: Révoquer…
+admin.org.keys.revokeBusy: Révocation…
+admin.org.keys.revokeConfirm: 'Confirmer : révoquer la clé'
+admin.org.keys.revokeNote: 'La révocation est terminale et immédiate — mais la ligne n’est jamais supprimée : un artefact signé AVANT la révocation reste résoluble, et la réponse nomme la date de révocation.'
+admin.org.keys.revoked: La clé de signature « {label} » est révoquée — elle reste résoluble avec les marques de révocation.
+admin.org.keys.rotate: Renouveler…
+admin.org.keys.rotateBusy: Renouvellement…
+admin.org.keys.rotateNote: 'Le renouvellement enregistre le successeur et marque cette clé (le recouvrement) : les deux restent résolubles, donc un artefact signé avant le renouvellement se vérifie toujours. Révoquez le prédécesseur délibérément une fois les signataires migrés.'
+admin.org.keys.rotateSubmit: Renouveler vers le successeur
+admin.org.keys.rotated: Renouvelée — le successeur « {label} » est actif ; le prédécesseur reste résoluble avec ses marques.
+admin.org.keys.statusActive: active
+admin.org.keys.statusRevoked: 'révoquée le {date} par {by} — la ligne reste : un artefact signé avant la révocation reste résoluble, avec la date nommée'
+admin.org.keys.statusRotated: remplacée le {date} par {by} — le successeur est {successor} ; la ligne reste pour les artefacts signés avant
+admin.org.keys.title: Clés de signature
+admin.org.standing.declared: Fabricant déclaré — auto-enregistré sur le service d’identité ; PAS un participant OIML-CS (ni évaluation par les pairs, ni portée)
+admin.org.standing.iaEndorsed: Fabricant confirmé par une AE ({ias}) — l’autorité d’évaluation a confirmé la relation ; PAS un participant OIML-CS
+admin.org.standing.member: Membre OIML — l’appartenance au titre de la Convention ; PAS une participation à l’OIML-CS en soi
+admin.org.standing.nonParticipant: Pas un participant OIML-CS
+admin.org.standing.participant: Participant OIML-CS — l’enregistrement du système (PD-03)
+admin.org.tokens.by: '{name} ({email})'
+admin.org.tokens.description: 'Les jetons de développement que les membres de cette organisation ont émis sur leurs propres comptes — les métadonnées seulement : les valeurs secrètes ne sont jamais conservées, et le jeton d''un membre n''est jamais un identifiant de l''organisation. Les jetons actifs d''une adhésion désactivée restent visibles ici jusqu''à leur expiration ou leur révocation par le membre.'
+admin.org.tokens.empty: Aucun membre de cette organisation ne détient de jeton de développement.
+admin.org.tokens.expires: expire le {date}
+admin.org.tokens.lastUsed: dernière utilisation le {date}
+admin.org.tokens.neverUsed: jamais utilisé
+admin.org.tokens.title: Jetons de développement (des membres)
+admin.orgs.addBusy: Ajout…
+admin.orgs.added: '{name} est au registre.'
+admin.orgs.addNote: L’id est le slug stable et ne change jamais ; pour une organisation participante, il EST le code OIML (la plateforme résout la déclaration org directement contre son registre des participants).
+admin.orgs.addSubmit: Ajouter l’organisation
+admin.orgs.addTitle: Ajouter une organisation
+admin.orgs.chainDesignates: désigne {count}
+admin.orgs.chainProposes: propose {count}
+admin.orgs.chainTls: '{count} LE'
+admin.orgs.colAdmins: Administrateurs
+admin.orgs.colMembers: Membres
+admin.orgs.colOrganization: Organisation
+admin.orgs.colState: État
+admin.orgs.contactAdd: Ajouter un contact
+admin.orgs.contactEmail: courriel du contact
+admin.orgs.contactName: nom du contact (optionnel)
+admin.orgs.contactRemove: Retirer
+admin.orgs.description: 'Le registre d’organisations propre au service d’identité : chaque organisation avec ses membres et ses administrateurs délégués, et les actes du cycle de vie.'
+admin.orgs.empty: Aucune organisation encore — ajoutez la première ci-dessus.
+admin.orgs.field.contacts: Contacts
+admin.orgs.field.country: pays (optionnel)
+admin.orgs.field.id: id — le slug stable (le code OIML du participant)
+admin.orgs.field.kind: Nature de participant
+admin.orgs.field.name: nom d’affichage
+admin.orgs.field.participantRef: référence du dossier participant (optionnel)
+admin.orgs.field.rorId: identifiant ROR (https://ror.org/…)
+admin.orgs.field.shortName: nom court (optionnel)
+admin.orgs.forbidden: Le registre des organisations est une surface d’administration — votre compte ne porte pas le rôle d’administrateur.
+admin.orgs.kindNone: pas un participant au système
+admin.orgs.membersDisabled: '{count} désactivée(s)'
+admin.orgs.membersInvited: '{count} invitée(s)'
+admin.orgs.noAdmins: aucun encore
+admin.orgs.open: Ouvrir
+admin.orgs.stateActive: active
+admin.orgs.stateDisabled: désactivée
+admin.orgs.standingDeclared: statut déclaré
+admin.orgs.standingIaEndorsed: confirmé par une AE ({ias})
+admin.orgs.title: Organisations
+admin.orgUsers.activity.empty: Aucun acte pour l'instant — les actes d'adhésion, de cône de données et de file des demandes arrivent ici.
+admin.orgUsers.activity.intro: Les actes de votre propre organisation — adhésions, cônes de données, la file des demandes — du plus récent au plus ancien, cinquante entrées.
+admin.orgUsers.activity.title: Activité de l'organisation
+admin.orgUsers.activity.action.membership.activated: a réactivé l'adhésion de {email}
+admin.orgUsers.activity.action.membership.cone: a réglé le cône de données de {email} sur {cone} (était {previous})
+admin.orgUsers.activity.action.membership.disabled: a désactivé l'adhésion de {email}
+admin.orgUsers.activity.action.membership.invited: a invité {email} dans l'organisation
+admin.orgUsers.activity.action.membership.roles: a réglé les rôles de {email} sur {roles}
+admin.orgUsers.cone.badge.assigned: assigné
+admin.orgUsers.cone.badge.assignedReadOnly: assigné + lecture seule
+admin.orgUsers.cone.badge.orgWide: toute l'organisation
+admin.orgUsers.cone.badge.readOnly: lecture seule
+admin.orgUsers.cone.button: Cône de données
+admin.orgUsers.cone.close: Fermer
+admin.orgUsers.cone.editorTitle: Le cône de données — ce que ce membre peut voir et faire
+admin.orgUsers.cone.neverWidens: Le cône ne fait que restreindre ce que les rôles accordent — il ne peut jamais accorder. L'adhésion de l'administrateur de l'organisation elle-même est gérée par l'opérateur du schéma (BIML).
+admin.orgUsers.cone.opt.assigned.hint: 'Ne voit que le travail qui le nomme : les essais qu''il opère, les affectations auxquelles ces essais appartiennent, les engagements qu''il a ouverts. Les autres lignes de l''organisation restent cachées ; le catalogue partagé d''instruments reste lisible.'
+admin.orgUsers.cone.opt.assigned.label: Assigné uniquement
+admin.orgUsers.cone.opt.orgWide.hint: Voit et traite tout ce que l'organisation voit — la posture de tout membre existant. Rien ne change tant que vous ne restreignez pas.
+admin.orgUsers.cone.opt.orgWide.label: Toute l'organisation (par défaut)
+admin.orgUsers.cone.opt.readOnly.hint: Lit tout ce que l'organisation voit, mais chaque écriture est refusée et consignée au journal d'audit. La posture du relecteur.
+admin.orgUsers.cone.opt.readOnly.label: Lecture seule
+admin.orgUsers.cone.save: Enregistrer le cône de données
+admin.orgUsers.cone.saved: Le cône de données de {name} est désormais {cone}.
+admin.orgUsers.explain.button: Expliquer
+admin.orgUsers.explain.close: Fermer
+admin.orgUsers.explain.title: Ce que {name} peut voir et faire — la réponse calculée
+admin.orgUsers.explain.computed: Calculé en direct à partir des mêmes règles que les sessions et les jetons de connexion du membre — rien ici n'est une estimation séparée.
+admin.orgUsers.explain.notActive.membership-invited: L'invitation attend encore le membre — il n'agit pas encore au nom de l'organisation (rien de ce qui suit n'est en vigueur).
+admin.orgUsers.explain.notActive.membership-disabled: L'adhésion est désactivée — le membre n'agit pas au nom de l'organisation (rien de ce qui suit n'est en vigueur).
+admin.orgUsers.explain.notActive.account-deactivated: Le compte est désactivé — il ne se connecte nulle part, donc il n'agit en rien.
+admin.orgUsers.explain.roles.title: Les rôles détenus
+admin.orgUsers.explain.roles.empty: Aucun rôle en vigueur — l'adhésion n'agit pas.
+admin.orgUsers.explain.roleSource.membership: cette organisation
+admin.orgUsers.explain.roleSource.account: le compte — suit chaque contexte
+admin.orgUsers.explain.roleUnknown: absent de la table des rôles de cette instance — n'accorde rien
+admin.orgUsers.explain.roleNoPerms: aucune permission d'action
+admin.orgUsers.explain.perms.title: Les permissions qu'ils accordent
+admin.orgUsers.explain.perms.empty: Aucune permission d'action — le membre lit, n'agit jamais.
+admin.orgUsers.explain.perms.from: 'via : {roles}'
+admin.orgUsers.explain.effect.held: en vigueur
+admin.orgUsers.explain.effect.scoped: en vigueur — sur les lignes qui le nomment uniquement
+admin.orgUsers.explain.effect.refused: refusée — le cône lecture seule
+admin.orgUsers.explain.cone.title: L'effet du cône de données
+admin.orgUsers.explain.cone.read.orgWide: 'Lecture : toutes les lignes que l''organisation voit.'
+admin.orgUsers.explain.cone.read.assigned: 'Lecture : uniquement les lignes de l''organisation qui le nomment.'
+admin.orgUsers.explain.cone.write.roleSet: 'Écriture : selon ce que les rôles ci-dessus accordent.'
+admin.orgUsers.explain.cone.write.refused: 'Écriture : refusée — le modificateur lecture seule (chaque refus est consigné au journal d''audit).'
+admin.orgUsers.explain.kind.orgAdmin: L'adhésion de l'administrateur de l'organisation — gérée par l'opérateur du système (BIML).
+admin.orgUsers.explain.kind.outside: 'Détenu hors des limites du type d''organisation : {roles} — les règles d''attribution les refusent aujourd''hui (une ligne héritée).'
+admin.orgUsers.explain.vis.title: Les données qu'il voit — la simulation
+admin.orgUsers.explain.vis.orgBound: La règle de lecture limite ce membre aux lignes de son organisation (son rôle principal est à portée organisationnelle).
+admin.orgUsers.explain.vis.oversight: La règle de lecture ne limite jamais ce membre — son rôle principal n'est pas à portée organisationnelle (la posture de supervision). Le cône ne lui cache rien.
+admin.orgUsers.explain.vis.ownOrg: une ligne de l'organisation
+admin.orgUsers.explain.vis.named: …qui le nomme
+admin.orgUsers.explain.vis.foreign: une ligne d'une autre organisation
+admin.orgUsers.explain.vis.visible: visible
+admin.orgUsers.explain.vis.hidden: masquée
+admin.orgUsers.explain.reason.oversight: la règle de lecture ne limite pas ce membre
+admin.orgUsers.explain.reason.shared: données de référence partagées — le cône ne les limite jamais
+admin.orgUsers.explain.reason.catalog: le catalogue d'instruments partagé se lit pour tous (les écritures restent à portée organisationnelle)
+admin.orgUsers.explain.reason.orgField: la ligne nomme l'organisation ({field})
+admin.orgUsers.explain.reason.orgFieldMiss: aucun champ de la ligne ne nomme l'organisation
+admin.orgUsers.explain.reason.assignedMiss: nomme l'organisation, pas le membre — le cône « assigné » la masque
+admin.orgUsers.explain.reason.assignedNoKey: la classe ne porte aucun champ personnel — le cône « assigné » n'admet aucune de ses lignes
+admin.orgUsers.explain.reason.assignedHit: la ligne nomme le membre ({key})
+admin.user.acts.deactivate: Désactiver…
+admin.user.acts.deactivateConfirm: Confirmer la désactivation
+admin.user.acts.deactivateNote: 'La désactivation est honnête : l’historique est conservé, les connexions sont refusées et les sessions actives cessent immédiatement de se résoudre.'
+admin.user.acts.deactivated: 'Désactivé : les connexions sont refusées et les sessions du compte ont cessé de se résoudre. L’historique est conservé.'
+admin.user.acts.erase: Supprimer le compte…
+admin.user.acts.eraseConfirm: 'Confirmer : effacer définitivement le compte'
+admin.user.acts.eraseWarning: 'L’effacement retire la personne du compte : le mot de passe, les identités liées, les liens de configuration et de vérification, les attributions de rôles par client, les sessions et jetons actifs ainsi que l’image téléversée disparaissent ; la ligne subsiste comme pierre tombale anonymisée afin que la piste d’audit reste résolvable. Cette action est irréversible.'
+admin.user.acts.erasing: Effacement…
+admin.user.acts.issueReset: Émettre un lien de réinitialisation
+admin.user.acts.reactivate: Réactiver
+admin.user.acts.reactivated: 'Réactivé : le compte peut à nouveau se connecter.'
+admin.user.acts.resendSetup: Renvoyer le lien de configuration
+admin.user.acts.selfNoDeactivate: Vous ne pouvez pas désactiver votre propre compte ici.
+admin.user.acts.selfNoErase: Vous ne pouvez pas effacer votre propre compte ici.
+admin.user.acts.setupIssued: 'Un nouveau lien de configuration à usage unique (24 heures) est ci-dessous : transmettez-le par un canal où vous pouvez vérifier la personne.'
+admin.user.acts.title: Accès
+admin.user.activity.action.account.avatar: a mis à jour l’image de profil
+admin.user.activity.action.account.avatar_removed: a retiré l’image de profil
+admin.user.activity.action.account.client_roles: 'a attribué des rôles sur {client} : {roles}'
+admin.user.activity.action.account.client_roles_cleared: 'a retiré l’attribution de rôles sur {client} : l’ensemble global du compte redevient la valeur par défaut'
+admin.user.activity.action.account.deactivated: a désactivé le compte
+admin.user.activity.action.account.deleted: 'a effacé le compte ({email}) : la ligne est une pierre tombale anonymisée'
+admin.user.activity.action.account.enrolled: a terminé la configuration (mot de passe défini)
+admin.user.activity.action.account.enrollment: a émis un nouveau lien de configuration
+admin.user.activity.action.account.invite: a invité le compte ({email}, rôle {role})
+admin.user.activity.action.account.link_on_behalf: 'a lié le compte {provider} {handle} pour le compte : {justification}'
+admin.user.activity.action.account.link_removed: a retiré le lien {provider}
+admin.user.activity.action.account.link_removed_reason: 'a retiré le lien {provider} : {reason}'
+admin.user.activity.action.account.password: a changé le mot de passe
+admin.user.activity.action.account.password_reset: a demandé un e-mail de réinitialisation du mot de passe
+admin.user.activity.action.account.reactivated: a réactivé le compte
+admin.user.activity.action.account.session_revoked: a mis fin à une session
+admin.user.activity.action.account.session_revoked_admin: a mis fin à une session (administrateur)
+admin.user.activity.action.account.sessions_revoked: a mis fin à {count} session(s)
+admin.user.activity.action.account.sessions_revoked_admin: a mis fin à toutes les sessions ({count}, administrateur)
+admin.user.activity.action.account.sign_in: s’est connecté avec le mot de passe
+admin.user.activity.action.account.updated: a modifié le compte ({fields})
+admin.user.activity.action.upstream_link: a lié {provider} ({handle}) depuis la page du compte
+admin.user.activity.action.upstream_sign_in: s’est connecté avec {provider} ({handle})
+admin.user.activity.action.upstream_unlink: a dissocié {provider}
+admin.user.activity.action.user.deactivated: a désactivé le compte
+admin.user.activity.action.user.reactivated: a réactivé le compte
+admin.user.activity.action.user.roles: 'a attribué les rôles : {roles}'
+admin.user.activity.actorAccount: le compte
+admin.user.activity.empty: Rien encore au dossier pour ce compte.
+admin.user.activity.feedLink: toute l’activité du registre
+admin.user.activity.more: Afficher les événements plus anciens ({count} de plus)
+admin.user.activity.showing: '{shown} sur {total} affichés'
+admin.user.activity.title: Activité
+admin.user.apps.badge.no: non
+admin.user.apps.badge.yes: accès
+admin.user.apps.consoleLink: la console des parties de confiance
+admin.user.apps.description: 'Chaque partie de confiance enregistrée, et si ce compte y entre avec des rôles : l’attribution par client (sinon l’ensemble global du compte), bornée par la liste d’autorisation de la politique de claims du client.'
+admin.user.apps.empty: 'Aucune partie de confiance n’est encore enregistrée : enregistrez-en une sur la console des parties de confiance.'
+admin.user.apps.footnote: La connexion elle-même ne refuse jamais le compte sur un client actif ; ACCÈS signifie que les jetons de l’instance portent au moins un rôle pour lui. Un client dont la politique ne porte aucun claim de rôle ne reçoit que le profil et l’e-mail.
+admin.user.apps.no.client_disabled: 'Non : le client est désactivé.'
+admin.user.apps.no.explicit_none: 'Non : l’attribution sur ce client dit explicitement aucun rôle.'
+admin.user.apps.no.no_role_claims: 'Non : la politique du client ne porte aucun claim de rôle, ses jetons ne contiennent donc que le profil et l’e-mail.'
+admin.user.apps.no.outside_allowlist: 'Non : le client accepte [{allowed}] et le compte détient [{held}] pour lui.'
+admin.user.apps.title: Applications accessibles à ce compte
+admin.user.apps.yes: 'Accès : ses jetons portent {roles}.'
+admin.user.back: le registre d’identité
+admin.user.card.emailLabel: E-mail
+admin.user.card.erasedNote: 'Effacé le {date} : la ligne est une pierre tombale anonymisée afin que la piste d’audit reste résolvable. Aucune action ne s’y applique.'
+admin.user.card.idLabel: Identifiant du compte
+admin.user.card.lastSignIn: Dernière connexion
+admin.user.card.lastSignInNever: jamais
+admin.user.card.nameLabel: Nom
+admin.user.card.onRecord: Au dossier depuis
+admin.user.card.onRecordUnknown: non enregistré
+admin.user.card.orgLabel: Organisation
+admin.user.card.orgNone: aucune
+admin.user.card.state.active: actif
+admin.user.card.state.deactivated: désactivé
+admin.user.card.state.erased: effacé
+admin.user.card.state.invited: invité
+admin.user.card.statusLabel: Statut
+admin.user.card.title: Compte
+admin.user.failed: L’action a échoué ({status}).
+admin.user.factors.added: ajouté le {date}
+admin.user.factors.empty: 'Aucun enregistré : les clés d''accès, les codes d''application d''authentification et les codes de récupération apparaissent ici avec leurs actions de révocation.'
+admin.user.factors.lastUsed: dernière utilisation {date}
+admin.user.factors.neverUsed: jamais utilisé
+admin.user.factors.recoveryState: 'Codes de récupération : {remaining} sur {total} restants (générés le {date}).'
+admin.user.factors.revoke: Révoquer
+admin.user.factors.revokeConfirm: 'Confirmer : révoquer ce justificatif'
+admin.user.factors.revokedPasskey: La clé d'accès a été révoquée.
+admin.user.factors.revokedTotp: L'application d'authentification a été retirée.
+admin.user.factors.revoking: Révocation…
+admin.user.factors.totpKind: application d'authentification
+admin.user.factors.title: Facteurs supplémentaires
+admin.user.forbidden: 'Le registre d’identité est une surface d’administration : votre compte ne détient pas le rôle d’administrateur.'
+admin.user.grants.allowlistNote: 'La liste d’autorisation de la politique du client borne le choix : {roles}.'
+admin.user.grants.assignedBy: attribué par {by}, le {date}
+admin.user.grants.assignedOn: attribué le {date}
+admin.user.grants.clientLabel: Client
+admin.user.grants.description: Les rôles que ce compte détient sur UNE partie de confiance. Une attribution vide est le aucun explicite (les jetons ne portent aucun claim de rôle) ; retirer une attribution restaure la valeur globale par défaut.
+admin.user.grants.empty: 'Aucune attribution par client : chaque partie de confiance utilise l’ensemble de rôles global du compte.'
+admin.user.grants.grant: Attribuer des rôles sur un client…
+admin.user.grants.granted: 'L’attribution sur {client} est enregistrée : ses jetons portent {roles}.'
+admin.user.grants.grantedNone: 'L’attribution sur {client} est enregistrée comme le aucun explicite : ses jetons ne portent aucun claim de rôle.'
+admin.user.grants.noRoles: aucun rôle (la posture sans claim de l’instance)
+admin.user.grants.policyNote: La politique de claims d’un client (sa liste d’autorisation incluse) se modifie sur la console des parties de confiance.
+admin.user.grants.reassign: Modifier…
+admin.user.grants.revoke: Retirer…
+admin.user.grants.revokeConfirm: 'Confirmer : restaurer la valeur globale par défaut'
+admin.user.grants.revoked: 'L’attribution sur {client} est retirée : l’ensemble global s’y applique à nouveau.'
+admin.user.grants.rolesLabel: Rôles
+admin.user.grants.save: Enregistrer l’attribution
+admin.user.grants.title: Attributions de rôles par client
+admin.user.methods.handlePlaceholder: L’identifiant du compte chez le fournisseur (le handle)…
+admin.user.methods.justificationPlaceholder: 'La justification (obligatoire : elle est consignée)…'
+admin.user.methods.justificationRequired: 'Une note de justification est obligatoire : le lien contourne le flux du titulaire du compte, la raison est donc consignée.'
+admin.user.methods.linkNote: Ceci lie le compte amont sans que le titulaire conduise le flux de consentement du fournisseur ; la règle de correspondance est inchangée (fournisseur + identifiant de compte, jamais un e-mail) et la justification est auditée.
+admin.user.methods.linkSubmit: Lier l’identité
+admin.user.methods.linkTitle: Lier pour le titulaire du compte
+admin.user.methods.linked: 'Compte {provider} {handle} lié : la justification est consignée dans l’activité.'
+admin.user.methods.linkedLine: lié le {date} par {by}
+admin.user.methods.noLinks: 'Aucune identité liée : le compte se connecte uniquement avec son mot de passe.'
+admin.user.methods.passwordSet: Un mot de passe est défini.
+admin.user.methods.passwordUnset: 'Pas encore de mot de passe : le compte le définit depuis le lien de configuration à usage unique.'
+admin.user.methods.providerPlaceholder: Fournisseur…
+admin.user.methods.title: Méthodes de connexion
+admin.user.methods.unlink: Dissocier
+admin.user.methods.unlinkConfirm: Confirmer la dissociation
+admin.user.methods.unlinkReasonPlaceholder: La raison (facultative, consignée)…
+admin.user.methods.unlinked: 'Le lien {provider} est retiré : une connexion avec lui est désormais honnêtement refusée.'
+admin.user.memberships.addBusy: Invitation…
+admin.user.memberships.addNote: L’invitation attend sur la console du titulaire du compte jusqu’à ce qu’il l’accepte ou la décline. L’approbation de la demande d’adhésion du titulaire (la file de la console d’administration des organisations) active directement.
+admin.user.memberships.addOrg: Organisation…
+admin.user.memberships.addSubmit: Inviter l’adhésion
+admin.user.memberships.addTitle: Ajouter à une organisation
+admin.user.memberships.added: '{name} est invité à rejoindre {org} — l’invitation attend sur sa console de compte.'
+admin.user.memberships.description: Toutes les organisations auxquelles ce compte appartient, chacune avec son propre jeu de rôles. Le compte agit au nom d’une seule organisation à la fois (le contexte actif de sa session) ; l’adhésion principale reflète l’affectation de rôles propre au compte.
+admin.user.memberships.disable: Désactiver
+admin.user.memberships.disabled: L’adhésion à {org} est désactivée — le compte a cessé d’agir au nom de cette organisation.
+admin.user.memberships.disabledBy: désactivée par {by}
+admin.user.memberships.empty: Aucune adhésion à une organisation.
+admin.user.memberships.invitedBy: invité par {by}
+admin.user.memberships.noRoles: aucun rôle d’organisation
+admin.user.memberships.primaryBadge: principale
+admin.user.memberships.reactivate: Réactiver
+admin.user.memberships.reactivated: L’adhésion à {org} est de nouveau active.
+admin.user.memberships.rolesClose: Fermer
+admin.user.memberships.rolesEdit: Rôles
+admin.user.memberships.rolesSave: Enregistrer les rôles
+admin.user.memberships.rolesSaved: Les rôles de l’adhésion à {org} ont été mis à jour.
+admin.user.memberships.stateDisabled: désactivée
+admin.user.memberships.stateInvited: invitation
+admin.user.memberships.title: Organisations
+admin.user.notFound: Cet identifiant de compte n’est pas dans le registre.
+admin.user.notFoundTitle: Aucun compte de ce nom
+admin.user.roles.legend: L’ensemble de rôles (le rôle principal détermine la section de console du compte)
+admin.user.roles.note: L’ensemble de rôles est global au compte ; le rôle org_admin n’est attribuable que pour une organisation participante enregistrée (le serveur l’impose).
+admin.user.roles.oneRequired: 'Un compte détient au moins un rôle : désactivez-le plutôt lorsqu’il ne doit en détenir aucun.'
+admin.user.roles.primary: Rôle principal
+admin.user.roles.save: Enregistrer les rôles
+admin.user.roles.saved: 'Rôles enregistrés : l’attribution prend effet à la prochaine requête du compte et voyage dans les jetons d’identité des parties de confiance dont la politique porte le claim de rôles.'
+admin.user.sessions.end: Mettre fin à la session
+admin.user.sessions.endAll: Mettre fin à toutes les sessions…
+admin.user.sessions.endAllConfirm: 'Confirmer : mettre fin à toutes les sessions'
+admin.user.sessions.endAllDone: '{count} session(s) terminée(s) : chacune cesse immédiatement de se résoudre.'
+admin.user.sessions.endAllNote: 'L’action légère : toutes les sessions actives cessent immédiatement de se résoudre et le compte peut toujours se reconnecter. La désactivation (la fiche du compte) est l’action lourde.'
+admin.user.sessions.ended: 'Session terminée : elle cesse immédiatement de se résoudre.'
+admin.user.sessions.empty: Aucune session active.
+admin.user.sessions.selfWarn: 'Ce compte est le vôtre : mettre fin à toutes les sessions vous déconnecte aussi de cette console.'
+admin.user.sessions.title: Sessions
+admin.user.tokens.description: Les jetons d'accès personnels du compte. Émettez POUR ce compte (le secret ne s'affiche qu'une fois — remettez-le au titulaire par votre propre canal) ou révoquez-en un ; chaque acte est journalisé avec vous comme acteur, et l'avis d'émission part au titulaire comme d'habitude.
+admin.user.tokens.empty: Aucun jeton de développement sur ce compte.
+admin.user.tokens.expiry: Expiration
+admin.user.tokens.mint: Émettre pour ce compte
+admin.user.tokens.minted: Jeton émis — copiez-le maintenant ; il ne s'affiche qu'une fois.
+admin.user.tokens.name: Nom du jeton
+admin.user.tokens.nameRequired: Le jeton a besoin d'un nom — la liste de la console l'étiquette par lui.
+admin.user.tokens.permissions: Permissions (le catalogue propre au service)
+admin.user.tokens.revoked: Le jeton a été révoqué.
+admin.user.tokens.scopes: Portées (les droits propres du compte les bornent)
+admin.user.tokens.scopeAdminNote: admin (seulement si le compte détient la classe)
+admin.user.tokens.title: Jetons de développement
+admin.user.tokens.revoke: Révoquer
+admin.user.setupLink.copy: Copier
+admin.user.setupLink.expires: expire le {date} UTC
+admin.user.setupLink.note: 'Il ouvre la page de configuration du compte une seule fois, pendant 24 heures. Envoyez-le par un canal où vous pouvez vérifier la personne : ce lien définit son mot de passe.'
+admin.user.setupLink.title: Le lien de configuration à usage unique
+admin.user.title: Compte du registre
+home.account.description: Profil, méthodes de connexion, sessions et activité.
+home.account.title: Compte
+home.admin.description: Le registre des comptes, les parties prenantes, les fournisseurs de connexion et l’activité.
+home.admin.title: Administration
+home.description: Les services auxquels votre identité vous connecte. Votre session ici vous y fait entrer directement.
+home.empty: Aucun service n’est encore lié à votre compte.
+home.launch: Ouvrir
+home.loadError: Le lanceur n’a pas pu être chargé. Le serveur est-il en cours d’exécution ?
+home.networkError: Erreur réseau. Le serveur est-il en cours d’exécution ?
+home.noAccess: Votre compte ne détient pas encore de rôle accepté par ce service.
+home.request: Demander l’accès
+home.requested: Accès demandé
+home.requesting: Demande en cours…
+home.requestSent: 'Votre demande est consignée : le journal d’activité de l’administrateur la porte.'
+home.title: Applications
+login.emailLabel: Adresse e-mail
+login.emailPlaceholder: vous@example.org
+login.failed: La connexion a échoué. Réessayez.
+login.failedRetry: La connexion a échoué. Réessayez — si l’échec persiste, contactez votre administrateur.
+login.forgot: Mot de passe oublié ?
+account.checkupLink: Lancer le bilan de sécurité
+checkup.title: Bilan de sécurité
+checkup.error: Le bilan n'a pas pu être lu — connectez-vous et réessayez.
+checkup.scoreTitle: Le score de sécurité de votre compte
+checkup.allGood: Tout est en ordre. Revoyez le bilan après vos prochaines connexions.
+checkup.openItems: '{count} élément(s) demandent votre attention.'
+checkup.factors: 'Facteurs de signature sur le compte : {count}'
+checkup.fix: Corriger
+checkup.sessions: Sessions actives
+checkup.unknownClient: Un client non reconnu
+checkup.thisDevice: cet appareil
+checkup.manageSessions: Gérer les sessions
+checkup.grants: Applications autorisées
+checkup.manageGrants: Gérer les autorisations
+login.paths.account.title: S'inscrire
+login.heading: Connexion à {product}
+login.invalidCredentials: Adresse e-mail ou mot de passe invalide.
+login.legitimacy.after: ' établie par la Convention de l’OIML, qui réunit ses États membres autour de la métrologie légale.'
+login.legitimacy.before: 'Opéré par l’OIML — '
+login.legitimacy.link: l’organisation intergouvernementale issue d’un traité
+login.mfa.busy: Vérification…
+login.mfa.cancel: Retour à la connexion par mot de passe
+login.mfa.codePlaceholder: '123456'
+login.mfa.failed: Le second facteur n'a pas abouti. Réessayez.
+login.mfa.passkeyCancelled: La cérémonie de clé d'accès n'a pas abouti (abandonnée ou refusée par l'appareil).
+login.mfa.additional: Vérification supplémentaire requise
+login.mfa.prompt: 'Votre compte est protégé par l''authentification multifacteur. Choisissez comment terminer la connexion :'
+login.mfa.passkeyProtected: Votre compte est protégé par une clé d'accès ou une clé de sécurité pour l'authentification multifacteur (MFA).
+login.mfa.passkeyFollow: Pour terminer la connexion, suivez les instructions de votre navigateur.
+login.mfa.emailUse: M'envoyer un code par e-mail
+login.mfa.emailCodePlaceholder: '123456'
+login.mfa.emailSubmit: Utiliser le code
+login.mfa.emailSent: Le code a été envoyé à l'adresse e-mail de votre compte. Il ne fonctionne qu'une fois et expire avec cette tentative de connexion.
+login.mfa.emailSending: Envoi du code à l'adresse e-mail de votre compte…
+login.mfa.emailSendFailed: Le code n'a pas pu être envoyé pour l'instant — réessayez dans un instant.
+login.mfa.emailSendAsk: Envoyer un code de connexion à l'adresse e-mail de votre compte.
+login.mfa.rememberDevice: Se souvenir de ce navigateur pendant 14 jours
+login.mfa.useTotp: Utiliser votre application d'authentification
+login.mfa.totpHint: Saisissez le code à six chiffres affiché par votre application.
+login.mfa.passkeyHint: La clé d'accès de l'appareil — empreinte, visage ou clé matérielle.
+login.mfa.emailHint: Un code à six chiffre à l'adresse e-mail de votre compte.
+login.mfa.back: Essayer une autre méthode
+login.mfa.recoveryPlaceholder: a1b2-c3d4-e5f6-g7h8
+login.mfa.recoverySubmit: Utiliser le code
+login.mfa.throttled: Trop de tentatives — patientez un moment avant de réessayer.
+login.mfa.usePasskey: Utiliser une clé d'accès
+login.mfa.useRecovery: Utiliser un code de récupération
+login.mfa.verify: Vérifier
+login.networkError: Erreur réseau. Le serveur est-il en cours d’exécution ?
+login.serviceUnavailable: Le service est momentanément indisponible — réessayez dans un instant.
+login.panel.intro: Connectez-vous une seule fois avec votre identité OIML SMART — tous les services ouverts à votre organisation suivent.
+login.panel.welcome: Un seul compte pour tous les services de l’OIML.
+login.passkeyBusy: En attente de la clé d’accès…
+login.passkeyButton: Se connecter avec une clé d'accès
+login.passkeyFailed: La connexion par clé d'accès n'a pas abouti. Réessayez, ou connectez-vous avec votre mot de passe.
+login.passkeyOr: ou avec le mot de passe
+login.passwordLabel: Mot de passe
+login.passwordPlaceholder: le mot de passe de votre compte
+login.resetDoneFallback: Si un compte existe pour cette adresse, un e-mail de réinitialisation est en route.
+login.resetFailed: La réinitialisation n’a pas pu être demandée. Réessayez.
+login.resetIntro: Saisissez l’adresse e-mail de votre compte ; le service d’identité envoie un lien de réinitialisation à usage unique (24 heures).
+login.resetSending: Envoi…
+login.resetSubmit: Envoyer l’e-mail de réinitialisation
+login.statusBanner.degraded: Certains services de l'écosystème signalent des problèmes — votre connexion peut ne pas être affectée.
+login.statusBanner.down: Un ou plusieurs services de l'écosystème sont indisponibles.
+login.statusBanner.link: Détails sur la page d'état
+login.submit: Se connecter
+login.submitting: Connexion…
+login.supportLink: Contacter le support
+login.supportPrompt: Besoin d’aide ?
+login.upstream.config: La connexion {provider} n’est pas configurée correctement sur ce serveur. Contactez votre administrateur.
+login.upstream.discovery: La configuration de connexion {provider} n’a pas pu être lue. Contactez votre administrateur.
+login.upstream.exchange: '{provider} n’a pas terminé la connexion. Réessayez — si l’échec persiste, contactez votre administrateur.'
+login.upstream.issuerMismatch: '{provider} a répondu avec une identité inattendue. Contactez votre administrateur.'
+login.upstream.notLinked: Votre compte {provider} n’est pas lié à un compte OIML SMART — demandez à votre administrateur, ou connectez-vous autrement et liez-le depuis votre page de compte.
+login.upstream.deactivated: Ce compte est désactivé. Contactez votre administrateur.
+login.upstream.refused: '{provider} n’a pas terminé la connexion (accès refusé). Réessayez.'
+login.upstream.state: Votre session de connexion a expiré ou ne correspond pas. Réessayez.
+login.upstream.tokenAlg: '{provider} a signé sa réponse avec un algorithme non pris en charge. Contactez votre administrateur.'
+login.upstream.tokenAudience: La réponse de {provider} n’était pas destinée à cette application ; la connexion a été refusée. Contactez votre administrateur.
+login.upstream.tokenExpired: La réponse de {provider} avait expiré. Réessayez.
+login.upstream.tokenIssuer: La réponse de {provider} venait d’un émetteur inattendu ; la connexion a été refusée. Contactez votre administrateur.
+login.upstream.tokenMalformed: La réponse de {provider} n’a pas pu être lue. Contactez votre administrateur.
+login.upstream.tokenNonce: La réponse de connexion ne correspondait pas à la demande ; la connexion a été refusée. Réessayez.
+login.upstream.tokenSignature: La réponse de {provider} n’a pas pu être vérifiée ; la connexion a été refusée. Contactez votre administrateur.
+login.upstream.unknown: Cette méthode de connexion n’est pas disponible sur ce service. Contactez votre administrateur.
+login.upstreamSignIn: Se connecter avec {provider}
+mail.clientRolesGranted.body: |-
+  Bonjour {name},
+
+  Un administrateur a accordé à votre compte {product} les rôles suivants sur {client} le {when} (UTC) : {roles}.
+
+  Ces rôles déterminent ce que cette application vous permet de faire. Si vous n’attendiez pas cet accès, prévenez votre administrateur — et si vous ne reconnaissez pas du tout cette action, la réinitialisation ci-dessous sécurise d’abord le compte.
+mail.joinReceived.body: "Bonjour {name},\n\nNous avons bien reçu votre demande de compte concernant {org} à {when}. Elle est entre les mains de {destination}, et vous recevrez un message à cette adresse dès qu’elle aura été tranchée. Vous pouvez vérifier son état à tout moment\_:\n{statusUrl}\n\nSi vous n’avez pas déposé cette demande, vous pouvez ignorer ce message. Rien ne se passe sans l’invitation que seule cette boîte peut accepter."
+mail.joinAdminNotice.body: "Bonjour,\n\n{org} a une nouvelle demande de compte en attente d’examen.\n\nDemandeur\_: {name} ({from})\nRôle demandé\_: {role}\nDéposée à\_: {when}\n\nExaminez la demande dans la console d’administration\_:\n{reviewUrl}\n\nSi d’autres administrateurs de votre équipe couvrent cette file, ils ont aussi reçu ce message."
+mail.joinAdminNotice.heading: Une demande attend votre examen
+mail.joinAdminNotice.preheader: '{name} a demandé à rejoindre {org}.'
+mail.joinAdminNotice.subject: Une nouvelle demande de compte pour {org} attend un examen
+mail.joinAdminNotice.why: Vous recevez ce message parce que votre compte administre cette file sur {product}.
+mail.joinReceived.heading: Votre demande est déposée
+mail.joinReceived.preheader: Votre demande concernant {org} est entre les mains de {destination}.
+mail.joinReceived.subject: Nous avons reçu votre demande de compte {product}
+mail.joinReceived.why: Vous recevez ce message parce qu’une demande de compte sur {product} mentionne cette adresse.
+mail.joinRefused.body: "Bonjour {name},\n\n{org} a refusé la demande de compte que vous avez déposée à {when}. Voici la raison donnée par l’administrateur\_:\n\n{reason}\n\nSi cette raison ne s’applique plus, contactez l’administrateur de l’organisation et déposez la demande à nouveau. L’état enregistré de la demande reste vérifiable à tout moment\_:\n{statusUrl}"
+mail.joinRefused.heading: Votre demande a été refusée
+mail.joinRefused.preheader: '{org} a refusé votre demande de compte.'
+mail.joinRefused.subject: Votre demande de compte {product} a été refusée
+mail.joinRefused.why: Vous recevez ce message parce que vous avez déposé une demande de compte sur {product}, et cette demande est désormais tranchée.
+mail.signinFailed.body: "Bonjour,\n\nUne tentative de connexion sur votre compte à {when} a saisi un mot de passe erroné. S’il s’agissait de vous, utilisez la réinitialisation ci-dessous pour choisir un nouveau mot de passe et vous connecter.\n\nS’il ne s’agissait pas de vous, quelqu’un essaie peut-être votre mot de passe. Rien ne s’est ouvert\_: la tentative refusée n’ouvre jamais de session, et les protections de votre compte restent inchangées."
+mail.signinFailed.heading: Une tentative de connexion a échoué
+mail.signinFailed.preheader: Un mot de passe erroné a été saisi pour votre compte à {when}.
+mail.signinFailed.subject: Tentative de connexion refusée sur votre compte {product}
+mail.signinFailed.why: Vous recevez ce message parce qu’une tentative de connexion refusée sur {product} mentionne votre compte. L’avis arrive au plus une fois par heure.
+mail.clientRolesGranted.heading: Nouvel accès accordé
+mail.clientRolesGranted.preheader: Un administrateur a accordé à votre compte {product} des rôles sur {client} le {when} (UTC).
+mail.clientRolesGranted.subject: Un nouvel accès a été accordé à votre compte {product}
+mail.clientRolesGranted.why: Vous recevez ce message parce qu’un administrateur a accordé des rôles à votre compte {product}.
+mail.emailChanged.body: |-
+  Bonjour {name},
+
+  L’adresse e-mail de votre compte {product} est passée de {from} à {to} le {when} (UTC). Les connexions, les avis et les liens de récupération vont désormais à la nouvelle adresse ; l’ancienne n’atteint plus le compte.
+
+  Si c’était vous, il n’y a rien d’autre à faire.
+mail.emailChanged.heading: Votre adresse e-mail a été changée
+mail.emailChanged.preheader: L’adresse de votre compte {product} est passée de {from} à {to} le {when} (UTC).
+mail.emailChanged.subject: Votre adresse e-mail {product} a été changée
+mail.emailChanged.why: Vous recevez ce message parce que l’adresse e-mail de votre compte {product} a changé — ce message a été envoyé à l’ancienne comme à la nouvelle adresse.
+mail.factor.kindPasskey: Clé d’accès « {factorName} »
+mail.factor.kindRecovery: Un nouveau jeu de codes de récupération (le jeu précédent a cessé de fonctionner)
+mail.factor.kindTotp: Application d’authentification « {factorName} »
+mail.factorEnrolled.body: |-
+  Bonjour {name},
+
+  Un nouveau facteur a été ajouté à votre compte {product} le {when} (UTC) : {factor}.
+
+  Si c’était vous, il n’y a rien d’autre à faire.
+mail.factorEnrolled.heading: Un nouveau facteur de connexion a été ajouté
+mail.factorEnrolled.preheader: 'Ajout à votre compte {product} le {when} (UTC) : {factor}.'
+mail.factorEnrolled.subject: Un nouveau facteur de connexion a été ajouté à votre compte {product}
+mail.factorEnrolled.why: Vous recevez ce message parce qu’un nouveau facteur de connexion a été ajouté à votre compte {product}.
+mail.factorRevoked.body: |-
+  Bonjour {name},
+
+  Un facteur a été retiré de votre compte {product} le {when} (UTC) : {factor}. Il ne permet plus de se connecter et ne compte plus comme second facteur.
+
+  Si c’était vous, il n’y a rien d’autre à faire.
+mail.factorRevoked.heading: Un facteur de connexion a été retiré
+mail.factorRevoked.preheader: 'Retrait sur votre compte {product} le {when} (UTC) : {factor}.'
+mail.factorRevoked.subject: Un facteur de connexion a été retiré de votre compte {product}
+mail.factorRevoked.why: Vous recevez ce message parce qu’un facteur de connexion a été retiré de votre compte {product}.
+mail.footer: Envoyé par {product} ({issuer}). Ce message concerne votre compte ; aucune réponse n’est nécessaire.
+mail.footer.support: Besoin d’aide ? Contactez l’administrateur de votre compte {product}.
+mail.invite.action: Définir votre mot de passe
+mail.invite.body: |-
+  Bonjour {name},
+
+  Un compte a été créé pour vous sur {product}. Choisissez votre mot de passe avec le lien de configuration ci-dessous.
+
+  {setupUrl}
+
+  Si vous n’attendiez pas cette invitation, ignorez ce message : le compte reste inaccessible tant que le lien n’est pas utilisé.
+mail.invite.heading: Configurez votre compte
+mail.invite.preheader: Votre compte {product} est prêt. Définissez votre mot de passe pour l’activer.
+mail.invite.subject: Votre compte {product} est prêt à être configuré
+mail.invite.why: Vous recevez ce message parce qu’un administrateur a créé un compte pour vous sur {product}.
+mail.link.fallback: 'Ou collez ce lien dans votre navigateur :'
+mail.link.once: Ce lien ne fonctionne qu’une seule fois et reste valable {hours} heures.
+mail.linkedMethodAdded.body: |-
+  Bonjour {name},
+
+  L’identité {provider} « {handle} » a été liée à votre compte {product} le {when} (UTC). Elle permet désormais de se connecter à ce même compte.
+
+  Si c’était vous, il n’y a rien d’autre à faire.
+mail.linkedMethodAdded.heading: Une méthode de connexion a été liée
+mail.linkedMethodAdded.preheader: L’identité {provider} « {handle} » a été liée à votre compte {product} le {when} (UTC).
+mail.linkedMethodAdded.subject: Une méthode de connexion a été liée à votre compte {product}
+mail.linkedMethodAdded.why: Vous recevez ce message parce qu’une méthode de connexion a été liée à votre compte {product}.
+mail.linkedMethodRemoved.body: |-
+  Bonjour {name},
+
+  L’identité {provider} « {handle} » a été déliée de votre compte {product} le {when} (UTC). Elle ne permet plus de se connecter ici.
+
+  Si c’était vous, il n’y a rien d’autre à faire.
+mail.linkedMethodRemoved.heading: Une méthode de connexion a été retirée
+mail.linkedMethodRemoved.preheader: L’identité {provider} « {handle} » a été retirée de votre compte {product} le {when} (UTC).
+mail.linkedMethodRemoved.subject: Une méthode de connexion a été retirée de votre compte {product}
+mail.linkedMethodRemoved.why: Vous recevez ce message parce qu’une méthode de connexion a été retirée de votre compte {product}.
+mail.mfaLocked.body: |-
+  Bonjour {name},
+
+  Quelqu’un a atteint l’étape du second facteur de votre compte {product} et l’a échouée trop de fois ; la tentative de connexion a donc été fermée (à {when} UTC). Le mot de passe seul était correct : ce message compte. Si ce n’était pas vous, changez votre mot de passe sans attendre — le lien de réinitialisation ci-dessous est le geste urgent.
+
+  Si c’était vous : vos chemins de retour restent ouverts. Reconnectez-vous et complétez le facteur (le défi repart à zéro), utilisez un code de récupération, ou — si l’appareil de votre facteur est hors de portée — votre e-mail vérifié peut terminer la connexion avec un code envoyé par e-mail.
+mail.mfaLocked.heading: Une connexion a été arrêtée au second facteur
+mail.mfaLocked.preheader: Une connexion à votre compte {product} a été arrêtée au second facteur.
+mail.mfaLocked.subject: Une connexion à votre compte {product} a été arrêtée au second facteur
+mail.mfaLocked.why: Vous lisez ceci parce qu'une connexion à votre compte a échoué trop de fois à l'étape du second facteur.
+mail.passwordChanged.body: |-
+  Bonjour {name},
+
+  Le mot de passe de votre compte {product} a été défini ou changé le {when} (UTC).
+
+  Si c’était vous, il n’y a rien d’autre à faire.
+mail.passwordChanged.heading: Votre mot de passe a été défini ou changé
+mail.passwordChanged.preheader: Le mot de passe de votre compte {product} a été défini ou changé le {when} (UTC).
+mail.passwordChanged.subject: Votre mot de passe {product} a été défini ou changé
+mail.passwordChanged.why: Vous recevez ce message parce que le mot de passe de votre compte {product} a été défini ou changé.
+mail.passwordChanged.fallbackHour: Votre e-mail vérifié peut aussi terminer les connexions par un code envoyé par e-mail — le choix « M'envoyer un code par e-mail » est proposé chaque fois qu'une épreuve de second facteur apparaît, utile quand l'appareil de votre facteur n'est pas à portée de main.
+mail.passwordChanged.factorsRevoked: Le mot de passe ayant été réinitialisé par e-mail, tous les facteurs de signature du compte (clés d'accès, applications d'authentification, codes de récupération) ont été retirés avec l'ancien identifiant — rien de ce qui y a été planté ne survit. Réenregistrez ceux que vous reconnaissez depuis les paramètres de sécurité de votre compte ; tout ce que vous n'avez pas ajouté vous-même n'a jamais étà vous.
+mail.patEdited.body: |-
+  Bonjour {name},
+
+  Votre jeton de développement {product} "{tokenName}" a été modifié sur votre compte : il a été {change} (portées désormais : {scopes}) ; il expire le {expires}.
+
+  Un jeton n'agit jamais au-delà des permissions de votre compte, et son jeu de permissions est revérifié à chaque utilisation. Si vous n'êtes pas à l'origine de cette modification, révoquez immédiatement le jeton sur votre page de compte (section jetons de développement), changez votre mot de passe et prévenez votre administrateur.
+mail.patEdited.heading: Un jeton de développement a été modifié
+mail.patEdited.preheader: Votre jeton de développement {product} "{tokenName}" a été {change}.
+mail.patEdited.subject: Votre jeton de développement {product} "{tokenName}" a été {change}
+mail.patEdited.why: Vous recevez ce message car un jeton de développement de votre compte a été renommé ou que son jeu de permissions a changé.
+mail.patExpiring.body: |-
+  Bonjour {name},
+
+  Votre jeton de développement {product} « {tokenName} » expire le {expires}. Les échanges cessent à cet instant — le jeton ne se renouvelle jamais.
+
+  Si l'automatisation qu'il sert tourne encore, émettez un nouveau jeton sur votre page de compte (la section des jetons de développement) et mettez à jour l'identifiant là où il est utilisé.
+mail.patExpiring.heading: Un jeton de développement expire bientôt
+mail.patExpiring.preheader: Votre jeton de développement {product} « {tokenName} » expire le {expires}.
+mail.patExpiring.subject: Votre jeton de développement {product} expire le {expires}
+mail.patExpiring.why: Vous recevez ce message parce qu'un jeton de développement de votre compte est dans sa dernière semaine et a été échangé récemment.
+mail.patMinted.body: |-
+  Bonjour {name},
+
+  Un nouveau jeton de développement a été émis sur votre compte {product} : « {tokenName} » (portées : {scopes}), expiration le {expires}.
+
+  Le jeton s'échange contre un accès de courte durée auprès du service d'identité et n'agit jamais au-delà des permissions de votre compte. Si vous ne l'avez pas émis, révoquez-le immédiatement sur votre page de compte (la section des jetons de développement), changez votre mot de passe et prévenez votre administrateur.
+mail.patMinted.heading: Un jeton de développement a été émis
+mail.patMinted.preheader: Un nouveau jeton de développement a été émis sur votre compte {product}.
+mail.patMinted.subject: Un jeton de développement a été émis sur votre compte {product}
+mail.patMinted.why: Vous recevez ce message parce qu'un jeton de développement a été émis sur votre compte {product}.
+mail.recoveryCodeUsed.body: |-
+  Bonjour {name},
+
+  Votre compte {product} s’est connecté le {when} (UTC) avec le mot de passe et un code de récupération. Ce code est désormais consommé — chacun ne fonctionne qu’une seule fois.
+
+  Un code de récupération connecte SANS le second facteur : c’est le filet de récupération du compte. Si c’était vous, vos codes restants sont sur la page du compte ; sinon, la réinitialisation ci-dessous est le geste urgent.
+mail.recoveryCodeUsed.heading: Un code de récupération a été utilisé pour se connecter
+mail.recoveryCodeUsed.preheader: Votre compte {product} s’est connecté avec un code de récupération le {when} (UTC).
+mail.recoveryCodeUsed.subject: Un code de récupération a été utilisé pour se connecter à votre compte {product}
+mail.recoveryCodeUsed.why: Vous recevez ce message parce qu’un code de récupération a été utilisé pour se connecter à votre compte {product}.
+mail.emailOtp.body: |-
+  Bonjour {name},
+
+  Votre code de connexion {product} est {code}.
+
+  Il ne fonctionne qu’une fois et expire avec cette tentative de connexion. Une personne a demandé ce code en connaissant aussi le mot de passe du compte — si ce n’était pas vous, changez le mot de passe sans attendre.
+mail.emailOtp.heading: Votre code de connexion
+mail.emailOtp.preheader: Votre code de connexion {product} est à l’intérieur — il ne fonctionne qu’une fois.
+mail.emailOtp.subject: Votre code de connexion {product}
+mail.emailOtp.why: Vous recevez ce message parce qu’une connexion a atteint l’étape du second facteur avec votre mot de passe et que la méthode de secours par e-mail était disponible pour votre compte.
+mail.emailFallbackGranted.subject: La connexion par e-mail est activée pour votre compte {product}
+mail.emailFallbackGranted.preheader: Un administrateur a activé le code de connexion par e-mail pour votre compte jusqu'à {until} UTC.
+mail.emailFallbackGranted.heading: Connexion par e-mail activée
+mail.emailFallbackGranted.body: |-
+  Bonjour {name},
+
+  Un administrateur vient d'activer le code de connexion par e-mail pour votre compte {product}, jusqu'à {until} UTC.
+
+  Si vous êtes à l'étape du second facteur : revenez en arrière et reconnectez-vous avec votre mot de passe — « M'envoyer un code par e-mail » sera désormais proposé.
+mail.emailFallbackGranted.why: Vous recevez ce message parce qu'un administrateur a activé la méthode de secours par e-mail pour votre compte.
+mail.reset.action: Choisir un nouveau mot de passe
+mail.reset.body: |-
+  Bonjour {name},
+
+  Une réinitialisation de mot de passe a été demandée pour votre compte {product}. Choisissez un nouveau mot de passe avec le lien ci-dessous.
+
+  {setupUrl}
+
+  Si vous n’êtes pas à l’origine de cette demande, ignorez ce message : votre mot de passe actuel reste inchangé.
+mail.reset.heading: Réinitialisez votre mot de passe
+mail.reset.preheader: Réinitialisez votre mot de passe {product} avec le lien unique ci-joint.
+mail.reset.subject: Votre lien de réinitialisation de mot de passe {product}
+mail.reset.why: Vous recevez ce message parce qu’une réinitialisation de mot de passe a été demandée pour votre compte {product}.
+mail.resetLink.text: 'Si ce n’était pas vous, réinitialisez votre mot de passe immédiatement — le « Mot de passe oublié ? » de la page de connexion envoie un nouveau lien à usage unique à votre adresse — et prévenez votre administrateur : {resetUrl}'
+mail.signin.body: |-
+  Bonjour {name},
+
+  Votre compte {product} s’est connecté le {when} (UTC) par {method}.
+
+  Si c’était vous, il n’y a rien d’autre à faire. Si ce n’était pas vous, la réinitialisation ci-dessous sécurise d’abord le compte — puis prévenez votre administrateur : il peut désactiver le compte, ce qui révoque toutes les sessions ouvertes.
+mail.signin.heading: Nouvelle connexion détectée
+mail.signin.methodPassword: la connexion par mot de passe
+mail.signin.preheader: Nouvelle connexion à votre compte {product}.
+mail.signin.methodPasswordPasskey: la connexion par mot de passe + clé d'accès
+mail.signin.methodPasswordRecovery: le mot de passe + un code de récupération
+mail.signin.methodPasswordTotp: la connexion par mot de passe + application d'authentification
+mail.signin.methodPasswordEmail: la connexion par mot de passe + code envoyé par e-mail
+mail.signin.methodPasskey: une clé d'accès
+mail.signin.countryChanged: Cette connexion vient de {fromCountry}, un pays d’où votre compte ne s’est pas connecté récemment. Si ce n’était pas vous, sécurisez le compte sans attendre avec la réinitialisation ci-dessous.
+mail.signin.newDevice: Cette connexion provient déun appareil que ce compte néa jamais utilisé auparavant — si ce néétait pas vous, sécurisez le compte avec la réinitialisation ci-dessous.
+mail.signin.subject: Nouvelle connexion à votre compte {product}
+mail.signin.why: Vous recevez ce message parce que votre compte {product} a été utilisé pour se connecter.
+mail.verifyAddedEmail.action: Confirmer l’adresse
+mail.verifyAddedEmail.body: |-
+  Bonjour {name},
+
+  Cette adresse e-mail a été ajoutée à votre compte {product}. Confirmez-la avec le lien ci-dessous.
+
+  {verifyUrl}
+
+  Une fois confirmée, l’adresse permet de se connecter au même compte et reçoit ses avis de sécurité. Si vous n’êtes pas à l’origine de cet ajout, ignorez ce message : une adresse non confirmée ne permet jamais de se connecter, et la page du compte permet de la retirer.
+mail.verifyAddedEmail.heading: Confirmez votre adresse e-mail supplémentaire
+mail.verifyAddedEmail.preheader: Confirmez cette adresse e-mail pour votre compte {product}.
+mail.verifyAddedEmail.subject: Confirmez l’adresse ajoutée à votre compte {product}
+mail.verifyAddedEmail.why: Vous recevez ce message parce que cette adresse e-mail a été ajoutée à votre compte {product}.
+mail.verifyEmail.action: Confirmer la nouvelle adresse
+mail.verifyEmail.body: |-
+  Bonjour {name},
+
+  Votre compte {product} change d’adresse e-mail pour celle-ci. Confirmez le changement avec le lien ci-dessous.
+
+  {verifyUrl}
+
+  Si vous n’êtes pas à l’origine de ce changement, ignorez ce message : le compte conserve son adresse actuelle.
+mail.verifyEmail.heading: Confirmez votre nouvelle adresse e-mail
+mail.verifyEmail.preheader: Confirmez votre nouvelle adresse e-mail {product}.
+mail.verifyEmail.subject: Confirmez votre nouvelle adresse e-mail {product}
+selfreg.heading: Créez votre compte
+selfreg.subtitle: Pour les membres d’une autorité de métrologie — votre adresse e-mail doit appartenir au domaine enregistré de votre organisation.
+selfreg.countryLabel: Pays
+selfreg.countryPlaceholder: Choisissez votre pays
+selfreg.orgLabel: Organisation
+selfreg.orgPlaceholder: Choisissez votre organisation
+selfreg.orgDomains: 'Domaine(s) e-mail auto-approuvé(s) : {domains}'
+selfreg.emailLabel: E-mail professionnel
+selfreg.emailHint: L’adresse doit appartenir au domaine enregistré de votre organisation. Nous y envoyons un lien de confirmation — rien n’est créé avant votre confirmation.
+selfreg.emailMatch: Cette adresse est sur le domaine enregistré de votre organisation — continuez.
+selfreg.emailNoMatch: Cette adresse n’est pas sur le(s) domaine(s) auto-approuvé(s) {domains} — utilisez votre adresse professionnelle, ou passez par la file d’attente.
+selfreg.submitLabel: Continuer
+selfreg.sentTitle: Consultez votre boîte de réception
+selfreg.second.title: Encore une connexion pour terminer
+selfreg.second.why: Votre lien d'inscription est lié au compte de connexion qui a prouvé votre première vérification. Se connecter une fois de plus avec le MÊME compte prouve que le lien est entre de bonnes mains — et cette connexion deviendra la méthode de connexion liée de votre compte dès sa création.
+selfreg.second.begin: Commencer la vérification
+selfreg.errorSecondProof: Ce compte de connexion n'est pas celui auquel ce lien d'inscription est lié — connectez-vous avec le compte utilisé lors de la première vérification.
+selfreg.doneSignin: Votre compte est prêt — connectez-vous avec votre nouveau mot de passe (ou votre compte de connexion lié) quand vous le souhaitez.
+selfreg.turnstileRequired: Veuillez compléter la vérification, puis continuez.
+selfreg.working: En cours…
+selfreg.failed: L’inscription n’a pas pu être terminée — vérifiez les informations et réessayez.
+selfreg.queuedFallback: Votre organisation ne figure pas au registre d’auto-inscription — votre demande part dans la file des administrateurs.
+selfreg.queueHint: Non listé, ou candidat industriel ?
+selfreg.queueLink: Demandez un compte via la file d’attente
+selfreg.sent: Consultez votre boîte mail — le lien de confirmation est valable 24 heures. Rien n’est créé avant votre confirmation.
+selfreg.devLink: 'Aucun fournisseur de messagerie n’est configuré — votre lien de confirmation (affiché une seule fois) :'
+selfreg.errorExists: Un compte existe déjà avec cette adresse — connectez-vous, ou demandez une réinitialisation.
+selfreg.errorExpired: Ce lien d’inscription a expiré — recommencez l’inscription.
+selfreg.errorNotConfigured: L’auto-inscription n’est pas configurée sur ce déploiement — demandez un compte via la file d’attente.
+selfreg.proving: Vérification de votre lien d’inscription…
+selfreg.verifiedFor: L’adresse {email} est confirmée pour {org}. Choisissez un mot de passe pour terminer.
+selfreg.passwordLabel: Choisissez un mot de passe
+selfreg.passwordHint: Au moins 12 caractères — une phrase de passe de quelques mots convient bien.
+selfreg.completeLabel: Créer le compte
+selfreg.done: Votre compte est créé et votre adresse est confirmée. Bienvenue.
+selfreg.catalogFailed: La page d’inscription n’a pas pu charger le registre des membres — réessayez bientôt.
+selfreg.attributionTitle: Une dernière étape avant l'envoi du courriel
+selfreg.attributionWhy: Avant d'écrire à qui que ce soit, ce site doit savoir qu'une personne réelle et identifiable est à l'origine de la demande. Une seule connexion avec un compte que vous possédez DÉJÀ en apporte la preuve — c'est ce qui tient les robots et les fausses inscriptions en masse à l'écart du registre de métrologie.
+selfreg.attributionNote: 'Ce n''est PAS un second compte. La connexion est la vérification humaine : elle prouve une personne réelle et identifiable — et une fois votre compte créé (après la seconde vérification), cette MÊME connexion devient une méthode de connexion liée à celui-ci. Votre identité provient de la confirmation de votre adresse professionnelle.'
+selfreg.attributionChoose: 'Choisissez le compte qui prouve que vous êtes humain :'
+selfreg.continueWith: Continuer avec {provider}
+selfreg.backToForm: Retour
+mail.consent.subject: Vous avez accordé l'accès à {client}
+mail.consent.preheader: L'autorisation reste en vigueur jusqu'à sa révocation depuis votre page de compte.
+mail.consent.heading: Accès accordé à {client}
+mail.consent.body: 'Vous avez autorisé {client} à accéder à votre compte avec la portée : {scope}. L''autorisation reste en vigueur jusqu''à sa révocation — la section Applications de votre page de compte liste chaque autorisation et son acte de révocation.'
+mail.consent.why: Vous recevez ceci parce que vous avez autorisé l'accès depuis le flux de connexion.
+mail.membershipInvited.subject: Votre demande d'adhésion à {org} a été approuvée
+mail.membershipInvited.preheader: Acceptez l'adhésion depuis votre page de compte — elle attend votre accord.
+mail.membershipInvited.heading: L'adhésion attend votre accord
+mail.membershipInvited.body: 'Un administrateur de {org} a approuvé une demande associant votre compte à l''organisation. Rien n''est actif pour l''instant : l''adhésion attend VOTRE consentement. Acceptez-la (ou refusez-la) depuis la section Organisations de votre compte.'
+mail.membershipInvited.why: Vous recevez ceci parce que votre compte a été nommé dans une demande d'adhésion d'une organisation.
+mail.context.deviceOnly: 'Depuis : {device}.'
+mail.context.from: 'Depuis : {device} — IP {ip}.'
+mail.selfRegister.subject: Terminez la création de votre compte {product}
+mail.selfRegister.preheader: Confirmez l’adresse de votre inscription {product} — le lien est valable 24 heures.
+mail.selfRegister.heading: Confirmez votre inscription
+mail.selfRegister.body: |-
+  Bonjour,
+
+  Une inscription pour votre compte {product} a été commencée avec cette adresse e-mail, pour {org}. Confirmez la boîte mail avec le lien ci-dessous, puis choisissez votre nom et votre mot de passe. Le lien expire dans 24 heures.
+
+  {verifyUrl}
+
+  Si vous n’êtes pas à l’origine de cette inscription, ignorez ce message : rien n’a été créé.
+mail.selfRegister.why: Vous recevez ce message parce que quelqu’un — vous, nous l’espérons — a demandé la création d’un compte {product} avec cette adresse e-mail.
+mail.selfRegister.action: Confirmer l’inscription
+mail.verifyEmail.why: Vous recevez ce message parce que votre compte {product} change pour cette adresse e-mail.
+mail.verifyPrimaryEmail.action: Confirmer l’adresse
+mail.verifyPrimaryEmail.body: |-
+  Bonjour {name},
+
+  Cette adresse e-mail est l’adresse de référence de votre compte {product}, et rien n’a encore prouvé cette boîte. Confirmez-la avec le lien ci-dessous.
+
+  {verifyUrl}
+
+  Une fois confirmée, les services où vous vous connectez sont informés que l’adresse est vérifiée et les facteurs forts se déverrouillent. Si vous n’êtes pas à l’origine de cette demande, ignorez ce message : un lien non ouvert ne change rien.
+mail.verifyPrimaryEmail.heading: Confirmez votre adresse e-mail
+mail.verifyPrimaryEmail.preheader: Confirmez l’adresse e-mail de votre compte {product}.
+mail.verifyPrimaryEmail.subject: Confirmez l’adresse e-mail de votre compte {product}
+mail.verifyPrimaryEmail.why: Vous recevez ce message parce que l’adresse e-mail de votre compte {product} n’a pas encore été vérifiée.
+org.kind.associate.label: Associé
+org.kind.associate.purpose: Organe désigné ayant signé la Déclaration — désigné par son membre correspondant ; consulte les résultats du CS, ne délivre jamais.
+org.kind.corresponding-member.label: Membre OIML — Membre correspondant
+org.kind.corresponding-member.purpose: 'Membre de la Convention (correspondant) : accès en lecture aux services de l’écosystème ; jamais d’autorité sur les certificats.'
+org.kind.issuing-authority.label: Autorité de délivrance (IA)
+org.kind.issuing-authority.purpose: 'Pilote le OIML CS : ses officiers évaluent, délivrent et visent les certificats — les rôles de workflow vivent ici.'
+org.kind.manufacturer.label: Fabricant
+org.kind.manufacturer.purpose: 'Titulaire de certificat, jamais participant : déclaré à l’auto-enregistrement, évolutif vers « visé par une IA » sur confirmation d’une autorité.'
+org.kind.member-state.label: Membre OIML — État membre
+org.kind.member-state.purpose: 'Membre de la Convention (ratifié) : accès en lecture aux services de l’écosystème ; jamais d’autorité sur les certificats.'
+org.kind.none.label: non participant au schéma
+org.kind.test-laboratory.label: Laboratoire d’essais (TL)
+org.kind.test-laboratory.purpose: Réalise les essais confiés par une autorité de délivrance ; ses opérateurs portent le rôle tl_operator.
+org.kind.utilizer.label: Utilisateur désigné
+org.kind.utilizer.purpose: Organe désigné ayant signé la Déclaration — utilise les résultats du CS en réglementation ; désigné par son État membre.
+name.given.label: Prénoms
+name.family.label: Nom
+join.title: Demander un compte
+join.back: ← Choisir une autre description
+join.unavailable: Cette instance ne prend pas en charge les demandes de compte. Les comptes sont délivrés par le service d’identité OIML SMART, et votre administrateur peut vous en communiquer l’adresse.
+join.doors.heading: Choisissez la description qui vous correspond
+join.door.ia.title: Un Organisme Certificateur OIML-CS
+join.door.ia.blurb: Votre organisme délivre des certificats OIML-CS pour les instruments de mesure. Vous le sélectionnez dans le registre des participants et demandez votre rôle.
+join.door.ia.noun: un Organisme Certificateur OIML-CS
+join.door.tl.title: Un Laboratoire d’essai OIML-CS
+join.door.tl.blurb: Votre laboratoire soumet des instruments de mesure aux essais de l’OIML-CS. Vous le sélectionnez dans le registre des participants et demandez votre rôle.
+join.door.tl.noun: un Laboratoire d’essai OIML-CS
+join.door.member.title: Un Membre de l’OIML (un État Membre ou un Membre Correspondant)
+join.door.member.blurb: Votre organisme national participe à l’OIML. Son personnel rejoint la plateforme avec un accès en lecture.
+join.door.member.noun: un Membre de l’OIML
+join.door.manufacturer.title: Un fabricant d’instruments de mesure
+join.door.manufacturer.blurb: Votre entreprise demande des certificats OIML-CS pour des instruments de mesure en qualité de demandeur ou de fabricant.
+join.door.biml.title: Un membre du personnel de l’OIML ou du BIML
+join.door.biml.blurb: Vous disposez d’une adresse @oiml.org. Le lien d’activation à usage unique prouve votre boîte aux lettres, et votre compte s’ouvre sans file d’attente.
+join.door.others.title: Une autre organisation
+join.door.others.blurb: Votre organisation ne figure pas dans les descriptions ci-dessus. Vous nommez votre organisation, et le secrétariat du BIML vérifie sa participation à l’OIML-CS.
+join.door.registry.title: Une adresse électronique professionnelle enregistrée au registre de l’OIML
+join.door.registry.blurb: Vous choisissez votre pays et votre organisation dans le registre de l’OIML et confirmez votre adresse électronique professionnelle. Votre compte s’ouvre sans file d’attente lorsque le domaine de votre adresse correspond au domaine enregistré.
+join.filed.title: Votre demande est déposée
+join.filed.org: Votre demande est entre les mains de l’administrateur de {org}. Vous recevrez votre invitation dès que l’administrateur l’aura approuvée.
+join.filed.biml: Votre lien d’activation est en route vers {email}. Le lien fonctionne une seule fois et reste valable 24 heures. Le compte ne peut pas se connecter tant que vous n’avez pas achevé l’activation. Si le courriel n’arrive pas, vérifiez le dossier des indésirables et déposez la demande à nouveau.
+join.filed.mfrCreated: '{org} est inscrite sur le service d’identité avec la qualité de fabricant déclarée. Un fabricant n’est pas un participant OIML-CS. Votre demande de devenir administrateur de l’organisation est entre les mains du secrétariat du BIML. Vous recevrez votre invitation dès que le secrétariat l’aura approuvée.'
+join.filed.mfrJoined: Le domaine de votre adresse électronique professionnelle correspond au domaine déclaré de {org}. Votre demande d’adhésion est entre les mains de son administrateur, et l’approbation relève de votre organisation.
+join.filed.others: '{org} ne figure pas au registre des participants ; votre demande est donc entre les mains du secrétariat du BIML. Le secrétariat vérifie les organisations qui adhèrent à l’OIML-CS. Vous devenez administrateur de l’organisation une fois la participation inscrite.'
+join.track.checking: Vérification de votre demande…
+join.track.title: Votre demande de compte
+join.track.title.org: Votre demande de compte pour {org}
+join.track.notFound.title: Nous ne trouvons pas cette demande
+join.track.notFound.body: Vérifiez le lien figurant dans votre courriel, ou déposez la demande à nouveau depuis le début.
+join.track.pending: La demande est entre les mains de l’administrateur de l’organisation. Vous recevrez un message dès qu’elle aura été tranchée.
+join.track.approved: La demande a été approuvée. Votre invitation se trouve dans votre boîte aux lettres — achevez l’activation à usage unique pour ouvrir votre compte.
+join.track.refused: L’organisation a refusé la demande. La raison figure dans le courriel que la décision a envoyé. Si cette raison ne s’applique plus, contactez l’administrateur de l’organisation et déposez la demande à nouveau.
+join.form.email: Adresse électronique professionnelle
+join.form.emailPlaceholder: jean.dupont@votre-organisation.example
+join.form.emailPlaceholderBiml: jean.dupont@oiml.org
+join.form.org: Organisation
+join.form.orgPlaceholder: Saisissez pour rechercher dans le registre des participants.
+join.form.change: Changer
+join.form.noMatch: Aucune organisation de ce type ne correspond à votre recherche.
+join.form.emptyState: Si votre organisation est {noun} mais ne figure pas ici,
+join.form.contactSupport: contactez l’assistance
+join.form.role: Rôle demandé
+join.form.rolePlaceholder: Choisissez un rôle…
+join.form.roleHelper: Le type de votre organisation borne les options ({kind}). L’administrateur confirme l’attribution.
+join.form.note: Message à l’attention de l’approbateur
+join.form.optional: facultatif
+join.form.notePlaceholder: Tout ce qui aide votre administrateur à reconnaître la demande (votre équipe, votre supérieur).
+join.form.notePlaceholderBiml: Tout ce qui aide les administrateurs à vous reconnaître (votre équipe, votre fonction au Bureau).
+join.form.submit: Demander un compte
+join.form.submitBiml: Demander mon lien d’activation
+join.form.filing: Dépôt en cours…
+join.form.fileFailed: Le dépôt de la demande a échoué ({status}).
+join.form.turnstile: Résolvez le défi de vérification, puis déposez la demande à nouveau.
+join.form.domainNotice: Les adresses électroniques du domaine {domains} sont approuvées automatiquement. Toute autre adresse électronique requiert l’approbation de l’administrateur de l’organisation.
+join.form.domainNoticePlural: Les adresses électroniques des domaines {domains} sont approuvées automatiquement. Toute autre adresse électronique requiert l’approbation de l’administrateur de l’organisation.
+join.form.domainMatch: Votre adresse électronique est sur le domaine préapprouvé.
+join.form.domainMismatch: Votre adresse électronique n’est pas sur le domaine préapprouvé. L’administrateur de l’organisation approuve votre demande.
+join.signinLine: Si vous disposez déjà d’un compte,
+join.signinLink: connectez-vous
+join.notes.mfr: Votre organisation est inscrite avec la qualité de fabricant <strong>déclarée</strong>. Un fabricant n’est <strong>pas un participant OIML-CS</strong> ; cette qualité n’emporte ni évaluation par les pairs ni domaine d’activité. Un Organisme Certificateur auquel vous avez présenté une demande peut endosser la relation et élever la qualité au rang <strong>d’endossée par un OC</strong>. Lorsque le domaine de votre adresse électronique professionnelle correspond à celui d’une organisation de fabricants inscrite, votre demande est transmise à son administrateur. Sinon, l’organisation est créée, et vous en devenez l’administrateur dès que le secrétariat du BIML confonde la fondation.
+join.notes.biml: Le personnel du BIML et de l’OIML dispose d’une adresse <strong>@oiml.org</strong>. Le dépôt crée votre compte et envoie le lien d’activation à usage unique à cette adresse. Le lien fonctionne une seule fois et reste valable 24 heures. Votre compte commence avec un accès en lecture, et les administrateurs accordent davantage selon les besoins de votre travail.
+join.notes.others: Votre demande est transmise au <strong>secrétariat du BIML</strong>. Le secrétariat vérifie les organisations qui adhèrent à l’OIML-CS selon les procédures de participation PD-03 et PD-09. Vous devenez administrateur de l’organisation dès que celle-ci est inscrite.
+org.role.case_officer: Chef de dossier. Gère le dossier d’évaluation et coordonne l’expertise.
+org.role.certification_officer: Responsable de certification. Décide de l’évaluation et délivre le certificat.
+org.role.ia_officer: Responsable d’Organisme Certificateur. Conduit les évaluations de type de la demande à la recommandation.
+org.role.org_admin: Administrateur de l’organisation. Gère les personnes de l’organisation.
+org.role.signatory: Signataire. Signe le rapport d’évaluation et le certificat.
+org.role.tl_operator: Opérateur de laboratoire. Réalise les essais qu’exige l’évaluation.
+org.role.viewer: Accès en lecture seule. Consulte les certificats et les rapports.
+register.title: Créez votre compte
+register.description: Votre propre compte sur ce service d’identité — personnel, sans adhésion à une organisation. Une fois connecté, vous pourrez demander à rejoindre votre organisation.
+register.email.label: Adresse e-mail
+register.password.label: Mot de passe
+register.password.hint: Au moins 12 caractères — plus c’est long, mieux c’est ; les mots de passe compromis connus sont refusés.
+register.submit: Créer le compte
+register.busy: Création…
+register.failed: Le compte n’a pas pu être créé.
+register.turnstileRequired: Veuillez compléter la vérification, puis créez le compte.
+register.networkError: Erreur réseau. Le serveur est-il lancé ?
+register.mailed.title: Consultez votre boîte mail
+register.mailed.body: Le compte est prêt et un lien de confirmation à usage unique est en route vers {email} — il fonctionne une fois et reste valable 24 heures. Vous pouvez vous connecter avec votre mot de passe dès maintenant ; les services voient l’adresse comme non vérifiée jusqu’à ce que vous ouvriez le lien.
+register.pending.title: Le compte est prêt
+register.pending.body: L’e-mail de confirmation n’a pas pu être envoyé pour l’instant. Connectez-vous avec votre mot de passe et utilisez le renvoi depuis la console de compte dès que le courrier repart.
+register.signIn: Retour à la connexion
+register.haveAccount: Vous avez déjà un compte ?
+setup.noToken: Cette page exige un lien de configuration (paramètre ?token= absent). Demandez votre invitation à votre administrateur.
+setup.linkInvalid: Ce lien de configuration n'est pas valide. Demandez-en un nouveau à votre administrateur.
+setup.password.tooShort: Le mot de passe doit compter au moins 12 caractères.
+setup.password.mismatch: Les deux saisies ne correspondent pas.
+setup.failed: La configuration n'a pas pu être achevée. Demandez un lien neuf à votre administrateur.
+setup.title: Configurez votre compte
+setup.titleReset: Choisir un nouveau mot de passe
+setup.accountFirst: Ceci définit le mot de passe de
+setup.accountReset: Ceci choisit un NOUVEAU mot de passe pour
+setup.password.label: Choisissez un mot de passe
+setup.password.repeat: Répétez le mot de passe
+setup.password.submit: Définir le mot de passe
+setup.password.busy: Définition du mot de passe…
+consent.scope.signin: Vous connecter
+consent.scope.profile: Votre nom
+consent.claim.email: Votre adresse e-mail
+consent.claim.offlineAccess: Rester joignable en votre absence (accès hors ligne)
+consent.claim.roles: Vos rôles sur la plateforme
+consent.claim.groups: Vos rôles sur la plateforme (en groupes)
+consent.claim.org: Votre rattachement à l'organisation
+consent.claim.picture: Votre image de profil
+consent.noAuth: Cette page de consentement exige une demande d'autorisation (paramètre ?auth= absent). Recommencez la connexion.
+consent.stale: Cette demande d'autorisation n'est plus valide. Recommencez la connexion.
+consent.decideFailed: La décision n'a pas pu être enregistrée. Recommencez la connexion.
+consent.title: Autoriser
+consent.lead: veut vous connecter avec votre compte {issuer}.
+consent.sharedWith: Partagé avec {client}
+consent.rolesHeld: 'Sur {client}, vous détenez :'
+consent.rolesNone: Vous ne détenez aucun rôle de plateforme sur {client} — le service vous traite en lecture seule jusqu'à ce que son administrateur vous en assigne un.
+consent.signedInAs: Connecté en tant que
+consent.allow: Autoriser
+consent.deny: Refuser
+consent.denyNote: Refuser vous renvoie vers {client} sans rien partager.
+consent.switchAccount: Ce n'est pas vous ? Changez de compte
+device.title: Connecter un appareil
+device.lead: demande une autorisation depuis votre compte {issuer}.
+device.codePrompt: Saisissez le code affiché par votre terminal
+device.codePlaceholder: XXXX-XXXX
+device.codeSubmit: Rechercher le code
+device.badCode: Ce code n'est pas au format XXXX-XXXX.
+device.unknownCode: Aucune connexion ne connaît ce code — vérifiez le terminal et réessayez.
+device.expired: Ce code a expiré — relancez la connexion dans votre terminal.
+device.decided: Ce code a déjà été décidé — votre terminal a sa réponse.
+device.decideFailed: La décision n'a pas pu être enregistrée — réessayez tant que le code est valide.
+device.asksFor: 'Le terminal pourra agir pour vous sur :'
+device.action.read: lecture
+device.action.write: lecture et écriture
+device.action.admin: administration
+device.approve: Autoriser
+device.approved: Autorisé — vous pouvez fermer cette page et retourner à votre terminal.
+device.denied: Refusé — vous pouvez fermer cette page et retourner à votre terminal.
+device.noStanding: 'Votre compte ne peut pas porter cet accès : {reason}'
+device.tokenNote: L'autorisation crée un jeton d'accès personnel nommé pour cette connexion. Il apparaît dans la liste des jetons de votre compte, où vous pouvez le révoquer à tout moment.
+chooser.heading: Choisir un compte
+chooser.subtitle: pour continuer vers {client}
+chooser.subtitleGeneric: pour continuer
+chooser.currentAccount: Compte actuel
+chooser.deadSession: Session terminée — reconnectez-vous
+chooser.useAnother: Utiliser un autre compte
+chooser.continueAs: Continuer en tant que {name}
+chooser.busy: Changement…
+chooser.failed: Le changement de compte n'a pas pu être effectué. Réessayez.
+chooser.preselected: Présélectionné pour cette connexion
+chooser.personaBadge: Persona de démo
+chooser.personaNote: Continuer comme cette persona de démonstration — aucun mot de passe n'est demandé.
+chooser.assumptionDenied: Ce compte n'a pas le droit d'endosser cette persona.
+emailChange.noToken: Cette page exige un lien de vérification (paramètre ?token= absent). Lancez le changement d'adresse depuis la page de votre compte.
+emailChange.linkInvalid: Ce lien de vérification n'est pas valide. Relancez le changement d'adresse depuis la page de votre compte.
+emailChange.readFailed: Le lien n'a pas pu être lu. Le serveur est-il lancé ?
+emailChange.linkInvalidShort: Ce lien de vérification n'est pas valide.
+emailChange.failed: Le changement n'a pas pu être achevé. Réessayez.
+emailChange.used: Ce lien a déjà été utilisé
+emailChange.expired: Ce lien a expiré
+emailChange.conflictTitle: L'adresse a été prise
+emailChange.invalid: Ce lien n'est pas valide
+emailChange.doneTitleVerified: Adresse e-mail vérifiée
+emailChange.doneTitleChanged: Adresse e-mail changée
+emailChange.doneAdd: '{email} connecte désormais à votre compte OIML SMART aux côtés de vos autres adresses, et reçoit les avis de sécurité du compte.'
+emailChange.doneVerify: '{email} est confirmée comme adresse de référence de votre compte OIML SMART — rien d''autre n''a changé.'
+emailChange.doneChanged: Votre compte OIML SMART se connecte désormais avec {email}.
+emailChange.verifiedNote: 'La nouvelle adresse est vérifiée : vous avez ouvert le lien qui lui a été envoyé.'
+emailChange.unverifiedNote: Ce lien a été affiché à l'écran (aucun serveur de messagerie n'est configuré) ; la nouvelle adresse reste « non vérifiée » jusqu'à ce qu'un lien envoyé par e-mail puisse la confirmer.
+emailChange.back: Retour à votre compte
+emailChange.titleAdd: Confirmez l'adresse e-mail
+emailChange.titleVerify: Vérifiez votre adresse e-mail
+emailChange.titleChange: Changez l'adresse e-mail
+emailChange.contextAdd: '{name}, ce lien confirme {email} comme adresse de votre compte OIML SMART.'
+emailChange.contextVerify: '{name}, ce lien prouve que {email} — l''adresse de référence de votre compte OIML SMART — vous atteint.'
+emailChange.contextChange: '{name}, ce lien déplace votre compte OIML SMART de {from} vers {to}.'
+emailChange.expiryAdd: Le lien fonctionne exactement une fois et expire le {date}. Une fois confirmée, l'adresse connecte au même compte et reçoit ses avis de sécurité.
+emailChange.expiryVerify: Le lien fonctionne exactement une fois et expire le {date}. Une fois confirmée, l'adresse apparaît vérifiée aux services où vous vous connectez ; l'adresse elle-même ne change jamais.
+emailChange.expiryChange: Le lien fonctionne exactement une fois et expire le {date}. Les connexions utilisent ensuite la nouvelle adresse ; rien d'autre ne change.
+emailChange.busyConfirm: Confirmation…
+emailChange.busyChange: Changement…
+emailChange.actionConfirm: Confirmer l'adresse
+emailChange.actionChange: Confirmer le changement
+admin.dash.loadFailed: le tableau de bord a échoué ({status})
+admin.dash.title: Vue d'ensemble de l'administration
+admin.dash.description: '{product} en un coup d''œil — le registre, les connexions, le niveau de service, les anomalies du jour.'
+admin.dash.forbidden: Le tableau de bord de l'administration est une surface d'administrateur — votre compte ne détient pas le rôle administrateur.
+admin.dash.tileAccounts: Comptes
+admin.dash.accountsSplit: '{active} actifs · {invited} invités · {deactivated} désactivés'
+admin.dash.tileSignins: Connexions (14 j)
+admin.dash.failedCount: '{count} échecs'
+admin.dash.tileSessions: Sessions actives
+admin.dash.tileAnomalies: Anomalies du jour
+admin.dash.anomaliesSplit: '{failedSignIns} connexions échouées · {rateLimits} limites de débit · {tokenRefusals} refus de jetons'
+admin.dash.sectionSignins: Connexions, réussies et échouées
+admin.dash.signinsEmpty: Aucune connexion enregistrée dans cette fenêtre pour l'instant.
+admin.dash.sectionSlo: Niveau de service — la sonde indépendante
+admin.dash.sloLoading: Lecture de l'historique du workflow…
+admin.dash.sloNoProbes: aucune sonde terminée
+admin.dash.sloUptime: 30 jours {d30} % · 90 jours {d90} %
+admin.dash.sloWorst: la pire disponibilité 30 jours parmi les {count} services d’identité
+admin.dash.sloLastProbe: Dernière sonde {at}
+admin.dash.sloUnreadable: Le service de statut n'est pas lisible d'ici
+admin.dash.dayFailed: '{date} : {count} échecs'
+admin.dash.daySucceeded: '{date} : {count} réussites'
+admin.sess.loadFailed: les sessions actives ont échoué ({status})
+admin.sess.title: Sessions actives
+admin.sess.description: Chaque session {product} active, tous comptes confondus. Les sessions n'exposent jamais de jeton — la ligne est le contexte de connexion, jamais le secret.
+admin.sess.forbidden: La vue des sessions actives est une surface d'administrateur — votre compte ne détient pas le rôle administrateur.
+admin.sess.filterPlaceholder: Filtrer par compte, agent utilisateur ou IP…
+admin.sess.empty: Aucune session active ne correspond — personne n'est connecté en ce moment, ou le filtre est trop étroit.
+admin.sess.notRecorded: non renseigné
+admin.sess.notRecordedShort: non renseignée
+admin.sess.ipNotRecorded: IP non renseignée
+admin.sess.lineMeta: connecté le {at} · vu {last} · expire {expires}
+admin.sess.currentBadge: cette session
+admin.sess.deactivatedBadge: désactivé
+admin.sess.theAccount: Le compte
+admin.sess.noticeEnded: La session est terminée.
+admin.sess.noticeEndedWithEmail: La session est terminée — les autres sessions de {email} demeurent.
+admin.sess.noticeEndAll: '{account} : {count} session(s) terminée(s). Les jetons d''accès déjà émis auprès des services tiers expirent d''eux-mêmes (une heure au maximum).'
+admin.sess.noticeDeactivated: '{account} est désactivé — les connexions sont refusées, les sessions et jetons émis sont révoqués. L''historique est conservé ; la réactivation se fait en un acte depuis la page du compte.'
+admin.sess.refusedRevoke: La révocation a été refusée ({status}).
+admin.sess.refusedDeactivate: La désactivation a été refusée ({status}).
+admin.sess.endOne: Terminer la session
+admin.sess.endOneConfirm: 'Confirmer : terminer cette session'
+admin.sess.endAll: Terminer toutes les sessions
+admin.sess.endAllConfirm: 'Confirmer : terminer toutes les sessions de ce compte'
+admin.sess.deactivate: Désactiver le compte
+admin.sess.deactivateConfirm: 'Confirmer : désactiver le compte (connexions refusées, sessions + jetons révoqués)'
+admin.sess.ladder: 'L''échelle, honnêtement : terminer une session ou toutes les sessions d''un compte déconnecte la personne de {product} (les jetons d''accès déjà émis expirent d''eux-mêmes, une heure au maximum) ; la désactivation révoque aussi les jetons émis et bloque toute nouvelle émission, et l''historique du compte demeure.'
+admin.reg.loadFailed: le registre a échoué ({status})
+admin.reg.title: Comptes
+admin.reg.forbidden: Le registre des identités est une surface d'administrateur — votre compte ne détient pas le rôle administrateur.
+admin.reg.inviteTitle: Inviter un compte
+admin.reg.fieldEmail: E-mail
+admin.reg.invite: Inviter
+admin.reg.inviting: Invitation…
+admin.reg.inviteFailed: L'invitation a échoué ({status}).
+admin.reg.invited: '{name} est invité. Transmettez le lien de configuration à usage unique ci-dessous (24 heures) ; il n''est affiché que maintenant.'
+admin.reg.inviteNote: 'L''inscription se fait uniquement sur invitation : le compte est créé maintenant, le lien de configuration à usage unique (24 heures) se transmet hors bande.'
+admin.reg.searchPlaceholder: Rechercher par nom, e-mail ou identifiant lié…
+admin.reg.everyStatus: tout état
+admin.reg.statusActive: actif
+admin.reg.statusDeactivated: désactivé
+admin.reg.everyRole: tout rôle
+admin.reg.empty: Aucun compte ne correspond — ajustez la recherche ou les filtres, ou invitez le compte ci-dessus.
+admin.reg.colAccount: Compte
+admin.reg.colRoles: Rôles
+admin.reg.colMethods: Méthodes de connexion
+admin.reg.colStatus: État
+admin.reg.colLastSignIn: Dernière connexion
+admin.reg.open: Ouvrir
+admin.reg.rolesLabel: Rôles
+admin.reg.never: jamais
+admin.act.loadFailed: le flux d'activité a échoué ({status})
+admin.act.title: Activité du registre
+admin.act.forbidden: L'activité du registre est une surface d'administrateur — votre compte ne détient pas le rôle administrateur.
+admin.act.everyCategory: toute catégorie
+admin.act.filterPlaceholder: Filtrer par acteur, action ou compte…
+admin.act.cat.accounts: Comptes (invitations, configuration, mots de passe)
+admin.act.cat.roles: Assignations de rôles
+admin.act.cat.links: Identités liées
+admin.act.cat.signins: Connexions et refus
+admin.act.cat.clients: Parties de confiance (le registre des clients)
+admin.act.cat.providers: Fournisseurs de connexion
+admin.act.cat.organizations: Administration des organisations
+admin.act.e.invite: a invité {email} (rôle {role})
+admin.act.e.enrollment: a émis un nouveau lien de configuration pour {email}
+admin.act.e.enrolled: a achevé la configuration du compte (le mot de passe est défini)
+admin.act.e.password: a changé le mot de passe du compte
+admin.act.e.passwordReset: un e-mail de réinitialisation a été demandé pour {email}
+admin.act.e.avatar: a mis à jour l'image de profil
+admin.act.e.avatarRemoved: a retiré l'image de profil
+admin.act.e.deleted: a effacé le compte {email} — la ligne est une stèle anonymisée
+admin.act.e.updated: a modifié le compte {email} ({fields})
+admin.act.e.deactivated: 'a désactivé le compte (révoqué : {sessions} session(s), {tokens} jeton(s))'
+admin.act.e.reactivated: a réactivé le compte
+admin.act.e.sessionRevokedAdmin: a terminé une session du compte (administrateur)
+admin.act.e.sessionRevoked: a terminé une session
+admin.act.e.sessionsRevokedAdmin: a terminé toutes les sessions de {email} ({count}, administrateur)
+admin.act.e.sessionsRevoked: a déconnecté {count} autre(s) session(s)
+admin.act.e.signIn: s'est connecté avec le mot de passe
+admin.act.e.signInFailed: une connexion par mot de passe a échoué pour {email} ({reason})
+admin.act.e.reasonDeactivated: le compte est désactivé
+admin.act.e.reasonInvalid: identifiants invalides
+admin.act.e.clientRoles: 'a accordé des rôles sur {client} : {roles}'
+admin.act.e.noRoles: aucun (la posture explicite sans revendication)
+admin.act.e.clientRolesCleared: a effacé l'octroi de rôles sur {client} (l'ensemble du compte redevient la valeur par défaut)
+admin.act.e.linkOnBehalf: a lié le compte {provider} {handle} pour le compte de {email} — {justification}
+admin.act.e.linkRemoved: a retiré le lien {provider} de {email}
+admin.act.e.userCreate: a créé le compte {email} ({roles})
+admin.act.e.userRoles: 'a assigné les rôles : {roles}'
+admin.act.e.userDeactivated: a désactivé le compte
+admin.act.e.userReactivated: a réactivé le compte
+admin.act.e.upstreamSignIn: s'est connecté avec {provider} ({handle})
+admin.act.e.upstreamLink: a lié {provider} ({handle})
+admin.act.e.upstreamUnlink: a dissocié {provider}
+admin.act.e.upstreamRefused: 'une connexion {provider} a été refusée ({reason}) : {handle}'
+admin.act.e.upstreamConflict: 'un lien {provider} a rencontré un conflit : {handle}'
+admin.act.e.clientRegDevice: a enregistré le client d'appareil {client} (appareil {device}, org {org}, modèle {model})
+admin.act.e.clientRegService: a enregistré le client de service {client} (service {service}, org {org}, audience {audience}, portées {scopes})
+admin.act.e.clientRegistered: 'a enregistré la partie de confiance {client} ({kind} ; revendications : {claims})'
+admin.act.e.confidential: confidentiel
+admin.act.e.public: public
+admin.act.e.defaultClaims: profil + e-mail
+admin.act.e.tokenIssuedDevice: le point de jetons a émis le jeton d'appareil pour {client} (appareil {device}, org {org})
+admin.act.e.tokenIssuedService: le point de jetons a émis le jeton de service pour {client} (service {service}, audience {audience}, portées {scopes})
+admin.act.e.tokenIssued: le point de jetons a émis des jetons pour {client} (portée {scope})
+admin.act.e.tokenRefused: le point de jetons a refusé {client} ({error})
+admin.act.e.clientUpdatedDevice: a mis à jour le client d'appareil {client}
+admin.act.e.clientUpdatedService: a mis à jour le client de service {client}
+admin.act.e.clientUpdated: a mis à jour la partie de confiance {client}
+admin.act.e.rekeyedFull: ' (le secret a tourné — l''ancien cesse immédiatement de fonctionner)'
+admin.act.e.rekeyed: ' (re-cléé)'
+admin.act.e.madePublic: ' (rendu public)'
+admin.act.e.clientStatus: a défini {kind} {client} sur {status}
+admin.act.e.kindDevice: le client d'appareil
+admin.act.e.kindService: le client de service
+admin.act.e.kindRp: la partie de confiance
+admin.act.e.providerRegistered: a enregistré le fournisseur de connexion {provider}
+admin.act.e.providerUpdated: a mis à jour le fournisseur de connexion {provider}
+admin.act.e.providerStatus: a {state} le fournisseur de connexion {provider}
+admin.act.e.enabled: activé
+admin.act.e.disabled: désactivé
+admin.act.e.providerRemoved: a retiré le fournisseur de connexion {provider}
+admin.act.e.orgInvite: a émis l'invitation d'organisation pour {email} ({role})
+admin.clients.vRedirectUris: Au moins une URI de redirection est requise.
+admin.clients.vLaunchRequired: L'URL de lancement est requise (le point de départ de connexion du service).
+admin.clients.vLaunchScheme: L'URL de lancement doit être une URL http(s).
+admin.clients.saveRefused: L'enregistrement a été refusé ({status}).
+admin.clients.rekeyed: ' {client} re-cléé — le nouveau secret est ci-dessous, affiché seulement maintenant.'
+admin.clients.registeredSecret: '{client} enregistré — son secret est ci-dessous, affiché seulement maintenant.'
+admin.clients.updated: '{client} mis à jour.'
+admin.clients.registeredPublic: '{client} enregistré (client public — PKCE uniquement).'
+admin.clients.toggleRefused: Le basculement de {client} a été refusé.
+admin.clients.disabledNotice: '{client} désactivé — authorize et token le refusent désormais ; les lignes sont conservées.'
+admin.clients.enabledNotice: '{client} activé.'
+admin.clients.title: Parties de confiance
+admin.clients.registeredTitle: Instances enregistrées
+admin.clients.editTitle: Modifier {client}
+admin.clients.registerTitle: Enregistrer une instance
+admin.clients.idLegend: identifiant client (slug, porté par les paramètres OAuth)
+admin.clients.nameLegend: nom (la page de consentement l'affiche)
+admin.clients.namePlaceholder: Instance du laboratoire d'essais, exemple
+admin.clients.redirectLegend: URIs de redirection (exactes, une par ligne — une non enregistrée est refusée, jamais suivie)
+admin.clients.ssoHomeLegend: Accueil SSO (la carte du lanceur qu'un compte connecté rencontre après la connexion)
+admin.clients.launchLegend: URL de lancement (le point de départ de connexion du service — la session OP active laisse l'utilisateur entrer directement)
+admin.clients.descriptionLegend: description (une ligne sur la carte ; facultatif)
+admin.clients.descriptionPlaceholder: 'Le hub de certification : demandes, dossiers, certificats.'
+admin.clients.iconLegend: icône
+admin.clients.visibilityLegend: visibilité (quand les rôles du compte ne l'admettent pas)
+admin.clients.confidential: Client confidentiel (détient un secret ; le serveur le génère et l'affiche une fois)
+admin.clients.rekeyLabel: 'Re-cléer : générer un nouveau secret (l''ancien cesse immédiatement de fonctionner)'
+admin.clients.cancelEdit: Annuler la modification
+admin.clients.copy: Copier
+admin.clients.saving: Enregistrement…
+admin.clients.saveChanges: Enregistrer les modifications
+admin.clients.register: Enregistrer l'instance
+admin.sec.title: Sécurité et audit
+admin.sec.auditFailed: le journal d'audit a échoué ({status})
+admin.sec.e.signIn: s'est connecté avec le mot de passe
+admin.sec.e.probe: la sonde d'état a exercé la route de connexion pour {email} (la cadence de supervision du domaine — jamais comptée comme un échec)
+admin.sec.e.sessionsRevokedAdmin: l'administrateur a terminé toutes les sessions de {email} ({count})
+admin.sec.e.sessionAdmin: une session terminée (l'administrateur)
+admin.sec.e.session: une session terminée
+admin.sec.e.upstreamRefused: une connexion {provider} a été refusée ({reason})
+admin.sec.e.linkOnBehalf: a lié {provider} pour le compte de {email} — {justification}
+admin.sec.e.tokensIssued: a émis des jetons (portée {scope})
+admin.sec.e.tokenRefused: le point de jetons a refusé ({error})
+admin.sec.e.clientRegistered: a enregistré la partie de confiance
+admin.sec.e.clientUpdated: a mis à jour la partie de confiance
+admin.sec.e.clientStatus: a défini la partie de confiance sur {status}
+admin.sec.e.rateLimited: le limiteur de débit s'est déclenché sur {path}
+admin.sec.opt.everyAction: toute action
+admin.sec.opt.account: account.* (les actes du registre)
+admin.sec.opt.signins: connexions (mot de passe)
+admin.sec.opt.probe: les contrôles de connexion de la sonde d'état
+admin.sec.opt.upstream: upstream_* (méthodes liées)
+admin.sec.opt.clients: client.* (parties de confiance)
+admin.sec.opt.providers: provider.* (fournisseurs de connexion)
+admin.sec.opt.orgs: org_* (administration des organisations)
+admin.sec.opt.everyType: tout type d'entité
+admin.sec.opt.opType: op (le limiteur de débit)
+admin.sec.failedTitle: Connexions échouées
+admin.sec.tokenTitle: Refus au point de jetons
+admin.sec.rateTitle: Déclenchements du limiteur de débit
+admin.sec.newTitle: Nouveaux liens et clients ({window})
+admin.sec.auditTitle: Le journal d'audit
+admin.sec.reviewTitle: La revue d'accès, en direct
+admin.sec.holdersTitle: Détenteurs privilégiés ({count}) — {roles}
+admin.sec.perClientTitle: Assignations privilégiées par client ({count})
+admin.sec.findingsTitle: Constats ({count})
+admin.sec.exportCsv: Exporter en CSV
+admin.sec.noBursts: aucune salve dans la fenêtre
+admin.sec.theSystem: le système
+admin.users.title: Membres et demandes d’adhésion
+stepup.title: Vérifiez une fois de plus
+stepup.why: Cette action modifie qui peut agir en votre nom — saisissez à nouveau votre mot de passe actuel pour confirmer que c'est bien vous.
+stepup.passwordLabel: Mot de passe actuel
+stepup.submit: Confirmer
+stepup.cancel: Annuler
+stepup.working: Vérification…
+stepup.wrong: Le mot de passe ne correspond pas — réessayez.
+stepup.expired: La vérification a expiré — confirmez à nouveau.
+stepup.passkey: Vérifier avec votre clé d'accès
+stepup.passkeyCancelled: La cérémonie de clé d'accès a été annulée — réessayez.
+stepup.passkeyOnly: Ce compte se connecte avec sa clé d'accès — aucun mot de passe à ressaisir.
+admin.org.title: Votre organisation
+admin.org.pickOrg: Choisissez l'organisation que vous administrez
+admin.org.members: Membres
+admin.org.noMembers: Aucun membre pour l'instant — approuvez une demande dans la file ci-dessous.
+admin.org.save: Enregistrer
+admin.org.activate: Activer
+admin.org.deactivate: Désactiver
+admin.org.inactive: inactif
+admin.org.actionFailed: L'action a échoué.
+admin.org.roleSaved: '{name} détient désormais le rôle {role}.'
+admin.org.approved: '{name} a rejoint.'
+admin.org.activity: Activité récente
+admin.org.noActivity: Aucune activité enregistrée pour l'instant.
+admin.users.wideView: la vue de l’opérateur du schéma
+admin.users.consoleGrant: Cette console s’adresse aux administrateurs d’organisation et à l’opérateur du schéma — votre compte ne détient aucun de ces droits.
+admin.users.queueOrg: Demandes d’adhésion — {org}
+admin.users.queueAll: Demandes d’adhésion — toutes les organisations
+admin.users.noRequests: Aucune demande en attente.
+admin.users.asksFor: demande le rôle
+admin.users.pickOrgFirst: Choisissez l’entrée du registre de l’organisation avant d’approuver — la participation doit d’abord être enregistrée.
+admin.users.approveFailed: L’approbation a échoué ({status}).
+admin.users.approve: Approuver
+admin.users.refuse: Refuser
+admin.users.needReason: Un refus exige un motif — le demandeur le verra.
+admin.users.reasonPlaceholder: Le motif (le demandeur le verra)…
+admin.users.refuseFailed: Le refus a échoué ({status}).
+admin.users.confirmRefusal: Confirmer le refus
+admin.users.refused: Demande refusée — {name} en est informé avec le motif.
+admin.users.approvedJoined: '{name} est désormais membre de {org} : son compte existant l’a rejointe en tant que {roles} — aucun nouveau lien de configuration n’a été nécessaire.'
+admin.users.aMember: membre
+admin.users.approvedMailed: 'Invitation émise : le compte de {name} est créé et l’e-mail de configuration est en route vers {email} (le lien vit 24 h).'
+admin.users.approvedShown: 'Invitation émise : le compte de {name} est créé. Transmettez le lien de configuration à usage unique ci-dessous (24 h) ; il n’est affiché que maintenant.'
+admin.users.setupLink: le lien de configuration unique (24 h)
+admin.users.peopleTitle: Personnes — {org}
+admin.users.yourOrganization: votre organisation
+admin.users.noMembers: Aucun membre pour l’instant — les approbations de la file et les formulaires ci-dessous agrandissent cette liste.
+admin.users.addExisting: Ajouter un compte existant
+admin.users.emailPlaceholder: E-mail
+admin.users.inviteColleague: Inviter un collègue
+admin.users.workEmailPlaceholder: E-mail professionnel
+admin.users.inviteBtn: Inviter
+admin.users.inviteFailed: L’invitation a échoué ({status}).
+admin.users.inviteMembership: Inviter l’adhésion
+admin.users.inviting: Invitation…
+admin.users.memberInviteFailed: L’invitation d’adhésion a échoué ({status}).
+admin.users.membershipInvited: '{email} est invité à rejoindre {org} — l’invitation figure sur sa console de compte jusqu’à ce qu’il l’accepte ou la décline.'
+admin.users.saveRoles: Enregistrer les rôles
+admin.users.roleAssignFailed: L’assignation de rôles a échoué ({status}).
+admin.users.rolesUpdated: Les rôles de {name} dans {org} ont été mis à jour.
+admin.users.disableMembership: Désactiver l’adhésion
+admin.users.reactivateMembership: Réactiver l’adhésion
+admin.users.membershipDisabled: L’adhésion de {name} dans {org} est désactivée — ses sessions n’agissent plus comme cette organisation.
+admin.users.membershipActive: L’adhésion de {name} dans {org} est de nouveau active.
+admin.users.coneFailed: La mise à jour du cône de données a échoué ({status}).
+admin.users.explainFailed: L’explication a échoué ({status}).
+admin.users.registryTitle: Administration des comptes — tous les comptes de connexion
+admin.users.inviteAccount: Inviter un compte
+admin.users.noOrgBinding: Aucun rattachement d’organisation
+admin.users.inviteIssueLink: Inviter — émettre le lien de configuration à usage unique
+admin.users.noAccounts: Aucun compte pour l’instant — le premier arrive par l’invitation ci-dessus.
+admin.users.editFailed: La modification a échoué ({status}).
+admin.users.updatedNotice: '{name} mis à jour.'
+admin.users.assignFailed: L’assignation a échoué ({status}).
+admin.users.clientRoles: Rôles par client
+admin.users.closeClientRoles: Fermer les rôles par client
+admin.users.perClientLead: 'Les rôles que ce compte détient par client. Sans assignation : le défaut du compte ({roles}) s’applique. Enregistrer un ensemble vide est la posture explicite « aucun rôle sur ce client » ; effacer restaure le défaut. La politique de revendications d’un client borne ce qui peut être assigné (son jeton ID ne porte jamais un rôle qu’il n’est pas configuré pour recevoir).'
+admin.users.noneRoles: aucun
+admin.users.noClients: Aucun client actif n’est enregistré — le registre des clients (le OP_CLIENT_SEED du déploiement / l’API clients) les nomme d’abord.
+admin.users.noRoleClaims: aucune revendication de rôle — la politique du client n’en porte aucune
+admin.users.accountDefault: le défaut du compte ({roles})
+admin.users.explicitNone: explicitement aucun rôle sur ce client
+admin.users.holdsRoles: '{name} détient {roles} sur {client}.'
+admin.users.holdsNone: '{name} ne détient aucun rôle sur {client} (le none explicite — le défaut du compte ne s’y applique plus).'
+admin.users.clearedNotice: L’assignation de {name} sur {client} est effacée — le défaut du compte s’y applique de nouveau.
+admin.users.freshSetupLink: Lien de configuration neuf
+admin.users.emailFallbackGrant: Autoriser la connexion par e-mail (24 h)
+admin.users.emailFallbackRevoke: Fermer la connexion par e-mail
+admin.users.cancel: Annuler
+admin.users.bimlQueueTitle: Nouvelles organisations — la file BIML
+admin.users.approveOnto: Approuver vers l’organisation enregistrée…
+admin.users.approveCreateAdmin: Approuver — créer l’administrateur d’organisation
+admin.users.orgAdminsTitle: Administrateurs d’organisation
+admin.users.registeredOrg: Organisation enregistrée…
+admin.users.createOrgAdmin: Créer l’administrateur d’organisation
+admin.users.orgAdminFailed: Impossible de créer l’administrateur d’organisation ({status}).
+shell.environment.note: ceci n’est pas le service de production
+shell.footer.platform: Plateforme
+shell.footer.privacy: Confidentialité
+shell.footer.status: État du service
+shell.footer.supportPrompt: Besoin d’aide ?
+shell.footer.tagline: OIML SMART Identity — le service de connexion d’OIML SMART
+shell.footer.terms: Conditions
+shell.locale.label: Langue
+shell.nav.admin: Administration
+shell.nav.areas: Consoles
+shell.nav.close: Fermer le menu
+shell.nav.menu: Ouvrir le menu
+shell.nav.sections: Sections
+shell.status.degraded: Certains services dégradés
+shell.status.down: Perturbation de service
+shell.status.operational: Tous les services opérationnels
+shell.status.unknown: État inconnu

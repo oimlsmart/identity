@@ -159,7 +159,9 @@ import { prepareBackchannelLogout } from '../auth/op/logout'
 import { TRUST_COOKIE } from './op-trust'
 import { mintStepUpStamp, STEP_UP_COOKIE, STEP_UP_TTL_MS, stepUpKey } from '../auth/op/step-up-stamp'
 import { demandFreshProof } from '../auth/op/fresh-proof'
-import { factorCounts, MFA_PENDING_TTL_MS } from '../auth/op/factors'
+import { verifyAssertionFor } from '../auth/op/webauthn-assertion'
+import { factorCounts, MFA_PENDING_TTL_MS, WEBAUTHN_CHALLENGE_TTL_MS } from '../auth/op/factors'
+import { webauthnBindingFor } from './op-factors'
 import { HIBP_BREACHED_REFUSAL, breachRecheckPending, hibpPasswordVerdict, markBreachRecheck, resolveBreachRecheck } from '../auth/op/hibp'
 import { clearLoginThrottle, delayMs, loginThrottleWaitMsForRow, readLoginThrottleRow, recordLoginThrottleFailure, resolveLoginBackoffBaseMs } from '../auth/op/login-throttle'
 import { issueAccountInvite } from '../auth/op/enrollment'
@@ -2249,6 +2251,62 @@ export function createOpAccountsRouter(): Hono {
     // The stamp rides the BODY too (the island's retry carries it as the
     // x-op-step-up header — no Set-Cookie dependency through any proxy;
     // the cookie remains the same-origin fallback).
+    return c.json({ ok: true, stamp, expiresInSec: Math.floor(STEP_UP_TTL_MS / 1000) })
+  })
+
+  // POST /api/op/step-up/passkey/options — the PASSKEY half of the
+  // re-entry (2026-10-15): a passwordless account (the password
+  // removed, a passkey or a link the only way in) could never satisfy
+  // the password step-up — the sudo dialog stranded it. The ceremony is
+  // the login's own (the shared assertion verifier), scoped to the
+  // session user's credentials.
+  accounts.post('/api/op/step-up/passkey/options', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const store = getStore()
+    const credentials = await store.listWebauthnCredentials(user.id)
+    if (credentials.length === 0) return c.json({ error: 'This account holds no passkey — sign in again to refresh the session.' }, 404)
+    const binding = webauthnBindingFor(c)
+    const challenge = opRandomToken()
+    await store.createWebauthnChallenge({ challenge, userId: user.id, kind: 'assert', ttlMs: WEBAUTHN_CHALLENGE_TTL_MS })
+    return c.json({
+      publicKey: {
+        challenge,
+        rpId: binding.rpId,
+        allowCredentials: credentials.map(p => ({ type: 'public-key', id: p.credentialId, transports: p.transports.length ? p.transports : undefined })),
+        userVerification: 'preferred',
+        timeout: WEBAUTHN_CHALLENGE_TTL_MS,
+      },
+    })
+  })
+
+  // POST /api/op/step-up/passkey — the assertion answers the demand:
+  // the shared ceremony verifies (the challenge, the ownership, the
+  // origin, the clone guard), the account's standing re-checked (the
+  // deactivation wall's posture), and the stamp mints with the amr the
+  // proof actually used.
+  accounts.post('/api/op/step-up/passkey', async (c) => {
+    const user = await sessionUser(c)
+    if (!user) return c.json({ error: 'authentication required' }, 401)
+    const body = await c.req.json<{
+      credential?: { id?: string; response?: { clientDataJSON?: string; authenticatorData?: string; signature?: string; userHandle?: string | null } }
+    }>().catch(() => null)
+    const { cred, error: assertionError, clone } = await verifyAssertionFor(c, body?.credential, user.id)
+    if (assertionError || !cred) return assertionError!
+    if (clone) return assertionError ?? c.json({ error: 'cloned' }, 401)
+    if (!(await getStore().isUserActive(user.id))) {
+      return c.json({ error: 'This account is deactivated — contact your administrator.' }, 403)
+    }
+    const key = await stepUpKey(runtimeEnv<EnvLike>(c) as Record<string, string | undefined>)
+    const stamp = await mintStepUpStamp(key, user.id, 'passkey')
+    setCookie(c, STEP_UP_COOKIE, stamp, {
+      httpOnly: true,
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: Math.floor(STEP_UP_TTL_MS / 1000),
+      ...(opRequestOrigin(c.req.raw).startsWith('https://') ? { secure: true } : {}),
+    })
+    await audit('account.step_up', user.id, { userId: user.id, userName: user.name }, { amr: 'passkey', credentialId: cred.credentialId })
     return c.json({ ok: true, stamp, expiresInSec: Math.floor(STEP_UP_TTL_MS / 1000) })
   })
 

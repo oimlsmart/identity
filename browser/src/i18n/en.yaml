@@ -1,0 +1,1791 @@
+account.activity.action.account.active_org: Acting organization switched ({org})
+account.activity.action.account.avatar: Profile picture updated
+account.activity.action.account.avatar_removed: Profile picture removed
+account.activity.action.account.consent_granted: Access allowed for {name} (remembered)
+account.activity.action.account.consent_revoked: Access revoked for {name}
+account.activity.action.account.deleted: The administrator erased this account
+account.activity.action.account.email_added: 'Email address added: {email}'
+account.activity.action.account.email_change_requested: Email change requested for {to}
+account.activity.action.account.email_changed: Email address changed to {to}
+account.activity.action.account.email_primary_changed: Primary email address switched to {to}
+account.activity.action.account.email_removed: 'Email address removed: {email}'
+account.activity.action.account.email_verification_requested: Verification link sent for {email}
+account.activity.action.account.email_verified: 'Email address verified: {email}'
+account.activity.action.account.enrolled: Account set up through the invite link
+account.activity.action.account.enrollment: A fresh setup link was issued
+account.activity.action.account.invite: The administrator created this account
+account.activity.action.account.membership_accepted: The invitation to {org} was accepted
+account.activity.action.account.membership_declined: The invitation to {org} was declined
+account.activity.action.account.membership_requested: Requested to join {org}
+account.activity.action.account.password: Password changed
+account.activity.action.account.password_breach_recheck: 'The breach-corpus check that was unreachable when the password was set re-ran at this sign-in: {outcome}'
+account.activity.action.account.password_removed: Password removed
+account.activity.action.account.password_reset: A password reset email was requested for this account
+account.activity.action.account.email_fallback_granted: Email sign-in was enabled for this account (an administrator)
+account.activity.action.account.email_fallback_revoked: Email sign-in was closed for this account
+account.activity.action.account.email_fallback_reset_granted: Email sign-in was opened for an hour (the password reset)
+account.activity.action.factor.email_otp_sent: A sign-in code was emailed to this account
+account.activity.action.account.sign_in.password_email_otp: Signed in with the password + an emailed code
+account.activity.action.account.pat_exchange: 'Developer token exchanged for access: {name}'
+account.activity.action.account.pat_exchange_narrowed: 'A developer token''s exchange narrowed to the account''s current standing: {name}'
+account.activity.action.account.pat_exchange_refused: A developer token's exchange was refused
+account.activity.action.account.pat_minted: 'Developer token minted: {name}'
+account.activity.action.account.pat_revoked: 'Developer token revoked: {name}'
+account.activity.action.account.profile: Display name updated
+account.activity.action.account.self_registered: Account created by its holder (self-registration)
+account.activity.action.account.session_revoked: A session was revoked
+account.activity.action.account.sessions_revoked: '{count} other session(s) signed out'
+account.activity.action.account.sign_in: Signed in with the password
+account.activity.action.account.sign_in_failed: A sign-in attempt failed
+account.activity.action.account.sign_in.password_totp: Signed in with the password + the authenticator app
+account.activity.action.account.sign_in.password_webauthn: Signed in with the password + a passkey
+account.activity.action.account.sign_in.password_recovery: Signed in with the password + a recovery code
+account.activity.action.account.sign_in.webauthn: Signed in with a passkey
+account.activity.action.factor.assertion_refused: A passkey assertion was refused
+account.activity.action.factor.clone_refused: 'A cloned passkey was refused (the counter regressed): {name}'
+account.activity.action.factor.mfa_failed: A second-factor attempt failed
+account.activity.action.factor.mfa_locked: 'Too many failed second-factor attempts: the sign-in was closed and you were emailed'
+account.activity.action.factor.passkey_enrolled: 'Passkey registered: {name}'
+account.activity.action.factor.passkey_revoked: 'Passkey revoked: {name}'
+account.activity.action.factor.recovery_generated: Recovery codes generated ({count})
+account.activity.action.factor.recovery_regenerated: Recovery codes regenerated ({count}); the previous set stopped working
+account.activity.action.factor.recovery_used: A recovery code was used to sign in
+account.activity.action.factor.totp_enroll_expired: An authenticator setup expired before its first code
+account.activity.action.factor.totp_enroll_failed: A wrong code during an authenticator setup
+account.activity.action.factor.totp_enroll_locked: An authenticator setup was discarded after too many wrong codes
+account.activity.action.factor.totp_enrolled: 'Authenticator app added: {name}'
+account.activity.action.factor.totp_revoked: 'Authenticator app removed: {name}'
+account.activity.action.upstream_link: Linked {provider}
+account.activity.action.upstream_sign_in: Signed in with {provider}
+account.activity.action.upstream_unlink: Unlinked {provider}
+account.apps.description: The services this account has allowed in. A remembered allow lets the service sign you in without asking again; revoking it asks again on the next sign-in.
+account.apps.empty: No apps remembered yet — a service you allow appears here.
+account.apps.granted: remembered {date}
+account.apps.revoke: Revoke access
+account.apps.revoked: Access revoked — the service asks again on the next sign-in.
+account.apps.title: Apps with access
+account.emails.addBusy: Adding…
+account.emails.addLabel: Add an email address
+account.emails.addMailed: The verification link was emailed to {email}; it works once and lives 24 hours. The address signs in once you confirm it.
+account.emails.addSubmit: Add the address
+account.emails.addUnavailable: '{email} was added, but this deployment cannot send email — the address stays unverified (never sign-in-usable) until a mailer can carry the link. Ask your administrator.'
+account.emails.description: The addresses that can sign in to this account. The primary carries the account's identity to relying parties; every verified address signs in and receives the security notices.
+account.emails.makePrimary: Make primary
+account.emails.makePrimaryBusy: Switching…
+account.emails.primaryBadge: Primary
+account.emails.primaryNote: The primary is the account's address of record — it is never removed. Promote another verified address to move it.
+account.emails.remove: Remove
+account.emails.removeBusy: Removing…
+account.emails.removed: '{email} was removed from the account.'
+account.emails.resend: Resend the link
+account.emails.resendBusy: Sending…
+account.emails.resent: The verification link was emailed to {email}.
+account.emails.switched: '{email} is now the primary address.'
+account.emails.title: Email addresses
+error.network: Network error. Is the server running?
+account.factors.added: added {date}
+account.factors.description: 'The strong factors on this account: passkeys (phishing-resistant sign-in), authenticator apps (the six-digit codes), and the recovery codes that get you back in. Each is named and revocable.'
+account.factors.lastUsed: last used {date}
+account.factors.neverUsed: never used
+account.factors.passkeyAdd: Register a passkey
+account.factors.passkeyCancelled: The passkey ceremony did not complete (it was dismissed or the device refused). Nothing was registered.
+account.factors.passkeyEmpty: No passkey yet. Register one to sign in without a password — or as a second factor after it.
+account.factors.passkeyEnrolled: The passkey "{name}" is registered.
+account.factors.passkeyNamePlaceholder: A name for this passkey (MacBook Touch ID, YubiKey 5…)
+account.factors.passkeyNameRequired: Name the passkey first (e.g. the device it lives on).
+account.factors.passkeyNoHint: the device declared no transport hint
+account.factors.passkeyRegister: Register
+account.factors.passkeyRevoked: The passkey was revoked; it can no longer sign in to this account.
+account.factors.passkeyUnsupported: This browser does not support passkeys, so registration is unavailable here.
+account.factors.passkeysTitle: Passkeys
+account.factors.recoveryCopy: Copy the codes
+account.factors.recoveryCopied: Copied
+account.factors.recoveryDialogFirst: Your first factor is active, so these recovery codes were generated. Each works once. Store them somewhere safe — they are the way back in when a device is lost. They are never shown again.
+account.factors.recoveryDialogRegenerated: The new codes replace the old set (the old codes stopped working). Each works once; they are never shown again.
+account.factors.recoveryDialogTitle: Your recovery codes
+account.factors.recoveryDismiss: I stored them
+account.factors.recoveryEmpty: 'No recovery codes yet: they arrive with your first factor.'
+account.factors.recoveryRegenerate: Regenerate the codes
+account.factors.recoveryState: '{remaining} of {total} codes remain, generated {date}. Regenerating replaces the set and revokes the old codes.'
+account.factors.recoveryTitle: Recovery codes
+account.factors.revoke: Revoke
+account.factors.title: Strong authentication
+account.factors.totpActivate: Activate
+account.factors.totpAdd: Add an authenticator app
+account.factors.totpCodeLabel: The current six-digit code
+account.factors.totpEmpty: No authenticator app yet. Add one for a second factor at sign-in.
+account.factors.totpEnrollHint: Scan the QR with your authenticator app (or enter the secret by hand), then type the app's current code to activate the factor. The secret is generated on this page and never sent anywhere else.
+account.factors.totpEnrolled: The authenticator app is active.
+account.factors.totpManual: Or enter the secret by hand
+account.factors.totpNameLabel: A name for this app
+account.factors.totpNamePlaceholder: Authenticator on my phone
+account.factors.totpRevoked: The authenticator app was removed; it can no longer answer challenges.
+account.factors.totpTitle: Authenticator apps
+account.factors.unverifiedNote: 'Your primary email address is not verified, so strong factors are locked for now: the recovery path rides that mailbox. Verify the address from the profile section above, then enroll.'
+account.factors.noneNote: No strong second factor (a passkey or an authenticator app) is registered — at sign-in, a stolen password alone would open this account. The verified email backs recovery and the emailed-code option, never a challenge of its own. Register a passkey or add an authenticator app below; the recovery codes arrive with the first factor.
+account.activity.description: Your account's own sign-in and security events, newest first.
+account.activity.empty: 'Nothing yet: sign-ins, link changes and password changes will appear here.'
+account.activity.newDevice: new device
+account.activity.title: Recent activity
+account.description: 'Your OIML SMART identity: the profile, the sign-in methods, the sessions and the activity on it, all managed by you.'
+account.linkError.linkFreshProof: 'Before linking {name}, prove it is really you: sign in again (the sign-in page), then start the link from this page.'
+account.linkError.generic: The link could not be completed. Try again.
+account.linkError.link_session: The sign-in session changed during the linking flow. Start the link again.
+account.linkError.link_taken: That {name} account is already linked to a different OIML SMART account. Contact your administrator if you believe this is wrong.
+account.linkError.provider_linked: 'Your account already has a {name} link: unlink it first.'
+account.linkError.upstream: The {name} flow did not complete ({reason}). Try again; if it keeps failing, contact your administrator.
+account.loadError: The account could not be loaded. Is the server running?
+account.methods.accountId: account id {id}
+account.methods.description: 'Every way this account can sign in. An upstream sign-in matches the linked account id only, never an email address. At least one method always remains: the console refuses to remove your last way in.'
+account.methods.lastOne: 'This is your only way to sign in: set a password or link another provider before removing it.'
+account.methods.linkAction: Link {provider}
+account.methods.linkedAt: linked {date}
+account.methods.linkedBy: by {by}
+account.methods.noLinks: No upstream identity is linked yet. Link one below to sign in with it.
+account.methods.passwordLabel: Password
+account.methods.passwordRemoved: The password was removed; this account signs in with its linked identities now.
+account.methods.passwordSet: A password is set.
+account.methods.passwordUnset: No password set. Set one below to have a second way in.
+account.methods.remove: Remove
+account.methods.removing: Removing…
+account.methods.title: Sign-in methods
+account.methods.unlink: Unlink
+account.methods.unlinked: The link was removed. That sign-in method no longer reaches this account.
+account.networkError: Network error. Is the server running?
+account.notice.linked: 'Your {name} account is now linked: you can sign in with it.'
+account.organizations.accept: Accept
+account.organizations.accepted: You are now a member of {org}.
+account.organizations.actingAs: 'You are acting as {org}: sign-ins and tokens carry this organization''s role set.'
+account.organizations.actingAsNone: You are not acting as any organization right now.
+account.organizations.actingBadge: acting as it
+account.organizations.decline: Decline
+account.organizations.declined: The invitation to {org} was declined.
+account.organizations.description: 'Every organization this account belongs to. You act as one organization at a time: your sign-ins and tokens carry the active organization''s role set, and the services you sign in to never see the others.'
+account.organizations.disabledNote: Disabled {date} by {by}. The organization's administrator can re-activate the membership.
+account.organizations.empty: No organization memberships yet. Ask to join a registered organization below.
+account.organizations.invitedNote: Invited by {by}. Accept to become a member and act as this organization.
+account.organizations.keys.badgeActive: active
+account.organizations.keys.badgeRevoked: revoked
+account.organizations.keys.badgeRotated: rotated
+account.organizations.keys.close: Close
+account.organizations.keys.description: The organization's signing keys (ES256). This service publishes the public halves at {url} for any verifier, with the organization's standing; the private material stays with the organization and is never stored here.
+account.organizations.keys.empty: No signing keys registered yet.
+account.organizations.keys.fieldJwk: The PUBLIC JWK (JSON — ES256; never the private half)
+account.organizations.keys.fieldLabel: The key's label
+account.organizations.keys.invalidJwk: The JWK does not parse as an ES256 public key ({reason}).
+account.organizations.keys.item: registered {date} by {by}
+account.organizations.keys.privateRefusal: That JWK carries the PRIVATE half (d) — never paste it here; this service stores the public half only.
+account.organizations.keys.registerBusy: Registering…
+account.organizations.keys.registerSubmit: Register the key
+account.organizations.keys.registered: The signing key “{label}” is registered — its public half now publishes at the key-resolution endpoint.
+account.organizations.keys.revoke: Revoke…
+account.organizations.keys.revokeBusy: Revoking…
+account.organizations.keys.revokeConfirm: 'Confirm: revoke the key'
+account.organizations.keys.revokeNote: 'The revocation is terminal and immediate — but the row is never deleted: an artifact signed BEFORE the revocation still resolves, and the answer names the revocation date.'
+account.organizations.keys.revoked: The signing key “{label}” is revoked — it keeps resolving with the revocation stamps.
+account.organizations.keys.rotate: Rotate…
+account.organizations.keys.rotateBusy: Rotating…
+account.organizations.keys.rotateNote: 'The rotation registers the successor and stamps this key (the overlap): both keep resolving, so an artifact signed before the rotation still verifies. Revoke the predecessor deliberately once the signers moved on.'
+account.organizations.keys.rotateSubmit: Rotate to the successor
+account.organizations.keys.rotated: Rotated — the successor “{label}” is active; the predecessor keeps resolving with its stamps.
+account.organizations.keys.statusActive: active
+account.organizations.keys.statusRevoked: 'revoked {date} by {by} — the row stays: an artifact signed before the revocation still resolves, with the date named'
+account.organizations.keys.statusRotated: rotated {date} by {by} — the successor is {successor}; the row stays for the artifacts signed before
+account.organizations.keys.title: Signing keys — {org}
+account.organizations.noRoles: no organization roles
+account.organizations.noteLabel: A note for the organization's administrator (optional)
+account.organizations.orgLabel: Organization
+account.organizations.primaryBadge: primary
+account.organizations.requestApproved: Approved
+account.organizations.requestBusy: Sending…
+account.organizations.requested: Your request to join {org} is with its administrator now.
+account.organizations.requestPending: Waiting for the organization's administrator (requested {date})
+account.organizations.requestRefused: 'Refused: {reason}'
+account.organizations.requestSubmit: Request to join
+account.organizations.requestTitle: Join another organization
+account.organizations.returnPrimary: Return to your primary organization
+account.organizations.roleLabel: The role to request
+account.organizations.stateDisabled: disabled
+account.organizations.stateInvited: invitation
+account.organizations.switch: Act as {org}
+account.organizations.switchBusy: Switching…
+account.organizations.title: Organizations
+account.password.busy: Changing…
+account.password.changed: Your password was changed.
+account.password.changedRevoked: Your password was changed; {count} other session(s) were signed out.
+account.password.confirmLabel: Repeat the new password
+account.password.currentLabel: Current password
+account.password.mismatch: The two entries of the new password do not match.
+account.password.nextLabel: New password
+account.password.policy: Passwords are at least 12 characters.
+account.password.revokeNote: Changing the password signs every other session out.
+account.password.stateSet: A password is set on this account.
+account.password.stateUnset: No password is set on this account yet.
+account.password.strength.fair: Fair
+account.password.strength.good: Good
+account.password.strength.hintLonger: 'Longer is stronger: a passphrase of several words beats a short jumble.'
+account.password.strength.hintMix: Mix in numbers or symbols, or simply make it longer.
+account.password.strength.hintMore: A few more characters make it stronger still.
+account.password.strength.hintShort: 'Passwords here are at least 12 characters: {count} more to go.'
+account.password.strength.strong: Strong
+account.password.strength.tooShort: Too short
+account.password.submitChange: Change the password
+account.password.submitSet: Set a password
+account.password.title: Password
+account.password.tooShort: The password needs at least 12 characters.
+account.profile.avatarBusy: Uploading…
+account.profile.avatarChange: Change the picture
+account.profile.avatarNote: The avatar comes from a linked identity provider; with none linked, your initials stand in.
+account.profile.avatarNoteUpload: Upload your own picture (at most {max} MB — PNG, JPEG, WebP or GIF), or the avatar comes from a linked identity provider; with neither, your initials stand in.
+account.profile.avatarPublic: 'Your picture is public by convention (the GitHub-avatars pattern): the services you sign in to load it from a public URL, so only upload one you would show anywhere.'
+account.profile.avatarRemove: Remove the picture
+account.profile.avatarRemoved: Your picture was removed — your initials stand in.
+account.profile.avatarSaved: Your picture was updated.
+account.profile.avatarTooLarge: The picture is larger than {max} MB — choose a smaller one.
+account.profile.avatarWrongType: The picture must be a PNG, JPEG, WebP or GIF image.
+account.profile.cancel: Cancel
+account.profile.changeEmail: Change the email address
+account.profile.cropConfirm: Use this picture
+account.profile.cropDecodeError: That image could not be read. Choose a PNG, JPEG, WebP or GIF file.
+account.profile.cropNote: Drag to position, zoom to frame. The cropped square ({size} px PNG) is the picture that uploads; the server accepts at most {max} MB.
+account.profile.cropPreview: Preview
+account.profile.cropTitle: Frame your picture
+account.profile.cropZoom: Zoom
+account.profile.edit: Edit
+account.profile.emailBusy: Preparing…
+account.profile.emailChanged: Your email address was changed to {email}.
+account.profile.emailInvalid: Enter a valid email address.
+account.profile.emailLabel: Primary email
+account.profile.emailMailed: The verification link was emailed to {email}; it lives 24 hours. The change applies when you open it.
+account.profile.emailPending: A change to {email} is waiting for its verification link (valid until {expires}). Starting a fresh change voids the earlier link.
+account.profile.emailShown: No mailer is configured on this deployment, so the verification link is shown here instead of being emailed to the new address. Opening it applies the change without proving the mailbox; the address keeps its "not verified" state until a mailed link confirms it.
+account.profile.emailShownAction: Open the verification link
+account.profile.emailSubmit: Start the change
+account.profile.nameLabel: Display name
+account.profile.nameRequired: The display name must not be empty.
+account.profile.newEmailLabel: New email address
+account.profile.roleLine: 'Role on this identity provider: {role}'
+account.profile.save: Save the name
+account.profile.saved: Your display name was updated.
+account.profile.saving: Saving…
+account.profile.title: Profile
+account.profile.unverified: Not verified
+account.profile.unverifiedNote: Nothing has proved this mailbox yet. When the identity service has a mailer, an email change confirms the new address by link; until then the link is shown on screen and the state stays honest.
+account.profile.verified: Verified
+account.profile.verifiedNote: Confirmed through the invite ceremony or a mailed verification link.
+account.sessions.current: this session
+account.sessions.description: Every browser signed in to this account. Revoking one signs it out immediately; revoking the current one signs you out here.
+account.sessions.expires: Expires {date}
+account.sessions.lastActive: last active {date}
+account.sessions.notRecorded: not recorded
+account.sessions.onlyCurrent: This session is the only active one.
+account.sessions.revoke: Revoke
+account.sessions.revokeOthers: Sign out everywhere else
+account.sessions.revokeOthersBusy: Signing the others out…
+account.sessions.revokeOthersDone: '{count} other session(s) signed out.'
+account.sessions.revoked: The session was revoked.
+account.sessions.signedIn: Signed in {date}
+account.trusted.title: Trusted browsers
+account.trusted.description: 'The browsers you marked "Remember this browser" at the second-factor step: on one of these, the password alone signs in (a new-device or country sighting still asks the factor). Revoke any browser you no longer hold.'
+account.trusted.empty: No trusted browsers. The "Remember this browser" box appears at the second-factor step.
+account.trusted.unknownDevice: An unnamed browser
+account.trusted.lastUsed: last used {at}
+account.trusted.expires: trusted until {at}
+account.trusted.revoke: Revoke
+account.trusted.currentBadge: this browser
+account.sessions.title: Active sessions
+account.signoutAll: Sign out of all accounts
+account.signoutAllBusy: Signing out…
+account.switchAccount: Switch account
+account.tokens.busy: Minting…
+account.tokens.copied: Copied
+account.tokens.copy: Copy
+account.tokens.description: 'Personal access tokens let a script or CLI act as this account on the register''s services. A token never rides a request directly — it exchanges for a short-lived access token (RFC 8693) — and it only ever narrows this account: its scopes are a subset of what your roles permit. Expiration is mandatory.'
+account.tokens.empty: No developer tokens yet.
+account.tokens.expires: expires {date}
+account.tokens.expiryDays: '{days} days'
+account.tokens.fieldExpiry: Expiration
+account.tokens.fieldName: Token name
+account.tokens.fieldScopes: Scopes (a token only ever narrows this account)
+account.tokens.fieldPermissions: Permissions (the service's own catalog)
+account.tokens.permissionsCount: '{count} permissions'
+account.tokens.permissionsError: The service's permission catalog is unavailable — the server refuses a permission grant it cannot verify.
+account.tokens.permissionsLoading: Loading the service's permission catalog…
+account.tokens.permissionsNone: No permissions selected — the token exchanges exactly as today.
+account.tokens.permStemGroup: whole service (stem grant)
+account.tokens.permStemResource: all actions (stem grant)
+account.tokens.permImplied: implied by the stem
+account.tokens.permColumnPermission: Permission
+account.tokens.permColumnAll: All
+account.tokens.permissionsSearch: Search permissions…
+account.tokens.lastUsed: last used {date}
+account.tokens.edit: Edit
+account.tokens.mint: Mint a token
+account.tokens.save: Save changes
+account.tokens.saved: The token was updated.
+account.webhooks.title: Webhooks
+account.webhooks.description: 'Your event subscriptions: this service signs every delivery (Webhook-Signature, HMAC-SHA256) and never blocks the act it reports. Verify each delivery with the secret shown once at subscribe time.'
+account.webhooks.empty: No subscriptions yet.
+account.webhooks.subscribe: Subscribe an endpoint
+account.webhooks.fieldUrl: https://your-service.example/hooks
+account.webhooks.fieldEvents: The events (the journal's own names)
+account.webhooks.subscribed: Subscribed — the delivery secret is shown once, now.
+account.webhooks.revoked: Unsubscribed.
+account.webhooks.revoke: Unsubscribe
+account.webhooks.since: Subscribed {date}
+account.webhooks.busy: Working…
+account.webhooks.deliveries: Recent deliveries
+account.webhooks.delivered: delivered
+account.webhooks.deadLetter: dead letter · {attempts} attempts · HTTP {status}
+account.webhooks.onceTitle: The delivery signing secret
+account.webhooks.onceNote: Copy it now — this is the only time it is shown. Verify every delivery's Webhook-Signature header with it; a lost secret means unsubscribing and subscribing again.
+account.webhooks.verifyHint: 'Webhook-Signature: t=<timestamp>,v1=hex(HMAC-SHA256(secret, timestamp + ''.'' + body)) — accept within a 5-minute window.'
+account.webhooks.copied: Copied
+account.webhooks.copy: Copy
+account.tokens.minted: Token minted — copy it now.
+account.tokens.neverUsed: never used
+account.tokens.onceNote: Copy it now — this is the only time it is shown. The service stores only its hash; a lost token is revoked and re-minted, never recovered.
+account.tokens.onceTitle: The token, shown once
+account.tokens.revoke: Revoke
+account.tokens.revoked: The token was revoked.
+account.tokens.scopeAction.admin: admin
+account.tokens.scopeAction.read: read
+account.tokens.scopeAction.write: write
+account.tokens.scopeOff: not included
+account.tokens.stateActive: active
+account.tokens.stateExpired: expired
+account.tokens.stateRevoked: revoked
+account.tokens.title: Developer tokens
+account.title: Account
+account.unavailable: 'This deployment does not run the OIML SMART identity service: your sign-in is managed by this instance''s own configuration (its demo accounts, GitHub, or single sign-on). The account console lives on the identity provider.'
+account.verification.bannerBody: 'Nothing has proved this mailbox yet: the services you sign in to are told the address is unverified, and strong sign-in factors stay locked (their recovery path rides this mailbox). Send yourself the verification link — opening it proves this mailbox — or change to a new address below; the administrator''s fresh setup link re-proves this one too.'
+account.verification.bannerTitle: Your email address is not verified
+account.verification.resend: Email a verification link
+account.verification.resendSent: The verification link is on its way to {email} — open it to prove this mailbox.
+admin.clients.backchannelNotAbsolute: The backchannel URI must be an absolute http(s) URI (the relying party's logout receiver).
+admin.clients.backchannelUri: backchannel logout URI (the relying party's receiver — the OP POSTs the logout_token there when the account's sessions end; empty = no notice)
+admin.clients.classApp: Application — a relying party (the signed-in-user flows)
+admin.clients.classDevice: Device — the machine cone (client_credentials only, never a sign-in)
+admin.clients.classLegend: client class (fixed at registration)
+admin.clients.classService: Service — a machine caller (client_credentials only, never a sign-in)
+admin.clients.deviceBadge: device
+admin.clients.deviceId: device id (the twin's name — the token's sub)
+admin.clients.deviceIdRequired: The device id is required.
+admin.clients.deviceLegend: the device this client binds (the twin endpoints consume exactly these claims)
+admin.clients.deviceLine: device {id} · org {org} · model {model}
+admin.clients.deviceModel: instrument model reference (the product-reference package id — e.g. acme-lc500@2021)
+admin.clients.deviceModelRequired: The instrument model reference is required.
+admin.clients.deviceOrg: organization (the identity registry's org the device belongs to)
+admin.clients.deviceOrgRequired: The organization is required.
+admin.clients.deviceSecretNote: A device client is always confidential — the secret is the device's credential (client_credentials at the token endpoint).
+admin.clients.governanceAuditEmpty: No audit event names this client yet.
+admin.clients.governanceAuditLegend: 'the audit slice — the newest events naming this client (the client-side acts and the accounts'' consent acts; the full history: the audit log)'
+admin.clients.governanceButton: Governance
+admin.clients.governanceFailed: The governance read was refused ({status}).
+admin.clients.governanceGrantLive: live
+admin.clients.governanceGrantRevoked: revoked {at}
+admin.clients.governanceGrantsEmpty: No account holds a grant with this client.
+admin.clients.governanceGrantsLegend: consent grants — the whole history (the account consoles hide the revoked half; governance shows it)
+admin.clients.governanceHide: Hide
+admin.clients.governanceLoading: Reading the governance view…
+admin.clients.governanceRefresh: Refresh
+admin.clients.governanceTokensLine: 'Live now: {access} session token(s) · {refresh} offline grant(s) — counts, never values'
+admin.clients.logoutLegend: 'logout surface (the RP-initiated sign-out: the redirect allowlist + the backchannel notice)'
+admin.clients.logoutNote: The end-session endpoint ends the OP session either way; these fields decide where the user lands afterwards and whether this relying party hears the backchannel notice.
+admin.clients.logoutRedirectUris: post-logout redirect URIs (exact, one per line — the end-session redirect fires only to a registered one; empty = the honest signed-out page)
+admin.clients.logoutUriNotAbsolute: 'Not an absolute http(s) URI: {uri}'
+admin.clients.serviceAudience: audience (the called service's identifier — the token's aud)
+admin.clients.serviceAudienceRequired: The audience is required.
+admin.clients.serviceBadge: service
+admin.clients.serviceId: service id (the service account's name — the token's sub)
+admin.clients.serviceIdRequired: The service id is required.
+admin.clients.serviceLegend: the service account this client binds (the called service consumes exactly these claims)
+admin.clients.serviceLine: service {id} · org {org} · audience {audience} · scopes {scopes}
+admin.clients.serviceOrg: organization (the identity registry's org the service belongs to)
+admin.clients.serviceOrgRequired: The organization is required.
+admin.clients.serviceScopes: scope allowlist (the token's scope claim — space- or comma-separated)
+admin.clients.serviceScopesRequired: At least one scope is required (the allowlist — least privilege is the class's point).
+admin.clients.serviceSecretNote: A service client is always confidential — the secret is the service account's credential (client_credentials at the token endpoint).
+admin.nav.activity: Activity
+admin.nav.clients: Clients
+admin.nav.label: Identity administration surfaces
+admin.nav.overview: Overview
+admin.nav.providers: Providers
+admin.nav.registry: Accounts
+admin.nav.security: Security
+admin.nav.sessions: Sessions
+admin.nav.users: Members
+admin.org.activity.action.organization.added: added the organization
+admin.org.activity.action.organization.disabled: disabled the organization ({count} membership(s) disabled with it)
+admin.org.activity.action.organization.endorsement_revoked: withdrew {ia}’s endorsement of the manufacturer
+admin.org.activity.action.organization.endorsed: recorded {ia}’s endorsement of the manufacturer
+admin.org.activity.action.organization.key_registered: registered the signing key {kid} (“{label}”)
+admin.org.activity.action.organization.key_revoked: revoked the signing key {kid}
+admin.org.activity.action.organization.key_rotated: rotated the signing key {kid} → {successor}
+admin.org.activity.action.organization.reactivated: re-enabled the organization
+admin.org.activity.action.organization.removed: removed the organization permanently
+admin.org.activity.action.organization.updated: edited the organization ({fields})
+admin.org.activity.empty: Nothing on the record yet for this organization.
+admin.org.activity.title: The organization's record
+admin.org.acts.disable: Disable…
+admin.org.acts.disableConfirm: 'Confirm: disable the organization'
+admin.org.acts.disableNote: 'Disabling is the honest removal: the active memberships disable with it (the members'' sessions stop acting as it, and fresh tokens stop carrying the per-org roles); waiting invitations stay on hold. The history is kept, and re-enabling never restores memberships — each is re-activated deliberately.'
+admin.org.acts.disabled: 'Disabled: {count} membership(s) disabled with it; the per-org roles stopped carrying.'
+admin.org.acts.edit: Edit…
+admin.org.acts.reactivate: Re-enable
+admin.org.acts.reactivated: Active again. {count} membership(s) stay disabled — re-activate each deliberately from the members list.
+admin.org.acts.remove: Remove permanently…
+admin.org.acts.removeConfirm: 'Confirm: remove the organization permanently'
+admin.org.acts.removeNote: The hard delete exists only because this organization never held a membership and no join request names it. The act is audited; the row is gone.
+admin.org.acts.removed: Removed from the registry.
+admin.org.acts.save: Save the organization
+admin.org.acts.saved: The organization is updated.
+admin.org.acts.saving: Saving…
+admin.org.chain.designatedByLabel: Designated by
+admin.org.chain.designatedByOption: '{name} ({id})'
+admin.org.chain.designatesLabel: Designates (utilizers / associates)
+admin.org.chain.designatesNone: designates no utilizer or associate — a plain member is an honest state
+admin.org.chain.associatedTlsLabel: Associated test laboratories
+admin.org.chain.associatedTlsNone: none associated
+admin.org.chain.notRecorded: not recorded
+admin.org.chain.proposedByLabel: Proposed by
+admin.org.chain.proposedByOption: '{name} ({id})'
+admin.org.chain.proposesLabel: Proposes (issuing authorities)
+admin.org.chain.proposesNone: proposes no issuing authority — no OIML-CS participation on that leg
+admin.org.chain.title: Designation chain
+admin.org.csStatus.none: not recorded
+admin.org.csStatus.signedActive: Declaration signed — active
+admin.org.csStatus.suspended: Declaration suspended
+admin.org.csStatus.withdrawn: Declaration withdrawn
+admin.org.details.contactsEmpty: No contacts on the record.
+admin.org.details.contactsLabel: Contacts
+admin.org.details.countryLabel: Country
+admin.org.details.csStatusLabel: CS status
+admin.org.details.disabledBy: disabled {date} by {by}
+admin.org.details.idLabel: Id
+admin.org.details.kindLabel: Kind
+admin.org.details.participantRefLabel: Participant record
+admin.org.details.participantRefNone: not linked to a participant record
+admin.org.details.rorIdLabel: ROR id
+admin.org.details.rorIdNone: unmatched
+admin.org.details.stateLabel: State
+admin.org.details.standingLabel: Standing
+admin.org.details.title: Organization
+admin.org.details.updatedBy: edited {date} by {by}
+admin.org.endorsements.empty: No issuing authority endorses this manufacturer yet — the standing stays declared.
+admin.org.endorsements.item: endorsed {date} by {by}
+admin.org.endorsements.title: IA endorsements
+admin.org.keys.badgeActive: active
+admin.org.keys.badgeRevoked: revoked
+admin.org.keys.badgeRotated: rotated
+admin.org.keys.description: The organization's signing keys (ES256) — the public halves publish anonymously at {url} with the organization's standing; the private material stays with the organization, never stored here.
+admin.org.keys.empty: No signing keys registered yet.
+admin.org.keys.fieldJwk: The PUBLIC JWK (JSON — ES256; never the private half)
+admin.org.keys.fieldLabel: The key's label
+admin.org.keys.invalidJwk: The JWK does not parse as an ES256 public key ({reason}).
+admin.org.keys.item: registered {date} by {by}
+admin.org.keys.privateRefusal: That JWK carries the PRIVATE half (d) — never accept it; this service stores the public half only.
+admin.org.keys.registerBusy: Registering…
+admin.org.keys.registerSubmit: Register the key
+admin.org.keys.registerTitle: Register a signing key
+admin.org.keys.registered: The signing key “{label}” is registered — its public half now publishes at the key-resolution endpoint.
+admin.org.keys.revoke: Revoke…
+admin.org.keys.revokeBusy: Revoking…
+admin.org.keys.revokeConfirm: 'Confirm: revoke the key'
+admin.org.keys.revokeNote: 'The revocation is terminal and immediate — but the row is never deleted: an artifact signed BEFORE the revocation still resolves, and the answer names the revocation date.'
+admin.org.keys.revoked: The signing key “{label}” is revoked — it keeps resolving with the revocation stamps.
+admin.org.keys.rotate: Rotate…
+admin.org.keys.rotateBusy: Rotating…
+admin.org.keys.rotateNote: 'The rotation registers the successor and stamps this key (the overlap): both keep resolving, so an artifact signed before the rotation still verifies. Revoke the predecessor deliberately once the signers moved on.'
+admin.org.keys.rotateSubmit: Rotate to the successor
+admin.org.keys.rotated: Rotated — the successor “{label}” is active; the predecessor keeps resolving with its stamps.
+admin.org.keys.statusActive: active
+admin.org.keys.statusRevoked: 'revoked {date} by {by} — the row stays: an artifact signed before the revocation still resolves, with the date named'
+admin.org.keys.statusRotated: rotated {date} by {by} — the successor is {successor}; the row stays for the artifacts signed before
+admin.org.keys.title: Signing keys
+admin.org.standing.declared: Declared manufacturer — self-registered on the identity service; NOT an OIML-CS participant (no peer assessment, no scope)
+admin.org.standing.iaEndorsed: IA-endorsed manufacturer ({ias}) — the issuing authority confirmed the relationship; NOT an OIML-CS participant
+admin.org.standing.member: OIML Member — the Convention’s membership; NOT an OIML-CS participation on its own
+admin.org.standing.nonParticipant: Not an OIML-CS participant
+admin.org.standing.participant: OIML-CS participant — the scheme’s registration (PD-03)
+admin.org.tokens.by: '{name} ({email})'
+admin.org.tokens.description: 'The developer tokens this organization''s members minted on their own accounts — the metadata only: the secret values are never stored, and a member''s token is never an organization credential. A disabled membership''s live tokens show here until they expire or the member revokes them.'
+admin.org.tokens.empty: No member of this organization holds a developer token.
+admin.org.tokens.expires: expires {date}
+admin.org.tokens.lastUsed: last used {date}
+admin.org.tokens.neverUsed: never used
+admin.org.tokens.title: Developer tokens (the members')
+admin.orgs.addBusy: Adding…
+admin.orgs.added: '{name} is on the registry.'
+admin.orgs.addNote: The id is the stable slug and never changes; for a participant organization it IS the OIML code (the platform resolves the org claim directly against its participant registry).
+admin.orgs.addSubmit: Add the organization
+admin.orgs.addTitle: Add an organization
+admin.orgs.chainDesignates: designates {count}
+admin.orgs.chainProposes: proposes {count}
+admin.orgs.chainTls: '{count} TL(s)'
+admin.orgs.colAdmins: Administrators
+admin.orgs.colMembers: Members
+admin.orgs.colOrganization: Organization
+admin.orgs.colState: State
+admin.orgs.contactAdd: Add a contact
+admin.orgs.contactEmail: contact email
+admin.orgs.contactName: contact name (optional)
+admin.orgs.contactRemove: Remove
+admin.orgs.description: 'The identity service''s own organization registry: every organization with its members and its delegated administrators, and the lifecycle acts.'
+admin.orgs.empty: No organizations yet — add the first one above.
+admin.orgs.field.contacts: Contacts
+admin.orgs.field.country: country (optional)
+admin.orgs.field.id: id — the stable slug (the participant's OIML code)
+admin.orgs.field.kind: Participant kind
+admin.orgs.field.name: display name
+admin.orgs.field.participantRef: participant record reference (optional)
+admin.orgs.field.rorId: ROR id (https://ror.org/…)
+admin.orgs.field.shortName: short name (optional)
+admin.orgs.forbidden: The organization registry is an administrator surface — your account does not hold the administrator role.
+admin.orgs.kindNone: not a scheme participant
+admin.orgs.membersDisabled: '{count} disabled'
+admin.orgs.membersInvited: '{count} invited'
+admin.orgs.noAdmins: none yet
+admin.orgs.open: Open
+admin.orgs.stateActive: active
+admin.orgs.stateDisabled: disabled
+admin.orgs.standingDeclared: declared standing
+admin.orgs.standingIaEndorsed: IA-endorsed ({ias})
+admin.orgs.title: Organizations
+admin.orgUsers.activity.empty: No acts yet — the membership, data-cone, and join-queue acts land here.
+admin.orgUsers.activity.intro: Your organization's own acts — memberships, data cones, the join queue — newest first, fifty deep.
+admin.orgUsers.activity.title: Organization activity
+admin.orgUsers.activity.action.membership.activated: re-activated {email}'s membership
+admin.orgUsers.activity.action.membership.cone: set {email}'s data cone to {cone} (was {previous})
+admin.orgUsers.activity.action.membership.disabled: disabled {email}'s membership
+admin.orgUsers.activity.action.membership.invited: invited {email} to the organization
+admin.orgUsers.activity.action.membership.roles: set {email}'s roles to {roles}
+admin.orgUsers.cone.badge.assigned: assigned
+admin.orgUsers.cone.badge.assignedReadOnly: assigned + read-only
+admin.orgUsers.cone.badge.orgWide: org-wide
+admin.orgUsers.cone.badge.readOnly: read-only
+admin.orgUsers.cone.button: Data cone
+admin.orgUsers.cone.close: Close
+admin.orgUsers.cone.editorTitle: The data cone — what this member can see and do
+admin.orgUsers.cone.neverWidens: The cone only ever narrows what the roles grant — it can never grant. The organization administrator's own membership is managed by the scheme operator (BIML).
+admin.orgUsers.cone.opt.assigned.hint: 'Sees only the work that names them: the test runs they operate, the assignments those runs belong to, the engagements they opened. The organization''s other rows stay hidden; the shared instrument catalog stays readable.'
+admin.orgUsers.cone.opt.assigned.label: Assigned only
+admin.orgUsers.cone.opt.orgWide.hint: Sees and works on everything the organization sees — every existing member's posture. Nothing changes until you narrow it.
+admin.orgUsers.cone.opt.orgWide.label: Org-wide (the default)
+admin.orgUsers.cone.opt.readOnly.hint: Reads everything the organization sees, but every write is refused and recorded on the audit trail. The reviewer's posture.
+admin.orgUsers.cone.opt.readOnly.label: Read-only
+admin.orgUsers.cone.save: Save the data cone
+admin.orgUsers.cone.saved: '{name}''s data cone is now {cone}.'
+admin.orgUsers.explain.button: Explain
+admin.orgUsers.explain.close: Close
+admin.orgUsers.explain.title: What {name} can see and do — the computed answer
+admin.orgUsers.explain.computed: Computed live from the same rules the member's sessions and sign-in claims run — nothing here is a separate guess.
+admin.orgUsers.explain.notActive.membership-invited: The invitation is still waiting for the member — they do not act as the organization yet (nothing below is in effect).
+admin.orgUsers.explain.notActive.membership-disabled: The membership is disabled — the member does not act as the organization (nothing below is in effect).
+admin.orgUsers.explain.notActive.account-deactivated: The account is deactivated — it signs in nowhere, so it acts as nothing.
+admin.orgUsers.explain.roles.title: The roles held
+admin.orgUsers.explain.roles.empty: No roles in effect — the membership does not act.
+admin.orgUsers.explain.roleSource.membership: this organization
+admin.orgUsers.explain.roleSource.account: the account — rides every context
+admin.orgUsers.explain.roleUnknown: not in this instance's role map — grants nothing
+admin.orgUsers.explain.roleNoPerms: no action permissions
+admin.orgUsers.explain.perms.title: The permissions they grant
+admin.orgUsers.explain.perms.empty: No action permissions — the member reads, never acts.
+admin.orgUsers.explain.perms.from: 'from: {roles}'
+admin.orgUsers.explain.effect.held: in effect
+admin.orgUsers.explain.effect.scoped: in effect — over the rows naming them only
+admin.orgUsers.explain.effect.refused: refused — the read-only cone
+admin.orgUsers.explain.cone.title: The data cone's effect
+admin.orgUsers.explain.cone.read.orgWide: 'Reads: every row the organization sees.'
+admin.orgUsers.explain.cone.read.assigned: 'Reads: only the organization''s rows that name them.'
+admin.orgUsers.explain.cone.write.roleSet: 'Writes: as the roles above grant.'
+admin.orgUsers.explain.cone.write.refused: 'Writes: refused — the read-only modifier (every refusal lands on the audit trail).'
+admin.orgUsers.explain.kind.orgAdmin: The organization administrator's membership — the scheme operator (BIML) manages it.
+admin.orgUsers.explain.kind.outside: 'Held outside the organization''s kind bound: {roles} — the assignment rules refuse these today (a legacy row).'
+admin.orgUsers.explain.vis.title: The data they see — the dry-run
+admin.orgUsers.explain.vis.orgBound: The read gate narrows this member to their organization's rows (their primary role is org-scoped).
+admin.orgUsers.explain.vis.oversight: The read gate never narrows this member — their primary role is not org-scoped (the register-operator/oversight posture). The cone hides nothing from them.
+admin.orgUsers.explain.vis.ownOrg: the organization's row
+admin.orgUsers.explain.vis.named: …naming the member
+admin.orgUsers.explain.vis.foreign: another organization's row
+admin.orgUsers.explain.vis.visible: visible
+admin.orgUsers.explain.vis.hidden: hidden
+admin.orgUsers.explain.reason.oversight: the read gate does not narrow this member
+admin.orgUsers.explain.reason.shared: shared reference data — the cone never narrows it
+admin.orgUsers.explain.reason.catalog: the shared instrument catalog reads for everyone (writes stay organization-gated)
+admin.orgUsers.explain.reason.orgField: the row names the organization ({field})
+admin.orgUsers.explain.reason.orgFieldMiss: no field on the row names the organization
+admin.orgUsers.explain.reason.assignedMiss: names the organization, not the member — the assigned cone hides it
+admin.orgUsers.explain.reason.assignedNoKey: the class carries no person-level field — the assigned cone admits none of its rows
+admin.orgUsers.explain.reason.assignedHit: the row names the member ({key})
+admin.user.acts.deactivate: Deactivate…
+admin.user.acts.deactivateConfirm: Confirm deactivation
+admin.user.acts.deactivateNote: 'Deactivation is honest: the history is kept, sign-ins are refused, and the live sessions stop resolving at once.'
+admin.user.acts.deactivated: 'Deactivated: sign-ins are refused and the account''s sessions stopped resolving. The history is kept.'
+admin.user.acts.erase: Delete account…
+admin.user.acts.eraseConfirm: 'Confirm: erase the account permanently'
+admin.user.acts.eraseWarning: 'Erasure removes the person from the account: the password, the linked identities, the setup and verification links, the per-client role grants, the live sessions and tokens, and the uploaded picture all go; the row stays as an anonymized tombstone so the audit trail still resolves. This cannot be undone.'
+admin.user.acts.erasing: Erasing…
+admin.user.acts.issueReset: Issue a password-reset link
+admin.user.acts.reactivate: Reactivate
+admin.user.acts.reactivated: 'Reactivated: the account signs in again.'
+admin.user.acts.resendSetup: Resend the setup link
+admin.user.acts.selfNoDeactivate: You cannot deactivate your own account here.
+admin.user.acts.selfNoErase: You cannot erase your own account here.
+admin.user.acts.setupIssued: 'A fresh one-time setup link (24 hours) is below: hand it over by a channel where you can verify the person.'
+admin.user.acts.title: Access
+admin.user.activity.action.account.avatar: updated the profile picture
+admin.user.activity.action.account.avatar_removed: removed the profile picture
+admin.user.activity.action.account.client_roles: 'granted roles on {client}: {roles}'
+admin.user.activity.action.account.client_roles_cleared: 'cleared the role grant on {client}: the account-wide set is the default there again'
+admin.user.activity.action.account.deactivated: deactivated the account
+admin.user.activity.action.account.deleted: 'erased the account ({email}): the row is an anonymized tombstone'
+admin.user.activity.action.account.enrolled: completed the setup (password set)
+admin.user.activity.action.account.enrollment: issued a fresh setup link
+admin.user.activity.action.account.invite: invited the account ({email}, role {role})
+admin.user.activity.action.account.link_on_behalf: 'linked {provider} account {handle} on behalf: {justification}'
+admin.user.activity.action.account.link_removed: removed the {provider} link
+admin.user.activity.action.account.link_removed_reason: 'removed the {provider} link: {reason}'
+admin.user.activity.action.account.password: changed the password
+admin.user.activity.action.account.password_reset: requested a password reset email
+admin.user.activity.action.account.reactivated: reactivated the account
+admin.user.activity.action.account.session_revoked: ended a session
+admin.user.activity.action.account.session_revoked_admin: ended a session (administrator)
+admin.user.activity.action.account.sessions_revoked: ended {count} session(s)
+admin.user.activity.action.account.sessions_revoked_admin: ended every session ({count}, administrator)
+admin.user.activity.action.account.sign_in: signed in with the password
+admin.user.activity.action.account.updated: edited the account ({fields})
+admin.user.activity.action.upstream_link: linked {provider} ({handle}) from the account page
+admin.user.activity.action.upstream_sign_in: signed in with {provider} ({handle})
+admin.user.activity.action.upstream_unlink: unlinked {provider}
+admin.user.activity.action.user.deactivated: deactivated the account
+admin.user.activity.action.user.reactivated: reactivated the account
+admin.user.activity.action.user.roles: 'assigned roles: {roles}'
+admin.user.activity.actorAccount: the account
+admin.user.activity.empty: Nothing on the record yet for this account.
+admin.user.activity.feedLink: the registry's full activity
+admin.user.activity.more: Show older events ({count} more)
+admin.user.activity.showing: Showing {shown} of {total}
+admin.user.activity.title: Activity
+admin.user.apps.badge.no: 'no'
+admin.user.apps.badge.yes: can enter
+admin.user.apps.consoleLink: the relying parties console
+admin.user.apps.description: 'Each registered relying party, and whether this account enters it with roles: the per-client grant (else the account-wide set), bounded by the client''s claims-policy allowlist.'
+admin.user.apps.empty: 'No relying parties are registered yet: register one on the relying parties console.'
+admin.user.apps.footnote: The sign-in itself never refuses the account at an active client; CAN ENTER means the instance's tokens carry at least one role for it. A client whose policy carries no role claim receives the profile and email only.
+admin.user.apps.no.client_disabled: 'No: the client is disabled.'
+admin.user.apps.no.explicit_none: 'No: the grant on this client says explicitly no roles.'
+admin.user.apps.no.no_role_claims: 'No: the client''s policy carries no role claim, so its tokens hold the profile and email only.'
+admin.user.apps.no.outside_allowlist: 'No: the client accepts [{allowed}] and the account holds [{held}] for it.'
+admin.user.apps.title: Apps this account can access
+admin.user.apps.yes: 'Can enter: its tokens carry {roles}.'
+admin.user.back: the identity registry
+admin.user.card.emailLabel: Email
+admin.user.card.erasedNote: 'Erased {date}: the row is an anonymized tombstone so the audit trail still resolves. No act applies to it.'
+admin.user.card.idLabel: Account id
+admin.user.card.lastSignIn: Last sign-in
+admin.user.card.lastSignInNever: never
+admin.user.card.nameLabel: Name
+admin.user.card.onRecord: On the record
+admin.user.card.onRecordUnknown: not recorded
+admin.user.card.orgLabel: Organization
+admin.user.card.orgNone: none
+admin.user.card.state.active: active
+admin.user.card.state.deactivated: deactivated
+admin.user.card.state.erased: erased
+admin.user.card.state.invited: invited
+admin.user.card.statusLabel: Status
+admin.user.card.title: Account
+admin.user.failed: The act failed ({status}).
+admin.user.factors.added: added {date}
+admin.user.factors.empty: 'None registered: passkeys, authenticator-app codes and recovery codes appear here with their revoke acts.'
+admin.user.factors.lastUsed: last used {date}
+admin.user.factors.neverUsed: never used
+admin.user.factors.recoveryState: 'Recovery codes: {remaining} of {total} remain (generated {date}).'
+admin.user.factors.revoke: Revoke
+admin.user.factors.revokeConfirm: 'Confirm: revoke this credential'
+admin.user.factors.revokedPasskey: The passkey was revoked.
+admin.user.factors.revokedTotp: The authenticator app was removed.
+admin.user.factors.revoking: Revoking…
+admin.user.factors.totpKind: authenticator app
+admin.user.factors.title: Additional factors
+admin.user.forbidden: 'The identity registry is an administrator surface: your account does not hold the administrator role.'
+admin.user.grants.allowlistNote: 'The client''s policy allowlist bounds the choice: {roles}.'
+admin.user.grants.assignedBy: granted by {by}, {date}
+admin.user.grants.assignedOn: granted {date}
+admin.user.grants.clientLabel: Client
+admin.user.grants.description: The roles this account holds on ONE relying party. An empty grant is the explicit none (the tokens carry no role claim); revoking a grant restores the account-wide default.
+admin.user.grants.empty: 'No per-client grants: every relying party uses the account-wide role set.'
+admin.user.grants.grant: Grant roles on a client…
+admin.user.grants.granted: 'The grant on {client} is saved: its tokens carry {roles}.'
+admin.user.grants.grantedNone: 'The grant on {client} is saved as the explicit none: its tokens carry no role claim.'
+admin.user.grants.noRoles: no roles (the instance's no-claim posture)
+admin.user.grants.policyNote: A client's claims policy (its allowlist included) is edited on the relying parties console.
+admin.user.grants.reassign: Edit…
+admin.user.grants.revoke: Revoke…
+admin.user.grants.revokeConfirm: 'Confirm: restore the account-wide default'
+admin.user.grants.revoked: 'The grant on {client} is cleared: the account-wide set applies there again.'
+admin.user.grants.rolesLabel: Roles
+admin.user.grants.save: Save the grant
+admin.user.grants.title: Per-client role grants
+admin.user.methods.handlePlaceholder: The provider's account id (the handle)…
+admin.user.methods.justificationPlaceholder: 'The justification (required: it goes on the activity record)…'
+admin.user.methods.justificationRequired: 'A justification note is required: the link bypasses the account holder''s own flow, so the reason goes on the record.'
+admin.user.methods.linkNote: This binds the upstream account without the holder driving the provider's consent flow; the match rule is unchanged (provider + account id, never an email), and the justification is audited.
+admin.user.methods.linkSubmit: Link the identity
+admin.user.methods.linkTitle: Link on behalf of the account holder
+admin.user.methods.linked: 'Linked {provider} account {handle}: the justification is on the activity record.'
+admin.user.methods.linkedLine: linked {date} by {by}
+admin.user.methods.noLinks: 'No linked identities: the account signs in with its password only.'
+admin.user.methods.passwordSet: A password is set.
+admin.user.methods.passwordUnset: 'No password yet: the account sets it from the one-time setup link.'
+admin.user.methods.providerPlaceholder: Provider…
+admin.user.methods.title: Sign-in methods
+admin.user.methods.unlink: Unlink
+admin.user.methods.unlinkConfirm: Confirm unlink
+admin.user.methods.unlinkReasonPlaceholder: The reason (optional, on the record)…
+admin.user.methods.unlinked: 'The {provider} link is removed: a sign-in with it is now refused honestly.'
+admin.user.memberships.addBusy: Inviting…
+admin.user.memberships.addNote: The invitation waits on the account holder's console until they accept or decline it. Approving the holder's own join request (the organization administration console's queue) activates directly.
+admin.user.memberships.addOrg: Organization…
+admin.user.memberships.addSubmit: Invite the membership
+admin.user.memberships.addTitle: Add to an organization
+admin.user.memberships.added: '{name} is invited to join {org} — the invitation waits on their account console.'
+admin.user.memberships.description: Every organization this account belongs to, each with its own role set. The account acts as one organization at a time (its session's active context); the primary membership mirrors the account's own role assignment.
+admin.user.memberships.disable: Disable
+admin.user.memberships.disabled: The {org} membership is disabled — the account stopped acting as that organization.
+admin.user.memberships.disabledBy: disabled by {by}
+admin.user.memberships.empty: No organization memberships.
+admin.user.memberships.invitedBy: invited by {by}
+admin.user.memberships.noRoles: no organization roles
+admin.user.memberships.primaryBadge: primary
+admin.user.memberships.reactivate: Re-activate
+admin.user.memberships.reactivated: The {org} membership is active again.
+admin.user.memberships.rolesClose: Close
+admin.user.memberships.rolesEdit: Roles
+admin.user.memberships.rolesSave: Save the roles
+admin.user.memberships.rolesSaved: The {org} membership's roles were updated.
+admin.user.memberships.stateDisabled: disabled
+admin.user.memberships.stateInvited: invited
+admin.user.memberships.title: Organizations
+admin.user.notFound: This account id is not on the registry.
+admin.user.notFoundTitle: No such account
+admin.user.roles.legend: The role set (the primary role gates the account's console section)
+admin.user.roles.note: The role set is account-wide; the org_admin role is assignable only for a registered participant org (the server enforces it).
+admin.user.roles.oneRequired: 'An account holds at least one role: deactivate it instead when it should hold none.'
+admin.user.roles.primary: Primary role
+admin.user.roles.save: Save roles
+admin.user.roles.saved: 'Roles saved: the assignment takes effect on the account''s next request, and rides the ID tokens of the relying parties whose policy carries the roles claim.'
+admin.user.sessions.end: End session
+admin.user.sessions.endAll: End all sessions…
+admin.user.sessions.endAllConfirm: 'Confirm: end every session'
+admin.user.sessions.endAllDone: 'Ended {count} session(s): each stops resolving at once.'
+admin.user.sessions.endAllNote: 'The light act: every live session stops resolving at once, and the account itself stays able to sign in. Deactivation (the account card) is the heavy act.'
+admin.user.sessions.ended: 'Session ended: it stops resolving at once.'
+admin.user.sessions.empty: No live sessions.
+admin.user.sessions.selfWarn: 'This account is yours: ending every session signs you out of this console too.'
+admin.user.sessions.title: Sessions
+admin.user.tokens.description: The account's personal access tokens. Mint FOR this account (the plaintext is shown once — hand it to the holder through your own channel) or revoke one; every act lands on the audit chain with you as the actor, and the holder's mint notice mails as usual.
+admin.user.tokens.empty: No developer tokens on this account.
+admin.user.tokens.expiry: Expiration
+admin.user.tokens.mint: Mint for this account
+admin.user.tokens.minted: Token minted — copy it now; it is shown once.
+admin.user.tokens.name: Token name
+admin.user.tokens.nameRequired: The token needs a name — the console list labels by it.
+admin.user.tokens.permissions: Permissions (the service's own catalog)
+admin.user.tokens.revoked: The token was revoked.
+admin.user.tokens.scopes: Scopes (this account's own standing bounds them)
+admin.user.tokens.scopeAdminNote: admin (only if the account holds the class)
+admin.user.tokens.title: Developer tokens
+admin.user.tokens.revoke: Revoke
+admin.user.setupLink.copy: Copy
+admin.user.setupLink.expires: expires {date} UTC
+admin.user.setupLink.note: 'It opens the account-setup page once, for 24 hours. Send it by a channel where you can verify the person: this link sets their password.'
+admin.user.setupLink.title: The one-time setup link
+admin.user.title: Registry account
+home.account.description: Profile, sign-in methods, sessions and activity.
+home.account.title: Account
+home.admin.description: The account registry, relying parties, sign-in providers and activity.
+home.admin.title: Administration
+home.description: The services your identity can sign in to. Your session here lets you straight in.
+home.empty: No services are linked to your account yet.
+home.launch: Open
+home.loadError: The launcher could not be loaded. Is the server running?
+home.networkError: Network error. Is the server running?
+home.noAccess: Your account does not hold a role this service accepts yet.
+home.request: Request access
+home.requested: Access requested
+home.requesting: Requesting…
+home.requestSent: 'Your request is on the record: the administrator''s activity feed carries it.'
+home.title: Applications
+login.emailLabel: Email
+login.emailPlaceholder: you@example.org
+login.failed: Sign-in failed. Please try again.
+login.failedRetry: Sign-in failed. Please try again — if it keeps failing, contact your administrator.
+login.forgot: Forgot your password?
+account.checkupLink: Run the security checkup
+checkup.title: Security checkup
+checkup.error: The checkup could not be read — sign in and try again.
+checkup.scoreTitle: Your account's security score
+checkup.allGood: Everything is in order. Review again after your next sign-ins.
+checkup.openItems: '{count} item(s) want your attention.'
+checkup.factors: 'Sign-in factors on the account: {count}'
+checkup.fix: Fix
+checkup.sessions: Active sessions
+checkup.unknownClient: An unrecognized client
+checkup.thisDevice: this device
+checkup.manageSessions: Manage the sessions
+checkup.grants: Authorized applications
+checkup.manageGrants: Manage the authorizations
+login.paths.account.title: Sign up
+login.heading: Sign in to {product}
+login.invalidCredentials: Invalid email or password.
+login.legitimacy.after: ' established by the OIML Convention, uniting member states in legal metrology.'
+login.legitimacy.before: 'Operated by OIML — '
+login.legitimacy.link: the intergovernmental treaty organization
+login.mfa.busy: Checking…
+login.mfa.cancel: Back to the password sign-in
+login.mfa.codePlaceholder: '123456'
+login.mfa.failed: The second factor did not complete. Please try again.
+login.mfa.passkeyCancelled: The passkey ceremony did not complete (it was dismissed or the device refused).
+login.mfa.additional: Additional verification required
+login.mfa.prompt: 'Your account is protected with multi-factor authentication. Choose how to finish signing in:'
+login.mfa.passkeyProtected: Your account is protected with a passkey or security key for multi-factor authentication (MFA).
+login.mfa.passkeyFollow: To finish signing in, follow the instructions from your browser.
+login.mfa.emailUse: Email me a sign-in code
+login.mfa.emailCodePlaceholder: '123456'
+login.mfa.emailSubmit: Use the code
+login.mfa.emailSent: The code was sent to your account's email address. It works once and expires with this sign-in attempt.
+login.mfa.emailSending: Sending the code to your account's email address…
+login.mfa.emailSendFailed: The code could not be sent just now — try again in a moment.
+login.mfa.emailSendAsk: Send a sign-in code to your account's email address.
+login.mfa.rememberDevice: Remember this browser for 14 days
+login.mfa.useTotp: Use your authenticator app
+login.mfa.totpHint: Enter the six-digit code your app shows.
+login.mfa.passkeyHint: The device's passkey — fingerprint, face, or a hardware key.
+login.mfa.emailHint: A six-digit code to your account's email address.
+login.mfa.back: Try another way
+login.mfa.recoveryPlaceholder: a1b2-c3d4-e5f6-g7h8
+login.mfa.recoverySubmit: Use the code
+login.mfa.throttled: Too many attempts — wait a moment before trying again.
+login.mfa.usePasskey: Use a passkey
+login.mfa.useRecovery: Use a recovery code
+login.mfa.verify: Verify
+login.networkError: Network error. Is the server running?
+login.serviceUnavailable: The service is briefly unavailable — retry in a moment.
+login.panel.intro: Sign in once with your OIML SMART Identity — every service your organization may use follows.
+login.panel.welcome: One account for all OIML services.
+login.passkeyBusy: Waiting for the passkey…
+login.passkeyButton: Sign in with a passkey
+login.passkeyFailed: The passkey sign-in did not complete. Try again, or sign in with your password.
+login.passkeyOr: or with the password
+login.passwordLabel: Password
+login.passwordPlaceholder: your account password
+login.resetDoneFallback: If an account exists for that address, a password reset email is on its way.
+login.resetFailed: The reset could not be requested. Please try again.
+login.resetIntro: Enter your account's email address; the identity service emails a one-time reset link (24 hours).
+login.resetSending: Sending…
+login.resetSubmit: Send the reset email
+login.statusBanner.degraded: Some register services are reporting problems — your sign-in may be unaffected.
+login.statusBanner.down: One or more register services are down.
+login.statusBanner.link: Details on the status page
+login.submit: Sign in
+login.submitting: Signing in…
+login.supportLink: Contact support
+login.supportPrompt: Need help?
+login.upstream.config: '{provider} sign-in is not configured correctly on this server. Contact your administrator.'
+login.upstream.discovery: '{provider} sign-in configuration could not be read. Contact your administrator.'
+login.upstream.exchange: '{provider} did not complete the sign-in. Please try again — if it keeps failing, contact your administrator.'
+login.upstream.issuerMismatch: '{provider} answered with an unexpected identity. Contact your administrator.'
+login.upstream.notLinked: Your {provider} account is not linked to an OIML SMART account — ask your administrator, or sign in another way and link it from your account page.
+login.upstream.deactivated: This account is deactivated. Contact your administrator.
+login.upstream.refused: '{provider} did not complete the sign-in (access was declined). Please try again.'
+login.upstream.state: Your sign-in session expired or did not match. Please try again.
+login.upstream.tokenAlg: '{provider} signed its response with an unsupported algorithm. Contact your administrator.'
+login.upstream.tokenAudience: '{provider}''s response was not issued for this application, so the sign-in was refused. Contact your administrator.'
+login.upstream.tokenExpired: '{provider}''s response had expired. Please try again.'
+login.upstream.tokenIssuer: '{provider}''s response came from an unexpected issuer, so the sign-in was refused. Contact your administrator.'
+login.upstream.tokenMalformed: '{provider}''s response could not be read. Contact your administrator.'
+login.upstream.tokenNonce: The sign-in response did not match the request, so the sign-in was refused. Please try again.
+login.upstream.tokenSignature: '{provider}''s response could not be verified, so the sign-in was refused. Contact your administrator.'
+login.upstream.unknown: That sign-in method is not available on this service. Contact your administrator.
+login.upstreamSignIn: Sign in with {provider}
+mail.clientRolesGranted.body: |-
+  Hello {name},
+
+  An administrator granted your {product} account these roles on {client} at {when} UTC: {roles}.
+
+  The roles shape what that application lets you do. If you did not expect this access, tell your administrator — and if you do not recognize the act at all, the reset below secures the account first.
+mail.joinReceived.body: |-
+  Hello {name},
+
+  We received your account request about {org} at {when}. It is with {destination}, and you will receive a message at this address when it is decided. You can check the state at any time:
+  {statusUrl}
+
+  If you did not file this request, you can ignore this message. Nothing proceeds without the invitation that only this mailbox can accept.
+mail.joinAdminNotice.body: |-
+  Hello,
+
+  {org} has a new account request waiting for review.
+
+  Applicant: {name} ({from})
+  Role asked for: {role}
+  Filed at: {when}
+
+  Review the request in the administration console:
+  {reviewUrl}
+
+  If other administrators on your team cover this queue, they received this message too.
+mail.joinAdminNotice.heading: A request awaits your review
+mail.joinAdminNotice.preheader: '{name} asked to join {org}.'
+mail.joinAdminNotice.subject: A new account request for {org} awaits review
+mail.joinAdminNotice.why: You receive this message because your account administers this queue on {product}.
+mail.joinReceived.heading: Your request is filed
+mail.joinReceived.preheader: Your request about {org} is with {destination}.
+mail.joinReceived.subject: We received your {product} account request
+mail.joinReceived.why: You receive this message because an account request on {product} named this address.
+mail.joinRefused.body: |-
+  Hello {name},
+
+  {org} declined the account request you filed at {when}. The reason the administrator gave:
+
+  {reason}
+
+  If the reason no longer applies, contact the organization's administrator and file the request again. The request's recorded state stays checkable at any time:
+  {statusUrl}
+mail.joinRefused.heading: Your request was declined
+mail.joinRefused.preheader: '{org} declined your account request.'
+mail.joinRefused.subject: Your {product} account request was declined
+mail.joinRefused.why: You receive this message because you filed an account request on {product}, and the request is now decided.
+mail.signinFailed.body: |-
+  Hello,
+
+  A sign-in attempt on your account at {when} entered a wrong password. If this was you, use the reset below to choose a new password and sign in.
+
+  If this was not you, someone may be trying your password. Nothing opened: the failed attempt never starts a session, and your account's protections are unchanged.
+mail.signinFailed.heading: A failed sign-in attempt
+mail.signinFailed.preheader: A wrong password was entered for your account at {when}.
+mail.signinFailed.subject: Failed sign-in attempt on your {product} account
+mail.signinFailed.why: You receive this message because a failed password attempt on {product} named your account. The notice arrives at most once an hour.
+mail.clientRolesGranted.heading: New access granted
+mail.clientRolesGranted.preheader: An administrator granted your {product} account roles on {client} at {when} UTC.
+mail.clientRolesGranted.subject: New access was granted on your {product} account
+mail.clientRolesGranted.why: You are receiving this because an administrator granted roles to your {product} account.
+mail.emailChanged.body: |-
+  Hello {name},
+
+  Your {product} account's email address changed from {from} to {to} at {when} UTC. Sign-ins, notices, and recovery links now go to the new address; the old one no longer reaches the account.
+
+  If this was you, there is nothing more to do.
+mail.emailChanged.heading: Your email address was changed
+mail.emailChanged.preheader: Your {product} account's address changed from {from} to {to} at {when} UTC.
+mail.emailChanged.subject: Your {product} email address was changed
+mail.emailChanged.why: You are receiving this because the email address on your {product} account changed — this message went to both the old and the new address.
+mail.factor.kindPasskey: Passkey "{factorName}"
+mail.factor.kindRecovery: A fresh set of recovery codes (the previous set stopped working)
+mail.factor.kindTotp: Authenticator app "{factorName}"
+mail.factorEnrolled.body: |-
+  Hello {name},
+
+  {factor} was added to your {product} account at {when} UTC.
+
+  If this was you, there is nothing more to do.
+mail.factorEnrolled.heading: A new sign-in factor was added
+mail.factorEnrolled.preheader: '{factor} was added to your {product} account at {when} UTC.'
+mail.factorEnrolled.subject: A new sign-in factor was added to your {product} account
+mail.factorEnrolled.why: You are receiving this because a new sign-in factor was added to your {product} account.
+mail.factorRevoked.body: |-
+  Hello {name},
+
+  {factor} was removed from your {product} account at {when} UTC. It no longer signs in or counts as a second factor.
+
+  If this was you, there is nothing more to do.
+mail.factorRevoked.heading: A sign-in factor was removed
+mail.factorRevoked.preheader: '{factor} was removed from your {product} account at {when} UTC.'
+mail.factorRevoked.subject: A sign-in factor was removed from your {product} account
+mail.factorRevoked.why: You are receiving this because a sign-in factor was removed from your {product} account.
+mail.footer: Sent by {product} ({issuer}). This message concerns your account; no reply is needed.
+mail.footer.support: Need help? Contact the administrator of your {product} account.
+mail.invite.action: Set your password
+mail.invite.body: |-
+  Hello {name},
+
+  An account was created for you on {product}. Choose your password with the setup link below.
+
+  {setupUrl}
+
+  If you did not expect this invitation you can ignore this message: the account stays unreachable until the link is used.
+mail.invite.heading: Set up your account
+mail.invite.preheader: Your {product} account is ready. Set your password to activate it.
+mail.invite.subject: Your {product} account is ready to set up
+mail.invite.why: You are receiving this because an administrator created an account for you on {product}.
+mail.link.fallback: 'Or paste this link into your browser:'
+mail.link.once: This link works once and stays valid for {hours} hours.
+mail.linkedMethodAdded.body: |-
+  Hello {name},
+
+  The {provider} identity "{handle}" was linked to your {product} account at {when} UTC. It signs in to this same account from now on.
+
+  If this was you, there is nothing more to do.
+mail.linkedMethodAdded.heading: A sign-in method was linked
+mail.linkedMethodAdded.preheader: The {provider} identity "{handle}" was linked to your {product} account at {when} UTC.
+mail.linkedMethodAdded.subject: A sign-in method was linked to your {product} account
+mail.linkedMethodAdded.why: You are receiving this because a sign-in method was linked to your {product} account.
+mail.linkedMethodRemoved.body: |-
+  Hello {name},
+
+  The {provider} identity "{handle}" was unlinked from your {product} account at {when} UTC. It no longer signs in here.
+
+  If this was you, there is nothing more to do.
+mail.linkedMethodRemoved.heading: A sign-in method was removed
+mail.linkedMethodRemoved.preheader: The {provider} identity "{handle}" was removed from your {product} account at {when} UTC.
+mail.linkedMethodRemoved.subject: A sign-in method was removed from your {product} account
+mail.linkedMethodRemoved.why: You are receiving this because a sign-in method was removed from your {product} account.
+mail.mfaLocked.body: |-
+  Hello {name},
+
+  Someone reached your {product} account’s second-factor step and failed it too many times, so the sign-in attempt was closed (at {when} UTC). The password alone was correct, so this message matters: if this was not you, change your password now — the reset below is the urgent move.
+
+  If it was you: your ways back stand. Sign in again and complete the factor (the challenge starts fresh), use a recovery code, or — if your factor’s device is out of reach — your verified email can finish the sign-in with an emailed code.
+mail.mfaLocked.heading: A sign-in was stopped at the second factor
+mail.mfaLocked.preheader: A sign-in to your {product} account was stopped at the second factor.
+mail.mfaLocked.subject: A sign-in to your {product} account was stopped at the second factor
+mail.mfaLocked.why: You are reading this because a sign-in to your account failed its second factor too many times.
+mail.passwordChanged.body: |-
+  Hello {name},
+
+  The password on your {product} account was set or changed at {when} UTC.
+
+  If this was you, there is nothing more to do.
+mail.passwordChanged.heading: Your password was set or changed
+mail.passwordChanged.preheader: The password on your {product} account was set or changed at {when} UTC.
+mail.passwordChanged.subject: Your {product} password was set or changed
+mail.passwordChanged.why: You are receiving this because the password on your {product} account was set or changed.
+mail.passwordChanged.fallbackHour: Your verified email can also finish sign-ins with an emailed code — the 'Email me a sign-in code' choice stands whenever a second-factor challenge appears, useful when your factor's device is out of reach.
+mail.passwordChanged.factorsRevoked: Because the password was reset over email, every sign-in factor on the account (passkeys, authenticator apps, recovery codes) was removed with the old credential — nothing planted under it survives. Re-enroll the ones you recognize from your account's Security settings; anything you did not add yourself was never yours.
+mail.patEdited.body: |-
+  Hello {name},
+
+  Your {product} developer token "{tokenName}" was changed on your account: it was {change} (scopes now: {scopes}); it expires {expires}.
+
+  A token only ever acts within your account's own permissions, and its permission set is re-checked at every use. If you did not make this change, revoke the token at once on your account page (the developer tokens section), change your password, and tell your administrator.
+mail.patEdited.heading: A developer token was changed
+mail.patEdited.preheader: Your {product} developer token "{tokenName}" was {change}.
+mail.patEdited.subject: Your {product} developer token "{tokenName}" was {change}
+mail.patEdited.why: You are receiving this because a developer token on your account was renamed or its permission set changed.
+mail.patExpiring.body: |-
+  Hello {name},
+
+  Your {product} developer token "{tokenName}" expires on {expires}. Exchanges stop at that instant — the token never renews.
+
+  If the automation it serves still runs, mint a fresh token on your account page (the developer tokens section) and update the credential where it is used.
+mail.patExpiring.heading: A developer token expires soon
+mail.patExpiring.preheader: Your {product} developer token "{tokenName}" expires on {expires}.
+mail.patExpiring.subject: Your {product} developer token expires on {expires}
+mail.patExpiring.why: You are receiving this because a developer token on your account is inside its final week and was exchanged recently.
+mail.patMinted.body: |-
+  Hello {name},
+
+  A new developer token was minted on your {product} account: "{tokenName}" (scopes: {scopes}), expiring {expires}.
+
+  The token exchanges for short-lived access at the identity service and only ever acts within your account's own permissions. If you did not mint it, revoke it at once on your account page (the developer tokens section), change your password, and tell your administrator.
+mail.patMinted.heading: A developer token was minted
+mail.patMinted.preheader: A new developer token was minted on your {product} account.
+mail.patMinted.subject: A developer token was minted on your {product} account
+mail.patMinted.why: You are receiving this because a developer token was minted on your {product} account.
+mail.recoveryCodeUsed.body: |-
+  Hello {name},
+
+  Your {product} account signed in at {when} UTC with the password and a recovery code. That code is now spent — each one works exactly once.
+
+  A recovery code signs in WITHOUT the second factor: it is the account-recovery floor. If this was you, your remaining codes are on the account page; if it was not, the reset below is the urgent move.
+mail.recoveryCodeUsed.heading: A recovery code was used to sign in
+mail.recoveryCodeUsed.preheader: Your {product} account signed in with a recovery code at {when} UTC.
+mail.recoveryCodeUsed.subject: A recovery code was used to sign in to your {product} account
+mail.recoveryCodeUsed.why: You are receiving this because a recovery code was used to sign in to your {product} account.
+mail.emailOtp.body: |-
+  Hello {name},
+
+  Your {product} sign-in code is {code}.
+
+  It works once and expires with this sign-in attempt. Someone asked for it who also knew the account password — if that was not you, change the password now.
+mail.emailOtp.heading: Your sign-in code
+mail.emailOtp.preheader: Your {product} sign-in code is inside — it works once.
+mail.emailOtp.subject: Your {product} sign-in code
+mail.emailOtp.why: You are receiving this because a sign-in reached the second-factor step with your password and the email fallback was available for your account.
+mail.emailFallbackGranted.subject: Email sign-in is enabled for your {product} account
+mail.emailFallbackGranted.preheader: An administrator enabled the emailed sign-in code for your account until {until} UTC.
+mail.emailFallbackGranted.heading: Email sign-in enabled
+mail.emailFallbackGranted.body: |-
+  Hello {name},
+
+  An administrator just enabled the emailed sign-in code for your {product} account, until {until} UTC.
+
+  If you are at the second-factor step: go back and sign in again with your password — ‘Email me a sign-in code’ will now be offered.
+mail.emailFallbackGranted.why: You are receiving this because an administrator enabled the emailed sign-in fallback for your account.
+mail.reset.action: Choose a new password
+mail.reset.body: |-
+  Hello {name},
+
+  A password reset was started for your {product} account. Choose a new password with the link below.
+
+  {setupUrl}
+
+  If you did not ask for this you can ignore this message: your current password stays unchanged.
+mail.reset.heading: Reset your password
+mail.reset.preheader: Reset your {product} password with the one-time link inside.
+mail.reset.subject: Your {product} password reset link
+mail.reset.why: You are receiving this because a password reset was started for your {product} account.
+mail.resetLink.text: 'If this was not you, reset your password at once — the sign-in page''s "Forgot your password?" sends a fresh one-time link to your address — and tell your administrator: {resetUrl}'
+mail.signin.body: |-
+  Hello {name},
+
+  Your {product} account signed in at {when} UTC by {method}.
+
+  If this was you, there is nothing more to do. If this was not you, the reset below secures the account first — then tell your administrator: they can deactivate the account, which revokes every open session.
+mail.signin.heading: New sign-in detected
+mail.signin.methodPassword: the password sign-in
+mail.signin.preheader: New sign-in to your {product} account.
+mail.signin.methodPasswordPasskey: the password + passkey sign-in
+mail.signin.methodPasswordRecovery: the password + a recovery code
+mail.signin.methodPasswordTotp: the password + authenticator-app sign-in
+mail.signin.methodPasswordEmail: the password + emailed sign-in code
+mail.signin.methodPasskey: a passkey
+mail.signin.countryChanged: This sign-in came from {fromCountry} — a country your account has not signed in from recently. If this was not you, secure the account at once with the reset below.
+mail.signin.newDevice: This sign-in came from a device this account has not used before — if this was not you, secure the account with the reset below.
+mail.signin.subject: New sign-in to your {product} account
+mail.signin.why: You are receiving this because your {product} account was used to sign in.
+mail.verifyAddedEmail.action: Confirm the address
+mail.verifyAddedEmail.body: |-
+  Hello {name},
+
+  This email address was added to your {product} account. Confirm it with the link below.
+
+  {verifyUrl}
+
+  Once confirmed, the address signs in to the same account and receives its security notices. If you did not add it you can ignore this message: an unconfirmed address never signs in, and the account page can remove it.
+mail.verifyAddedEmail.heading: Confirm your additional email address
+mail.verifyAddedEmail.preheader: Confirm this email address for your {product} account.
+mail.verifyAddedEmail.subject: Confirm the address added to your {product} account
+mail.verifyAddedEmail.why: You are receiving this because this email address was added to your {product} account.
+mail.verifyEmail.action: Confirm the new address
+mail.verifyEmail.body: |-
+  Hello {name},
+
+  Your {product} account is moving to this email address. Confirm the change with the link below.
+
+  {verifyUrl}
+
+  If you did not ask for this change you can ignore this message: the account keeps its current address.
+mail.verifyEmail.heading: Confirm your new email address
+mail.verifyEmail.preheader: Confirm your new {product} email address.
+mail.verifyEmail.subject: Confirm your new {product} email address
+selfreg.heading: Create your account
+selfreg.subtitle: For members of a metrology authority — your email must be on your organization's registered domain.
+selfreg.countryLabel: Country
+selfreg.countryPlaceholder: Choose your country
+selfreg.orgLabel: Organization
+selfreg.orgPlaceholder: Choose your organization
+selfreg.orgDomains: 'Auto-approved email domain(s): {domains}'
+selfreg.emailLabel: Work email
+selfreg.emailHint: The address must be on your organization's registered domain. We send a confirmation link there — nothing is created until you confirm.
+selfreg.emailMatch: This address is on your organization's registered domain — continue.
+selfreg.emailNoMatch: This address is not on the auto-approved domain(s) {domains} — use your work address, or request through the join queue.
+selfreg.submitLabel: Continue
+selfreg.sentTitle: Check your inbox
+selfreg.second.title: One more sign-in to finish
+selfreg.second.why: Your registration link is bound to the sign-in account that proved your first check. Signing in once more with the SAME account proves the link is in the right hands — and that sign-in becomes your account's own linked sign-in method when the account is created.
+selfreg.second.begin: Start the verification
+selfreg.errorSecondProof: That sign-in account is not the one this registration link is bound to — sign in with the account you used at the first check.
+selfreg.doneSignin: Your account is ready — sign in with your new password (or your linked sign-in account) whenever you like.
+selfreg.turnstileRequired: Complete the verification check, then continue.
+selfreg.working: Working…
+selfreg.failed: The registration could not be completed — check the details and try again.
+selfreg.queuedFallback: Your organization is not in the self-registration registry — your request goes to the administrator queue.
+selfreg.queueHint: Not listed, or an industry applicant?
+selfreg.queueLink: Request an account through the join queue
+selfreg.sent: Check your inbox — the confirmation link is valid for 24 hours. Nothing was created until you confirm it.
+selfreg.devLink: 'No mail provider is configured on this deployment — your confirmation link (shown once):'
+selfreg.errorExists: An account with this email address already exists — sign in instead, or ask for a password reset.
+selfreg.errorExpired: This registration link has expired — start the registration again.
+selfreg.errorNotConfigured: Self-registration is not configured on this deployment — request an account through the join queue.
+selfreg.proving: Proving your registration link…
+selfreg.verifiedFor: The address {email} is confirmed for {org}. Choose a password to finish.
+selfreg.passwordLabel: Choose a password
+selfreg.passwordHint: At least 12 characters — a passphrase of a few words works well.
+selfreg.completeLabel: Create the account
+selfreg.done: Your account is created and your address is confirmed. Welcome.
+selfreg.catalogFailed: The registration page could not load the member registry — try again shortly.
+selfreg.attributionTitle: One last step before the email goes out
+selfreg.attributionWhy: Before this site emails anyone, it must know that a real, attributable person made the request. Signing in once with an account you ALREADY have proves exactly that — it is what keeps bots and bulk fake sign-ups out of the metrology registry.
+selfreg.attributionNote: 'This is NOT a second account. The sign-in is the human check: it proves a real, attributable person — and once your account is created (after the second verification), that SAME sign-in becomes a linked sign-in method on it. Your identity comes from confirming your work email address.'
+selfreg.attributionChoose: 'Choose the account to prove you are human:'
+selfreg.continueWith: Continue with {provider}
+selfreg.backToForm: Go back
+mail.consent.subject: You granted {client} access to your account
+mail.consent.preheader: The grant stands until you revoke it from your account page.
+mail.consent.heading: Access granted to {client}
+mail.consent.body: 'You authorized {client} to access your account with the scope: {scope}. The grant stands until you revoke it — the account page''s Applications section lists every grant and its revoke act.'
+mail.consent.why: You are receiving this because you authorized the access from the sign-in flow.
+mail.membershipInvited.subject: Your request to join {org} was approved
+mail.membershipInvited.preheader: Accept the membership from your account page — it waits for your yes.
+mail.membershipInvited.heading: The membership waits for your yes
+mail.membershipInvited.body: 'An administrator of {org} approved a request associating your account with the organization. Nothing is active yet: the membership waits for YOUR consent. Accept it (or decline it) from your account''s Organizations section.'
+mail.membershipInvited.why: You are receiving this because your account was named in an organization's membership request.
+mail.context.deviceOnly: 'From: {device}.'
+mail.context.from: 'From: {device} — IP {ip}.'
+mail.selfRegister.subject: Finish creating your {product} account
+mail.selfRegister.preheader: Confirm the address on your {product} registration — the link is valid for 24 hours.
+mail.selfRegister.heading: Confirm your registration
+mail.selfRegister.body: |-
+  Hello,
+
+  A registration for your {product} account was started with this email address, for {org}. Confirm the mailbox with the link below, then choose your name and password. The link expires in 24 hours.
+
+  {verifyUrl}
+
+  If you did not start this registration you can ignore it: nothing was created, and this message changes nothing.
+mail.selfRegister.why: You are receiving this because someone — you, we hope — asked to create a {product} account with this email address.
+mail.selfRegister.action: Confirm the registration
+mail.verifyEmail.why: You are receiving this because your {product} account is moving to this email address.
+mail.verifyPrimaryEmail.action: Confirm the address
+mail.verifyPrimaryEmail.body: |-
+  Hello {name},
+
+  This is the email address of record on your {product} account, and nothing has proved this mailbox yet. Confirm it with the link below.
+
+  {verifyUrl}
+
+  Once confirmed, the services you sign in to are told the address is verified and the strong sign-in factors unlock. If you did not ask for this message you can ignore it: an unopened link changes nothing.
+mail.verifyPrimaryEmail.heading: Confirm your email address
+mail.verifyPrimaryEmail.preheader: Confirm the email address on your {product} account.
+mail.verifyPrimaryEmail.subject: Confirm the email address on your {product} account
+mail.verifyPrimaryEmail.why: You are receiving this because the email address on your {product} account has not been verified yet.
+org.kind.associate.label: Associate
+org.kind.associate.purpose: A designated body that signed the Declaration — designated by its corresponding member; reads the CS's results, never issues.
+org.kind.corresponding-member.label: OIML Member — Corresponding Member
+org.kind.corresponding-member.purpose: 'The Convention''s membership (corresponding): read/access to the register''s services; never certificate workflow authority.'
+org.kind.issuing-authority.label: Issuing Authority (IA)
+org.kind.issuing-authority.purpose: 'Runs the OIML CS: its officers evaluate, issue and endorse certificates — the workflow roles live here.'
+org.kind.manufacturer.label: Manufacturer
+org.kind.manufacturer.purpose: 'A certificate holder, never a participant: declared on self-registration, upgradeable to IA-endorsed by an authority''s confirmation.'
+org.kind.member-state.label: OIML Member — Member State
+org.kind.member-state.purpose: 'The Convention''s membership (ratified): read/access to the register''s services; never certificate workflow authority.'
+org.kind.none.label: not a scheme participant
+org.kind.test-laboratory.label: Test Laboratory (TL)
+org.kind.test-laboratory.purpose: Performs the tests an issuing authority dispatches; its operators hold the tl_operator role.
+org.kind.utilizer.label: Utilizer
+org.kind.utilizer.purpose: A designated body that signed the Declaration — uses the CS's results in regulation; designated by its member state.
+name.given.label: Given names
+name.family.label: Family name
+join.title: Request an account
+join.back: ← Choose a different description
+join.unavailable: This instance does not serve account requests. Accounts are issued by the OIML SMART identity service, and your administrator can give you its address.
+join.doors.heading: Choose the description that matches you
+join.door.ia.title: An OIML-CS Issuing Authority
+join.door.ia.blurb: Your authority issues OIML-CS certificates for measuring instruments. You select it from the participants register and request your staff role.
+join.door.ia.noun: an OIML-CS Issuing Authority
+join.door.tl.title: An OIML-CS Test Laboratory
+join.door.tl.blurb: Your laboratory tests measuring instruments for the OIML-CS. You select it from the participants register and request your staff role.
+join.door.tl.noun: an OIML-CS Test Laboratory
+join.door.member.title: An OIML Member (a Member State or a Corresponding Member)
+join.door.member.blurb: Your national body participates in the OIML. Its personnel join with read access to the platform.
+join.door.member.noun: an OIML Member
+join.door.manufacturer.title: A manufacturer of measuring instruments
+join.door.manufacturer.blurb: Your company applies for OIML-CS certificates for measuring instruments as an applicant or manufacturer.
+join.door.biml.title: A member of the OIML or BIML staff
+join.door.biml.blurb: You hold an @oiml.org address. The one-time setup link proves your mailbox, and your account opens without a waiting queue.
+join.door.others.title: Another organization
+join.door.others.blurb: Your organization does not appear in the descriptions above. You name your organization, and the BIML secretariat verifies its participation in the OIML-CS.
+join.door.registry.title: A work email registered in the OIML registry
+join.door.registry.blurb: You choose your country and organization from the OIML registry and confirm your work email. Your account opens without a waiting queue when your email domain matches the registered domain.
+join.filed.title: Your request is filed
+join.filed.org: Your request is with {org}’s administrator. You will receive your invite when the administrator approves your request.
+join.filed.biml: Your setup link is on its way to {email}. The link works once and stays valid for 24 hours. The account cannot sign in until you complete the setup. If the mail does not arrive, check the spam folder and file the request again.
+join.filed.mfrCreated: '{org} is registered on the identity service with the declared manufacturer standing. A manufacturer is not an OIML-CS participant. Your request to become the organization administrator is with the BIML secretariat. You will receive your invite once the secretariat approves it.'
+join.filed.mfrJoined: Your work email’s domain matches {org}’s declared domain. Your request to join is with its administrator, and approval comes from your organization.
+join.filed.others: '{org} is not on the participants register, so your request is with the BIML secretariat. The secretariat verifies organizations joining the OIML-CS. You become the organization administrator once the participation is registered.'
+join.track.checking: Checking your request…
+join.track.title: Your account request
+join.track.title.org: Your account request for {org}
+join.track.notFound.title: We could not find this request
+join.track.notFound.body: Check the link in your mail, or file the request again from the start.
+join.track.pending: The request is with the organization administrator. You will receive a message when it is decided.
+join.track.approved: The request was approved. Your invitation is in your mailbox — complete the one-time setup to open your account.
+join.track.refused: The organization declined the request. The reason is in the mail the decision sent. If the reason no longer applies, contact the organization administrator and file the request again.
+join.form.email: Work email
+join.form.emailPlaceholder: jane.doe@your-organization.example
+join.form.emailPlaceholderBiml: jane.doe@oiml.org
+join.form.org: Organization
+join.form.orgPlaceholder: Type to search the participants register.
+join.form.change: Change
+join.form.noMatch: No organization of this kind matches your search.
+join.form.emptyState: If your organization is {noun} but is not listed here,
+join.form.contactSupport: contact support
+join.form.role: Role you are asking for
+join.form.rolePlaceholder: Choose a role…
+join.form.roleHelper: Your organization’s kind bounds the options ({kind}). The administrator confirms the assignment.
+join.form.note: Note for the approver
+join.form.optional: optional
+join.form.notePlaceholder: Anything that helps your administrator recognize the request (your team, your manager).
+join.form.notePlaceholderBiml: Anything that helps the administrators recognize you (your team, your role at the Bureau).
+join.form.submit: Request account
+join.form.submitBiml: Request my setup link
+join.form.filing: Filing…
+join.form.fileFailed: The request could not be filed ({status}).
+join.form.turnstile: Complete the verification challenge, then file the request again.
+join.form.domainNotice: Email addresses on the domain {domains} are approved automatically. Any other email address needs approval by the organization administrator.
+join.form.domainNoticePlural: Email addresses on the domains {domains} are approved automatically. Any other email address needs approval by the organization administrator.
+join.form.domainMatch: Your email address is on the pre-approved domain.
+join.form.domainMismatch: Your email address is not on the pre-approved domain. The organization administrator approves your request.
+join.signinLine: If you already have an account,
+join.signinLink: sign in
+join.notes.mfr: Your organization is registered with the <strong>declared</strong> manufacturer standing. A manufacturer is <strong>not an OIML-CS participant</strong>; the standing carries no peer assessment and no scope. An Issuing Authority that you applied to can endorse the relationship and upgrade the standing to <strong>IA-endorsed</strong>. When your work email’s domain matches a registered manufacturer organization, your request goes to its administrator. Otherwise the organization is created, and you become its administrator once the BIML secretariat confirms the founding.
+join.notes.biml: BIML and OIML staff hold an <strong>@oiml.org</strong> address. Filing here creates your account and sends the one-time setup link to that address. The link works once and stays valid for 24 hours. Your account starts with read-only access, and the administrators grant more as your work requires.
+join.notes.others: Your request goes to the <strong>BIML secretariat</strong>. The secretariat verifies organizations joining the OIML-CS under the participation procedures PD-03 and PD-09. You become the organization administrator once your organization is registered.
+org.role.case_officer: Case officer. Manages the evaluation file and coordinates the assessment.
+org.role.certification_officer: Certification officer. Decides the evaluation and issues the certificate.
+org.role.ia_officer: Issuing Authority officer. Conducts type evaluations from application to recommendation.
+org.role.org_admin: Organization administrator. Manages the people of the organization.
+org.role.signatory: Signatory. Signs the evaluation report and the certificate.
+org.role.tl_operator: Test laboratory operator. Performs the tests that the evaluation requires.
+org.role.viewer: Read-only access. Reviews certificates and reports.
+register.title: Create your account
+register.description: Your own account on this identity service — personal, with no organization membership. Once you sign in you can ask to join your organization.
+register.email.label: Email address
+register.password.label: Password
+register.password.hint: At least 12 characters — longer is better; known-breached passwords are refused.
+register.submit: Create the account
+register.busy: Creating…
+register.failed: The account could not be created.
+register.turnstileRequired: Complete the verification challenge, then create the account.
+register.networkError: Network error. Is the server running?
+register.mailed.title: Check your mailbox
+register.mailed.body: The account is ready and a one-time confirmation link is on its way to {email} — it works once and lives 24 hours. You can sign in with your password right away; services see the address as unverified until you open the link.
+register.pending.title: The account is ready
+register.pending.body: The confirmation email could not be sent just now. Sign in with your password and use the resend on the account console once mail flows again.
+register.signIn: Back to sign in
+register.haveAccount: Already have an account?
+setup.noToken: This page needs a setup link (no ?token= parameter). Ask your administrator for your invite.
+setup.linkInvalid: This setup link is not valid. Ask your administrator for a new one.
+setup.password.tooShort: The password needs at least 12 characters.
+setup.password.mismatch: The two entries do not match.
+setup.failed: The setup could not be completed. Ask your administrator for a fresh link.
+setup.title: Set up your account
+setup.titleReset: Choose a new password
+setup.accountFirst: This sets the password for
+setup.accountReset: This chooses a NEW password for
+setup.password.label: Choose a password
+setup.password.repeat: Repeat the password
+setup.password.submit: Set the password
+setup.password.busy: Setting the password…
+consent.scope.signin: Sign you in
+consent.scope.profile: Your name
+consent.claim.email: Your email address
+consent.claim.offlineAccess: Stay reachable while you are away (offline access)
+consent.claim.roles: Your platform roles
+consent.claim.groups: Your platform roles (as groups)
+consent.claim.org: Your organization binding
+consent.claim.picture: Your profile picture
+consent.noAuth: This consent page needs an authorization request (no ?auth= parameter). Start the sign-in again.
+consent.stale: This authorization request is no longer valid. Start the sign-in again.
+consent.decideFailed: The decision could not be recorded. Start the sign-in again.
+consent.title: Authorize
+consent.lead: wants to sign you in with your {issuer} account.
+consent.sharedWith: Shared with {client}
+consent.rolesHeld: 'On {client} you hold:'
+consent.rolesNone: You hold no platform roles on {client} — the service treats you as read-only until its administrator assigns one.
+consent.signedInAs: Signed in as
+consent.allow: Allow
+consent.deny: Deny
+consent.denyNote: Denying returns you to {client} without sharing anything.
+consent.switchAccount: Not you? Switch account
+device.title: Connect a device
+device.lead: asks you to authorize it from your {issuer} account.
+device.codePrompt: Enter the code your terminal shows
+device.codePlaceholder: XXXX-XXXX
+device.codeSubmit: Look up the code
+device.badCode: That code is not in the XXXX-XXXX shape.
+device.unknownCode: No sign-in knows this code — check the terminal and try again.
+device.expired: This code has expired — restart the sign-in in your terminal.
+device.decided: This code was already decided — your terminal has its answer.
+device.decideFailed: The decision could not be recorded — try again while the code lives.
+device.asksFor: 'The terminal will be able to act for you on:'
+device.action.read: read
+device.action.write: read and write
+device.action.admin: administer
+device.approve: Authorize
+device.approved: Authorized — you can close this page and return to your terminal.
+device.denied: Refused — you can close this page and return to your terminal.
+device.noStanding: 'Your account cannot hold this access: {reason}'
+device.tokenNote: Approving creates a personal access token named for this device sign-in. It appears in your account's token list, where you can revoke it at any time.
+chooser.heading: Choose an account
+chooser.subtitle: to continue to {client}
+chooser.subtitleGeneric: to continue
+chooser.currentAccount: Current account
+chooser.deadSession: Session ended — sign in again
+chooser.useAnother: Use another account
+chooser.continueAs: Continue as {name}
+chooser.busy: Switching…
+chooser.failed: The switch could not be completed. Try again.
+chooser.preselected: Pre-selected for this sign-in
+chooser.personaBadge: Demo persona
+chooser.personaNote: Continue as this demonstration persona — no password is asked.
+chooser.assumptionDenied: This account is not granted the persona assumption.
+emailChange.noToken: This page needs a verification link (no ?token= parameter). Start the email change from your account page.
+emailChange.linkInvalid: This verification link is not valid. Start the email change again from your account page.
+emailChange.readFailed: The link could not be read. Is the server running?
+emailChange.linkInvalidShort: This verification link is not valid.
+emailChange.failed: The change could not be completed. Try again.
+emailChange.used: This link was already used
+emailChange.expired: This link has expired
+emailChange.conflictTitle: The address was taken
+emailChange.invalid: This link is not valid
+emailChange.doneTitleVerified: Email address verified
+emailChange.doneTitleChanged: Email address changed
+emailChange.doneAdd: '{email} now signs in to your OIML SMART account alongside your other addresses, and receives the account''s security notices.'
+emailChange.doneVerify: '{email} is confirmed as the address of record on your OIML SMART account — nothing else about the account changed.'
+emailChange.doneChanged: Your OIML SMART account now signs in with {email}.
+emailChange.verifiedNote: 'The new address is verified: you opened the link that was emailed to it.'
+emailChange.unverifiedNote: This link was shown on screen (no mailer is configured), so the new address stays marked "not verified" until a mailed link can confirm it.
+emailChange.back: Back to your account
+emailChange.titleAdd: Confirm the email address
+emailChange.titleVerify: Verify your email address
+emailChange.titleChange: Change the email address
+emailChange.contextAdd: '{name}, this link confirms {email} as an address on your OIML SMART account.'
+emailChange.contextVerify: '{name}, this link proves {email} — the address of record on your OIML SMART account — reaches you.'
+emailChange.contextChange: '{name}, this link moves your OIML SMART account from {from} to {to}.'
+emailChange.expiryAdd: The link works exactly once and expires {date}. Once confirmed, the address signs in to the same account and receives its security notices.
+emailChange.expiryVerify: The link works exactly once and expires {date}. Once confirmed, the address reads as verified to the services you sign in to; the address itself never changes.
+emailChange.expiryChange: The link works exactly once and expires {date}. Sign-ins then use the new address; nothing else about the account changes.
+emailChange.busyConfirm: Confirming…
+emailChange.busyChange: Changing…
+emailChange.actionConfirm: Confirm the address
+emailChange.actionChange: Confirm the change
+admin.dash.loadFailed: the overview failed ({status})
+admin.dash.title: Administration overview
+admin.dash.description: '{product} at a glance — the registry, the sign-ins, the service level, today''s anomalies.'
+admin.dash.forbidden: The administration dashboard is an administrator surface — your account does not hold the administrator role.
+admin.dash.tileAccounts: Accounts
+admin.dash.accountsSplit: '{active} active · {invited} invited · {deactivated} deactivated'
+admin.dash.tileSignins: Sign-ins (14 d)
+admin.dash.failedCount: '{count} failed'
+admin.dash.tileSessions: Live sessions
+admin.dash.tileAnomalies: Anomalies today
+admin.dash.anomaliesSplit: '{failedSignIns} failed sign-ins · {rateLimits} rate limits · {tokenRefusals} token refusals'
+admin.dash.sectionSignins: Sign-ins, succeeded vs failed
+admin.dash.signinsEmpty: No sign-ins on the record in this window yet.
+admin.dash.sectionSlo: Service level — the independent heartbeat
+admin.dash.sloLoading: Reading the status service…
+admin.dash.sloNoProbes: no completed probes
+admin.dash.sloUptime: 30-day {d30}% · 90-day {d90}%
+admin.dash.sloWorst: the worst 30-day uptime across the {count} identity services
+admin.dash.sloLastProbe: Last probe {at}
+admin.dash.sloUnreadable: The status service is not readable from here
+admin.dash.dayFailed: '{date}: {count} failed'
+admin.dash.daySucceeded: '{date}: {count} succeeded'
+admin.sess.loadFailed: the live sessions failed ({status})
+admin.sess.title: Live sessions
+admin.sess.description: Every live {product} session, across accounts. Sessions never expose a token value — the row is the sign-in context, never the credential.
+admin.sess.forbidden: The live-sessions view is an administrator surface — your account does not hold the administrator role.
+admin.sess.filterPlaceholder: Filter by account, user agent, or IP…
+admin.sess.empty: No live sessions match — nobody is signed in right now, or the filter is too narrow.
+admin.sess.notRecorded: not recorded
+admin.sess.notRecordedShort: not recorded
+admin.sess.ipNotRecorded: IP not recorded
+admin.sess.lineMeta: signed in {at} · last seen {last} · expires {expires}
+admin.sess.currentBadge: this session
+admin.sess.deactivatedBadge: deactivated
+admin.sess.theAccount: The account
+admin.sess.noticeEnded: The session is ended.
+admin.sess.noticeEndedWithEmail: The session is ended — {email}'s other sessions stand.
+admin.sess.noticeEndAll: '{account}: {count} session(s) ended. Access tokens already issued to relying parties expire on their own (an hour at most).'
+admin.sess.noticeDeactivated: '{account} is deactivated — sign-ins are refused, sessions and issued tokens are revoked. The history is kept; reactivation is one act away on the account''s page.'
+admin.sess.refusedRevoke: The revocation was refused ({status}).
+admin.sess.refusedDeactivate: The deactivation was refused ({status}).
+admin.sess.endOne: End session
+admin.sess.endOneConfirm: 'Confirm: end this session'
+admin.sess.endAll: End all sessions
+admin.sess.endAllConfirm: 'Confirm: end every session of this account'
+admin.sess.deactivate: Deactivate account
+admin.sess.deactivateConfirm: 'Confirm: deactivate the account (sign-ins refused, sessions + tokens revoked)'
+admin.sess.ladder: 'The ladder, honestly: ending one session or all of an account''s sessions signs the person out of {product} (relying-party access tokens already issued expire on their own, an hour at most); deactivation also revokes the issued tokens and blocks new issuance, and the account''s history stays.'
+admin.reg.loadFailed: the registry failed ({status})
+admin.reg.title: Accounts
+admin.reg.forbidden: The identity registry is an administrator surface — your account does not hold the administrator role.
+admin.reg.inviteTitle: Invite an account
+admin.reg.fieldEmail: Email
+admin.reg.invite: Invite
+admin.reg.inviting: Inviting…
+admin.reg.inviteFailed: The invite failed ({status}).
+admin.reg.invited: '{name} is invited. Hand over the one-time setup link below (24 hours); it is shown only now.'
+admin.reg.inviteNote: 'Enrollment is invite-only: the account is created now, the one-time setup link (24 hours) is handed over out-of-band.'
+admin.reg.searchPlaceholder: Search name, email, or linked handle…
+admin.reg.everyStatus: every status
+admin.reg.statusActive: active
+admin.reg.statusDeactivated: deactivated
+admin.reg.everyRole: every role
+admin.reg.empty: No accounts match — adjust the search or filters, or invite the account above.
+admin.reg.colAccount: Account
+admin.reg.colRoles: Roles
+admin.reg.colMethods: Sign-in methods
+admin.reg.colStatus: Status
+admin.reg.colLastSignIn: Last sign-in
+admin.reg.open: Open
+admin.reg.rolesLabel: Roles
+admin.reg.never: never
+admin.act.loadFailed: the activity feed failed ({status})
+admin.act.title: Registry activity
+admin.act.forbidden: The registry’s activity is an administrator surface — your account does not hold the administrator role.
+admin.act.everyCategory: every category
+admin.act.filterPlaceholder: Filter by actor, action, or account…
+admin.act.cat.accounts: Accounts (invites, enrollment, passwords)
+admin.act.cat.roles: Role assignments
+admin.act.cat.links: Linked identities
+admin.act.cat.signins: Sign-ins and refusals
+admin.act.cat.clients: Relying parties (the client registry)
+admin.act.cat.providers: Sign-in providers
+admin.act.cat.organizations: Organization administration
+admin.act.e.invite: invited {email} (role {role})
+admin.act.e.enrollment: issued a fresh setup link for {email}
+admin.act.e.enrolled: completed the account setup (the password is set)
+admin.act.e.password: changed the account password
+admin.act.e.passwordReset: a password reset email was requested for {email}
+admin.act.e.avatar: updated the profile picture
+admin.act.e.avatarRemoved: removed the profile picture
+admin.act.e.deleted: erased the account {email} — the row is an anonymized tombstone
+admin.act.e.updated: edited the account {email} ({fields})
+admin.act.e.deactivated: 'deactivated the account (revoked: {sessions} session(s), {tokens} token(s))'
+admin.act.e.reactivated: reactivated the account
+admin.act.e.sessionRevokedAdmin: ended an account session (administrator)
+admin.act.e.sessionRevoked: ended a session
+admin.act.e.sessionsRevokedAdmin: ended every session of {email} ({count}, administrator)
+admin.act.e.sessionsRevoked: signed out {count} other session(s)
+admin.act.e.signIn: signed in with the password
+admin.act.e.signInFailed: a password sign-in failed for {email} ({reason})
+admin.act.e.reasonDeactivated: the account is deactivated
+admin.act.e.reasonInvalid: invalid credentials
+admin.act.e.clientRoles: 'granted roles on {client}: {roles}'
+admin.act.e.noRoles: none (the explicit no-claim posture)
+admin.act.e.clientRolesCleared: cleared the role grant on {client} (the account-wide set is the default again)
+admin.act.e.linkOnBehalf: linked {provider} account {handle} on behalf of {email} — {justification}
+admin.act.e.linkRemoved: removed the {provider} link of {email}
+admin.act.e.userCreate: created the account {email} ({roles})
+admin.act.e.userRoles: 'assigned roles: {roles}'
+admin.act.e.userDeactivated: deactivated the account
+admin.act.e.userReactivated: reactivated the account
+admin.act.e.upstreamSignIn: signed in with {provider} ({handle})
+admin.act.e.upstreamLink: linked {provider} ({handle})
+admin.act.e.upstreamUnlink: unlinked {provider}
+admin.act.e.upstreamRefused: 'a {provider} sign-in was refused ({reason}): {handle}'
+admin.act.e.upstreamConflict: 'a {provider} link hit a conflict: {handle}'
+admin.act.e.clientRegDevice: registered the device client {client} (device {device}, org {org}, model {model})
+admin.act.e.clientRegService: registered the service client {client} (service {service}, org {org}, audience {audience}, scopes {scopes})
+admin.act.e.clientRegistered: 'registered the relying party {client} ({kind}; claims: {claims})'
+admin.act.e.confidential: confidential
+admin.act.e.public: public
+admin.act.e.defaultClaims: profile + email
+admin.act.e.tokenIssuedDevice: the token endpoint minted the device token for {client} (device {device}, org {org})
+admin.act.e.tokenIssuedService: the token endpoint minted the service token for {client} (service {service}, audience {audience}, scopes {scopes})
+admin.act.e.tokenIssued: the token endpoint issued tokens for {client} (scope {scope})
+admin.act.e.tokenRefused: the token endpoint refused {client} ({error})
+admin.act.e.clientUpdatedDevice: updated the device client {client}
+admin.act.e.clientUpdatedService: updated the service client {client}
+admin.act.e.clientUpdated: updated the relying party {client}
+admin.act.e.rekeyedFull: ' (the secret rotated — the old one stops working at once)'
+admin.act.e.rekeyed: ' (re-keyed)'
+admin.act.e.madePublic: ' (made public)'
+admin.act.e.clientStatus: set {kind} {client} to {status}
+admin.act.e.kindDevice: the device client
+admin.act.e.kindService: the service client
+admin.act.e.kindRp: the relying party
+admin.act.e.providerRegistered: registered the sign-in provider {provider}
+admin.act.e.providerUpdated: updated the sign-in provider {provider}
+admin.act.e.providerStatus: '{state} the sign-in provider {provider}'
+admin.act.e.enabled: enabled
+admin.act.e.disabled: disabled
+admin.act.e.providerRemoved: removed the sign-in provider {provider}
+admin.act.e.orgInvite: issued the organization invite for {email} ({role})
+admin.clients.vRedirectUris: At least one redirect URI is required.
+admin.clients.vLaunchRequired: The launch URL is required (the service’s sign-in start).
+admin.clients.vLaunchScheme: The launch URL must be an http(s) URL.
+admin.clients.saveRefused: The save was refused ({status}).
+admin.clients.rekeyed: Re-keyed {client} — the new secret is below, shown only now.
+admin.clients.registeredSecret: Registered {client} — its secret is below, shown only now.
+admin.clients.updated: '{client} updated.'
+admin.clients.registeredPublic: Registered {client} (a public client — PKCE only).
+admin.clients.toggleRefused: The toggle on {client} was refused.
+admin.clients.disabledNotice: '{client} disabled — authorize and token now refuse it; the rows are kept.'
+admin.clients.enabledNotice: '{client} enabled.'
+admin.clients.title: Relying parties
+admin.clients.registeredTitle: Registered instances
+admin.clients.editTitle: Edit {client}
+admin.clients.registerTitle: Register an instance
+admin.clients.idLegend: client id (slug, rides the OAuth parameters)
+admin.clients.nameLegend: name (the consent page shows it)
+admin.clients.namePlaceholder: Example test-laboratory instance
+admin.clients.redirectLegend: redirect URIs (exact, one per line — an unregistered one is refused, never redirected to)
+admin.clients.ssoHomeLegend: SSO home (the launcher card a signed-in account meets after sign-in)
+admin.clients.launchLegend: launch URL (the service’s sign-in start — the live OP session lets the user straight in)
+admin.clients.descriptionLegend: description (one line on the card; optional)
+admin.clients.descriptionPlaceholder: 'The certification hub: applications, cases, certificates.'
+admin.clients.iconLegend: icon
+admin.clients.visibilityLegend: visibility (when the account’s roles do not admit it)
+admin.clients.confidential: Confidential client (holds a secret; the server generates it and shows it once)
+admin.clients.rekeyLabel: 'Re-key: generate a new secret (the old one stops working at once)'
+admin.clients.cancelEdit: Cancel edit
+admin.clients.copy: Copy
+admin.clients.saving: Saving…
+admin.clients.saveChanges: Save changes
+admin.clients.register: Register the instance
+admin.sec.title: Security and audit
+admin.sec.auditFailed: the audit log failed ({status})
+admin.sec.e.signIn: signed in with the password
+admin.sec.e.probe: the status probe exercised the sign-in route for {email} (the register operator's monitoring cadence — never counted as a failure)
+admin.sec.e.sessionsRevokedAdmin: the administrator ended every session of {email} ({count})
+admin.sec.e.sessionAdmin: a session ended (the administrator)
+admin.sec.e.session: a session ended
+admin.sec.e.upstreamRefused: a {provider} sign-in was refused ({reason})
+admin.sec.e.linkOnBehalf: linked {provider} on behalf of {email} — {justification}
+admin.sec.e.tokensIssued: issued tokens (scope {scope})
+admin.sec.e.tokenRefused: the token endpoint refused ({error})
+admin.sec.e.clientRegistered: registered the relying party
+admin.sec.e.clientUpdated: updated the relying party
+admin.sec.e.clientStatus: set the relying party to {status}
+admin.sec.e.rateLimited: the rate limiter tripped on {path}
+admin.sec.opt.everyAction: every action
+admin.sec.opt.account: account.* (the registry’s acts)
+admin.sec.opt.signins: sign-ins (password)
+admin.sec.opt.probe: the status probe’s sign-in checks
+admin.sec.opt.upstream: upstream_* (linked methods)
+admin.sec.opt.clients: client.* (relying parties)
+admin.sec.opt.providers: provider.* (sign-in providers)
+admin.sec.opt.orgs: org_* (organization administration)
+admin.sec.opt.everyType: every entity type
+admin.sec.opt.opType: op (the rate limiter)
+admin.sec.failedTitle: Failed sign-ins
+admin.sec.tokenTitle: Token-endpoint refusals
+admin.sec.rateTitle: Rate-limit trips
+admin.sec.newTitle: New links and clients ({window})
+admin.sec.auditTitle: The audit log
+admin.sec.reviewTitle: The access review, live
+admin.sec.holdersTitle: Privileged holders ({count}) — {roles}
+admin.sec.perClientTitle: Per-client privileged assignments ({count})
+admin.sec.findingsTitle: Findings ({count})
+admin.sec.exportCsv: Export CSV
+admin.sec.noBursts: no bursts in the window
+admin.sec.theSystem: the system
+admin.users.title: Members & join requests
+stepup.title: Verify once more
+stepup.why: This action changes who can act as you — re-enter your current password to confirm it is really you at the keyboard.
+stepup.passwordLabel: Current password
+stepup.submit: Confirm
+stepup.cancel: Cancel
+stepup.working: Verifying…
+stepup.wrong: The password does not match — try again.
+stepup.expired: The verification aged out — confirm once more.
+stepup.passkey: Verify with your passkey
+stepup.passkeyCancelled: The passkey ceremony was cancelled — try again.
+stepup.passkeyOnly: This account signs in with its passkey — no password to re-enter.
+admin.org.title: Your organization
+admin.org.pickOrg: Choose the organization you administer
+admin.org.members: Members
+admin.org.noMembers: No members yet — approve a request from the queue below.
+admin.org.save: Save
+admin.org.activate: Activate
+admin.org.deactivate: Deactivate
+admin.org.inactive: inactive
+admin.org.actionFailed: The action failed.
+admin.org.roleSaved: '{name} now holds the {role} role.'
+admin.org.approved: '{name} joined.'
+admin.org.activity: Recent activity
+admin.org.noActivity: No activity recorded yet.
+admin.users.wideView: the scheme operator’s view
+admin.users.consoleGrant: This console is for organization administrators and the scheme operator — your account holds neither grant.
+admin.users.queueOrg: Join requests — {org}
+admin.users.queueAll: Join requests — every organization
+admin.users.noRequests: No pending requests.
+admin.users.asksFor: asks for
+admin.users.pickOrgFirst: Pick the organization’s register entry before approving — the participation must be registered first.
+admin.users.approveFailed: The approval failed ({status}).
+admin.users.approve: Approve
+admin.users.refuse: Refuse
+admin.users.needReason: A refusal needs a reason — the requester sees it.
+admin.users.reasonPlaceholder: The reason (the requester sees it)…
+admin.users.refuseFailed: The refusal failed ({status}).
+admin.users.confirmRefusal: Confirm refusal
+admin.users.refused: Request refused — {name} is told why.
+admin.users.approvedJoined: '{name} is now a member of {org}: their existing account joined it as {roles} — no new setup link was needed.'
+admin.users.aMember: a member
+admin.users.approvedMailed: 'Invite issued: {name}’s account is created and the setup email is on its way to {email} (the link lives 24 h).'
+admin.users.approvedShown: 'Invite issued: {name}’s account is created. Hand over the one-time setup link below (24 h); it is shown only now.'
+admin.users.setupLink: the one-time setup link (24 h)
+admin.users.peopleTitle: People — {org}
+admin.users.yourOrganization: your organization
+admin.users.noMembers: No members yet — the queue's approvals and the forms below grow this list.
+admin.users.addExisting: Add an existing account
+admin.users.emailPlaceholder: Email
+admin.users.inviteColleague: Invite a colleague
+admin.users.workEmailPlaceholder: Work email
+admin.users.inviteBtn: Invite
+admin.users.inviteFailed: The invite failed ({status}).
+admin.users.inviteMembership: Invite the membership
+admin.users.inviting: Inviting…
+admin.users.memberInviteFailed: The membership invite failed ({status}).
+admin.users.membershipInvited: '{email} is invited to join {org} — the invitation shows on their account console until they accept or decline it.'
+admin.users.saveRoles: Save the roles
+admin.users.roleAssignFailed: The role assignment failed ({status}).
+admin.users.rolesUpdated: '{name}’s roles in {org} updated.'
+admin.users.disableMembership: Disable membership
+admin.users.reactivateMembership: Re-activate membership
+admin.users.membershipDisabled: '{name}’s membership in {org} is disabled — their sessions stopped acting as this organization.'
+admin.users.membershipActive: '{name}’s membership in {org} is active again.'
+admin.users.coneFailed: The data-cone update failed ({status}).
+admin.users.explainFailed: The explanation failed ({status}).
+admin.users.registryTitle: Account administration — every sign-in account
+admin.users.inviteAccount: Invite an account
+admin.users.noOrgBinding: No organization binding
+admin.users.inviteIssueLink: Invite — issue the one-time setup link
+admin.users.noAccounts: No accounts yet — the first one arrives by the invite above.
+admin.users.editFailed: The edit failed ({status}).
+admin.users.updatedNotice: '{name} updated.'
+admin.users.assignFailed: The assignment failed ({status}).
+admin.users.clientRoles: Client roles
+admin.users.closeClientRoles: Close client roles
+admin.users.perClientLead: 'The roles this account holds per client. No assignment: the account default ({roles}) carries. Saving an empty set is the explicit “no roles on this client” posture; clearing restores the default. A client’s claims policy bounds what may be assigned (its ID token never carries a role it is not configured to receive).'
+admin.users.noneRoles: none
+admin.users.noClients: No active clients are registered — the client registry (the deployment’s OP_CLIENT_SEED / the clients API) names them first.
+admin.users.noRoleClaims: no role claims — the client’s policy carries none
+admin.users.accountDefault: the account default ({roles})
+admin.users.explicitNone: explicitly no roles on this client
+admin.users.holdsRoles: '{name} holds {roles} on {client}.'
+admin.users.holdsNone: '{name} holds no roles on {client} (the explicit none — the account default no longer carries there).'
+admin.users.clearedNotice: '{name}’s assignment on {client} cleared — the account default carries there again.'
+admin.users.freshSetupLink: Fresh setup link
+admin.users.emailFallbackGrant: Allow email sign-in (24 h)
+admin.users.emailFallbackRevoke: Close email sign-in
+admin.users.cancel: Cancel
+admin.users.bimlQueueTitle: New organizations — the BIML queue
+admin.users.approveOnto: Approve onto the registered org…
+admin.users.approveCreateAdmin: Approve — create the org admin
+admin.users.orgAdminsTitle: Organization administrators
+admin.users.registeredOrg: Registered organization…
+admin.users.createOrgAdmin: Create the org admin
+admin.users.orgAdminFailed: Could not create the organization administrator ({status}).
+shell.environment.note: this is not the production service
+shell.footer.platform: Platform
+shell.footer.privacy: Privacy
+shell.footer.status: Service status
+shell.footer.supportPrompt: Need help?
+shell.footer.tagline: OIML SMART Identity — the sign-in service for OIML SMART
+shell.footer.terms: Terms
+shell.locale.label: Language
+shell.nav.admin: Administration
+shell.nav.areas: Consoles
+shell.nav.close: Close the menu
+shell.nav.menu: Open the menu
+shell.nav.sections: Sections
+shell.status.degraded: Some services degraded
+shell.status.down: Service disruption
+shell.status.operational: All services operational
+shell.status.unknown: Status unknown
