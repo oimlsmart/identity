@@ -17,10 +17,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { generateI18n } from '../../scripts/i18n-gen'
 
-const I18N_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'i18n')
+const I18N_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'i18n')
 
 describe('the i18n compiler (the YAML pair → the TS modules)', () => {
-  it('the committed modules are exactly the compiler\\'s output', () => {
+  it("the committed modules are exactly the compiler output", () => {
     const { enTs, frTs, problems } = generateI18n()
     expect(problems, 'the lockstep holds').toEqual([])
     expect(readFileSync(join(I18N_DIR, 'en.ts'), 'utf-8'), 'en.ts is stale — run npm run i18n:gen').toBe(enTs)
