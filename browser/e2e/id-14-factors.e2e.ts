@@ -1066,6 +1066,52 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
     })
   })
 
+  it("leg 7b — the NEW DEVICE without the passkeys: password + the emailed code, chosen from the full chooser", { timeout: 900_000 }, async () => {
+    // THE SCENARIO (the owner's 2026-10-17 directive): the holder is on
+    // a new device; the passkeys are NOT here. The password verifies,
+    // the challenge offers every method the account holds, and the
+    // EMAIL answers — no authenticator on this machine, no virtual one
+    // either (this page attaches none): the real new-device posture.
+    mailer.reset()
+    await withPage(async (page) => {
+      // Leg 7's page signed ROOT in passwordless — the shared browser's
+      // cookie rides; the sign-out makes this page the anonymous
+      // newcomer the scenario describes.
+      await page.goto(`${stack.base}/`, { waitUntil: 'domcontentloaded', timeout: SETTLE })
+      await page.evaluate(() => fetch('/api/auth/signout', { method: 'POST', credentials: 'include' }))
+
+      await pagePasswordSignIn(page, stack.base, ROOT.email, ROOT.password)
+      // THE PASSKEY LEADS: the ceremony auto-fires against this device's
+      // (absent) authenticator. The browser's prompt hangs with no way
+      // to satisfy it — exactly the new-device posture. The holder
+      // cancels it ("Try another way"), the ceremony aborts, and the
+      // CHOOSER takes over automatically (the 2026-10-17 fallback).
+      await page.waitForSelector('[data-testid="login-mfa-back"]', { timeout: SETTLE, polling: 500 })
+      await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-back"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="login-mfa-choose"]', { timeout: SETTLE, polling: 500 })
+      // Every usable method is offered: the passkey card STANDS (a
+      // roaming key could still answer) beside the authenticator and the
+      // verified email — with the recovery fallback behind the panes.
+      for (const card of ['passkey', 'email']) {
+        expect(await page.$(`[data-testid="login-mfa-choose-${card}"]`), `the ${card} card is offered`).toBeTruthy()
+      }
+      expect(await page.$('[data-testid="login-mfa-recovery-toggle"]'), 'the recovery fallback is reachable').toBeTruthy()
+      flog(page, 'leg7b: the chooser took over from the cancelled passkey')
+
+      // The passkey is unavailable here — the EMAIL answers instead.
+      await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-choose-email"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="login-mfa-email-code"]', { timeout: SETTLE, polling: 500 })
+      const code = await emailedOtpCode(ROOT.email)
+      await page.type('[data-testid="login-mfa-email-code"]', code)
+      await page.evaluate(() => (document.querySelector('[data-testid="login-mfa-email-submit"]') as HTMLElement).click())
+      await page.waitForSelector('[data-testid="home"]', { timeout: APP_COLD, polling: 500 })
+      flog(page, 'leg7b: the emailed code completed — the holder is in, without the passkey')
+      const jar = await page.cookies()
+      const cookie = jar.find(c => c.name === 'oiml-session')!.value
+      expect(await sessionAmr(stack.base, cookie)).toEqual(['pwd', 'email'])
+    })
+  })
+
   it('leg 8 — the admin’s per-user page: the factors slot lists + revokes (the registry’s acts audit)', { timeout: 900_000 }, async () => {
     // Casey at this point holds: the TOTP app (leg 1), the recovery codes
     // (leg 1), and the passkey from the clone leg (leg 6). The admin view

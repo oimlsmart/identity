@@ -520,6 +520,13 @@ async function submitMfaPasskey() {
     try {
       credential = await assertPasskey(publicKey, { signal: ceremony.signal })
     } catch {
+      // The cancelled or absent authenticator (the new-device posture —
+      // 2026-10-17): the passkey leads, but a holder WITHOUT one never
+      // sits on a dead pane. When another method can answer, the chooser
+      // takes over automatically; the message rides with it.
+      if (mfaPrimaries.value.length > 1 || mfa.value.methods.recovery) {
+        backToChoose()
+      }
       error.value = t('login.mfa.passkeyCancelled')
       mfaBusy.value = false
       return
