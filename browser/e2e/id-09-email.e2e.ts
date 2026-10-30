@@ -282,20 +282,19 @@ describe('TODO.identity/09 — the transactional email (the stub provider)', () 
     await stopStack(stack)
   })
 
-  it('leg 1 — the bootstrap seed: the first admin’s logged setup link sets the password through /op/setup', { timeout: 900_000 }, async () => {
-    // The seed logged the one-time link (the operator's way in on a
-    // fresh OP) — read it from the API's log stream. NOTE: the mailer
-    // does not cover the bootstrap seed (the spec's four flows are the
-    // invite, the reset, the sign-in notification, and 06's verify); the
-    // logged-link posture stands here.
+  it("leg 1 — the bootstrap seed: the first admin's setup link (emailed to the account's address) sets the password through /op/setup", { timeout: 900_000 }, async () => {
+    // The seed hands the one-time link over BY MAIL when the deployment
+    // can send mail (2026-10-28 — the link is a credential; a public
+    // log is never its home). This stack configures the stub provider,
+    // so the first administrator's invite waits in the stub's mailbox.
     const deadline = Date.now() + 60_000
     let setupUrl = ''
     while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
+      const mailed = mailer.messages.filter(m => m.to === ROOT.email && (m.text ?? '').includes('/op/setup?token='))
+      if (mailed.length) { setupUrl = linkFromEmailText(mailed[mailed.length - 1]!.text); break }
       await delay(500)
     }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+    expect(setupUrl, 'the bootstrap setup link in the mailed invite').toContain('/op/setup?token=')
 
     await withPage(async (page) => {
       flog(page, 'leg1: going to the setup page')
