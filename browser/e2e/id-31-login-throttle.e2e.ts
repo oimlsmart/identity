@@ -27,6 +27,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { waitForBootstrapSetupUrl } from './fixtures/stub-mailer'
 import puppeteer, { type Browser, type Page } from 'puppeteer'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
@@ -243,14 +244,8 @@ describe('TODO.identity-sso/04 slice C — the password leg’s backoff ladder (
     // ── the setup (over real HTTP, never the subject): the root admin's
     //    password through the boot-logged setup link, then Finn's invite
     //    + enrollment through the admin API. ──
-    const deadline = Date.now() + 60_000
-    let setupUrl = ''
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+    const setupUrl = await waitForBootstrapSetupUrl({ logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
     const rootEnroll = await fetch(`${stack.apiBase}/api/op/enroll/${new URL(setupUrl).searchParams.get('token')}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

@@ -32,6 +32,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { waitForBootstrapSetupUrl } from './fixtures/stub-mailer'
 import puppeteer, { type Browser, type Page } from 'puppeteer'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
@@ -175,15 +176,8 @@ async function bootIdentityStack(): Promise<Stack> {
     await waitForHttp(`${base}/`, 240_000, logs)
     await waitForHttp(`${base}/op/join`, 240_000, logs, true)
 
-    // The bootstrap setup link from the boot log (the operator's way in).
-    let setupUrl = ''
-    const deadline = Date.now() + 60_000
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    if (!setupUrl) throw new Error('the bootstrap setup link never logged')
+    // The bootstrap setup link (the operator's way in).
+    const setupUrl = await waitForBootstrapSetupUrl({ logs: () => logs.join('') })
     return { api, astro, base, apiBase, logs }
   } catch (e) {
     reap()
@@ -291,8 +285,8 @@ describe('TODO.identity-features/02 — the mobile-viewport pass (390px)', () =>
 
   beforeAll(async () => {
     stack = await bootIdentityStack()
-    setupUrl = stack.logs.join('').match(/bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/)?.[1] ?? ''
-    expect(setupUrl, 'the bootstrap setup link logged').toContain('/op/setup?token=')
+    setupUrl = await waitForBootstrapSetupUrl({ logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
   }, 600_000)
 
   afterAll(async () => {

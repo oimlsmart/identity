@@ -1119,3 +1119,37 @@ The portability wave, for operators who need sovereign deployment:
 
 The hosted id.oimlsmart.org stays on the edge platform either way;
 portability exists for the operators who need it.
+
+## The platform walk accounts (the demonstration posture)
+
+The platform's automated signed-in portal walk drives three ordinary
+accounts on this service. They are provisioned through the canonical
+paths (the identity administrator's invite, or an OP_ACCOUNT_SEED
+declared entry) and carry no entitlement beyond their platform role:
+the walk names them, any administrator can suspend all three in one
+sweep, and nothing about their existence changes the service's security
+posture.
+
+| Email | Role | Org |
+| --- | --- | --- |
+| `walk.applicant@oimlsmart.org` | `applicant` | `mfr-acme` |
+| `walk.ia@oimlsmart.org` | `ia_officer` | `EX1` |
+| `walk.tl@oimlsmart.org` | `tl_operator` | `21` |
+
+The three organizations are DEMONSTRATION rows on the registry: they
+exist for claim binding and are excluded from every public listing by
+the registry's own disabled state (`state: disabled` removes a row from
+the join selector and from new join requests, while claim binding,
+sessions, and memberships read the account's binding regardless of the
+registry state). The row names carry the demonstration marker. Blefuscu
+Central Laboratory (`21`) predates the posture and carries the marker
+retroactively; new demonstration rows are created disabled, named with
+the marker, and never given a participant reference.
+
+**The sweep**: deactivate the three accounts from the registry console's
+user surface (or `PUT /api/users/:id/active` with `active: false` per
+account). The `walk.` name prefix is the selector.
+
+**The bootstrap**: a seeded or re-invited account without a password
+receives its one-time setup link by mail to the account's own address;
+the deploy log carries only the fact, never the link.

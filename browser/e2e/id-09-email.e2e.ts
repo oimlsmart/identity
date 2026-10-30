@@ -5,8 +5,9 @@
 // so the whole path runs for real except the final delivery:
 //
 //   leg 1  the bootstrap seed (OP_ACCOUNT_SEED) mints the first admin's
-//          setup link — read from the boot log, driven through /op/setup
-//          (also warms the app-shell compile for the later legs);
+//          setup link — EMAILED (the mail-channel bootstrap), read from
+//          the stub's capture, driven through /op/setup (also warms the
+//          app-shell compile for the later legs);
 //   leg 2  the admin signs in, opens the registry console, and invites
 //          Willa THROUGH THE FORM — the console says the setup email was
 //          sent (the invite-mail-status line), and the stub captured
@@ -34,7 +35,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
-import { startStubMailer, type StubMailer } from './fixtures/stub-mailer'
+import { linkFromEmailText, startStubMailer, waitForBootstrapSetupUrl, type StubMailer } from './fixtures/stub-mailer'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
@@ -150,8 +151,8 @@ async function bootIdentityStack(mailer: StubMailer): Promise<Stack> {
       // (the generated dev key never registers off the dev posture).
       OP_SIGNING_KEY: await fixtureOpSigningKey(),
       // The first administrator arrives by DECLARATION (invite-only means
-      // nobody else can mint the first link) — the setup link lands in
-      // the boot log.
+      // nobody else can mint the first link) — with the mailer bound, the
+      // setup link travels as the mailed invite.
       OP_ACCOUNT_SEED: JSON.stringify([{ email: ROOT.email, name: ROOT.name, role: 'admin' }]),
       // TODO.identity/09 — the mail provider UNDER TEST: the stub HTTPS
       // receiver (the Resend-shaped seam) with its expected key.
@@ -261,13 +262,6 @@ async function signInViaCookie(page: Page, base: string, cookieValue: string): P
   await page.setCookie({ name: 'oiml-session', value: cookieValue, url: base })
 }
 
-/** The one link line of a captured email's text body. */
-function linkFromEmailText(text: string | undefined): string {
-  const link = (text ?? '').split('\n').map(l => l.trim()).find(l => l.startsWith('http'))
-  expect(link, 'the email text carries its action link').toBeTruthy()
-  return link!
-}
-
 describe('TODO.identity/09 — the transactional email (the stub provider)', () => {
   let stack: Stack
   let mailer: StubMailer
@@ -282,20 +276,13 @@ describe('TODO.identity/09 — the transactional email (the stub provider)', () 
     await stopStack(stack)
   })
 
-  it('leg 1 — the bootstrap seed: the first admin’s logged setup link sets the password through /op/setup', { timeout: 900_000 }, async () => {
-    // The seed logged the one-time link (the operator's way in on a
-    // fresh OP) — read it from the API's log stream. NOTE: the mailer
-    // does not cover the bootstrap seed (the spec's four flows are the
-    // invite, the reset, the sign-in notification, and 06's verify); the
-    // logged-link posture stands here.
-    const deadline = Date.now() + 60_000
-    let setupUrl = ''
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+  it("leg 1 — the bootstrap seed: the first admin's setup link (emailed to the account's address) sets the password through /op/setup", { timeout: 900_000 }, async () => {
+    // The seed hands the one-time link over BY MAIL when the deployment
+    // can send mail (2026-10-28 — the link is a credential; a public
+    // log is never its home). This stack configures the stub provider,
+    // so the first administrator's invite waits in the stub's mailbox.
+    const setupUrl = await waitForBootstrapSetupUrl({ mailer, email: ROOT.email, logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
 
     await withPage(async (page) => {
       flog(page, 'leg1: going to the setup page')

@@ -45,7 +45,7 @@ import { fileURLToPath } from 'node:url'
 import { mkdirSync, rmSync, appendFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
-import { startStubMailer, type StubMailer } from './fixtures/stub-mailer'
+import { startStubMailer, waitForBootstrapSetupUrl, type StubMailer } from './fixtures/stub-mailer'
 import { totpAtStep } from '../server/auth/op/totp'
 import { base64urlEncode } from '../server/auth/op/webauthn'
 import { assertWith, attest, mintAuthenticator, userHandleFor } from '../src/__tests__/factor-testkit'
@@ -447,16 +447,10 @@ describe('TODO.identity-sso/02+03 — the strong-authentication wave (the identi
   })
 
   it('leg 1 — the bootstrap, the TOTP enrollment through the page (the local QR), the recovery codes shown once', { timeout: 900_000 }, async () => {
-    // The seed logged the first admin's one-time link — read it from the
-    // API's log stream.
-    const deadline = Date.now() + 60_000
-    let setupUrl = ''
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+    // The seed's first admin enrollment travels as the mailed invite
+    // (the mail-channel bootstrap).
+    const setupUrl = await waitForBootstrapSetupUrl({ mailer, logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
 
     await withPage(async (page) => {
       flog(page, 'leg1: the root setup')

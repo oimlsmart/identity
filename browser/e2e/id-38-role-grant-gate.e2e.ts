@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync } from 'node:fs'
 import { delay } from './helpers'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
-import { startStubMailer, type StubMailer } from './fixtures/stub-mailer'
+import { startStubMailer, waitForBootstrapSetupUrl, type StubMailer } from './fixtures/stub-mailer'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES = join(BROWSER_DIR, 'e2e', 'fixtures')
@@ -251,16 +251,10 @@ describe('TODO.identity-sso/04 (the lifecycle tail) — the role-grant verificat
     mailer = await startStubMailer({ expectedKey: MAIL_KEY, port: MAIL_PORT })
     stack = await bootIdentityStack(mailer)
 
-    // The root admin's password through the boot-logged setup link (the
+    // The root admin's password through the boot's setup link (the
     // id-29 bootstrap posture).
-    const deadline = Date.now() + 60_000
-    let setupUrl = ''
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+    const setupUrl = await waitForBootstrapSetupUrl({ mailer, logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
     await enroll(stack.base, setupUrl, ROOT.password)
     rootCookie = await passwordCookie(stack.base, ROOT.email, ROOT.password)
     mailer.reset() // the bootstrap's mails are not the arc's subject
