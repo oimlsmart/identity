@@ -57,6 +57,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { waitForBootstrapSetupUrl } from './fixtures/stub-mailer'
 import puppeteer, { type Browser, type Page } from 'puppeteer'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
@@ -327,14 +328,8 @@ describe('TODO.identity/07 — the administrator’s identity registry console (
 
   it('leg 1 — the bootstrap admin sets up from the logged link, then invites Erin from the registry (the link shows once)', { timeout: 900_000 }, async () => {
     // The bootstrap seed logged the one-time link (the operator's way in).
-    const deadline = Date.now() + 60_000
-    let setupUrl = ''
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+    const setupUrl = await waitForBootstrapSetupUrl({ logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
 
     await withPage(async (page) => {
       // The root operator's own setup (the real page, as id-02 proves).

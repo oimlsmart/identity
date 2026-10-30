@@ -45,7 +45,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
-import { startStubMailer, type StubMailer } from './fixtures/stub-mailer'
+import { startStubMailer, waitForBootstrapSetupUrl, type StubMailer } from './fixtures/stub-mailer'
 import { startStubRp, type StubRp } from './fixtures/stub-rp'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -330,16 +330,10 @@ describe('TODO.identity-sso/04 — the email_verified claim + the console banner
     })
 
     // ── the setup (over real HTTP, never the subject): the root admin's
-    //    password through the boot-logged setup link, then Una's invite
+    //    password through the boot's setup link, then Una's invite
     //    + enrollment through the admin API. ──
-    const deadline = Date.now() + 60_000
-    let setupUrl = ''
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+    const setupUrl = await waitForBootstrapSetupUrl({ mailer, logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
     const rootEnroll = await fetch(`${stack.apiBase}/api/op/enroll/${new URL(setupUrl).searchParams.get('token')}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

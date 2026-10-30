@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, rmSync, cpSync, appendFileSync } from 'node:fs'
 import { closeBrowser, delay } from './helpers'
 import { fixtureOpSigningKey } from './fixtures/op-signing-key'
-import { startStubMailer, type StubMailer } from './fixtures/stub-mailer'
+import { startStubMailer, waitForBootstrapSetupUrl, type StubMailer } from './fixtures/stub-mailer'
 import { startStubRp, type StubRp } from './fixtures/stub-rp'
 
 const BROWSER_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -290,17 +290,11 @@ describe('TODO.restructure/05 — the public self-registration (the identity pro
       clientSecret: RP_CLIENT_SECRET,
     })
 
-    // The root admin's password through the boot-logged setup link (the
+    // The root admin's password through the boot's setup link (the
     // subject never needs the admin — registration is the applicant's
     // own act — but the duplicate leg's cross-check reads the registry).
-    const deadline = Date.now() + 60_000
-    let setupUrl = ''
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+    const setupUrl = await waitForBootstrapSetupUrl({ mailer, logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
     const rootEnroll = await fetch(`${stack.apiBase}/api/op/enroll/${new URL(setupUrl).searchParams.get('token')}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

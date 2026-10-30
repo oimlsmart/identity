@@ -47,6 +47,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { waitForBootstrapSetupUrl } from './fixtures/stub-mailer'
 import puppeteer, { type Browser, type Page } from 'puppeteer'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -352,14 +353,8 @@ describe('TODO.identity/06 — the account-holder console (the identity profile)
   it('leg 1 — the bootstrap, the invite, the enrollment: the console’s five sections stand', { timeout: 900_000 }, async () => {
     // The seed logged the first admin's one-time link (the operator's way
     // in on a fresh OP) — read it from the API's log stream.
-    const deadline = Date.now() + 60_000
-    let setupUrl = ''
-    while (Date.now() < deadline) {
-      const m = /bootstrap: account root@oimlsmart\.org has no password[^\n]*\n\s*(\S+\/op\/setup\?token=\S+)/.exec(stack.logs.join(''))
-      if (m) { setupUrl = m[1]!; break }
-      await delay(500)
-    }
-    expect(setupUrl, 'the bootstrap setup link in the boot log').toContain('/op/setup?token=')
+    const setupUrl = await waitForBootstrapSetupUrl({ logs: () => stack.logs.join('') })
+    expect(setupUrl, 'the bootstrap setup link arrives').toContain('/op/setup?token=')
 
     await withPage(async (page) => {
       flog(page, 'leg1: the root setup')

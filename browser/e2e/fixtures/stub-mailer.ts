@@ -77,3 +77,41 @@ export async function startStubMailer(opts: { expectedKey?: string; port?: numbe
     close: () => new Promise<void>((resolveClose) => server.close(() => resolveClose())),
   }
 }
+
+/** The one link line of a captured email's text body. */
+export function linkFromEmailText(text: string | undefined): string {
+  const link = (text ?? '').split('\n').map(l => l.trim()).find(l => l.startsWith('http'))
+  if (!link) throw new Error('the email text carries no action link')
+  return link
+}
+
+/** The bootstrap seed's one-time enrollment link for an account,
+ *  read from whichever channel the boot used: the mailed invite when
+ *  the stack binds a mailer (the production posture — a token never
+ *  lives in a public log), else the boot log (the mailer-less fresh
+ *  deploy). Polls until the deadline; throws on timeout. */
+export async function waitForBootstrapSetupUrl(opts: {
+  mailer?: StubMailer
+  logs?: () => string
+  email?: string
+  timeoutMs?: number
+}): Promise<string> {
+  const email = opts.email ?? 'root@oimlsmart.org'
+  const timeoutMs = opts.timeoutMs ?? 60_000
+  const deadline = Date.now() + timeoutMs
+  const logRe = new RegExp(
+    `bootstrap: account ${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} has no password[^\\n]*\\n\\s*(\\S+\\/op\\/setup\\?token=\\S+)`,
+  )
+  while (Date.now() < deadline) {
+    if (opts.mailer) {
+      const mailed = opts.mailer.messages.filter(m => m.to === email && (m.text ?? '').includes('/op/setup?token='))
+      if (mailed.length) return linkFromEmailText(mailed[mailed.length - 1]!.text)
+    }
+    if (opts.logs) {
+      const m = logRe.exec(opts.logs())
+      if (m) return m[1]!
+    }
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }
+  throw new Error(`the bootstrap setup link for ${email} never arrived within ${timeoutMs}ms (checked ${opts.mailer ? 'the mail and ' : ''}the boot log)`)
+}
