@@ -13,7 +13,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const TMP = mkdtempSync(join(tmpdir(), 'oiml-acct-seed-'))
 process.env.DATABASE_PATH = join(TMP, 'test.db')
@@ -23,6 +23,8 @@ let store: ReturnType<typeof import('../../server/store').getStore>
 let seedOpAccountsFromEnv: typeof import('../../server/auth/op/accounts').seedOpAccountsFromEnv
 let parseOpAccountSeed: typeof import('../../server/auth/op/accounts').parseOpAccountSeed
 let verifyPassword: typeof import('../../server/auth/passwords').verifyPassword
+let stub: import('../../e2e/fixtures/stub-mailer').StubMailer
+let consoleWarnSpy: ReturnType<typeof vi.spyOn> | null = null
 
 const PERSONA = {
   email: 'ia@oimlsmart.org',
@@ -54,7 +56,11 @@ demo_personas: false
   verifyPassword = (await import('../../server/auth/passwords')).verifyPassword
 })
 
-afterAll(() => {
+afterAll(async () => {
+  if (stub) await stub.close()
+  for (const k of ['EMAIL_FROM', 'MAIL_PROVIDER_URL', 'MAIL_PROVIDER_KEY']) delete process.env[k]
+  const mailerMod = await import('../../server/mailer')
+  mailerMod.resetMailerForTest()
   rmSync(TMP, { recursive: true, force: true })
   delete process.env.DATABASE_PATH
   delete process.env.OP_ISSUER
@@ -209,6 +215,72 @@ describe('the plain entry (the bootstrap administrator)', () => {
     await seedOpAccountsFromEnv({ OP_ACCOUNT_SEED: JSON.stringify([legacy]) }, store, 'http://op.test')
     const account = (await store.findUserByEmail('elder@oimlsmart.org'))!
     expect(account.role).toBe('admin')
+  })
+})
+
+describe('the enrollment hand-over (the mail channel, 2026-10-28)', () => {
+  /** Bind the stub mailer (the configured posture) or strip it (the
+   *  console posture), with a console.warn spy capturing the lines. */
+  async function bindMail(posture: 'mailer' | 'console'): Promise<void> {
+    if (consoleWarnSpy) consoleWarnSpy.mockRestore()
+    if (posture === 'mailer') {
+      const { startStubMailer } = await import('../../e2e/fixtures/stub-mailer')
+      if (!stub) stub = await startStubMailer({ expectedKey: 'stub-mail-key' })
+      stub.reset()
+      process.env.EMAIL_FROM = 'OIML SMART Identity <no-reply@oimlsmart.org>'
+      process.env.MAIL_PROVIDER_URL = `${stub.baseUrl}/emails`
+      process.env.MAIL_PROVIDER_KEY = 'stub-mail-key'
+    } else {
+      for (const k of ['EMAIL_FROM', 'MAIL_PROVIDER_URL', 'MAIL_PROVIDER_KEY']) delete process.env[k]
+    }
+    const mailerMod = await import('../../server/mailer')
+    mailerMod.resetMailerForTest()
+    consoleWarnSpy = vi.spyOn(console, 'warn')
+  }
+
+  it('the configured mailer receives the invite; the log carries the fact, never the token', async () => {
+    await bindMail('mailer')
+    const EMAIL = 'mailchannel@oimlsmart.org'
+    // Production passes the FULL runtime env — the mailer config rides it.
+    const seeded = await seedOpAccountsFromEnv(
+      {
+        OP_ACCOUNT_SEED: JSON.stringify([{ email: EMAIL, name: 'Mail Channel', role: 'user', orgId: 'EX1' }]),
+        EMAIL_FROM: process.env.EMAIL_FROM,
+        MAIL_PROVIDER_URL: process.env.MAIL_PROVIDER_URL,
+        MAIL_PROVIDER_KEY: process.env.MAIL_PROVIDER_KEY,
+      } as Record<string, string>,
+      store,
+      'http://op.test',
+    )
+    expect(seeded).toEqual([EMAIL])
+    consoleWarnSpy!.mockRestore()
+    consoleWarnSpy = null
+    const invites = stub.messages.filter((m: { to?: string }) => m.to === EMAIL)
+    const journal = (await store.listEntities('auditEvents')).map(r => JSON.parse(r.data as string) as Record<string, unknown>).filter(e => e.entity_type === 'email' && (e.metadata as Record<string, unknown> | undefined)?.recipient === EMAIL)
+    if (invites.length !== 1) throw new Error('mail journal: ' + JSON.stringify(journal))
+    expect(invites.length, 'the one-time link travelled by mail').toBe(1)
+    expect(invites[0]!.text).toContain('/op/setup?token=')
+    expect(invites[0]!.text).toContain('24')
+    // The account holds no credential yet — the link IS the way in, and
+    // it lives in exactly one channel.
+    expect(await store.getPasswordLogin(EMAIL)).toBeNull()
+  })
+
+  it('the console posture (no mailer) keeps the logged link — the fresh-deploy bootstrap', async () => {
+    await bindMail('console')
+    const EMAIL = 'consolechannel@oimlsmart.org'
+    const seeded = await seedOpAccountsFromEnv(
+      { OP_ACCOUNT_SEED: JSON.stringify([{ email: EMAIL, name: 'Console Channel', role: 'user', orgId: 'EX1' }]) },
+      store,
+      'http://op.test',
+    )
+    expect(seeded).toEqual([EMAIL])
+    const logged = consoleWarnSpy!.mock.calls.map((c: unknown[]) => c.join(' ')).join('\n')
+    expect(logged).toContain('/op/setup?token=')
+    expect(logged).toContain(EMAIL)
+    expect(stub.messages.filter((m: { to?: string }) => m.to === EMAIL), 'no mailer, no mail').toHaveLength(0)
+    consoleWarnSpy!.mockRestore()
+    consoleWarnSpy = null
   })
 })
 

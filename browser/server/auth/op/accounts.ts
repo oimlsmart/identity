@@ -50,6 +50,8 @@
 import { opRandomToken } from './keys'
 import { hashPassword } from '../passwords'
 import { declaredPersonasForClient, personaGrantsFromEnv } from './persona-assume'
+import { resolveMailerConfig, type MailEnv } from '../../mailer'
+import { sendOpMail } from './mail'
 import type { ServerStore } from '../../store'
 
 type EnvLike = Record<string, string | undefined>
@@ -168,7 +170,7 @@ export async function seedOpAccountsFromEnv(
   )
   const seeded: string[] = []
   for (const entry of entries) {
-    let account: { id: string; email: string } | null = await store.findUserByEmail(entry.email.trim().toLowerCase())
+    let account: { id: string; email: string; name: string } | null = await store.findUserByEmail(entry.email.trim().toLowerCase())
     if (!account) {
       const created = await store.createOpAccount({
         email: entry.email,
@@ -179,7 +181,7 @@ export async function seedOpAccountsFromEnv(
         ...(entry.roles !== undefined ? { roles: entry.roles } : {}),
         ...(entry.emailVerified ? { emailVerified: true } : {}),
       })
-      account = created ? { id: created.id, email: created.email } : null
+      account = created ? { id: created.id, email: created.email, name: entry.name } : null
     }
     if (!account) continue // the UNIQUE race — the concurrent writer owns it
     seeded.push(account.email)
@@ -208,11 +210,36 @@ export async function seedOpAccountsFromEnv(
         createdBy: 'op-account-seed',
         ttlMs: OP_ENROLLMENT_TTL_MS,
       })
-      console.warn(
-        `[op] bootstrap: account ${account.email} has no password — its ONE-TIME setup link (24 h):\n`
-        + `  ${issuer}/op/setup?token=${token}\n`
-        + 'Set the password to silence this; a fresh link is minted at every boot until then.',
-      )
+      // THE HAND-OVER CHANNEL (2026-10-28): the setup link is a
+      // CREDENTIAL — a public deploy log is never its home. When the
+      // deployment can send mail, the link travels to the account's own
+      // address (the same trust channel as the admin invite — the
+      // mailbox proof IS the enrollment), and the log carries only the
+      // fact. The logged link remains the fresh-deployment bootstrap's
+      // honest channel (no mailer configured yet, nothing to leak to).
+      const setupUrl = `${issuer}/op/setup?token=${token}`
+      if (resolveMailerConfig(env as MailEnv).posture !== 'console') {
+        await sendOpMail(env as MailEnv, {
+          to: account.email,
+          template: 'invite',
+          issuer,
+          params: {
+            name: account.name,
+            setupUrl,
+            hours: Math.round(OP_ENROLLMENT_TTL_MS / 3_600_000),
+          },
+        })
+        console.warn(
+          `[op] bootstrap: account ${account.email} has no password — its ONE-TIME setup link (24 h) was EMAILED to the account's address.`
+          + ' Set the password to silence this; a fresh link is minted at every boot until then.',
+        )
+      } else {
+        console.warn(
+          `[op] bootstrap: account ${account.email} has no password — its ONE-TIME setup link (24 h):\n`
+          + `  ${setupUrl}\n`
+          + 'Set the password to silence this; a fresh link is minted at every boot until then.',
+        )
+      }
     }
   }
   return seeded
