@@ -2590,7 +2590,9 @@ export function createOpAccountsRouter(): Hono {
   accounts.get('/api/op/account/activity', async (c) => {
     const user = await sessionUser(c)
     if (!user) return c.json({ error: 'authentication required' }, 401)
-    const rows = await getStore().listEntities('auditEvents')
+    // The filtered read (the endpoint-scaling doctrine): the account's own
+    // account/auth slice via the action index — never the full journal.
+    const rows = await getStore().queryAuditEvents({ entityId: user.id, entityTypes: ['account', 'auth'], excludeActions: ['account.sign_in_probe'] })
     const events: Array<{ id: string; timestamp: string; action: string; metadata: Record<string, unknown> }> = []
     for (const row of rows) {
       try {
