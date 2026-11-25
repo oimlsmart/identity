@@ -284,7 +284,7 @@ export function createOpRegistryRouter(): Hono {
    *  registry events naming this account, newest first. Shared by the
    *  detail aggregate (its first page + total) and the paged endpoint. */
   async function accountTrail(store: ReturnType<typeof getStore>, userId: string): Promise<AuditEvent[]> {
-    return (await store.listEntities('auditEvents'))
+    return (await store.queryAuditEvents({ entityId: userId }))
       .map(row => parseAuditEvent(row.data))
       .filter((e): e is AuditEvent => !!e && e.entity_id === userId && isRegistryEvent(e))
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
@@ -1337,7 +1337,18 @@ export function createOpRegistryRouter(): Hono {
     const limitRaw = Number(c.req.query('limit') ?? '100')
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 500) : 100
     const q = (c.req.query('q') ?? '').trim().toLowerCase()
-    const events = (await getStore().listEntities('auditEvents'))
+    // The filtered read: the registry classes via the indexed columns
+    // (entity_type set + the org action prefixes) — never the full journal.
+    const events = (await getStore().queryAuditEvents({
+      // The registry admission is a UNION: the entity-type slice OR the
+      // org action prefixes (an 'account.invite' rides its entity_type,
+      // an 'org_invite.*' rides its prefix) — never the intersection.
+      anyOf: [
+        { entityTypes: [...REGISTRY_ENTITY_TYPES] },
+        { actionPrefixes: REGISTRY_ACTION_PREFIXES },
+      ],
+      excludeActions: ['account.sign_in_probe'],
+    }))
       .map(row => parseAuditEvent(row.data))
       .filter((e): e is AuditEvent => !!e && isRegistryEvent(e))
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp))

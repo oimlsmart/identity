@@ -50,6 +50,7 @@ import {
   type EnrollmentToken,
   type EntityChange,
   type EntityListOptions,
+  type AuditEventQuery,
   type EntityRow,
   type EntityWriteInput,
   type EventEntityKey,
@@ -117,6 +118,7 @@ import {
 // TODO.federation/01 — the account plan follows the deployment profile
 // (the Worker's seed route installs it from the env binding first; the
 // slot defaults to the hub profile, which is exactly DEMO_ACCOUNTS).
+import { auditQueryStatement } from './audit-query'
 import { getInstanceProfile, seedAccountsForProfile } from '../profile'
 
 interface UserRecord {
@@ -2601,6 +2603,17 @@ export class D1ServerStore implements ServerStore {
     return res.results
       .map(r => r.client_id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0)
+  }
+
+  /** The audit journal's filtered slice (the endpoint-scaling doctrine):
+   *  the shared auditQueryStatement narrows in SQL on the indexed
+   *  json_extract legs and bounds the read — never the O(journal) full
+   *  load. The consumer's in-memory gate is the final authority over the
+   *  narrowed set. */
+  async queryAuditEvents(filter: AuditEventQuery): Promise<EntityRow[]> {
+    const { sql, params } = auditQueryStatement(filter)
+    const res = await this.stmt(sql, ...params).all<EntityRow>()
+    return res.results
   }
 
   // ── the account console (TODO.identity/06) ─────────────────────────

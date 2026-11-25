@@ -594,11 +594,15 @@ export function createOpDashboardRouter(): Hono {
     const limitRaw = Number(c.req.query('limit') ?? String(format === 'csv' ? 5000 : 200))
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), limitCap) : (format === 'csv' ? 5000 : 200)
 
-    let events = await readJournal()
-    if (entityType) events = events.filter(e => e.entity_type === entityType)
-    if (actionPrefix) events = events.filter(e => e.action.startsWith(actionPrefix))
-    if (from) events = events.filter(e => e.timestamp >= from)
-    if (to) events = events.filter(e => e.timestamp <= to)
+    // The filtered read (the endpoint-scaling doctrine): the declared
+    // filters ride the indexed columns in SQL; only the free-text q stays
+    // in memory — never the full-journal load per query.
+    let events = (await getStore().queryAuditEvents({
+      ...(entityType ? { entityTypes: [entityType] } : {}),
+      ...(actionPrefix ? { actionPrefixes: [actionPrefix] } : {}),
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+    })).map(row => parseAuditEvent(row.data)).filter((e): e is AuditEvent => !!e)
     if (q) {
       events = events.filter(e => [e.action, e.user_name ?? '', e.entity_id, String(e.metadata?.email ?? '')]
         .some(s => s.toLowerCase().includes(q)))

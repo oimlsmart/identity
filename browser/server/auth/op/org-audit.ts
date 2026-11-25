@@ -49,7 +49,9 @@ export function parseAuditEvent(data: string): AuditEvent | null {
 
 /** The org's own audit slice (newest first, 50 deep). */
 export async function orgAuditSlice(store: ServerStore, orgId: string): Promise<AuditEvent[]> {
-  const rows = await store.listEntities('auditEvents')
+  // The filtered read (the endpoint-scaling doctrine): the org's slice
+  // via json_extract on the indexed columns — never the full journal.
+  const rows = await store.queryAuditEvents({ orgId })
   return rows
     .map(row => parseAuditEvent(row.data))
     .filter((e): e is AuditEvent => !!e && (

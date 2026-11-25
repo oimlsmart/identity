@@ -1813,6 +1813,31 @@ export const TTL_TABLES = [
 /** The delivery journal's retention (0034's policy). */
 export const WEBHOOK_DELIVERY_RETENTION_DAYS = 90
 
+export interface AuditEventQuery {
+  /** json_extract(data,'$.entity_id') = this. */
+  entityId?: string
+  /** entity_type IN this set. */
+  entityTypes?: string[]
+  /** action = this (exact). */
+  actionEquals?: string
+  /** action LIKE prefix% for one of these. */
+  actionPrefixes?: string[]
+  /** action NOT IN this set. */
+  excludeActions?: string[]
+  /** metadata.org_id = this OR entity_id = this (the org's own rows plus
+   *  the membership/join/invite rows naming it). */
+  orgId?: string
+  /** A UNION group: the row matches when ANY branch's own conditions
+   *  hold (the registry feed's admission is entity-type OR action-prefix,
+   *  never the intersection). */
+  anyOf?: AuditEventQuery[]
+  /** timestamp >= this (ISO). */ from?: string
+  /** timestamp <= this (ISO). */ to?: string
+  /** Newest-first cap. Default the honest bound; the broad audit views
+   *  page through it. */
+  limit?: number
+}
+
 export interface ServerStore {
   // ── users / sessions (schema.sql's auth half) ──
   seedDemoAccounts(): Promise<void>
@@ -2256,6 +2281,17 @@ export interface ServerStore {
    *  legs against idx_entities_store_action (migration 0023) — an
    *  index walk, never the O(journal) full load. */
   listAccessRequestClientIds(userId: string): Promise<string[]>
+
+  /** The audit journal's filtered slice — the endpoint-scaling doctrine
+   *  for every audit read: json_extract narrows the candidate set in SQL
+   *  on the indexed action/entity_id/entity_type columns (the
+   *  json_valid-guarded spelling rides idx_entities_store_action,
+   *  migration 0023), newest first, LIMIT-bounded — never the
+   *  O(journal) full load + in-memory filter each caller's first cut
+   *  paid (the 2026-11-25 launcher red). The consumer's in-memory gate
+   *  is the final authority over the narrowed candidate set — the
+   *  narrowed answer is the full scan's exact candidate superset. */
+  queryAuditEvents(filter: AuditEventQuery): Promise<EntityRow[]>
 
   // ── the account console (TODO.identity/06) ──
   /** The profile edit's write (the display name). Answers false when the
