@@ -2579,6 +2579,30 @@ export class D1ServerStore implements ServerStore {
     return out
   }
 
+  /** The access requests ONE account filed, read FROM THE AUDIT CHAIN:
+   *  the distinct client ids of the auditEvents rows whose action is
+   *  'account.access_request' and whose entity_id is the account. The
+   *  launcher's request-state feed (GET /api/op/home) reads this —
+   *  json_extract legs against idx_entities_store_action (migration
+   *  0023), an index walk over the access-request slice, NEVER the
+   *  O(journal) full load the first cut paid (the 2026-11-25 launcher
+   *  red: ~90k rows / ~36 MB per request as the journal grew). The
+   *  json_valid guard spells the index's expression exactly — a corrupt
+   *  row answers no leg and drops out, never a raised 'malformed JSON'. */
+  async listAccessRequestClientIds(userId: string): Promise<string[]> {
+    const res = await this.stmt(
+      `SELECT DISTINCT json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.metadata.clientId') AS client_id
+       FROM entities
+       WHERE store = 'auditEvents'
+         AND json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.action') = 'account.access_request'
+         AND json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.entity_id') = ?`,
+      userId,
+    ).all<{ client_id: string | null }>()
+    return res.results
+      .map(r => r.client_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+  }
+
   // ── the account console (TODO.identity/06) ─────────────────────────
 
   /** The profile edit's write (the display name). */

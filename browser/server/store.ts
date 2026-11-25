@@ -2249,6 +2249,13 @@ export interface ServerStore {
    *  quote made it so too) and becomes spelling-proof: the legs parse
    *  the JSON. */
   lastAccountSignIns(): Promise<Record<string, string>>
+  /** The access requests ONE account filed, read FROM THE AUDIT CHAIN:
+   *  the distinct client ids of the auditEvents rows whose action is
+   *  'account.access_request' and whose entity_id is the account — the
+   *  launcher's request-state feed (GET /api/op/home). json_extract
+   *  legs against idx_entities_store_action (migration 0023) — an
+   *  index walk, never the O(journal) full load. */
+  listAccessRequestClientIds(userId: string): Promise<string[]>
 
   // ── the account console (TODO.identity/06) ──
   /** The profile edit's write (the display name). Answers false when the
