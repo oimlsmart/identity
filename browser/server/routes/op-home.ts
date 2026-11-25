@@ -77,16 +77,11 @@ async function emittedRoles(user: AuthUserPayload, client: OidcClient, assigned:
  *  client-id set. The scan mirrors the registry's activity feed (the
  *  same journal, the same parse discipline). */
 async function requestedClientIds(userId: string): Promise<Set<string>> {
-  const out = new Set<string>()
-  for (const row of await getStore().listEntities('auditEvents')) {
-    try {
-      const event = JSON.parse(row.data) as { entity_id?: string; action?: string; metadata?: { clientId?: unknown } }
-      if (event.entity_id === userId && event.action === 'account.access_request' && typeof event.metadata?.clientId === 'string') {
-        out.add(event.metadata.clientId)
-      }
-    } catch { /* a malformed journal row never breaks the launcher */ }
-  }
-  return out
+  // The filtered read (the store's json_extract against the action
+  // index): the launcher's request-state slice, NEVER the full journal
+  // load the first cut paid — the 2026-11-25 launcher red, ~90k audit
+  // rows / ~36 MB parsed per request as the journal grew.
+  return new Set(await getStore().listAccessRequestClientIds(userId))
 }
 
 export function createOpHomeRouter(): Hono {

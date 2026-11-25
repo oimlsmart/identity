@@ -536,6 +536,23 @@ export function lastAccountSignIns(db: Database.Database): Record<string, string
   return out
 }
 
+/** The access requests ONE account filed, read FROM THE AUDIT CHAIN:
+ *  the distinct client ids of the auditEvents rows whose action is
+ *  'account.access_request' and whose entity_id is the account — the
+ *  launcher's request-state feed. The json_extract legs ride
+ *  idx_entities_store_action (migration 0023): an index walk over the
+ *  access-request slice, never the O(journal) full load. */
+export function listAccessRequestClientIds(db: Database.Database, userId: string): string[] {
+  const rows = db.prepare(
+    `SELECT DISTINCT json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.metadata.clientId') AS client_id
+     FROM entities
+     WHERE store = 'auditEvents'
+       AND json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.action') = 'account.access_request'
+       AND json_extract(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.entity_id') = ?`,
+  ).all(userId) as Array<{ client_id: string | null }>
+  return rows.map(r => r.client_id).filter((id): id is string => typeof id === 'string' && id.length > 0)
+}
+
 // ── the account console (TODO.identity/06) ───────────────────────────
 
 /** The profile edit's write (the display name). */

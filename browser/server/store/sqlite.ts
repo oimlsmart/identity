@@ -137,6 +137,7 @@ import {
   getPasswordLogin,
   getPendingEmailChange,
   lastAccountSignIns,
+  listAccessRequestClientIds,
   listAccountEmails,
   listAllOpClientRoles,
   listOpClientRoles,
@@ -1052,6 +1053,9 @@ export class SqliteServerStore implements ServerStore {
   }
   async lastAccountSignIns(): Promise<Record<string, string>> {
     return lastAccountSignIns(this.db)
+  }
+  async listAccessRequestClientIds(userId: string): Promise<string[]> {
+    return listAccessRequestClientIds(this.db, userId)
   }
 
   // ── the workflow entity store + change journal ──
