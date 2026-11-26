@@ -1818,6 +1818,8 @@ export interface AuditEventQuery {
   entityId?: string
   /** entity_type IN this set. */
   entityTypes?: string[]
+  /** action IN this set (exact matches). */
+  actions?: string[]
   /** action = this (exact). */
   actionEquals?: string
   /** action LIKE prefix% for one of these. */
@@ -1833,6 +1835,13 @@ export interface AuditEventQuery {
   anyOf?: AuditEventQuery[]
   /** timestamp >= this (ISO). */ from?: string
   /** timestamp <= this (ISO). */ to?: string
+  /** metadata.<key> = value, one clause per entry (the client-governance
+   *  rows name the client in metadata.client). */
+  metadataEquals?: Record<string, string>
+  /** (entity_id = value OR metadata.<key> = value) — the
+   *  client-governance rows name the client in metadata.client, the
+   *  client-side rows carry it as entity_id. */
+  entityOrMetadata?: [string, string]
   /** Newest-first cap. Default the honest bound; the broad audit views
    *  page through it. */
   limit?: number
@@ -2292,6 +2301,15 @@ export interface ServerStore {
    *  is the final authority over the narrowed candidate set — the
    *  narrowed answer is the full scan's exact candidate superset. */
   queryAuditEvents(filter: AuditEventQuery): Promise<EntityRow[]>
+
+  /** Per-day per-action counts over a window (the dashboard's sign-in
+   *  series and anomaly aggregates): a GROUP BY over the journal's
+   *  indexed timestamp + action legs, never the full load. */
+  aggregateAuditByDayAction(opts: { actions: string[]; sinceIso: string; untilIso?: string; entityIds?: string[] }): Promise<Array<{ day: string; action: string; n: number }>>
+
+  /** Per-entity counts of an action set over a window (the security
+   *  bursts): GROUP BY entity over the same indexed legs. */
+  countAuditByEntity(opts: { actions: string[]; sinceIso: string }): Promise<Array<{ entityId: string | null; n: number }>>
 
   // ── the account console (TODO.identity/06) ──
   /** The profile edit's write (the display name). Answers false when the
