@@ -156,13 +156,6 @@ function dayBuckets(): Map<string, { succeeded: number; failed: number }> {
   return buckets
 }
 
-async function readJournal(): Promise<AuditEvent[]> {
-  return (await getStore().listEntities('auditEvents'))
-    .map(row => parseAuditEvent(row.data))
-    .filter((e): e is AuditEvent => !!e)
-    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-}
-
 // ── the SLO panel's source: the estate status service ────────────────
 // The 2026-10-10 ruling: the service level reads from
 // status.oimlsmart.org — the estate's public status service (its own
@@ -307,7 +300,14 @@ export function createOpDashboardRouter(): Hono {
     }
     const since = Date.now() - days * 86_400_000
     const [journal, memberships] = await Promise.all([
-      readJournal(),
+      // The narrowed read (the endpoint-scaling doctrine): the window's
+      // sign-in + token-exchange slice, never the full journal. The
+      // member filter stays in memory (a token_issued row's member rides
+      // metadata.account, a column json_extract does not index).
+      getStore().queryAuditEvents({
+        actions: ['account.sign_in', 'account.sign_in_failed', 'client.token_issued'],
+        from: new Date(since).toISOString(),
+      }),
       getStore().listAllOrgMemberships(),
     ])
     const members = new Set(
@@ -321,7 +321,9 @@ export function createOpDashboardRouter(): Hono {
       buckets.set(bucket.date, bucket)
       byDay.push(bucket)
     }
-    for (const event of journal) {
+    for (const row of journal) {
+      const event = parseAuditEvent(row.data)
+      if (!event) continue
       const at = Date.parse(event.timestamp)
       if (!(at >= since)) continue
       const bucket = buckets.get(event.timestamp.slice(0, 10))
@@ -369,9 +371,17 @@ export function createOpDashboardRouter(): Hono {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
     const store = getStore()
-    const [users, journal, live] = await Promise.all([
+    const since = new Date(Date.now() - (SERIES_DAYS - 1) * 86_400_000).toISOString().slice(0, 10)
+    const [users, aggRows, live] = await Promise.all([
       store.listUsers(),
-      readJournal(),
+      // The aggregation rides the index (GROUP BY day, action over the
+      // window) — the overview never loads the journal (the endpoint-
+      // scaling doctrine; the full-journal read was the 2026-11-25 red's
+      // root and the first incident's follow-up).
+      store.aggregateAuditByDayAction({
+        actions: [...SIGN_IN_OK, ...SIGN_IN_FAIL, 'rate_limited', 'client.token_refused', 'upstream_link', 'account.link_on_behalf', 'client.registered'],
+        sinceIso: since,
+      }),
       store.listOpLiveSessions(),
     ])
 
@@ -389,18 +399,21 @@ export function createOpDashboardRouter(): Hono {
     const days = dayBuckets()
     const today = dayKey(new Date().toISOString())
     const anomalies = { failedSignIns: 0, rateLimited: 0, tokenRefusals: 0, newLinks: 0, newClients: 0 }
-    for (const e of journal) {
-      const bucket = days.get(dayKey(e.timestamp))
+    // The aggregated rows carry the whole window: day buckets for the
+    // series, the today's rows for the anomalies — one GROUP BY, never a
+    // journal scan.
+    for (const r of aggRows) {
+      const bucket = days.get(r.day)
       if (bucket) {
-        if (SIGN_IN_OK.has(e.action)) bucket.succeeded += 1
-        else if (SIGN_IN_FAIL.has(e.action)) bucket.failed += 1
+        if (SIGN_IN_OK.has(r.action)) bucket.succeeded += r.n
+        else if (SIGN_IN_FAIL.has(r.action)) bucket.failed += r.n
       }
-      if (dayKey(e.timestamp) !== today) continue
-      if (SIGN_IN_FAIL.has(e.action)) anomalies.failedSignIns += 1
-      else if (e.action === 'rate_limited') anomalies.rateLimited += 1
-      else if (e.action === 'client.token_refused') anomalies.tokenRefusals += 1
-      else if (e.action === 'upstream_link' || e.action === 'account.link_on_behalf') anomalies.newLinks += 1
-      else if (e.action === 'client.registered') anomalies.newClients += 1
+      if (r.day !== today) continue
+      if (SIGN_IN_FAIL.has(r.action)) anomalies.failedSignIns += r.n
+      else if (r.action === 'rate_limited') anomalies.rateLimited += r.n
+      else if (r.action === 'client.token_refused') anomalies.tokenRefusals += r.n
+      else if (r.action === 'upstream_link' || r.action === 'account.link_on_behalf') anomalies.newLinks += r.n
+      else if (r.action === 'client.registered') anomalies.newClients += r.n
     }
     const series = [...days.entries()].map(([date, counts]) => ({ date, ...counts }))
 
@@ -498,52 +511,61 @@ export function createOpDashboardRouter(): Hono {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
     const store = getStore()
-    const [journal, users] = await Promise.all([readJournal(), store.listUsers()])
-    const emailById = new Map(users.map(u => [u.id, u.email]))
     const now = Date.now()
     const dayAgo = new Date(now - 86_400_000).toISOString()
     const weekAgo = new Date(now - 7 * 86_400_000).toISOString()
-
-    const failedDay = journal.filter(e => SIGN_IN_FAIL.has(e.action) && e.timestamp >= dayAgo)
-    const failedWeek = journal.filter(e => SIGN_IN_FAIL.has(e.action) && e.timestamp >= weekAgo)
-    const perKey = new Map<string, number>()
-    for (const e of failedDay) perKey.set(e.entity_id, (perKey.get(e.entity_id) ?? 0) + 1)
-    const bursts = [...perKey.entries()]
-      .filter(([, n]) => n >= FAILED_LOGIN_BURST_THRESHOLD)
-      .map(([key, n]) => ({
-        key,
+    // Every read narrows in SQL on the indexed legs (the endpoint-scaling
+    // doctrine): the journal never loads into the worker for an aggregate
+    // — the GROUP BY rides idx_entities_store_action. The metadata-level
+    // groupings (byError, byPath) group the narrowed slice in memory.
+    const [failedDayRows, failedWeekRows, refusalsWeek, tripsWeek, linkRows, clientRows, users] = await Promise.all([
+      store.countAuditByEntity({ actions: [...SIGN_IN_FAIL], sinceIso: dayAgo }),
+      store.countAuditByEntity({ actions: [...SIGN_IN_FAIL], sinceIso: weekAgo }),
+      store.queryAuditEvents({ actionEquals: 'client.token_refused', from: weekAgo }),
+      store.queryAuditEvents({ actionEquals: 'rate_limited', from: weekAgo }),
+      store.queryAuditEvents({ actionPrefixes: ['upstream_link', 'account.link_on_behalf'] , from: weekAgo }),
+      store.queryAuditEvents({ actionEquals: 'client.registered', from: weekAgo }),
+      store.listUsers(),
+    ])
+    const emailById = new Map(users.map(u => [u.id, u.email]))
+    const failedDay = failedDayRows.reduce((n, r) => n + r.n, 0)
+    const failedWeek = failedWeekRows.reduce((n, r) => n + r.n, 0)
+    const bursts = failedDayRows
+      .filter(r => r.n >= FAILED_LOGIN_BURST_THRESHOLD)
+      .map(r => ({
+        key: r.entityId ?? 'unknown',
         // The burst key is the account id when the address named an
         // account (the journal's entity discipline); the console reads
         // the resolved email, never the bare uuid.
-        account: emailById.get(key) ?? null,
-        count24h: n,
+        account: r.entityId ? (emailById.get(r.entityId) ?? null) : null,
+        count24h: r.n,
       }))
       .sort((a, b) => b.count24h - a.count24h)
 
-    const refusals = journal.filter(e => e.action === 'client.token_refused')
-    const refusalsDay = refusals.filter(e => e.timestamp >= dayAgo)
-    const refusalsWeek = refusals.filter(e => e.timestamp >= weekAgo)
     const byError: Record<string, number> = {}
     const byClient: Record<string, number> = {}
-    for (const e of refusalsWeek) {
+    for (const row of refusalsWeek) {
+      const e = parseAuditEvent(row.data)
+      if (!e) continue
       const code = String(e.metadata?.error ?? 'unknown')
       byError[code] = (byError[code] ?? 0) + 1
       byClient[e.entity_id] = (byClient[e.entity_id] ?? 0) + 1
     }
 
-    const trips = journal.filter(e => e.action === 'rate_limited')
-    const tripsDay = trips.filter(e => e.timestamp >= dayAgo)
-    const tripsWeek = trips.filter(e => e.timestamp >= weekAgo)
     const byCaller: Record<string, number> = {}
     const byPath: Record<string, number> = {}
-    for (const e of tripsWeek) {
+    for (const row of tripsWeek) {
+      const e = parseAuditEvent(row.data)
+      if (!e) continue
       byCaller[e.entity_id] = (byCaller[e.entity_id] ?? 0) + 1
       const path = String(e.metadata?.path ?? 'unknown')
       byPath[path] = (byPath[path] ?? 0) + 1
     }
 
-    const newLinks = journal
-      .filter(e => (e.action === 'upstream_link' || e.action === 'account.link_on_behalf') && e.timestamp >= weekAgo)
+    const refusalsDay = refusalsWeek.filter(row => (parseAuditEvent(row.data)?.timestamp ?? '') >= dayAgo)
+    const tripsDay = tripsWeek.filter(row => (parseAuditEvent(row.data)?.timestamp ?? '') >= dayAgo)
+
+    const newLinks = linkRows.map(row => parseAuditEvent(row.data)).filter((e): e is AuditEvent => !!e)
       .map(e => ({
         at: e.timestamp,
         action: e.action,
@@ -551,8 +573,7 @@ export function createOpDashboardRouter(): Hono {
         provider: String(e.metadata?.provider ?? ''),
         by: e.user_name ?? 'the account holder',
       }))
-    const newClients = journal
-      .filter(e => e.action === 'client.registered' && e.timestamp >= weekAgo)
+    const newClients = clientRows.map(row => parseAuditEvent(row.data)).filter((e): e is AuditEvent => !!e)
       .map(e => ({ at: e.timestamp, clientId: e.entity_id, by: e.user_name ?? 'unknown' }))
 
     return c.json({
@@ -561,8 +582,8 @@ export function createOpDashboardRouter(): Hono {
       windows: { day: 'the last 24 hours', week: 'the last 7 days' },
       signals: {
         failedSignIns: {
-          day: failedDay.length,
-          week: failedWeek.length,
+          day: failedDay,
+          week: failedWeek,
           threshold: FAILED_LOGIN_BURST_THRESHOLD,
           rule: `an account or address with ${FAILED_LOGIN_BURST_THRESHOLD}+ failed sign-ins inside 24 hours is a burst`,
           bursts,
@@ -723,15 +744,26 @@ export function createOpDashboardRouter(): Hono {
     const gate = await requireAdmin(c)
     if (gate.error) return gate.error
     const store = getStore()
-    const [clients, journal] = await Promise.all([store.listOidcClients(), readJournal()])
-
+    // One narrowed read over the window, grouped per client in memory —
+    // the per-client activity never loads the journal (the endpoint-
+    // scaling doctrine); the per-client entity_id is the index walk.
     const days = [...dayBuckets().keys()]
+    const since = new Date(Date.now() - SERIES_DAYS * 86_400_000).toISOString()
+    const [clients, journal] = await Promise.all([
+      store.listOidcClients(),
+      store.queryAuditEvents({
+        actions: ['client.token_issued', 'client.token_refused', 'client.registered', 'client.updated', 'client.status'],
+        from: since,
+      }),
+    ])
+    const parsedJournal = journal.map(row => parseAuditEvent(row.data)).filter((e): e is AuditEvent => !!e)
+
     const rows = clients.map(client => {
       const issuedByDay = new Map(days.map(d => [d, 0]))
       let lastIssuedAt: string | null = null
       let refusals14d = 0
       const events: Array<{ at: string; action: string; by: string }> = []
-      for (const e of journal) {
+      for (const e of parsedJournal) {
         if (e.entity_id !== client.clientId) continue
         if (e.action === 'client.token_issued') {
           const day = dayKey(e.timestamp)
@@ -793,9 +825,10 @@ export function createOpDashboardRouter(): Hono {
       store.countOidcAccessTokensForClient(clientId),
       store.countOidcRefreshTokensForClient(clientId),
       store.listUsers(),
-      readJournal(),
+      store.queryAuditEvents({ entityOrMetadata: ['client', clientId], limit: GOVERNANCE_AUDIT_CAP * 4 }),
     ])
     const accountsById = new Map(users.map(u => [u.id, u]))
+    const auditEvents = journal.map(row => parseAuditEvent(row.data)).filter((e): e is AuditEvent => !!e)
     const accountRef = (id: string | null) => {
       if (!id) return null
       const account = accountsById.get(id)
@@ -806,7 +839,7 @@ export function createOpDashboardRouter(): Hono {
     // secret hash.
     const device = deviceClassOf(client.claimsPolicy)
     const service = device ? null : serviceClassOf(client.claimsPolicy)
-    const auditRows = journal
+    const auditRows = auditEvents
       .filter(e => e.entity_id === clientId || e.metadata?.client === clientId)
       .slice(0, GOVERNANCE_AUDIT_CAP)
       .map(e => ({

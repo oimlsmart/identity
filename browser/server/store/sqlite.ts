@@ -13,7 +13,7 @@
 // one-liner) stays the DEFAULT-instance shim: no caller changed.
 //
 // NODE-ONLY: this module
-import { auditQueryStatement } from './audit-query'
+import { auditQueryStatement, auditDayActionStatement, auditEntityCountStatement } from './audit-query'
 // imports better-sqlite3 through store.ts. The
 // Worker bundle never sees it (the worker entry installs the D1 store
 // instead) — the audit the wrangler config documents.
@@ -1063,6 +1063,16 @@ export class SqliteServerStore implements ServerStore {
   async queryAuditEvents(filter: AuditEventQuery): Promise<EntityRow[]> {
     const { sql, params } = auditQueryStatement(filter)
     return this.db.prepare(sql).all(...params) as EntityRow[]
+  }
+
+  async aggregateAuditByDayAction(opts: { actions: string[]; sinceIso: string; untilIso?: string; entityIds?: string[] }): Promise<Array<{ day: string; action: string; n: number }>> {
+    const { sql, params } = auditDayActionStatement(opts)
+    return this.db.prepare(sql).all(...params) as Array<{ day: string; action: string; n: number }>
+  }
+
+  async countAuditByEntity(opts: { actions: string[]; sinceIso: string }): Promise<Array<{ entityId: string | null; n: number }>> {
+    const { sql, params } = auditEntityCountStatement(opts)
+    return (this.db.prepare(sql).all(...params) as Array<{ entity_id: string | null; n: number }>).map(r => ({ entityId: r.entity_id, n: r.n }))
   }
 
   // ── the workflow entity store + change journal ──

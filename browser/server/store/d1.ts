@@ -118,7 +118,7 @@ import {
 // TODO.federation/01 — the account plan follows the deployment profile
 // (the Worker's seed route installs it from the env binding first; the
 // slot defaults to the hub profile, which is exactly DEMO_ACCOUNTS).
-import { auditQueryStatement } from './audit-query'
+import { auditQueryStatement, auditDayActionStatement, auditEntityCountStatement } from './audit-query'
 import { getInstanceProfile, seedAccountsForProfile } from '../profile'
 
 interface UserRecord {
@@ -2614,6 +2614,18 @@ export class D1ServerStore implements ServerStore {
     const { sql, params } = auditQueryStatement(filter)
     const res = await this.stmt(sql, ...params).all<EntityRow>()
     return res.results
+  }
+
+  async aggregateAuditByDayAction(opts: { actions: string[]; sinceIso: string; untilIso?: string; entityIds?: string[] }): Promise<Array<{ day: string; action: string; n: number }>> {
+    const { sql, params } = auditDayActionStatement(opts)
+    const res = await this.stmt(sql, ...params).all<{ day: string; action: string; n: number }>()
+    return res.results
+  }
+
+  async countAuditByEntity(opts: { actions: string[]; sinceIso: string }): Promise<Array<{ entityId: string | null; n: number }>> {
+    const { sql, params } = auditEntityCountStatement(opts)
+    const res = await this.stmt(sql, ...params).all<{ entity_id: string | null; n: number }>()
+    return res.results.map(r => ({ entityId: r.entity_id, n: r.n }))
   }
 
   // ── the account console (TODO.identity/06) ─────────────────────────
